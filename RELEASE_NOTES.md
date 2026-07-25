@@ -1,10 +1,14 @@
-# Silo 0.4.1
+# Silo 0.5.0
 
-Add non-Steam games straight from their installer — Silo finds the installed games for you.
+Games launched through GPTK now actually fill the screen — fixed at the root cause instead of papered over per title.
 
 ## Highlights
-- **Install-and-detect for non-Steam games.** After you run a game's installer, Silo reads the shortcuts it created and lists the installed games automatically the moment the installer closes — each with the right executable, launch arguments, and working directory, so you no longer hunt for the correct `.exe`. One installer that adds several games puts them all in a single bottle.
-- **`.msi` installers supported.** Windows Installer packages now run directly when adding a game.
+- **Fullscreen fix for GPTK games.** Every Steam game shares the Steam client's own Wine virtual desktop, which was hardcoded to 1440×900 — so no game could ever exceed that size, no matter what resolution it asked for (confirmed on Tekken 8, DMC5, and Soulcalibur VI). Steam's desktop is now sized to the real screen's native resolution instead, picked up automatically each time Steam launches.
+- **Italian + English localization**, 175 keys across the UI.
+- **GPU vendor fix**: the AMD→NVIDIA rename (`nvngx-on-metalfx` → `nvngx` + builtin override) that unblocks DLSS→MetalFX translation in GPTK titles.
+- **MSync fix** for isolated (non-Steam) bottles.
+- Fixes to `build-wine.sh` (gnutls/arch/xargs), external-drive library discovery, `CX_ROOT` for the CrossOver runtime, `CX_APPLEGPTK_LIBD3DSHARED_PATH` + GStreamer (unblocked Tekken 8 launching at all), and two DXMT bugs (a false-positive detection, and a wrong standard path).
+- Developer ID signing.
 
 ---
 
