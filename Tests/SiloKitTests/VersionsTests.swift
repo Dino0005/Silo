@@ -30,7 +30,12 @@ struct VersionsTests {
     @Test("Silo's public constants are sourced from Versions")
     func siloConstantsSourced() {
         #expect(Silo.version == Versions.silo)
-        #expect(Silo.updateRepo == Versions.githubRepo)
         #expect(Silo.wineRepo == Versions.githubRepo)
+    }
+
+    @Test("updateRepo is pinned to this fork, deliberately independent of Versions.githubRepo — see the doc comment on Silo.updateRepo")
+    func updateRepoPointsAtFork() {
+        #expect(Silo.updateRepo == "Dino0005/Silo")
+        #expect(Silo.updateRepo != Silo.wineRepo)   // the whole point of the split
     }
 }

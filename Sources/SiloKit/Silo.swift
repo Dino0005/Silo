@@ -13,7 +13,15 @@ public enum Silo {
     public static let appName = "Silo"
 
     /// GitHub repo (`owner/name`) the in-app updater checks for new app releases.
-    public static let updateRepo = Versions.githubRepo
+    ///
+    /// Pinned literally to Dino0005's fork as of 2026-07-25 — deliberately NOT `Versions.githubRepo`
+    /// (which stays `mikaelhug/Silo`, generated from `versions.env` and re-synced by every
+    /// `Scripts/gen-versions.sh` run / `Scripts/build-app.sh` build). This fork carries local patches
+    /// (fullscreen fix, GPU vendor rename, localization, ...); pointing the updater at upstream would
+    /// notify about — and let someone accidentally install — a release that silently discards all of
+    /// them. `wineRepo` below is UNCHANGED: Wine/GPTK/DXMT runtime builds still come from upstream,
+    /// since this fork doesn't publish its own.
+    public static let updateRepo = "Dino0005/Silo"
 
     /// Repo whose releases host Silo's own Wine builds (the base D3DMetal runs on). Self-reliant by design:
     /// Silo compiles Wine from published open-source (LGPL) Wine sources in its own CI and hosts the result on
