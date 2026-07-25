@@ -32,6 +32,25 @@ WINE_SRC="$(find src -maxdepth 3 -type d -name wine | head -1)"
 
 echo "==> Configure + build (x86_64, wow64) — this takes ~30–60 min"
 export PATH="$($ARCH "$BREW" --prefix bison)/bin:$PATH"
+# The x86_64 Homebrew prefix (normally /usr/local on Apple Silicon under Rosetta). macOS's linker, unlike
+# Linux's, does NOT search /usr/local/lib by default, so configure's AC_CHECK_LIB(gnutls, ...) / dbus /
+# similar link-time checks silently report "not found" without an explicit -L — even though pkg-config
+# and the plain header check (which DOES pick up /usr/local/include via the toolchain's default search
+# path) succeed. Computing these here — instead of relying on a caller's shell-exported LDFLAGS, which
+# does not reliably survive the arch -x86_64 + env nesting below — makes the build reproducible regardless
+# of the invoking shell's environment.
+BREW_PREFIX="$($ARCH "$BREW" --prefix)"
+export PKG_CONFIG_PATH="$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig:$($ARCH "$BREW" --prefix gnutls)/lib/pkgconfig"
+export LDFLAGS="-L$BREW_PREFIX/lib"
+export CPPFLAGS="-I$BREW_PREFIX/include"
+# CRITICAL: `arch -x86_64` only picks which slice of the (universal) clang/gcc DRIVER BINARY runs under
+# Rosetta — it does NOT tell clang which architecture to GENERATE CODE FOR. Without an explicit `-arch
+# x86_64`, clang defaults to the host's native arch (arm64 on Apple Silicon), so configure's link checks
+# (e.g. AC_CHECK_LIB against gnutls) produce an arm64 conftest that can't link against the x86_64-only
+# Homebrew libraries under /usr/local — "ld: ... found architecture 'x86_64', required architecture
+# 'arm64'". Matches .github/workflows/build-wine.yml, which already sets this for CI.
+export CC="clang -arch x86_64"
+export CXX="clang++ -arch x86_64"
 rm -rf build install && mkdir build install && cd build
 # -fvisibility=default: build Wine with all symbols visible so winemac.drv ('macdrv') exposes its
 # Metal/window-surface helpers via dlsym — this is what lets **GPTK/D3DMetal GAMES** present correctly
@@ -45,6 +64,7 @@ rm -rf build install && mkdir build install && cd build
 # libSDL2, whose initializer pops an NSAlert off the main thread → the whole Wine process aborts the moment
 # winebus loads (before Steam draws). Costs in-Wine controller support; gains a Wine that actually launches.
 $ARCH env CFLAGS="-fvisibility=default -O2" CROSSCFLAGS="-fvisibility=default -O2" \
+  PKG_CONFIG_PATH="$PKG_CONFIG_PATH" LDFLAGS="$LDFLAGS" CPPFLAGS="$CPPFLAGS" \
   "$WORK/$WINE_SRC/configure" --prefix="$WORK/install" \
   --enable-archs=i386,x86_64 --disable-tests --without-x \
   --with-freetype --with-gstreamer --with-gnutls --without-sdl
@@ -61,6 +81,22 @@ python3 "$ROOT/Scripts/check-webhelper-wrapper.py" "$WRAPPER"
 
 echo "==> Bundle dependency dylibs (self-contained runtime)"
 "$ROOT/Scripts/bundle-wine-dylibs.sh" "$WORK/install"
+
+# Sign every Mach-O in the tree (wine64, wineserver, winemac.so, and all other PE/Unix-side .so's
+# `make install` produced) with the SAME identity used for the bundled dylibs and the app itself.
+# Without this, only the copied third-party dylibs would carry a real Developer ID and the actual
+# Wine binaries would ship completely unsigned — inconsistent, and still effectively "ad-hoc" in
+# practice. Uses SILO_SIGN_IDENTITY if set (see Scripts/sign.sh); falls back to ad-hoc ("-"),
+# matching upstream, when it isn't.
+WINE_IDENTITY="${SILO_SIGN_IDENTITY:--}"
+echo "==> Signing Wine tree with identity: $WINE_IDENTITY"
+# -exec ... \; (not `find | xargs`): xargs on macOS (BSD) can fail outright with "command line cannot
+# be assembled, too long" when the calling shell's environment is already large (as it is here, with
+# PKG_CONFIG_PATH/LDFLAGS/CPPFLAGS exported above) — even with -I{} substituting one file per invocation,
+# BSD xargs still needs headroom to construct that one invocation and can come up short. -exec spawns one
+# process per file directly from find, with no command-line assembly step, so it can't hit that limit.
+find "$WORK/install" -type f \( -perm -u+x -o -name '*.so' -o -name '*.dylib' \) \
+  -exec sh -c 'file "$1" | grep -q "Mach-O" && codesign --force --sign "$2" "$1" 2>/dev/null' _ {} "$WINE_IDENTITY" \;
 
 echo "==> Package"
 mkdir -p "$ROOT/dist"

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// The Library: Steam games installed in the bottle (launched co-resident with its Steam client on the
 /// backend Silo resolves per game) plus any manual non-Steam `.exe` games, or the first-run onboarding
@@ -33,7 +34,18 @@ struct LibraryGridView: View {
         .navigationTitle("Library")
         .toolbar {
             if showLibrary {
-                openSteamControl(lib) { Label("Open Steam", systemImage: "cart") }
+                openSteamControl(lib) {
+                    Label {
+                        Text("Open Steam")
+                    } icon: {
+                        steamIcon
+                            .resizable()
+                            .interpolation(.high)
+                            .antialiased(true)
+                            .scaledToFit()
+                            .frame(width: 16, height: 16)
+                    }
+                }
                     .help("Open a Steam bottle to browse and install games")
                 Button { showAddGame = true } label: { Label("Add Game", systemImage: "plus") }
                     .help("Add a non-Steam .exe game")
@@ -61,12 +73,25 @@ struct LibraryGridView: View {
     private func subtitle(_ count: Int) -> String {
         let games = gameCountLabel(count)
         guard let update = env.updates.updateCheck, update.isNewer else { return games }
-        return "\(games)   ·   Update \(update.latestVersion) available"
+        let updateText = isItalianLocale
+            ? "Aggiornamento \(update.latestVersion) disponibile"
+            : "Update \(update.latestVersion) available"
+        return "\(games)   ·   \(updateText)"
     }
 
-    /// "1 game" / "N games" — singular only when exactly one.
+    /// "1 game" / "N games" (or "1 gioco" / "N giochi") — singular only when exactly one.
     private func gameCountLabel(_ count: Int) -> String {
-        "\(count) \(count == 1 ? "game" : "games")"
+        if isItalianLocale {
+            return count == 1 ? "1 gioco" : "\(count) giochi"
+        }
+        return "\(count) \(count == 1 ? "game" : "games")"
+    }
+
+    /// Direct locale check (rather than routing through Localizable.strings) because this builds a plain
+    /// String for .navigationSubtitle, not a SwiftUI Text — LocalizedStringKey's automatic %@ /%ld/%lld
+    /// interpolation formatting for numeric values isn't practical to hand-verify without a compiler here.
+    private var isItalianLocale: Bool {
+        Locale.preferredLanguages.first?.hasPrefix("it") ?? false
     }
 
     /// "Open Steam" — opens the bottle's Steam client so the user can browse + install games.
@@ -74,6 +99,23 @@ struct LibraryGridView: View {
     private func openSteamControl<L: View>(
         _ lib: GameLibraryViewModel, @ViewBuilder label: () -> L) -> some View {
         Button { Task { await lib.openSteam() } } label: { label() }
+    }
+
+    /// The Steam logo for the toolbar button, loaded explicitly via Bundle.module + NSImage rather than
+    /// the string-based Image(_:bundle:) lookup — that lookup is built for Asset Catalog entries and is
+    /// unreliable for a loose (non-catalog) SwiftPM resource file, which is what a pure-SwiftPM package
+    /// (no Xcode project, no actool) produces. PDF (not PNG): NSToolbar rasterizes bitmap toolbar icons
+    /// once internally at a fixed size regardless of source resolution — a raster PNG came out pixelated
+    /// even at 512x512, matching how SF Symbols (vector) stay crisp while bitmap custom icons don't.
+    /// A PDF is vector data straight through, so there's no fixed-resolution rasterization step to lose
+    /// quality at. Falls back to a generic SF Symbol if the resource can't be found for any reason, so
+    /// the button is never left blank.
+    private var steamIcon: Image {
+        if let url = Bundle.module.url(forResource: "steam", withExtension: "pdf"),
+           let nsImage = NSImage(contentsOf: url) {
+            return Image(nsImage: nsImage)
+        }
+        return Image(systemName: "cart")   // SF Symbol fallback (never expected to trigger)
     }
 
     private let columns = [GridItem(.adaptive(minimum: 250), spacing: 16)]
@@ -98,7 +140,7 @@ struct LibraryGridView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .error(let message):
                 ContentUnavailableView("Couldn't load the library", systemImage: "exclamationmark.triangle",
-                    description: Text(message)).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    description: Text(LocalizedStringKey(message))).frame(maxWidth: .infinity, maxHeight: .infinity)
             default:
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 16) {
@@ -116,7 +158,7 @@ struct LibraryGridView: View {
                 }
             }
             if let message = lib.statusMessage {
-                Text(message).font(.callout).foregroundStyle(.secondary)
+                Text(LocalizedStringKey(message)).font(.callout).foregroundStyle(.secondary)
                     .padding(10).frame(maxWidth: .infinity, alignment: .leading).background(.bar)
             }
         }
@@ -180,10 +222,10 @@ struct AddGameSheet: View {
                 Section {
                     Picker("Graphics", selection: $graphics) {
                         ForEach(GraphicsChoice.allCases) { option in
-                            Text(option.displayName).tag(option)
+                            Text(LocalizedStringKey(option.displayName)).tag(option)
                         }
                     }
-                    Text(graphics.recommendedFor)
+                    Text(LocalizedStringKey(graphics.recommendedFor))
                         .font(.caption).foregroundStyle(.secondary)
                 } header: {
                     Text("Graphics Backend")
@@ -244,8 +286,7 @@ struct AddGameSheet: View {
                             }
                         }
                         if discovered.isEmpty {
-                            Text("No installed games detected — the installer may still be finishing. "
-                                 + "Rescan, or choose the .exe above.")
+                            Text("No installed games detected — the installer may still be finishing. Rescan, or choose the .exe above.")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         // Fallback for the rare installer that exits before writing its shortcuts.
@@ -346,8 +387,7 @@ struct BottlesDisconnectedView: View {
         ContentUnavailableView {
             Label("Bottles drive not connected", systemImage: "externaldrive.badge.xmark")
         } description: {
-            Text("Your Silo bottles are on \(env.paths.bottlesRoot.path), which isn't mounted right now. "
-                + "Reconnect the drive to use your games — or move the bottles back in Settings → General.")
+            Text("Your Silo bottles are on \(env.paths.bottlesRoot.path), which isn't mounted right now. Reconnect the drive to use your games — or move the bottles back in Settings → General.")
         } actions: {
             Button("Check Again") { Task { await env.refreshLibraryIfReady() } }
                 .buttonStyle(.borderedProminent)

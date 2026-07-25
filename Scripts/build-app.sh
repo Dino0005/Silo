@@ -44,5 +44,12 @@ shopt -u nullglob
 
 [ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 
+# Localizations (EN source + IT translation): plain Localizable.strings per language, resolved
+# automatically by SwiftUI's default LocalizedStringKey lookup (Bundle.main, table "Localizable") —
+# no changes needed at Text()/Button()/etc. call sites in Sources/.
+for lproj in Resources/*.lproj; do
+    [ -d "$lproj" ] && cp -R "$lproj" "$APP/Contents/Resources/"
+done
+
 ./Scripts/sign.sh "$APP"
 echo "==> Built $APP"

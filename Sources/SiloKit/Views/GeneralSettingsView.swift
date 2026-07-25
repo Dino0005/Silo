@@ -31,7 +31,7 @@ struct GeneralSettingsView: View {
                 set: { on in Task { await env.setSteamBottleRetina(on) } }))
                 .disabled(!configured || env.bottleToolsBusy)
             if let message = env.bottleToolsMessage {
-                Text(message).font(.caption).foregroundStyle(.secondary)
+                Text(LocalizedStringKey(message)).font(.caption).foregroundStyle(.secondary)
             }
         } header: {
             Text("Preferences")
@@ -78,7 +78,7 @@ struct GeneralSettingsView: View {
                 // The move action itself refuses (with a message) if a bottle is live — so the button stays
                 // enabled rather than showing a nag that only refreshes on an incidental re-render.
                 if let message = env.bottles.message {
-                    Text(message).font(.caption).foregroundStyle(.secondary)
+                    Text(LocalizedStringKey(message)).font(.caption).foregroundStyle(.secondary)
                 }
             }
         } header: {
@@ -176,18 +176,18 @@ struct GeneralSettingsView: View {
         case unknown                      // no successful check yet (e.g. offline at launch)
         case failed(String)               // an install attempt failed
 
-        var title: String {
+        var title: LocalizedStringKey {
             switch self {
-            case .busy(let label):      return label
+            case .busy(let label):      return LocalizedStringKey(label)
             case .updateAvailable(let v): return "Version \(v) is available"
             case .upToDate:             return "You're on the latest version"
             case .unknown:              return "Check for the latest version"
             case .failed:               return "Update failed"
             }
         }
-        var subtitle: String? {
+        var subtitle: LocalizedStringKey? {
             switch self {
-            case .failed(let message):  return message   // crucial: why it failed
+            case .failed(let message):  return LocalizedStringKey(message)   // crucial: why it failed
             default:                    return nil
             }
         }

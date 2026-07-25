@@ -43,11 +43,13 @@ public enum GraphicsBackend: String, Codable, Sendable, CaseIterable, Identifiab
     /// the runtime's overlaid versions beat any native wined3d redist copies the in-bottle Steam client
     /// drops into `system32`. Each backend's runtime carries exactly these modules as builtin, so the
     /// override deterministically resolves to the intended layer.
-    /// - GPTK: the full D3DMetal set incl. d3d12 (GPTK covers DX12). `d3d9`/`d3dcompiler_*` left native.
+    /// - GPTK: the full D3DMetal set incl. d3d12 (GPTK covers DX12), plus its NVIDIA/DLSS shim
+    ///   (`nvapi64`, `nvngx` — the latter activated by `GraphicsLinker.copyModules`'s rename step).
+    ///   `d3d9`/`d3dcompiler_*` left native.
     /// - DXMT: `d3d10core`/`d3d11`/`dxgi` + `winemetal` (its Metal bridge). D3D10/11 only — no d3d12/d3d9.
     public var dllOverrides: String {
         switch self {
-        case .gptk: "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi=b"
+        case .gptk: "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b"
         case .dxmt: "d3d10core,d3d11,dxgi,winemetal=b"
         }
     }

@@ -14,6 +14,7 @@ let package = Package(
         // All app logic + views live here so the test target can import them.
         .target(
             name: "SiloKit",
+            resources: [.process("Resources")],   // steam.png (toolbar "Open Steam" icon)
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(

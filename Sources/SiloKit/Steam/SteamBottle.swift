@@ -576,14 +576,31 @@ public struct SteamBottle: Sendable {
     /// layered/child window) does NOT paint — it stays black even though rendering succeeds. So Steam is
     /// launched inside `explorer /desktop=` to get a presentable window. (Vineport runs rootless because
     /// Gcenx's winemac.drv handles it; ours doesn't.) Games still launch rootless under GPTK.
+    ///
+    /// FALLBACK ONLY as of 2026-07-25 — see `launchSteam(wine:desktopGeometry:)`. This fixed 1440×900 used
+    /// to be the desktop's ACTUAL size unconditionally, which is what broke GPTK games' fullscreen: every
+    /// Steam game runs INSIDE this same virtual desktop (shared bottle/wineserver with the Steam client —
+    /// see `Silo.enforceMsync`), so a game's window can never exceed whatever size this desktop happens to
+    /// be, no matter what resolution it asks for. Confirmed on-device (Tekken 8 WINEDEBUG log: its window
+    /// grows to the real screen's `1728x1117`, then gets clamped straight back to `1440x933` — exactly this
+    /// constant plus the title bar) and by hand (maximizing the Steam window itself doesn't help — Wine's
+    /// virtual-desktop canvas has a fixed internal size, dragging the macOS window around it doesn't grow
+    /// it). `SteamClientSession` now passes the real screen's resolution instead; this constant only fires
+    /// when that can't be determined (headless / no main screen).
     public static let desktopGeometry = "1440x900"
 
     /// Launch the bottle's Steam client detached, inside a Wine virtual desktop (so CEF presents on our
     /// `winemac.drv` — see `desktopGeometry`), with the verified software-GL CEF flags + env.
+    /// - Parameter desktopGeometry: `"<width>x<height>"` in real screen pixels — every game launched from
+    ///   this Steam client inherits THIS desktop's bounds as its own effective screen (see the doc comment
+    ///   on `desktopGeometry` above), so passing anything smaller than the real screen caps every game at
+    ///   that size regardless of what resolution the game itself requests. Defaults to the fixed
+    ///   `desktopGeometry` fallback only when the caller has no real resolution to give it.
     @discardableResult
-    public func launchSteam(wine: URL?) async throws -> Int32 {
+    public func launchSteam(wine: URL?, desktopGeometry: String? = nil) async throws -> Int32 {
         guard let wine else { throw BottleError.wineNotConfigured }
-        let args = ["explorer", "/desktop=Silo,\(Self.desktopGeometry)", exe.path]
+        let geometry = desktopGeometry.flatMap { $0.isEmpty ? nil : $0 } ?? Self.desktopGeometry
+        let args = ["explorer", "/desktop=Silo,\(geometry)", exe.path]
             + Self.cefRenderArgs
         return try await runner.spawnDetached(
             executable: wine, arguments: args,

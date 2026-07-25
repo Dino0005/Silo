@@ -46,7 +46,7 @@ struct OnboardingView: View {
                         // The active phase's status (esp. "Accept the license for …") so a license/installer
                         // window that pops up has context — it was previously hidden behind the bare bar.
                         if let phase = setupPhaseText() {
-                            Text(phase).font(.callout).foregroundStyle(.secondary)
+                            Text(LocalizedStringKey(phase)).font(.callout).foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
                         }
                     }
@@ -58,7 +58,7 @@ struct OnboardingView: View {
                             ?? gptk.statusMessage ?? backend.statusMessage) : steam.status
                     VStack(spacing: 6) {
                         if let message {
-                            Text(message).font(.callout).foregroundStyle(.secondary)
+                            Text(LocalizedStringKey(message)).font(.callout).foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
                         }
                         // DXMT is optional (most games use GPTK), but if the required steps finished WITHOUT
@@ -96,12 +96,12 @@ struct OnboardingView: View {
 
 private struct StepRow: View {
     let number: Int
-    let title: String
-    let subtitle: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
     let done: Bool
     var busy: Bool = false
     var locked: Bool = false
-    let actionLabel: String
+    let actionLabel: LocalizedStringKey
     let action: () -> Void
 
     var body: some View {

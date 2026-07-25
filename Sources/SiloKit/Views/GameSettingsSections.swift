@@ -8,7 +8,7 @@ struct PerformanceFlagsSection: View {
     var body: some View {
         Section {
             Picker("Sync", selection: $flags.syncMode) {
-                ForEach(SyncMode.allCases) { Text($0.displayName).tag($0) }
+                ForEach(SyncMode.allCases) { Text(LocalizedStringKey($0.displayName)).tag($0) }
             }
             Toggle("Advertise AVX (Rosetta)", isOn: $flags.advertiseAVX)
             Toggle("Performance HUD (FPS / frame time)", isOn: $flags.metalHUD)
@@ -17,9 +17,7 @@ struct PerformanceFlagsSection: View {
         } header: {
             Text("Performance")
         } footer: {
-            Text("MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance "
-                 + "HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; "
-                 + "Raytracing needs an M3 or newer.")
+            Text("MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

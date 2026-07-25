@@ -7,7 +7,7 @@ struct GraphicsBackendTests {
 
     @Test("GPTK overrides the full D3DMetal set incl. d3d12 and ships an external framework")
     func gptkShape() {
-        #expect(GraphicsBackend.gptk.dllOverrides == "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi=b")
+        #expect(GraphicsBackend.gptk.dllOverrides == "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b")
         #expect(GraphicsBackend.gptk.overlaysExternalFramework)   // D3DMetal.framework lives in lib/external
     }
 

@@ -66,6 +66,33 @@ struct SteamBottleTests {
         #expect(call.environment["WINEDLLOVERRIDES"] == nil)
     }
 
+    @Test("launchSteam honors an explicit desktopGeometry — the real fix, since every game inherits it")
+    func launchSteamHonorsExplicitGeometry() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (bottle, fake, _) = make(tmp)
+        _ = try await bottle.launchSteam(wine: URL(fileURLWithPath: "/w/wine64"), desktopGeometry: "3024x1964")
+        let call = try #require(fake.lastInvocation)
+        #expect(call.arguments.contains("/desktop=Silo,3024x1964"))
+    }
+
+    @Test("launchSteam falls back to the fixed 1440x900 desktop when given nil (no real screen to ask)")
+    func launchSteamFallsBackOnNilGeometry() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (bottle, fake, _) = make(tmp)
+        _ = try await bottle.launchSteam(wine: URL(fileURLWithPath: "/w/wine64"), desktopGeometry: nil)
+        let call = try #require(fake.lastInvocation)
+        #expect(call.arguments.contains("/desktop=Silo,1440x900"))
+    }
+
+    @Test("launchSteam falls back to the fixed 1440x900 desktop when given an empty string")
+    func launchSteamFallsBackOnEmptyGeometry() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (bottle, fake, _) = make(tmp)
+        _ = try await bottle.launchSteam(wine: URL(fileURLWithPath: "/w/wine64"), desktopGeometry: "")
+        let call = try #require(fake.lastInvocation)
+        #expect(call.arguments.contains("/desktop=Silo,1440x900"))
+    }
+
 
     // MARK: - Install error branches
 

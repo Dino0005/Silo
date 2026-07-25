@@ -119,11 +119,38 @@ public enum Silo {
     /// logging (see `wineDebug`), and the bundled-dylib fallback path (so freetype/etc. resolve). Every wine
     /// launch builds on this and merges its own overrides, so a fix here (e.g. the DYLD path) reaches them all.
     public static func wineEnvironment(prefix: URL, wine: URL) -> [String: String] {
-        [
+        let root = WineRuntimeLayout(wineBinary: wine).root
+        var env: [String: String] = [
             "WINEPREFIX": prefix.path,
             "WINEDEBUG": wineDebug,
             "DYLD_FALLBACK_LIBRARY_PATH": wine.siloDyldFallback,
+            // CrossOver-derived wine trees (imported as a custom runtime, not Silo's own self-compiled
+            // build) expect CX_ROOT to point at the runtime root — their cxcompatdb and other cx* tooling
+            // read it to find their own JSON database/keys (without it: "cxcompatdb: CX_ROOT not set",
+            // harmlessly failing open, but still worth setting). A no-op for a self-compiled runtime,
+            // which has no cx* tooling to read it.
+            "CX_ROOT": root.path,
         ]
+
+        // CrossOver-derived runtimes ship a SEPARATE apple_gptk/GStreamer tree under <root>/lib64 — its
+        // own wine script (CrossOver's Perl "bin/wine") sets these two before every launch; distinct from
+        // Silo's own GPTK overlay in <root>/lib/wine, and from the dylib bundle in <root>/lib/silo-bundled.
+        // Conditioned on the paths actually existing: a harmless no-op for Silo's own self-compiled
+        // runtimes, which have no lib64 directory at all.
+        let libd3dshared = root.appendingPathComponent("lib64/apple_gptk/external/libd3dshared.dylib")
+        if FileManager.default.fileExists(atPath: libd3dshared.path) {
+            env["CX_APPLEGPTK_LIBD3DSHARED_PATH"] = libd3dshared.path
+        }
+        let gstPlugins = root.appendingPathComponent("lib64/gstreamer-1.0", isDirectory: true)
+        if FileManager.default.fileExists(atPath: gstPlugins.path) {
+            env["GST_PLUGIN_SYSTEM_PATH"] = gstPlugins.path
+            // CrossOver keeps its GStreamer plugin registry cache in its own per-user Application Support
+            // dir (CXBottle::get_user_dir()); the closest safe equivalent here is inside the bottle prefix
+            // itself, which is already per-bottle and persists across launches without needing a new
+            // Silo-managed directory.
+            env["GST_REGISTRY"] = prefix.appendingPathComponent("gstreamer-1.0-registry.x86_64.bin").path
+        }
+        return env
     }
 
     /// Enforce the co-residency sync rule on a wine environment: `WINEMSYNC=1`, any `WINEESYNC` removed.

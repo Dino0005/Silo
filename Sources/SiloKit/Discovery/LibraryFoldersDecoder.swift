@@ -25,7 +25,7 @@ public struct LibraryFoldersDecoder: Sendable {
 
             switch pair.value {
             case .leaf(let pathString):
-                folders.append(LibraryFolder(path: URL(fileURLWithPath: pathString)))
+                folders.append(LibraryFolder(path: URL(fileURLWithPath: pathString), rawPath: pathString))
 
             case .object:
                 guard let pathString = pair.value["path"]?.stringValue else { continue }
@@ -33,7 +33,7 @@ public struct LibraryFoldersDecoder: Sendable {
                 let label = (rawLabel?.isEmpty ?? true) ? nil : rawLabel
                 let appIDs = (pair.value["apps"]?.pairs ?? []).compactMap { Int($0.key) }
                 folders.append(
-                    LibraryFolder(path: URL(fileURLWithPath: pathString), label: label, appIDs: appIDs)
+                    LibraryFolder(path: URL(fileURLWithPath: pathString), rawPath: pathString, label: label, appIDs: appIDs)
                 )
             }
         }

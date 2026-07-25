@@ -24,6 +24,13 @@
     <string>${BUILD}</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>it</string>
+    </array>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <!-- Custom URL scheme for Desktop game shortcuts: a shortcut .app opens silo://play/steam/<appID>

@@ -44,11 +44,11 @@ struct GameSettingsSheet: View {
         @Bindable var vm = model
         Form {
             if let message = vm.errorMessage {
-                Section { Text(message).foregroundStyle(.red) }
+                Section { Text(LocalizedStringKey(message)).foregroundStyle(.red) }
             }
             Section {
                 Picker("Graphics", selection: $vm.config.graphics) {
-                    ForEach(GraphicsChoice.allCases) { Text($0.displayName).tag($0) }
+                    ForEach(GraphicsChoice.allCases) { Text(LocalizedStringKey($0.displayName)).tag($0) }
                 }
                 if let learned = vm.learnedBackend {
                     HStack {
@@ -60,11 +60,9 @@ struct GameSettingsSheet: View {
                     }
                 }
             } header: {
-                Text("Graphics")
+                Text("Graphics Backend")
             } footer: {
-                Text("Automatic picks the best translation layer per game — 32-bit games use DXMT, others "
-                     + "start on GPTK / D3DMetal and switch to DXMT if GPTK can't run them. Using DXMT "
-                     + "requires installing it in Settings → DXMT. Takes effect next launch.")
+                Text("Automatic picks the best translation layer per game — 32-bit games use DXMT, others start on GPTK / D3DMetal and switch to DXMT if GPTK can't run them. Using DXMT requires installing it in Settings → DXMT. Takes effect next launch.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -88,14 +86,12 @@ struct GameSettingsSheet: View {
 
             Section {
                 Picker("Strategy", selection: $vm.config.presence) {
-                    ForEach(SteamPresenceStrategy.allCases) { Text($0.displayName).tag($0) }
+                    ForEach(SteamPresenceStrategy.allCases) { Text(LocalizedStringKey($0.displayName)).tag($0) }
                 }
             } header: {
                 Text("Steam presence")
             } footer: {
-                Text("steam_appid.txt is enough for most games. Titles that hard-require the Steam client "
-                     + "(they quit with “Steam not initialized”) aren't supported yet — running a real "
-                     + "Steam client in the prefix is planned.")
+                Text("steam_appid.txt is enough for most games. Titles that hard-require the Steam client (they quit with “Steam not initialized”) aren't supported yet — running a real Steam client in the prefix is planned.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

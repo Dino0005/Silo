@@ -26,10 +26,17 @@ public struct SteamStoreClient: Sendable {
     public init(session: URLSession = .shared) { self.session = session }
 
     public func details(appID: Int) async -> SteamStoreDetails? {
-        guard let url = URL(string: "https://store.steampowered.com/api/appdetails?appids=\(appID)&l=english"),
+        guard let url = URL(string: "https://store.steampowered.com/api/appdetails?appids=\(appID)&l=\(Self.steamLanguageCode)"),
               (try? DownloadGuard.requireHTTPS(url)) != nil,   // https-only, consistent with every other fetch
               let (data, _) = try? await session.data(from: url) else { return nil }
         return Self.parse(data, appID: appID)
+    }
+
+    /// Steam's store API takes its own language names (e.g. "italian", not "it"). Only English/Italian are
+    /// distinguished here — Silo's own UI localization is EN/IT only (see Resources/*.lproj), so there's no
+    /// broader language list to map from yet.
+    static var steamLanguageCode: String {
+        (Locale.preferredLanguages.first?.hasPrefix("it") ?? false) ? "italian" : "english"
     }
 
     /// Parse the `{ "<appid>": { "success": true, "data": { … } } }` response.

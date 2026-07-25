@@ -38,7 +38,7 @@ struct GPTKManagerView: View {
             }
 
             if let message = vm.statusMessage {
-                Section { Text(message).font(.callout).foregroundStyle(.secondary) }
+                Section { Text(LocalizedStringKey(message)).font(.callout).foregroundStyle(.secondary) }
             }
         }
         .formStyle(.grouped)

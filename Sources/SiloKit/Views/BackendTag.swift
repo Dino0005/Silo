@@ -6,7 +6,7 @@ struct BackendTag: View {
     let choice: GraphicsChoice
 
     var body: some View {
-        Text(choice.badge)
+        Text(LocalizedStringKey(choice.badge))
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 6)

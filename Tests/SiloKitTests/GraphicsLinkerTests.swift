@@ -360,4 +360,22 @@ struct GraphicsLinkerTests {
         #expect(!linker.witnessMatches(modules, in: win))    // an updated build re-applies
         #expect(!linker.witnessMatches([], in: win))         // no modules → never "already overlaid"
     }
+
+    @Test("witnessMatches does NOT skip when d3d11.dll coincidentally matches (e.g. CrossOver's own native bundle) but the nvngx-on-metalfx rename was never actually performed on this runtime")
+    func witnessCheckRequiresNVNGXRename() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        _ = try tmp.makeDir("src"); let win = try tmp.makeDir("win")
+        try tmp.write("src/d3d11.dll", "SAME")
+        try tmp.write("src/nvngx-on-metalfx.dll", "shim")
+        let modules = [tmp.url.appendingPathComponent("src/d3d11.dll"),
+                       tmp.url.appendingPathComponent("src/nvngx-on-metalfx.dll")]
+        // d3d11.dll already matches (e.g. CrossOver's own native GPTK bundle happens to be byte-identical
+        // to the imported GPTK's own copy) — but the plain nvngx.dll rename was never actually created
+        // here, so the overlay must NOT be considered "already done".
+        try tmp.write("win/d3d11.dll", "SAME")
+        #expect(!linker.witnessMatches(modules, in: win))
+        // Once the rename has genuinely happened, it correctly counts as already overlaid.
+        try tmp.write("win/nvngx.dll", "shim")
+        #expect(linker.witnessMatches(modules, in: win))
+    }
 }

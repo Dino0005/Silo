@@ -42,7 +42,7 @@ struct RuntimeInstallRow: View {
 /// The "Installed X" list shared by the Wine + DXMT settings tabs: one `RuntimeInstallRow` per install
 /// (Set-default / Remove), or an empty-state row. Reads everything from the runtime VM.
 struct RuntimeInstalledSection: View {
-    let title: String
+    let title: LocalizedStringKey
     @Bindable var vm: RuntimeViewModel
 
     var body: some View {

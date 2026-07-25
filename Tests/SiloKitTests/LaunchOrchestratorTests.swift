@@ -105,6 +105,30 @@ struct MakePlanTests {
         #expect(plan.environment["MTL_HUD_ENABLED"] == "1")  // non-sync extras still survive
     }
 
+    @Test("An isolated manual-game bottle honors the user's ESync choice — no co-resident Steam client, no wineserver to protect (sharedBottle: false)")
+    func honorsUserSyncForIsolatedBottle() throws {
+        var cfg = GameConfig(appID: 0, presence: .none)
+        cfg.envFlags = EnvFlags(syncMode: .esync)   // the Sync picker's choice, no longer silently overridden
+        let plan = try LaunchOrchestrator.makePlan(
+            config: cfg, backend: backend(), gameExe: gameExe, prefix: prefix, logURL: log,
+            sharedBottle: false)
+        #expect(plan.environment["WINEESYNC"] == "1")
+        #expect(plan.environment["WINEMSYNC"] == nil)
+    }
+
+    @Test("An isolated manual-game bottle also honors sync vars from the extra escape hatch (sharedBottle: false)")
+    func honorsExtraSyncForIsolatedBottle() throws {
+        var cfg = GameConfig(appID: 0, presence: .none)
+        cfg.envFlags = EnvFlags(syncMode: .msync,
+                                extra: ["WINEESYNC": "1", "WINEMSYNC": "0"])
+        let plan = try LaunchOrchestrator.makePlan(
+            config: cfg, backend: backend(), gameExe: gameExe, prefix: prefix, logURL: log,
+            sharedBottle: false)
+        // Unlike the shared-bottle case above, nothing re-forces WINEMSYNC here — extra wins outright.
+        #expect(plan.environment["WINEESYNC"] == "1")
+        #expect(plan.environment["WINEMSYNC"] == "0")
+    }
+
     @Test("GPTK plan with GPTK configured: D3DMetal resolves from the RUNTIME's lib/external, no WINEDLLPATH")
     func gptkPlanD3DMetalWiring() throws {
         let cfg = GameConfig(appID: 220)
@@ -121,7 +145,7 @@ struct MakePlanTests {
         // Modules live in wine's own lib/wine now (overlaid), so there is NO WINEDLLPATH; the translated
         // d3d modules are just forced to builtin so GPTK's overlaid versions win.
         #expect(plan.environment["WINEDLLPATH"] == nil)
-        #expect(plan.environment["WINEDLLOVERRIDES"] == "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi=b")
+        #expect(plan.environment["WINEDLLOVERRIDES"] == "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b")
     }
 
     @Test("DXMT plan: winemetal/d3d builtin overrides, and NO lib/external DYLD path (winemetal links system Metal)")
@@ -173,7 +197,7 @@ struct MakePlanTests {
         let plan = try LaunchOrchestrator.makePlan(
             config: cfg, backend: b, gameExe: gameExe, prefix: prefix, logURL: log)
         // GPTK's d3d overrides are APPENDED (semicolon-joined), not overwriting the user's.
-        #expect(plan.environment["WINEDLLOVERRIDES"] == "winemenubuilder.exe=d;d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi=b")
+        #expect(plan.environment["WINEDLLOVERRIDES"] == "winemenubuilder.exe=d;d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b")
     }
 
     @Test("Perf env-flags (MetalHUD / MetalFX / DXR / AVX) propagate into the launch plan's environment")
@@ -186,6 +210,55 @@ struct MakePlanTests {
         #expect(plan.environment["D3DM_ENABLE_METALFX"] == "1")
         #expect(plan.environment["D3DM_SUPPORT_DXR"] == "1")
         #expect(plan.environment["ROSETTA_ADVERTISE_AVX"] == "1")
+    }
+
+    @Test("GPTK + desktopGeometry: game invocation is wrapped in an explorer virtual desktop")
+    func gptkDesktopGeometryWrapsInvocation() throws {
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), graphics: .gptk,
+            gameExe: gameExe, prefix: prefix, logURL: log, desktopGeometry: "3024x1964")
+
+        #expect(plan.arguments == ["explorer", "/desktop=SiloGame,3024x1964", gameExe.path])
+    }
+
+    @Test("No desktopGeometry: game launches rootless, unchanged from before the fix")
+    func noDesktopGeometryStaysRootless() throws {
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), graphics: .gptk,
+            gameExe: gameExe, prefix: prefix, logURL: log, desktopGeometry: nil)
+
+        #expect(plan.arguments == [gameExe.path])
+    }
+
+    @Test("Empty desktopGeometry string is treated the same as nil — no explorer wrap")
+    func emptyDesktopGeometryStaysRootless() throws {
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), graphics: .gptk,
+            gameExe: gameExe, prefix: prefix, logURL: log, desktopGeometry: "")
+
+        #expect(plan.arguments == [gameExe.path])
+    }
+
+    @Test("DXMT ignores desktopGeometry — the fix is GPTK-only until DXMT shows the same failure")
+    func dxmtIgnoresDesktopGeometry() throws {
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), graphics: .dxmt,
+            gameExe: gameExe, prefix: prefix, logURL: log, desktopGeometry: "3024x1964")
+
+        #expect(plan.arguments == [gameExe.path])
+    }
+
+    @Test("desktopGeometry still honors an .msi target — explorer wraps msiexec, not the raw path")
+    func desktopGeometryWithMsi() throws {
+        let msi = URL(fileURLWithPath: "/Users/me/Downloads/GravityMark 1.89.msi")
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 0, presence: .none), backend: backend(), graphics: .gptk,
+            gameExe: msi, prefix: prefix, logURL: log, desktopGeometry: "2560x1440")
+
+        #expect(plan.arguments == [
+            "explorer", "/desktop=SiloGame,2560x1440",
+            "msiexec", "/i", "Z:\\Users\\me\\Downloads\\GravityMark 1.89.msi",
+        ])
     }
 
     @Test("Throws wineNotConfigured when no wine binary is available")

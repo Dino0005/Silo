@@ -53,7 +53,17 @@ public struct SteamApp: Codable, Sendable, Hashable, Identifiable {
     /// `0`/absent because no user owns it. These aren't games, so the library hides them. A user-owned
     /// game always carries the owner's SteamID64 here. (Distinct from the install dir having an exe —
     /// real games can keep their exe nested, so exe-presence is not a reliable signal.)
-    public var isSharedSystemApp: Bool { (lastOwner ?? 0) == 0 }
+    ///
+    /// `LastOwner == 0` isn't fully reliable in practice, though: a confirmed real-world install had
+    /// 228980 (Steamworks Common Redistributables) with `LastOwner` set to the user's own SteamID64,
+    /// not 0 — Steam doesn't always follow its own convention. `knownSystemAppIDs` is a fallback for
+    /// well-known, stable system-package AppIDs that should always be hidden regardless of `LastOwner`.
+    public var isSharedSystemApp: Bool { (lastOwner ?? 0) == 0 || Self.knownSystemAppIDs.contains(appID) }
+
+    /// Stable, well-known Steam AppIDs for shared system packages (never real games), used as a fallback
+    /// when `LastOwner` doesn't follow Steam's usual "0 for system packages" convention.
+    /// - 228980: Steamworks Common Redistributables (DirectX/VC++/etc. installers bundled with many games).
+    static let knownSystemAppIDs: Set<Int> = [228980]
 
     /// Library cover art (Steam CDN `header.jpg`).
     public var headerArtURL: URL? {

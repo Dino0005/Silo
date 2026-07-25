@@ -183,7 +183,8 @@ public final class GameLibraryViewModel {
         guard steamReady else { loadState = .notReady; return }
         var failure: String?
         do {
-            games = try await discovery.discoverGames(steamRoot: paths.steamBottleClientDir)
+            games = try await discovery.discoverGames(
+                steamRoot: paths.steamBottleClientDir, bottlePrefix: paths.steamBottle)
                 .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         } catch DiscoveryEngine.DiscoveryError.steamDirNotFound {
             games = []   // Steam installed but no library yet — drives onboarding, not alarms.
@@ -271,6 +272,15 @@ public final class GameLibraryViewModel {
                 wine: context.wineBinary, prefix: context.prefix,
                 logURL: paths.log(forAppID: game.appID),
                 gameExe: exe)
+            // NOTE (2026-07-25): `desktopGeometry: ScreenGeometry.nativeResolution()` was here as an
+            // attempted fix for GPTK games not covering the real screen (menu bar/Dock visible around
+            // them). REVERTED — on-device testing showed `explorer /desktop=` produces a bordered,
+            // windowed macOS window sized to those pixels, NOT a real fullscreen space; it made
+            // previously-fine titles (DMC5, Soulcalibur VI) regress to the same broken windowed state as
+            // Tekken 8, instead of fixing Tekken 8. Don't reintroduce this without confirming, by hand,
+            // that manually toggling native macOS fullscreen on that bordered virtual-desktop window
+            // (green button / ⌃⌘F) actually makes the content fill the screen — if it doesn't, the
+            // virtual-desktop approach is a dead end regardless of geometry.
             do {
                 _ = try await configStore.updateGame(appID: game.appID) { $0.lastPlayed = Date() }
                 setStatus("Launched \(game.name).")
@@ -441,6 +451,7 @@ public final class GameLibraryViewModel {
             try await orchestrator.launchManualGame(
                 game, backend: backend, graphics: context.graphics,
                 wine: context.wineBinary, prefix: context.prefix, logURL: paths.manualLog(game.id))
+            // See the matching NOTE in play(above) — reverted for the same reason.
             do {
                 _ = try await configStore.updateManualGame(id: game.id) { $0.lastPlayed = Date() }
                 setStatus("Launched \(game.name).")

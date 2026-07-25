@@ -69,7 +69,10 @@ while [ -s "$QUEUE" ]; do
     | grep -E '^/opt/homebrew/|^/usr/local/' >> "$QUEUE" || true
 done
 
-# Ad-hoc sign the bundled dylibs (they're modified copies).
-find "$BUNDLED" -type f -name '*.dylib' -exec codesign --force --sign - {} + 2>/dev/null || true
+# Sign the bundled dylibs (they're modified copies, so their original signature no longer applies).
+# Uses SILO_SIGN_IDENTITY if set (same var as Scripts/sign.sh) so a Developer ID build stays
+# consistent end-to-end; falls back to ad-hoc ("-") otherwise, matching upstream behavior.
+DYLIB_IDENTITY="${SILO_SIGN_IDENTITY:--}"
+find "$BUNDLED" -type f -name '*.dylib' -exec codesign --force --sign "$DYLIB_IDENTITY" {} + 2>/dev/null || true
 
 echo "Bundled $(find "$BUNDLED" -type f -name '*.dylib' | wc -l | tr -d ' ') dylibs into $BUNDLED ($(du -sh "$BUNDLED" | cut -f1))"

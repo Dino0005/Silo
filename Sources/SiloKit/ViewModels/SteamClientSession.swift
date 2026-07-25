@@ -233,7 +233,7 @@ public final class SteamClientSession {
     private func launchSteamProcess() async -> Int32? {
         do {
             if let wine = wineBinary { try bottle.installWebHelperWrapper(wine: wine) }
-            return try await bottle.launchSteam(wine: wineBinary)
+            return try await bottle.launchSteam(wine: wineBinary, desktopGeometry: ScreenGeometry.nativeResolution())
         } catch {
             launchError = (error as NSError).localizedDescription
             return nil

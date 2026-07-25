@@ -5,5 +5,18 @@
     <!-- Intentionally NO com.apple.security.app-sandbox.
          Silo executes external wine binaries outside its bundle and reads/writes
          ~/Library/Application Support and the Steam bottle, which the App Sandbox forbids. -->
+
+    <!-- Needed only when signing with a real Developer ID + the "options runtime" (hardened runtime),
+         which Apple requires for notarization. Ad-hoc signing ("-", the default) ignores these.
+         Wine is a JIT'd, dynamically-loaded, unsigned-at-build-time runtime — without these four,
+         the hardened runtime kills wine64/winemetal.so/bundled dylibs on launch. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
 </dict>
 </plist>

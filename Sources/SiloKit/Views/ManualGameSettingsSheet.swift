@@ -43,21 +43,19 @@ struct ManualGameSettingsSheet: View {
                 } header: {
                     Text("Bottle")
                 } footer: {
-                    Text("This game runs in its own isolated Wine prefix — install runtimes or patch it "
-                         + "here without affecting other games.")
+                    Text("This game runs in its own isolated Wine prefix — install runtimes or patch it here without affecting other games.")
                 }
 
                 Section {
                     Picker("Graphics", selection: $game.graphics) {
-                        ForEach(GraphicsChoice.allCases) { Text($0.displayName).tag($0) }
+                        ForEach(GraphicsChoice.allCases) { Text(LocalizedStringKey($0.displayName)).tag($0) }
                     }
-                    Text(game.graphics.recommendedFor)
+                    Text(LocalizedStringKey(game.graphics.recommendedFor))
                         .font(.caption).foregroundStyle(.secondary)
                 } header: {
                     Text("Graphics Backend")
                 } footer: {
-                    Text("Automatic picks the backend per game — 32-bit games use DXMT, others use GPTK / "
-                         + "D3DMetal. Using DXMT requires installing it in Settings → DXMT. Takes effect next launch.")
+                    Text("Automatic picks the backend per game — 32-bit games use DXMT, others use GPTK / D3DMetal. Using DXMT requires installing it in Settings → DXMT. Takes effect next launch.")
                 }
 
                 PerformanceFlagsSection(flags: $game.envFlags)

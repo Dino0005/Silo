@@ -145,19 +145,50 @@ struct RuntimeManagerTests {
         #expect(RuntimeManager.locateDXMTLibDir(in: try tmp.makeDir("empty")) == nil)
     }
 
+    @Test("locateDXMTLibDir does NOT match GPTK's own D3DMetal bridge — same winemetal.dll+d3d11.dll signature, but GPTK also ships d3d12.dll (which a real DXMT install never does)")
+    func locateDXMTExcludesGPTKBridge() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        try tmp.makeDir("rt/lib/wine/x86_64-windows")
+        try tmp.write("rt/lib/wine/x86_64-windows/d3d11.dll", "x")
+        try tmp.write("rt/lib/wine/x86_64-windows/winemetal.dll", "x")
+        try tmp.write("rt/lib/wine/x86_64-windows/d3d12.dll", "x")   // GPTK's own D3DMetal bridge covers d3d12
+        #expect(RuntimeManager.locateDXMTLibDir(in: tmp.url.appendingPathComponent("rt")) == nil)
+    }
+
+    @Test("installedDXMT ignores a DXMT bundled deep inside an unrelated subfolder (e.g. a CrossOver-derived runtime's own lib/dxmt/x86_64-windows) — only the standard lib/wine/x86_64-windows layout counts as \"installed\"")
+    func installedDXMTIgnoresNestedBundledDXMT() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        // A CrossOver-derived runtime: GPTK's own bridge in lib/wine (correctly excluded, has d3d12), PLUS
+        // a real, separately-bundled DXMT nested under its own lib/dxmt (must ALSO be excluded from the
+        // "installed DXMT" list — it isn't a standalone install Silo itself manages).
+        try tmp.write("Silo/Runtimes/wine-crossover-test/lib/wine/x86_64-windows/d3d11.dll", "x")
+        try tmp.write("Silo/Runtimes/wine-crossover-test/lib/wine/x86_64-windows/d3d12.dll", "x")
+        try tmp.write("Silo/Runtimes/wine-crossover-test/lib/wine/x86_64-windows/winemetal.dll", "x")
+        try tmp.write("Silo/Runtimes/wine-crossover-test/lib/dxmt/x86_64-windows/d3d11.dll", "x")
+        try tmp.write("Silo/Runtimes/wine-crossover-test/lib/dxmt/x86_64-windows/winemetal.dll", "x")
+        // A genuine, standalone DXMT install (Silo's own extraction — real layout: x86_64-windows
+        // directly at the top level, confirmed against an actual installed DXMT's on-disk structure).
+        try tmp.write("Silo/Runtimes/dxmt-v0.72-cx26.2.0/x86_64-windows/d3d11.dll", "x")
+        try tmp.write("Silo/Runtimes/dxmt-v0.72-cx26.2.0/x86_64-windows/winemetal.dll", "x")
+        let manager = makeManager(tmp, FakeProcessRunner(), session: FakeURLProtocol.makeSession())
+        #expect(await manager.installedDXMT().map(\.name) == ["dxmt-v0.72-cx26.2.0"])
+    }
+
     @Test("installDXMT downloads + extracts via the SHARED engine and locates the x86_64-windows module dir")
     func installDXMT() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let url = "https://e.com/dxmt.tar.xz"
         FakeURLProtocol.stub(url, data: Data("ARCHIVE".utf8))
         let fake = FakeProcessRunner()
-        // Simulate tar extracting a DXMT tree (lib/wine/{x86_64-windows,x86_64-unix}).
+        // Simulate tar extracting a DXMT tree — x86_64-windows/x86_64-unix directly at the top level,
+        // matching a real installed DXMT's confirmed on-disk layout (NOT nested under lib/wine/, which is
+        // only where DXMT lands when overlaid onto an EXISTING wine runtime, e.g. a variant clone).
         fake.onRun = { inv in
             if inv.executable.lastPathComponent == "tar",
                let i = inv.arguments.firstIndex(of: "-C"), i + 1 < inv.arguments.count {
                 let dest = URL(fileURLWithPath: inv.arguments[i + 1])
-                let win = dest.appendingPathComponent("lib/wine/x86_64-windows")
-                let unix = dest.appendingPathComponent("lib/wine/x86_64-unix")
+                let win = dest.appendingPathComponent("x86_64-windows")
+                let unix = dest.appendingPathComponent("x86_64-unix")
                 try? FileManager.default.createDirectory(at: win, withIntermediateDirectories: true)
                 try? FileManager.default.createDirectory(at: unix, withIntermediateDirectories: true)
                 for f in ["d3d11.dll", "dxgi.dll", "d3d10core.dll", "winemetal.dll"] {
@@ -334,9 +365,11 @@ struct RuntimeManagerTests {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         // A real base wine build.
         try tmp.write("Silo/Runtimes/wine-cx-26.2.0/bin/wine64", "x")
-        // A real DXMT extract (its own release).
-        try tmp.write("Silo/Runtimes/dxmt-v0.72-cx26.2.0/lib/wine/x86_64-windows/d3d11.dll", "x")
-        try tmp.write("Silo/Runtimes/dxmt-v0.72-cx26.2.0/lib/wine/x86_64-windows/winemetal.dll", "x")
+        // A real DXMT extract (its own release) — x86_64-windows directly at the top level, confirmed
+        // against an actual installed DXMT's on-disk structure (NOT nested under lib/wine/, unlike the
+        // variant clone below, whose lib/wine/ nesting is where DXMT gets overlaid onto an existing wine).
+        try tmp.write("Silo/Runtimes/dxmt-v0.72-cx26.2.0/x86_64-windows/d3d11.dll", "x")
+        try tmp.write("Silo/Runtimes/dxmt-v0.72-cx26.2.0/x86_64-windows/winemetal.dll", "x")
         // The DXMT variant clone of the base: has BOTH a wine binary and the overlaid DXMT modules.
         try tmp.write("Silo/Runtimes/wine-cx-26.2.0-dxmt/bin/wine64", "x")
         try tmp.write("Silo/Runtimes/wine-cx-26.2.0-dxmt/lib/wine/x86_64-windows/d3d11.dll", "x")

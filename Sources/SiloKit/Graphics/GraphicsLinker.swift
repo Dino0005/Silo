@@ -21,8 +21,9 @@ public struct GraphicsLinker: Sendable {
 
     /// The modules GPTK ships in its `lib/wine` tree — and only these: the Direct3D/DXGI translation
     /// (`d3d*`, `dxgi*`) plus the NVIDIA shims that back MetalFX upscaling (`nv*` — `nvapi64`,
-    /// `nvngx-on-metalfx`). Used to select what to overlay, and as a guard so we never clobber an
-    /// unrelated wine module should a future GPTK ship more than its d3d tree.
+    /// `nvngx-on-metalfx`, the latter activated under its plain `nvngx` name by `copyModules`). Used to
+    /// select what to overlay, and as a guard so we never clobber an unrelated wine module should a
+    /// future GPTK ship more than its d3d tree.
     static func isGPTKModule(_ name: String) -> Bool {
         isOverlayModule(name, prefixes: ["d3d", "dxgi", "nv"])
     }
@@ -191,12 +192,25 @@ public struct GraphicsLinker: Sendable {
     /// is already byte-identical inside the runtime's windows-modules dir, the runtime carries THIS
     /// backend build and the overlay can be skipped. One witness suffices — a backend's modules ship and
     /// update as a set.
+    /// `d3d11.dll` alone isn't always enough: a CrossOver-derived runtime can already have its OWN native
+    /// d3d11.dll (bundled by CrossOver itself, not by any prior Silo overlay) that happens to be
+    /// byte-identical to the imported GPTK's own d3d11.dll — the whole overlay then looks "already done"
+    /// and gets skipped, even though the nvngx rename specifically (see `copyModules`) was never performed
+    /// on THIS runtime. When the module set includes an nvngx-on-metalfx shim, also require its plain-name
+    /// companion to already exist — that companion only ever gets created by Silo's own overlay, so its
+    /// absence means the overlay genuinely hasn't run here, regardless of what d3d11.dll alone suggests.
     func witnessMatches(_ modules: [URL], in winDir: URL) -> Bool {
         guard let witness = modules.first(where: { $0.lastPathComponent == "d3d11.dll" }) ?? modules.first
         else { return false }
-        return fileManager.contentsEqual(
+        guard fileManager.contentsEqual(
             atPath: witness.path,
             andPath: winDir.appendingPathComponent(witness.lastPathComponent).path)
+        else { return false }
+        if let nvngx = modules.first(where: { Self.plainNVNGXName(for: $0.lastPathComponent) != nil }),
+           let plainName = Self.plainNVNGXName(for: nvngx.lastPathComponent) {
+            return fileManager.fileExists(atPath: winDir.appendingPathComponent(plainName).path)
+        }
+        return true
     }
 
     /// The per-module copy loop shared by both overlays: each PE `.dll` into the runtime's
@@ -211,7 +225,30 @@ public struct GraphicsLinker: Sendable {
             let so = unixSource.appendingPathComponent(
                 (dll.lastPathComponent as NSString).deletingPathExtension + ".so")
             if isSymlink(so) || fileManager.fileExists(atPath: so.path) { try replace(so, in: unixDir) }
+
+            // GPTK ships its NVIDIA/DLSS shim inert, under "*-on-metalfx" names — its own README says the
+            // DLSS→MetalFX bridge only activates once these are ALSO present under their plain names
+            // (nvngx-on-metalfx.dll → nvngx.dll, same for the .so). Without this, the file sits in the
+            // tree unused, nothing ever answers as an NVIDIA adapter, and the game/GPTK reports its
+            // fallback (AMD) vendor identity instead — the "MetalFX upscaling" toggle then has nothing to
+            // hook into even though D3DM_ENABLE_METALFX=1 is set at launch.
+            if let plainName = Self.plainNVNGXName(for: dll.lastPathComponent) {
+                try replace(dll, in: winDir, destinationName: plainName)
+                let plainSOName = (plainName as NSString).deletingPathExtension + ".so"
+                if isSymlink(so) || fileManager.fileExists(atPath: so.path) {
+                    try replace(so, in: unixDir, destinationName: plainSOName)
+                }
+            }
         }
+    }
+
+    /// "nvngx-on-metalfx.dll" → "nvngx.dll" (case-insensitive); nil for anything else, incl. "nvapi64.dll"
+    /// (already shipped under its real name — only the NVNGX half of the shim needs this un-suffixing).
+    static func plainNVNGXName(for fileName: String) -> String? {
+        let ext = (fileName as NSString).pathExtension
+        let stem = (fileName as NSString).deletingPathExtension
+        guard stem.lowercased() == "nvngx-on-metalfx" else { return nil }
+        return "nvngx.\(ext)"
     }
 
     /// `modules` reordered so the idempotency witness (`d3d11.dll` — both backends ship it) is copied last.
@@ -249,7 +286,11 @@ public struct GraphicsLinker: Sendable {
     /// the wine tree rather than collapsing into a standalone dylib whose `@rpath` framework lookup breaks.
     /// Regular files and directories (e.g. `D3DMetal.framework`) are copied recursively.
     private func replace(_ src: URL, in dir: URL) throws {
-        let dest = dir.appendingPathComponent(src.lastPathComponent)
+        try replace(src, in: dir, destinationName: src.lastPathComponent)
+    }
+
+    private func replace(_ src: URL, in dir: URL, destinationName: String) throws {
+        let dest = dir.appendingPathComponent(destinationName)
         if fileManager.fileExists(atPath: dest.path) || isSymlink(dest) { try fileManager.removeItem(at: dest) }
         if isSymlink(src) {
             let target = try fileManager.destinationOfSymbolicLink(atPath: src.path)

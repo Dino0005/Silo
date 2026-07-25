@@ -22,7 +22,7 @@ struct WineDownloadView: View {
             RuntimeInstalledSection(title: "Installed Wine", vm: vm)
 
             if let message = vm.statusMessage {
-                Section { Text(message).font(.callout).foregroundStyle(.secondary) }
+                Section { Text(LocalizedStringKey(message)).font(.callout).foregroundStyle(.secondary) }
             }
         }
         .formStyle(.grouped)

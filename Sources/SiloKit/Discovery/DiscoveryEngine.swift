@@ -26,13 +26,17 @@ public actor DiscoveryEngine {
     }
 
     /// Discover all games reachable from `steamRoot` (the primary Steam install directory).
-    public func discoverGames(steamRoot: URL) throws -> [SteamApp] {
+    /// - Parameter bottlePrefix: the Wine prefix `steamRoot` lives inside — needed to resolve any
+    ///   Windows-style library paths (`X:\SteamLibrary`) that Steam-under-Wine writes to
+    ///   `libraryfolders.vdf` for additional library folders, via the bottle's `dosdevices/<letter>:`
+    ///   symlinks. Pass `nil` to keep the previous behavior (Windows-style entries are skipped).
+    public func discoverGames(steamRoot: URL, bottlePrefix: URL? = nil) throws -> [SteamApp] {
         let primarySteamapps = steamRoot.appendingPathComponent("steamapps", isDirectory: true)
         guard fileManager.fileExists(atPath: primarySteamapps.path) else {
             throw DiscoveryError.steamDirNotFound(primarySteamapps)
         }
 
-        let libraryRoots = collectLibraryRoots(primarySteamRoot: steamRoot)
+        let libraryRoots = collectLibraryRoots(primarySteamRoot: steamRoot, bottlePrefix: bottlePrefix)
 
         var apps: [SteamApp] = []
         var seen = Set<Int>()
@@ -49,10 +53,11 @@ public actor DiscoveryEngine {
 
     // MARK: - Internals
 
-    /// Primary library + any host-absolute paths from `libraryfolders.vdf`, de-duplicated.
-    /// (Windows-style paths from a Wine bottle are skipped for now — games in the single-downloader
-    /// model land in the primary C: library; cross-drive translation is a documented follow-up.)
-    private func collectLibraryRoots(primarySteamRoot: URL) -> [URL] {
+    /// Primary library + any other libraries from `libraryfolders.vdf`, de-duplicated. Host-absolute
+    /// (already-Unix) paths are used as-is; Windows-style paths (`X:\...`, written by Steam running
+    /// inside the Wine bottle) are resolved through `bottlePrefix`'s `dosdevices/<letter>:` symlink when
+    /// one is supplied — see `hostURL(forWindowsLibraryPath:bottlePrefix:)`.
+    private func collectLibraryRoots(primarySteamRoot: URL, bottlePrefix: URL?) -> [URL] {
         var roots: [URL] = [primarySteamRoot]
         var seenPaths = Set([primarySteamRoot.standardizedFileURL.path])
 
@@ -64,14 +69,44 @@ public actor DiscoveryEngine {
         if vdfSize <= maxManifestBytes,
            let text = try? String(contentsOf: vdf, encoding: .utf8),
            let folders = try? libraryDecoder.decode(text: text) {
-            for folder in folders where folder.path.path.hasPrefix("/") {
-                let standardized = folder.path.standardizedFileURL
-                if seenPaths.insert(standardized.path).inserted {
-                    roots.append(standardized)
+            for folder in folders {
+                let resolved: URL?
+                if folder.rawPath.hasPrefix("/") {
+                    resolved = folder.path.standardizedFileURL
+                } else if let bottlePrefix {
+                    resolved = hostURL(forWindowsLibraryPath: folder.rawPath, bottlePrefix: bottlePrefix)?
+                        .standardizedFileURL
+                } else {
+                    resolved = nil
+                }
+                guard let resolved else { continue }
+                if seenPaths.insert(resolved.path).inserted {
+                    roots.append(resolved)
                 }
             }
         }
         return roots
+    }
+
+    /// Resolve a Windows-style library path (e.g. `X:\SteamLibrary`) written by Steam running inside a
+    /// Wine bottle, to the real host (macOS) path — via the bottle's own `dosdevices/<letter>:` symlink,
+    /// which Wine maintains for every drive the user has configured (winecfg's Drives tab). Returns nil
+    /// for anything that isn't a `<letter>:\...` form, or whose drive isn't configured/reachable right
+    /// now (e.g. an ejected external volume) — matching the existing "skip what we can't resolve" behavior.
+    private func hostURL(forWindowsLibraryPath winPath: String, bottlePrefix: URL) -> URL? {
+        let chars = Array(winPath)
+        guard chars.count >= 2, chars[1] == ":", let letter = chars[0].lowercased().first, letter.isLetter
+        else { return nil }
+        let symlink = bottlePrefix.appendingPathComponent("dosdevices").appendingPathComponent("\(letter):")
+        guard let destination = try? fileManager.destinationOfSymbolicLink(atPath: symlink.path) else {
+            return nil
+        }
+        let base = destination.hasPrefix("/")
+            ? URL(fileURLWithPath: destination)
+            : symlink.deletingLastPathComponent().appendingPathComponent(destination).standardizedFileURL
+        let rest = String(chars[2...]).replacingOccurrences(of: "\\", with: "/")
+        let trimmed = rest.hasPrefix("/") ? String(rest.dropFirst()) : rest
+        return trimmed.isEmpty ? base : base.appendingPathComponent(trimmed)
     }
 
     /// `required` marks the primary library: a listing failure there throws `libraryUnreadable` (the UI

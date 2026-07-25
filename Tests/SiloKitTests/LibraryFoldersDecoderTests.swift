@@ -27,6 +27,14 @@ struct LibraryFoldersDecoderTests {
         #expect(folders.allSatisfy { $0.appIDs.isEmpty })
     }
 
+    @Test("rawPath preserves a Windows-style drive path verbatim (URL(fileURLWithPath:) can't be un-mangled after the fact)")
+    func preservesRawWindowsPath() throws {
+        let text = #""libraryfolders" { "0" { "path" "X:\\SteamLibrary" } }"#
+        let folders = try decoder.decode(text: text)
+        #expect(folders.count == 1)
+        #expect(folders[0].rawPath == #"X:\SteamLibrary"#)
+    }
+
     @Test("Skips non-numeric meta keys")
     func skipsMeta() throws {
         let text = #""libraryfolders" { "ContentStatsID" "123" "0" { "path" "/x" } }"#

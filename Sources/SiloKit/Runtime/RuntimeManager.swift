@@ -129,16 +129,45 @@ public actor RuntimeManager {
     /// A DXMT runtime's module dir inside an extracted release — the `x86_64-windows` folder, found by its
     /// signature files (`d3d11.dll` + `winemetal.dll`) rather than assuming the exact tree depth. The DXMT
     /// counterpart of `locateWineBinary`.
+    /// Whether `candidate` looks like a real DXMT module dir: `winemetal.dll` + `d3d11.dll` present, but
+    /// `d3d12.dll` ABSENT. A real DXMT install never covers d3d12 (see GraphicsBackend.dllOverrides) —
+    /// GPTK's own D3DMetal bridge does, AND also ships its own winemetal.dll under the same Wine-upstream
+    /// naming convention (confirmed in practice: a CrossOver-derived base runtime carries GPTK's
+    /// winemetal.dll + d3d12.dll side by side with d3d11.dll, which the d3d11+winemetal signature alone
+    /// would misidentify as a DXMT install).
+    private static func isRealDXMTModuleDir(_ candidate: URL, fileManager: FileManager) -> Bool {
+        fileManager.fileExists(atPath: candidate.appendingPathComponent("winemetal.dll").path)
+            && fileManager.fileExists(atPath: candidate.appendingPathComponent("d3d11.dll").path)
+            && !fileManager.fileExists(atPath: candidate.appendingPathComponent("d3d12.dll").path)
+    }
+
+    /// The STANDARD DXMT layout only (`<root>/lib/wine/x86_64-windows`) — no recursive search. Used to
+    /// list pre-existing runtime folders as "installed DXMT": a runtime that legitimately bundles its own
+    /// DXMT somewhere nested (e.g. a CrossOver-derived copy's own `lib/dxmt/x86_64-windows`, a real DXMT
+    /// build CrossOver ships alongside its GPTK integration) should NOT be surfaced as if it were a
+    /// standalone DXMT install Silo itself manages — only `installDXMT`'s own extractions, which always
+    /// land at this exact standard path, should be.
+    static func standardDXMTLibDir(in dir: URL, fileManager: FileManager = .default) -> URL? {
+        // A standalone DXMT release (what installDXMT extracts) has x86_64-windows directly at its own
+        // top level — confirmed against a real installation's on-disk layout. NOT under lib/wine/: that
+        // nesting only exists for a variant CLONE's overlay destination (<base>-dxmt/lib/wine/...), and
+        // clones are already excluded by installedDXMT's isVariantClone guard before this is ever called.
+        let standard = dir.appendingPathComponent("x86_64-windows")
+        return isRealDXMTModuleDir(standard, fileManager: fileManager) ? standard : nil
+    }
+
+    /// Full recursive search — needed only right after extracting a FRESH DXMT archive (`installDXMT`),
+    /// whose internal top-level directory nesting isn't known in advance. NOT used to list pre-existing
+    /// runtime folders — see `standardDXMTLibDir` for that (a full recursive scan of an arbitrary,
+    /// unrelated runtime folder is over-broad and can match a bundled DXMT that isn't Silo's own install).
     public static func locateDXMTLibDir(in dir: URL, fileManager: FileManager = .default) -> URL? {
-        // Fast path: the standard DXMT layout is <root>/lib/wine/x86_64-windows.
         let standard = dir.appendingPathComponent("lib/wine/x86_64-windows")
-        if fileManager.fileExists(atPath: standard.appendingPathComponent("winemetal.dll").path),
-           fileManager.fileExists(atPath: standard.appendingPathComponent("d3d11.dll").path) { return standard }
+        if isRealDXMTModuleDir(standard, fileManager: fileManager) { return standard }
 
         guard let enumerator = fileManager.enumerator(at: dir, includingPropertiesForKeys: nil) else { return nil }
         for case let url as URL in enumerator where url.lastPathComponent == "winemetal.dll" {
             let parent = url.deletingLastPathComponent()
-            if fileManager.fileExists(atPath: parent.appendingPathComponent("d3d11.dll").path) { return parent }
+            if isRealDXMTModuleDir(parent, fileManager: fileManager) { return parent }
         }
         return nil
     }
@@ -151,7 +180,7 @@ public actor RuntimeManager {
             at: paths.runtimesDir, includingPropertiesForKeys: [.isDirectoryKey]) else { return [] }
         return dirs.compactMap { dir -> DXMTInstall? in
             guard !RuntimeVariants.isVariantClone(dir.lastPathComponent),
-                  let lib = Self.locateDXMTLibDir(in: dir) else { return nil }
+                  let lib = Self.standardDXMTLibDir(in: dir) else { return nil }
             return DXMTInstall(name: dir.lastPathComponent, installDir: dir, libDir: lib)
         }.sorted { $0.name > $1.name }   // newest tag first
     }
