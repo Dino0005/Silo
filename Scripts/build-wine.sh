@@ -21,7 +21,9 @@ ARCH="arch -x86_64"   # CrossOver is x86_64; runs on Apple Silicon via Rosetta
 BREW=/usr/local/bin/brew
 
 echo "==> Rosetta + x86_64 Homebrew dependencies"
-"$ROOT/Scripts/bootstrap-x86-brew.sh" bison mingw-w64 freetype gnutls gstreamer sdl2 molten-vk cmake
+# NB: sdl2 is NOT installed from Homebrew — we build the pinned SDL_VERSION from source below (a generic
+# Homebrew libSDL2 aborted Wine off the main thread; the pinned CrossOver version does not). cmake builds it.
+"$ROOT/Scripts/bootstrap-x86-brew.sh" bison mingw-w64 freetype gnutls gstreamer molten-vk cmake
 
 echo "==> Fetch CrossOver source $VER"
 mkdir -p "$WORK" && cd "$WORK"
@@ -29,6 +31,21 @@ curl -fL "https://media.codeweavers.com/pub/crossover/source/crossover-sources-$
 rm -rf src && mkdir src && tar -xzf sources.tar.gz -C src
 WINE_SRC="$(find src -maxdepth 3 -type d -name wine | head -1)"
 [ -n "$WINE_SRC" ] || { echo "ERROR: wine source dir not found in tarball"; exit 1; }
+
+echo "==> Build pinned SDL $SDL_VERSION (x86_64) — winebus's game-controller backend dlopens libSDL2"
+# Build the EXACT SDL CrossOver ships (versions.env) from libsdl-org source, x86_64 to match Wine. This
+# gives Wine's configure the SDL2 headers (so winebus compiles its SDL backend) AND the runtime dylib we
+# bundle. A generic Homebrew libSDL2 aborted Wine off the main thread; this pinned build does not.
+SDL_PREFIX="$WORK/sdl-install"
+export PATH="$($ARCH "$BREW" --prefix cmake)/bin:$($ARCH "$BREW" --prefix bison)/bin:$PATH"
+curl -fL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL_VERSION}/SDL2-${SDL_VERSION}.tar.gz" -o sdl.tar.gz
+rm -rf sdl-src sdl-build "$SDL_PREFIX" && mkdir sdl-src && tar -xzf sdl.tar.gz -C sdl-src --strip-components=1
+$ARCH cmake -S sdl-src -B sdl-build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+  -DCMAKE_INSTALL_PREFIX="$SDL_PREFIX" -DSDL_SHARED=ON -DSDL_STATIC=OFF
+$ARCH cmake --build sdl-build -j"$(sysctl -n hw.ncpu)"
+$ARCH cmake --install sdl-build
+test -f "$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" || { echo "ERROR: SDL build produced no libSDL2-2.0.0.dylib"; exit 1; }
 
 echo "==> Configure + build (x86_64, wow64) — this takes ~30–60 min"
 export PATH="$($ARCH "$BREW" --prefix bison)/bin:$PATH"
@@ -38,11 +55,11 @@ export PATH="$($ARCH "$BREW" --prefix bison)/bin:$PATH"
 # and the plain header check (which DOES pick up /usr/local/include via the toolchain's default search
 # path) succeed. Computing these here — instead of relying on a caller's shell-exported LDFLAGS, which
 # does not reliably survive the arch -x86_64 + env nesting below — makes the build reproducible regardless
-# of the invoking shell's environment.
+# of the invoking shell's environment. SDL_PREFIX is prepended so --with-sdl below finds its headers.
 BREW_PREFIX="$($ARCH "$BREW" --prefix)"
-export PKG_CONFIG_PATH="$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig:$($ARCH "$BREW" --prefix gnutls)/lib/pkgconfig"
-export LDFLAGS="-L$BREW_PREFIX/lib"
-export CPPFLAGS="-I$BREW_PREFIX/include"
+export PKG_CONFIG_PATH="$SDL_PREFIX/lib/pkgconfig:$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig:$($ARCH "$BREW" --prefix gnutls)/lib/pkgconfig"
+export LDFLAGS="-L$SDL_PREFIX/lib -L$BREW_PREFIX/lib"
+export CPPFLAGS="-I$SDL_PREFIX/include -I$BREW_PREFIX/include"
 # CRITICAL: `arch -x86_64` only picks which slice of the (universal) clang/gcc DRIVER BINARY runs under
 # Rosetta — it does NOT tell clang which architecture to GENERATE CODE FOR. Without an explicit `-arch
 # x86_64`, clang defaults to the host's native arch (arm64 on Apple Silicon), so configure's link checks
@@ -60,14 +77,15 @@ rm -rf build install && mkdir build install && cd build
 # SteamBottle.steamEnvironment), not by Metal presentation. Set on BOTH CFLAGS (Wine's Unix-side .so
 # thunks, incl. winemac.so) AND CROSSCFLAGS (the PE-side built-in DLLs). -O2 keeps the optimization an
 # explicit *FLAGS would otherwise drop. gnutls = Wine's schannel TLS (Steam's networking needs it).
-# --without-sdl: build winebus WITHOUT the SDL game-controller backend. On macOS that backend `dlopen`s
-# libSDL2, whose initializer pops an NSAlert off the main thread → the whole Wine process aborts the moment
-# winebus loads (before Steam draws). Costs in-Wine controller support; gains a Wine that actually launches.
+# --with-sdl: build winebus's SDL game-controller backend (dlopens the pinned libSDL2 bundled below). With
+# Wine's default Map Controllers=1 it remaps ANY recognized pad to a standard XInput gamepad — the
+# "controllers just work" behaviour. An earlier --without-sdl was a workaround for a generic Homebrew
+# libSDL2 aborting Wine off the main thread; the pinned SDL_VERSION (= CrossOver's) doesn't, so SDL is on.
 $ARCH env CFLAGS="-fvisibility=default -O2" CROSSCFLAGS="-fvisibility=default -O2" \
   PKG_CONFIG_PATH="$PKG_CONFIG_PATH" LDFLAGS="$LDFLAGS" CPPFLAGS="$CPPFLAGS" \
   "$WORK/$WINE_SRC/configure" --prefix="$WORK/install" \
   --enable-archs=i386,x86_64 --disable-tests --without-x \
-  --with-freetype --with-gstreamer --with-gnutls --without-sdl
+  --with-freetype --with-gstreamer --with-gnutls --with-sdl
 $ARCH make -j"$(sysctl -n hw.ncpu)"
 $ARCH make install
 
@@ -80,7 +98,9 @@ WRAPPER="$WORK/install/share/silo/steamwebhelper-wrapper.exe"
 python3 "$ROOT/Scripts/check-webhelper-wrapper.py" "$WRAPPER"
 
 echo "==> Bundle dependency dylibs (self-contained runtime)"
-"$ROOT/Scripts/bundle-wine-dylibs.sh" "$WORK/install"
+# SILO_SDL_DYLIB tells the bundler to ship our pinned libSDL2 (winebus dlopens it by leaf name from
+# DYLD_FALLBACK_LIBRARY_PATH=<wine>/lib/silo-bundled).
+SILO_SDL_DYLIB="$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" "$ROOT/Scripts/bundle-wine-dylibs.sh" "$WORK/install"
 
 # Sign every Mach-O in the tree (wine64, wineserver, winemac.so, and all other PE/Unix-side .so's
 # `make install` produced) with the SAME identity used for the bundled dylibs and the app itself.

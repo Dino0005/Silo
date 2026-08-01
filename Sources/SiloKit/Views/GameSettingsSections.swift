@@ -14,6 +14,10 @@ struct PerformanceFlagsSection: View {
             Toggle("Performance HUD (FPS / frame time)", isOn: $flags.metalHUD)
             Toggle("MetalFX upscaling", isOn: $flags.metalFX)
             Toggle("DirectX Raytracing (M3+)", isOn: $flags.dxr)
+            // The "Media Foundation" toggle lived here and has been removed for now: it no longer does
+            // anything on its own (see EnvFlags.mediaFoundationNative). It comes back once the MF bottle
+            // can actually be created and selected — a toggle that silently does nothing is worse than
+            // no toggle. The `EnvFlags` field itself stays, so existing config.json values survive.
         } header: {
             Text("Performance")
         } footer: {

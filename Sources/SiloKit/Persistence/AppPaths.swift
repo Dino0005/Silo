@@ -24,6 +24,11 @@ public struct AppPaths: Sendable, Hashable {
     }
 
     public var runtimesDir: URL { supportDir.appendingPathComponent("Runtimes", isDirectory: true) }
+    /// The single imported Media Foundation package (see `MediaFoundationImporter`). Unversioned, unlike
+    /// the Wine/GPTK/DXMT runtimes alongside it — there's only ever one set of MF DLLs to hold.
+    public var mediaFoundationDir: URL {
+        runtimesDir.appendingPathComponent("media-foundation", isDirectory: true)
+    }
     public var logsDir: URL { supportDir.appendingPathComponent("Logs", isDirectory: true) }
     public var configFile: URL { supportDir.appendingPathComponent("config.json") }
     /// Scratch dir for downloaded app-update archives (the inline updater stages the `.zip` here).

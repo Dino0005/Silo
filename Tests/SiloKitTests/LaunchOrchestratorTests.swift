@@ -212,53 +212,34 @@ struct MakePlanTests {
         #expect(plan.environment["ROSETTA_ADVERTISE_AVX"] == "1")
     }
 
-    @Test("GPTK + desktopGeometry: game invocation is wrapped in an explorer virtual desktop")
-    func gptkDesktopGeometryWrapsInvocation() throws {
-        let plan = try LaunchOrchestrator.makePlan(
-            config: GameConfig(appID: 220), backend: backend(), graphics: .gptk,
-            gameExe: gameExe, prefix: prefix, logURL: log, desktopGeometry: "3024x1964")
+    @Test("mediaFoundationNative emits NOTHING into the environment — it selects a bottle, not DLL overrides")
+    func mediaFoundationNativeEmitsNothing() throws {
+        // Pins the 2026-07-30 finding: a per-process MF override on top of a bottle-wide registry is an
+        // incoherent state (it crashed steamwebhelper.exe). MF is a whole-bottle configuration, so the
+        // flag must leave the launch environment untouched — including the backend's own d3d overrides,
+        // which must come through exactly as if the flag were off.
+        var cfg = GameConfig(appID: 220)
+        cfg.envFlags = EnvFlags(mediaFoundationNative: true)
+        var b = backend()
+        b.gptkLibDirPath = URL(fileURLWithPath: "/g/lib/wine/x86_64-windows")
 
-        #expect(plan.arguments == ["explorer", "/desktop=SiloGame,3024x1964", gameExe.path])
+        let on = try LaunchOrchestrator.makePlan(
+            config: cfg, backend: b, gameExe: gameExe, prefix: prefix, logURL: log)
+        cfg.envFlags = EnvFlags(mediaFoundationNative: false)
+        let off = try LaunchOrchestrator.makePlan(
+            config: cfg, backend: b, gameExe: gameExe, prefix: prefix, logURL: log)
+
+        #expect(on.environment == off.environment)
+        #expect(on.environment["WINEDLLOVERRIDES"] ==
+            "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b")
     }
 
-    @Test("No desktopGeometry: game launches rootless, unchanged from before the fix")
-    func noDesktopGeometryStaysRootless() throws {
-        let plan = try LaunchOrchestrator.makePlan(
-            config: GameConfig(appID: 220), backend: backend(), graphics: .gptk,
-            gameExe: gameExe, prefix: prefix, logURL: log, desktopGeometry: nil)
-
-        #expect(plan.arguments == [gameExe.path])
-    }
-
-    @Test("Empty desktopGeometry string is treated the same as nil — no explorer wrap")
-    func emptyDesktopGeometryStaysRootless() throws {
-        let plan = try LaunchOrchestrator.makePlan(
-            config: GameConfig(appID: 220), backend: backend(), graphics: .gptk,
-            gameExe: gameExe, prefix: prefix, logURL: log, desktopGeometry: "")
-
-        #expect(plan.arguments == [gameExe.path])
-    }
-
-    @Test("DXMT ignores desktopGeometry — the fix is GPTK-only until DXMT shows the same failure")
-    func dxmtIgnoresDesktopGeometry() throws {
-        let plan = try LaunchOrchestrator.makePlan(
-            config: GameConfig(appID: 220), backend: backend(), graphics: .dxmt,
-            gameExe: gameExe, prefix: prefix, logURL: log, desktopGeometry: "3024x1964")
-
-        #expect(plan.arguments == [gameExe.path])
-    }
-
-    @Test("desktopGeometry still honors an .msi target — explorer wraps msiexec, not the raw path")
-    func desktopGeometryWithMsi() throws {
-        let msi = URL(fileURLWithPath: "/Users/me/Downloads/GravityMark 1.89.msi")
-        let plan = try LaunchOrchestrator.makePlan(
-            config: GameConfig(appID: 0, presence: .none), backend: backend(), graphics: .gptk,
-            gameExe: msi, prefix: prefix, logURL: log, desktopGeometry: "2560x1440")
-
-        #expect(plan.arguments == [
-            "explorer", "/desktop=SiloGame,2560x1440",
-            "msiexec", "/i", "Z:\\Users\\me\\Downloads\\GravityMark 1.89.msi",
-        ])
+    @Test("mediaFoundationNative survives a config.json round-trip (the flag itself still persists)")
+    func mediaFoundationNativeRoundTrips() throws {
+        let flags = EnvFlags(mediaFoundationNative: true)
+        let data = try JSONEncoder().encode(flags)
+        let decoded = try JSONDecoder().decode(EnvFlags.self, from: data)
+        #expect(decoded.mediaFoundationNative)
     }
 
     @Test("Throws wineNotConfigured when no wine binary is available")

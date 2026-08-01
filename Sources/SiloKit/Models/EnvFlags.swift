@@ -32,6 +32,24 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// `D3DM_SUPPORT_DXR=1` — expose DirectX Raytracing in D3DMetal's DX12 layer. GPTK only (DXMT is
     /// D3D10/11, no DX12), so it's emitted only for the GPTK backend.
     public var dxr: Bool
+    /// Run this game in the **Media Foundation bottle** (a copy of the Steam bottle with the real Windows
+    /// MF DLLs installed) instead of the normal one. Off by default.
+    ///
+    /// Turn it on for a title whose in-game video comes up black under Wine's own builtin (GStreamer-
+    /// backed) MF stack — confirmed on Soulcalibur VI, where the video decodes fine (Wine even picks
+    /// macOS's hardware H.264 decoder) but the frames never reach the game, because the game asks the MF
+    /// media source for services Wine doesn't implement.
+    ///
+    /// It's a whole separate bottle rather than a per-game switch inside one bottle because the two
+    /// configurations are mutually exclusive, measured on-device (2026-07-30): the native MF stack that
+    /// makes Soulcalibur VI's video work also stops Devil May Cry 5 and Mortal Kombat from starting at
+    /// all, and no subset splits the difference — with only the three decoder modules native, SC6 goes
+    /// black again while DMC5 still hangs.
+    ///
+    /// Nothing is emitted from `environment(graphics:)` for this flag; it's read where the launch prefix
+    /// is resolved. Games are discovered from the normal Steam bottle either way, so the library shows one
+    /// entry per game regardless of which bottle it runs in.
+    public var mediaFoundationNative: Bool
     /// Free-form extra environment variables — a config.json-only escape hatch (no UI). Merged last in
     /// `environment()`, so it overrides the flags above — EXCEPT the sync keys (`WINEMSYNC`/`WINEESYNC`),
     /// which `LaunchOrchestrator.makePlan` force-overrides afterward for shared-bottle co-residency.
@@ -43,6 +61,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         metalHUD: Bool = false,
         metalFX: Bool = false,
         dxr: Bool = false,
+        mediaFoundationNative: Bool = false,
         extra: [String: String] = [:]
     ) {
         self.syncMode = syncMode
@@ -50,6 +69,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.metalHUD = metalHUD
         self.metalFX = metalFX
         self.dxr = dxr
+        self.mediaFoundationNative = mediaFoundationNative
         self.extra = extra
     }
 
@@ -71,6 +91,14 @@ public struct EnvFlags: Codable, Sendable, Hashable {
             }
         }
         if dxr, graphics == .gptk { env["D3DM_SUPPORT_DXR"] = "1" }   // DX12 raytracing — GPTK only
+        // NOTE: `mediaFoundationNative` deliberately emits NOTHING here. It used to add a per-process
+        // `WINEDLLOVERRIDES=...=n` for the MF modules; that model turned out to be wrong. Media Foundation
+        // has to be applied to a WHOLE bottle (DLLs copied into system32/syswow64, mf.reg/wmf.reg imported,
+        // overrides written to HKCU\Software\Wine\DllOverrides, three COM modules regsvr32'd) — a
+        // per-process override on top of a bottle-wide registry produces an INCOHERENT state, and that
+        // state crashed steamwebhelper.exe on-device (2026-07-29: it called into a Wine mfplat stub,
+        // `MFCreateVideoSampleAllocatorEx`, and aborted). The flag survives as a per-game switch, but it
+        // now selects WHICH BOTTLE the game launches in — see the bottle-selection work, not this file.
         for (key, value) in extra { env[key] = value }
         return env
     }
@@ -78,7 +106,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     // MARK: - Codable (migrates legacy esync/msync bools; tolerates missing perf fields)
 
     private enum CodingKeys: String, CodingKey {
-        case syncMode, advertiseAVX, metalHUD, metalFX, dxr, extra
+        case syncMode, advertiseAVX, metalHUD, metalFX, dxr, mediaFoundationNative, extra
         case esync, msync   // legacy fields from configs written before the SyncMode enum
     }
 
@@ -95,6 +123,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         metalHUD = try c.decodeIfPresent(Bool.self, forKey: .metalHUD) ?? false
         metalFX = try c.decodeIfPresent(Bool.self, forKey: .metalFX) ?? false
         dxr = try c.decodeIfPresent(Bool.self, forKey: .dxr) ?? false
+        mediaFoundationNative = try c.decodeIfPresent(Bool.self, forKey: .mediaFoundationNative) ?? false
         extra = try c.decodeIfPresent([String: String].self, forKey: .extra) ?? [:]
     }
 
@@ -105,6 +134,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         try c.encode(metalHUD, forKey: .metalHUD)
         try c.encode(metalFX, forKey: .metalFX)
         try c.encode(dxr, forKey: .dxr)
+        try c.encode(mediaFoundationNative, forKey: .mediaFoundationNative)
         try c.encode(extra, forKey: .extra)
     }
 }

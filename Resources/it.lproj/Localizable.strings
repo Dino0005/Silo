@@ -51,7 +51,7 @@
 "Library" = "Libreria";
 "Loading details…" = "Caricamento dettagli…";
 "Log" = "Log";
-"MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer." = "MSync + segnalazione AVX è la configurazione di base consigliata per Apple Silicon. L'HUD Prestazioni mostra FPS/frame time in tempo reale sul gioco. MetalFX aumenta gli FPS tramite upscaling; il ray tracing richiede un M3 o successivo.";
+"MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer." = "MSync + Supporto AVX è la configurazione di base consigliata per Apple Silicon. L'HUD Prestazioni mostra FPS/frame time in tempo reale sul gioco. MetalFX aumenta gli FPS tramite upscaling; il ray tracing richiede un M3 o successivo.";
 "MetalFX upscaling" = "Upscaling MetalFX";
 "Move…" = "Sposta…";
 "Moving bottles…" = "Spostamento bottiglia in corso…";
