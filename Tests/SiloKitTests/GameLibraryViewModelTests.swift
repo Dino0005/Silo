@@ -876,4 +876,24 @@ struct GameLibraryViewModelTests {
         #expect(!fake.invocations.contains { $0.arguments.first == "taskkill" })
     }
 
+
+    @Test("An actionable status uses the longer window, an ordinary one the short")
+    func actionableStatusOutlivesTheOrdinaryOne() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (vm, _, _) = make(tmp)
+        vm.statusVisibleDuration = .milliseconds(40)
+        vm.actionableStatusDuration = .seconds(30)
+
+        // An ordinary confirmation clears on its own...
+        vm.setStatus("Launched something", actionable: false)
+        try await Task.sleep(for: .milliseconds(120))
+        #expect(vm.statusMessage == nil)
+
+        // ...while one the user has to act on is still there well past that point. Otherwise "quit
+        // Steam first" could vanish before it's read, leaving only a game that didn't start.
+        vm.setStatus("Quit Steam first", actionable: true)
+        try await Task.sleep(for: .milliseconds(120))
+        #expect(vm.statusMessage == "Quit Steam first")
+    }
+
 }

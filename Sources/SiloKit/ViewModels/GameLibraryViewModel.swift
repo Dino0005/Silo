@@ -38,6 +38,10 @@ public final class GameLibraryViewModel {
     /// How long a status line stays before it self-clears. A transient confirmation, not a persistent
     /// banner. Overridable so tests assert the auto-dismiss without a real-time wait.
     var statusVisibleDuration: Duration = .seconds(5)
+    /// Longer window for a status the user has to ACT on — one that explains why a launch didn't
+    /// happen and what to do about it. Five seconds is right for "Launched …"; for "quit Steam first"
+    /// it can vanish before it's been read, leaving only a game that didn't start.
+    var actionableStatusDuration: Duration = .seconds(15)
 
     private let bottle: SteamBottle
     private let discovery: DiscoveryEngine
@@ -162,14 +166,16 @@ public final class GameLibraryViewModel {
         return ByteCountFormatter.string(fromByteCount: game.sizeOnDisk, countStyle: .file)
     }
 
-    /// Show a transient status line, then auto-clear it after `statusVisibleDuration`. Each call cancels the
-    /// previous message's dismissal, so a fresh status resets the timer and a stale timer can never clear a
-    /// newer message. Passing nil clears immediately.
-    private func setStatus(_ message: String?) {
+    /// Show a transient status line, then auto-clear it. Each call cancels the previous message's
+    /// dismissal, so a fresh status resets the timer and a stale timer can never clear a newer message.
+    /// Passing nil clears immediately.
+    /// - Parameter actionable: use the longer window — for a status the user has to read and act on,
+    ///   rather than a confirmation they can miss without consequence.
+    func setStatus(_ message: String?, actionable: Bool = false) {
         statusDismissal?.cancel()
         statusMessage = message
         guard message != nil else { statusDismissal = nil; return }
-        let duration = statusVisibleDuration
+        let duration = actionable ? actionableStatusDuration : statusVisibleDuration
         statusDismissal = Task { [weak self] in
             try? await Task.sleep(for: duration)
             guard !Task.isCancelled else { return }   // superseded by a newer status → leave it be
@@ -276,7 +282,8 @@ public final class GameLibraryViewModel {
             if other.isRunning {
                 setStatus(wantsMF
                     ? "Quit Steam first — this game runs in the Media Foundation bottle, which has its own Steam."
-                    : "Quit the Media Foundation bottle's Steam first — this game runs in the normal bottle.")
+                    : "Quit the Media Foundation bottle's Steam first — this game runs in the normal bottle.",
+                    actionable: true)
                 return
             }
 
