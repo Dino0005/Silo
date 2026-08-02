@@ -226,7 +226,10 @@ struct ViewModelTests {
         fake.onRun = { inv in
             if inv.executable.lastPathComponent == "tar",
                let i = inv.arguments.firstIndex(of: "-C"), i + 1 < inv.arguments.count {
-                let win = URL(fileURLWithPath: inv.arguments[i + 1]).appendingPathComponent("lib/wine/x86_64-windows")
+                // A standalone DXMT release puts x86_64-windows at its own top level — NOT under
+                // lib/wine/, which is only the overlay destination inside a variant clone. This mirrors
+                // what installDXMT actually extracts, and what standardDXMTLibDir looks for.
+                let win = URL(fileURLWithPath: inv.arguments[i + 1]).appendingPathComponent("x86_64-windows")
                 try? FileManager.default.createDirectory(at: win, withIntermediateDirectories: true)
                 for f in ["d3d11.dll", "winemetal.dll"] {
                     FileManager.default.createFile(atPath: win.appendingPathComponent(f).path, contents: Data("x".utf8))
@@ -290,7 +293,7 @@ struct ViewModelTests {
         // Deliberately do NOT stub the asset — a download would fail, proving we don't attempt one.
         let fake = FakeProcessRunner()
         let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
-        let win = paths.runtimesDir.appendingPathComponent("dxmt-v0.72-cx26.2.0/lib/wine/x86_64-windows")
+        let win = paths.runtimesDir.appendingPathComponent("dxmt-v0.72-cx26.2.0/x86_64-windows")
         try FileManager.default.createDirectory(at: win, withIntermediateDirectories: true)
         for f in ["d3d11.dll", "winemetal.dll"] {
             FileManager.default.createFile(atPath: win.appendingPathComponent(f).path, contents: Data("x".utf8))

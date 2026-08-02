@@ -296,7 +296,7 @@ struct AppEnvironmentUpdateTests {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
         // Persist a DXMT default AND install the matching runtime so refresh() keeps the seeded name.
-        let win = paths.runtimesDir.appendingPathComponent("dxmt-v0.72-cx26.2.0/lib/wine/x86_64-windows")
+        let win = paths.runtimesDir.appendingPathComponent("dxmt-v0.72-cx26.2.0/x86_64-windows")
         try FileManager.default.createDirectory(at: win, withIntermediateDirectories: true)
         for f in ["d3d11.dll", "winemetal.dll"] {
             FileManager.default.createFile(atPath: win.appendingPathComponent(f).path, contents: Data("x".utf8))

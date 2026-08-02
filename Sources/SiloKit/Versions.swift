@@ -9,5 +9,5 @@ public enum Versions {
     public static let githubRepo = "mikaelhug/Silo"
     /// CrossOver FOSS source version the Wine runtime is built from (CI/build input only — the app
     /// downloads the latest published wine-cx-* release at runtime).
-    public static let crossoverVersion = "26.2.0"
+    public static let crossoverVersion = "26.3.0"
 }

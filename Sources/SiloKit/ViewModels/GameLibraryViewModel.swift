@@ -25,6 +25,20 @@ public final class GameLibraryViewModel {
     public private(set) var loadState: LoadState = .idle
     /// Steam games mid-launch, keyed by appID so only the launching card's button spins.
     public private(set) var busyGames: Set<Int> = []
+    /// A Play that needs the other bottle's Steam shut down first. Non-nil puts the confirmation in
+    /// front of the user; `confirmBottleSwitch` / `cancelBottleSwitch` resolve it.
+    public private(set) var pendingBottleSwitch: PendingBottleSwitch?
+    /// True only for the re-entry after that confirmation, so the same Play doesn't ask twice.
+    private var switchingBottles = false
+
+    /// A launch waiting on the user's go-ahead to swap which bottle's Steam is running.
+    public struct PendingBottleSwitch: Identifiable, Sendable {
+        public let game: SteamApp
+        /// Whether we're switching TO the Media Foundation bottle (vs back to the normal one) — the
+        /// confirmation reads differently in each direction.
+        public let toMediaFoundation: Bool
+        public var id: Int { game.appID }
+    }
     public private(set) var manualBusyIDs: Set<UUID> = []
 
     public var searchText: String = ""
@@ -241,6 +255,22 @@ public final class GameLibraryViewModel {
 
     /// Launch a game co-resident in the Steam bottle, with the Steam client up so Steamworks works. Routes
     /// prefix + runtime through `BottleResolver`.
+    /// Go ahead with a launch that needs the other bottle's Steam shut down first.
+    ///
+    /// Takes the pending switch as an argument rather than reading the property: SwiftUI dismisses a
+    /// confirmation dialog BEFORE running the tapped button's action, and that dismissal clears the
+    /// property — so re-reading it here would always find nil and silently do nothing.
+    public func confirmBottleSwitch(_ pending: PendingBottleSwitch) async {
+        pendingBottleSwitch = nil
+        switchingBottles = true
+        defer { switchingBottles = false }
+        await play(pending.game)
+    }
+
+    public func cancelBottleSwitch() {
+        pendingBottleSwitch = nil
+    }
+
     public func play(_ game: SteamApp) async {
         // No-op if it's already mid-launch (its button spins) or already running.
         guard backend.isWineConfigured, !busyGames.contains(game.appID) else { return }
@@ -277,14 +307,22 @@ public final class GameLibraryViewModel {
             let session = wantsMF ? mfSession : self.session
             let other = wantsMF ? self.session : mfSession
 
-            // Only one Steam client can be signed in at a time, so the other bottle's has to be down
-            // first. Say so rather than starting a second one that would fail or fight the first.
-            if other.isRunning {
-                setStatus(wantsMF
-                    ? "Quit Steam first — this game runs in the Media Foundation bottle, which has its own Steam."
-                    : "Quit the Media Foundation bottle's Steam first — this game runs in the normal bottle.",
-                    actionable: true)
+            // Only one Steam client can be signed in at a time, so the other bottle's has to go down
+            // first. Silo can do that, but not silently: the other bottle may have a game running, and
+            // quitting its Steam would take that game with it. So the first Play asks; a confirmed one
+            // arrives with `switchingBottles` already set.
+            if other.isRunning, !switchingBottles {
+                pendingBottleSwitch = PendingBottleSwitch(game: game, toMediaFoundation: wantsMF)
                 return
+            }
+            if other.isRunning {
+                guard await other.quit() else {
+                    // Steam was asked to quit but the prefix is still live — something else is running
+                    // in there, i.e. a game. Never force it: that would drop a match in progress.
+                    setStatus("Close the game running in the other bottle first, then try again.",
+                              actionable: true)
+                    return
+                }
             }
 
             let context = try await Task.detached { [paths] in

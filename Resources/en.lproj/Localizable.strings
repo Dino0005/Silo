@@ -210,5 +210,10 @@
 "Media Foundation bottle removed. Games that used it are back on the normal bottle." = "Media Foundation bottle removed. Games that used it are back on the normal bottle.";
 
 /* Media Foundation — cross-bottle Steam guard (Phase 5a) */
-"Quit Steam first — this game runs in the Media Foundation bottle, which has its own Steam." = "Quit Steam first — this game runs in the Media Foundation bottle, which has its own Steam.";
-"Quit the Media Foundation bottle's Steam first — this game runs in the normal bottle." = "Quit the Media Foundation bottle's Steam first — this game runs in the normal bottle.";
+
+/* Media Foundation — automatic Steam switch (Phase 5b) */
+"Quit the other bottle's Steam?" = "Quit the other bottle's Steam?";
+"Quit and Play" = "Quit and Play";
+"This game runs in the Media Foundation bottle, which has its own Steam. Any game still running in the normal bottle will close." = "This game runs in the Media Foundation bottle, which has its own Steam. Any game still running in the normal bottle will close.";
+"This game runs in the normal bottle. Any game still running in the Media Foundation bottle will close." = "This game runs in the normal bottle. Any game still running in the Media Foundation bottle will close.";
+"Close the game running in the other bottle first, then try again." = "Close the game running in the other bottle first, then try again.";

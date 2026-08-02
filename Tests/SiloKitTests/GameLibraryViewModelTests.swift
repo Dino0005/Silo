@@ -881,18 +881,20 @@ struct GameLibraryViewModelTests {
     func actionableStatusOutlivesTheOrdinaryOne() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let (vm, _, _) = make(tmp)
-        vm.statusVisibleDuration = .milliseconds(40)
+        vm.statusVisibleDuration = .milliseconds(20)
         vm.actionableStatusDuration = .seconds(30)
 
-        // An ordinary confirmation clears on its own...
+        // An ordinary confirmation clears on its own. Polled rather than slept-past: a fixed sleep
+        // races the dismissal task under load, which is exactly how this test first went flaky.
         vm.setStatus("Launched something", actionable: false)
-        try await Task.sleep(for: .milliseconds(120))
-        #expect(vm.statusMessage == nil)
+        try await waitUntil { vm.statusMessage == nil }
+        #expect(vm.statusMessage == nil)   // waitUntil also returns on timeout, so assert the outcome
 
-        // ...while one the user has to act on is still there well past that point. Otherwise "quit
-        // Steam first" could vanish before it's read, leaving only a game that didn't start.
+        // The actionable one is still up long after the short window would have cleared it — 200ms
+        // against a 20ms window, well inside the 30s one, so there's no race either way. Otherwise
+        // "quit Steam first" could vanish before it's read, leaving only a game that didn't start.
         vm.setStatus("Quit Steam first", actionable: true)
-        try await Task.sleep(for: .milliseconds(120))
+        try await Task.sleep(for: .milliseconds(200))
         #expect(vm.statusMessage == "Quit Steam first")
     }
 

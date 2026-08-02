@@ -162,6 +162,25 @@ struct LibraryGridView: View {
                     .padding(10).frame(maxWidth: .infinity, alignment: .leading).background(.bar)
             }
         }
+        // Switching bottles means quitting the other one's Steam, which would take any game running
+        // there down with it — so it's asked, never done silently.
+        // `presenting:` hands the pending switch to the closures. Reading the property inside them
+        // instead would find it already cleared: SwiftUI dismisses the dialog — which clears it — before
+        // the tapped button's action runs, so "Quit and Play" would do nothing at all.
+        .confirmationDialog(
+            "Quit the other bottle's Steam?",
+            isPresented: Binding(get: { lib.pendingBottleSwitch != nil },
+                                 set: { if !$0 { lib.cancelBottleSwitch() } }),
+            titleVisibility: .visible,
+            presenting: lib.pendingBottleSwitch
+        ) { pending in
+            Button("Quit and Play") { Task { await lib.confirmBottleSwitch(pending) } }
+            Button("Cancel", role: .cancel) { lib.cancelBottleSwitch() }
+        } message: { pending in
+            Text(pending.toMediaFoundation
+                 ? "This game runs in the Media Foundation bottle, which has its own Steam. Any game still running in the normal bottle will close."
+                 : "This game runs in the normal bottle. Any game still running in the Media Foundation bottle will close.")
+        }
     }
 }
 

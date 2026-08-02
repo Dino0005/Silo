@@ -76,6 +76,30 @@ public final class SteamClientSession {
         return launchError == nil
     }
 
+    /// Ask this bottle's Steam to quit, and wait (bounded) for the prefix to go quiet.
+    ///
+    /// Returns true once nothing is left running in the prefix. False means the client was asked to quit
+    /// but the wineserver is still alive — which, after Steam itself has gone, means a GAME is still
+    /// running in there. Silo never force-kills in that case: the caller reports it instead, so a match
+    /// in progress isn't pulled out from under the player.
+    ///
+    /// `steam.exe -shutdown` is a request, not a kill; the wait is what turns it into something the
+    /// caller can act on, since launching the other bottle's client while this prefix is still live would
+    /// leave two Steams fighting over one account.
+    func quit(timeout: Duration = .seconds(20)) async -> Bool {
+        guard let wineBinary else { return !isRunning }
+        try? await bottle.shutdownSteam(wine: wineBinary)
+
+        var waited = Duration.zero
+        let step = Duration.milliseconds(500)
+        while waited < timeout {
+            if !WineServerProbe.isLive(prefix: bottle.prefix) { return true }
+            try? await Task.sleep(for: step)
+            waited += step
+        }
+        return !WineServerProbe.isLive(prefix: bottle.prefix)
+    }
+
     /// Route a `steam://…` URL to the running client, bringing it up first. Throws if the client can't be
     /// reached (the caller surfaces a status message).
     func sendURL(_ url: String) async throws {
