@@ -21,8 +21,13 @@ public struct SteamBottle: Sendable {
     // Computed (not stored): FileManager isn't Sendable, but the shared instance is fine to use.
     private var fileManager: FileManager { .default }
 
+    /// Which bottle this instance operates on. Everything below — prefix, client dir, exe, CEF dir, log —
+    /// follows from it, so the same type drives the normal bottle and its Media Foundation clone.
+    public let kind: AppPaths.SteamBottleKind
+
     public init(
         runner: ProcessRunning, session: URLSession = .shared, paths: AppPaths,
+        kind: AppPaths.SteamBottleKind = .standard,
         coreFontDigests: [String: String] = Silo.coreFontSHA256,
         d3dCabDigests: [String: String] = [
             Silo.d3dCompiler47X64Member: Silo.d3dCompiler47X64CabSHA256,
@@ -32,16 +37,17 @@ public struct SteamBottle: Sendable {
         self.runner = runner
         self.session = session
         self.paths = paths
+        self.kind = kind
         self.coreFontDigests = coreFontDigests
         self.d3dCabDigests = d3dCabDigests
     }
 
     // The bottle's paths.
-    private var prefixDir: URL { paths.steamBottle }
-    private var clientDir: URL { paths.steamBottleClientDir }
-    private var exe: URL { paths.steamBottleExe }
-    private var cefDir: URL { paths.steamBottleCEFDir }
-    private var log: URL { paths.steamBottleLog }
+    private var prefixDir: URL { paths.steamBottleRoot(kind) }
+    private var clientDir: URL { paths.steamBottleClientDir(kind) }
+    private var exe: URL { paths.steamBottleExe(kind) }
+    private var cefDir: URL { paths.steamBottleCEFDir(kind) }
+    private var log: URL { paths.steamBottleLog(kind) }
 
     public enum BottleError: Error, Sendable, Equatable {
         case wineNotConfigured
@@ -78,10 +84,13 @@ public struct SteamBottle: Sendable {
     /// library can probe it OFF-MAIN without constructing a `SteamBottle`. A failed/interrupted first-run
     /// warm-up leaves only the bootstrapper, which must NOT read as "installed/ready" (else onboarding shows
     /// the step "Done" over a non-functional bottle).
-    static func hasWarmedClient(paths: AppPaths, fileManager: FileManager = .default) -> Bool {
-        let client = paths.steamBottleClientDir
+    static func hasWarmedClient(
+        paths: AppPaths, kind: AppPaths.SteamBottleKind = .standard,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        let client = paths.steamBottleClientDir(kind)
         guard fileManager.fileExists(atPath: client.appendingPathComponent("steamui.dll").path) else { return false }
-        let cef = paths.steamBottleCEFDir
+        let cef = paths.steamBottleCEFDir(kind)
         let dirs = (try? fileManager.contentsOfDirectory(at: cef, includingPropertiesForKeys: nil)) ?? []
         return dirs.contains { fileManager.fileExists(atPath: $0.appendingPathComponent("steamwebhelper.exe").path) }
     }

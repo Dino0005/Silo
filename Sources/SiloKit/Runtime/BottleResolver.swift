@@ -44,8 +44,17 @@ public struct BottleResolver: Sendable {
     /// `BackendChooser` result — no default, so a launch path can't silently land on GPTK). A DXMT-routed
     /// Steam game runs in the SAME Steam prefix on the DXMT variant runtime; an unconfigured DXMT throws
     /// `backendNotConfigured` (the caller steers the user to install it).
-    public func steam(backend: GraphicsBackend, config: BackendConfig) throws -> LaunchContext {
-        try context(backend: backend, prefix: paths.steamBottle, config: config)
+    /// - Parameter mediaFoundation: launch in the Media Foundation bottle instead — the game's per-game
+    ///   flag. Falls back to the normal bottle when that bottle isn't actually set up, so a stale flag
+    ///   (its folder deleted in Finder, say) degrades to "video stays black" rather than failing to
+    ///   launch. Removing the bottle from Settings clears the flags, so this is only a backstop.
+    public func steam(
+        backend: GraphicsBackend, config: BackendConfig, mediaFoundation: Bool = false
+    ) throws -> LaunchContext {
+        let useMF = mediaFoundation
+            && MediaFoundationInstaller.isInstalled(inPrefix: paths.steamBottleMF)
+        return try context(
+            backend: backend, prefix: useMF ? paths.steamBottleMF : paths.steamBottle, config: config)
     }
 
     /// Resolve a manual game's launch context: its OWN isolated bottle under the `backend` the caller resolved

@@ -47,6 +47,10 @@ public final class GameLibraryViewModel {
     private var backend: BackendConfig
     /// The owner of the Steam bottle's live client (shared with the settings pane).
     private let session: SteamClientSession
+    /// The client session for the Media Foundation bottle. Separate instance, not a reconfigured one:
+    /// each session owns its bottle's client for the app's lifetime, and a game's flag decides which of
+    /// the two it launches against.
+    private let mfSession: SteamClientSession
     /// Boots the per-game isolated bottles that manual (non-Steam) games run in.
     private let provisioner: WinePrefixProvisioner
     /// Per-launch watchers that surface a silent backend→wined3d graphics fallback, keyed by `GameID`. Silo
@@ -63,6 +67,7 @@ public final class GameLibraryViewModel {
         paths: AppPaths,
         backend: BackendConfig,
         session: SteamClientSession,
+        mfSession: SteamClientSession,
         provisioner: WinePrefixProvisioner
     ) {
         self.bottle = bottle
@@ -72,6 +77,7 @@ public final class GameLibraryViewModel {
         self.paths = paths
         self.backend = backend
         self.session = session
+        self.mfSession = mfSession
         self.provisioner = provisioner
     }
 
@@ -257,8 +263,26 @@ public final class GameLibraryViewModel {
         do {
             // Resolve the bottle prefix + prepared runtime for the chosen backend (off-main). An unconfigured
             // DXMT throws here (before Steam is brought up), surfaced via `resolveMessage`.
+            // The game's bottle and its Steam client have to be the SAME prefix: Steamworks IPC is
+            // prefix-scoped, so a game launched into the MF bottle against the normal bottle's client
+            // fails SteamAPI_Init and quits on its own.
+            let wantsMF = config.envFlags.mediaFoundationNative
+                && MediaFoundationInstaller.isInstalled(inPrefix: paths.steamBottleMF)
+            let session = wantsMF ? mfSession : self.session
+            let other = wantsMF ? self.session : mfSession
+
+            // Only one Steam client can be signed in at a time, so the other bottle's has to be down
+            // first. Say so rather than starting a second one that would fail or fight the first.
+            if other.isRunning {
+                setStatus(wantsMF
+                    ? "Quit Steam first — this game runs in the Media Foundation bottle, which has its own Steam."
+                    : "Quit the Media Foundation bottle's Steam first — this game runs in the normal bottle.")
+                return
+            }
+
             let context = try await Task.detached { [paths] in
-                try BottleResolver(paths: paths).steam(backend: chosen, config: cfg)
+                try BottleResolver(paths: paths).steam(backend: chosen, config: cfg,
+                                                       mediaFoundation: wantsMF)
             }.value
             // Steamworks IPC is prefix-scoped: the client must be up + logged in first. If it can't start,
             // surface why rather than launching against a dead Steam (which fails SteamAPI_Init silently).

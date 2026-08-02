@@ -74,6 +74,20 @@ public actor ConfigStore {
         return state
     }
 
+    /// Mutate EVERY game's config in one load→save cycle.
+    ///
+    /// Exists for settings that stop being valid all at once — removing the Media Foundation bottle
+    /// turns off every game's MF flag, so no game is left pointing at a bottle that isn't there.
+    /// Doing it as one pass keeps config.json consistent instead of fixing games up lazily as they're
+    /// opened, which would leave stale flags on games the user never visits.
+    @discardableResult
+    public func updateAllGames(_ mutate: @Sendable (inout GameConfig) -> Void) throws -> AppState {
+        var state = load()
+        for index in state.games.indices { mutate(&state.games[index]) }
+        try save(state)
+        return state
+    }
+
     /// Remove a single title's config (e.g. on uninstall), preserving everything else.
     @discardableResult
     public func removeGame(appID: Int) throws -> AppState {

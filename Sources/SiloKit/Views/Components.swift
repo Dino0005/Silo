@@ -13,6 +13,19 @@ func chooseDiskImage() -> URL? {
     return panel.runModal() == .OK ? panel.url : nil
 }
 
+/// Present an open panel for choosing a FOLDER. Used for the Media Foundation package, which is a
+/// directory (system32/, syswow64/, mf.reg, wmf.reg) rather than a single file. Returns nil if cancelled.
+@MainActor
+func chooseFolder(message: String, prompt: String = "Choose") -> URL? {
+    let panel = NSOpenPanel()
+    panel.canChooseFiles = false
+    panel.canChooseDirectories = true
+    panel.allowsMultipleSelection = false
+    panel.message = message
+    panel.prompt = prompt
+    return panel.runModal() == .OK ? panel.url : nil
+}
+
 /// Present an open panel for choosing a Windows executable. `directory` sets the initial location (e.g. the
 /// bottle's `drive_c`). When `installer` is true the panel also accepts a `.msi` package — setup programs
 /// ship as either a `.exe` or an `.msi`; otherwise it's `.exe`-only, since a game's launch target must be a

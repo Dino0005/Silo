@@ -17,9 +17,16 @@ struct GameLibraryViewModelTests {
         let session = SteamClientSession(bottle: bottle, orchestrator: orchestrator)
         session.updateWine(backend.wineBinaryPath)
         session.readinessTimeout = 0   // no readiness wait for the (fake) Steam in tests
+        // The MF bottle's own client, mirrored from the normal one: play() picks between the two.
+        let mfSession = SteamClientSession(
+            bottle: SteamBottle(runner: fake, session: FakeURLProtocol.makeSession(),
+                                paths: paths, kind: .mediaFoundation),
+            orchestrator: orchestrator)
+        mfSession.updateWine(backend.wineBinaryPath)
+        mfSession.readinessTimeout = 0
         let vm = GameLibraryViewModel(
             bottle: bottle, discovery: DiscoveryEngine(), orchestrator: orchestrator,
-            configStore: ConfigStore(paths: paths), paths: paths, backend: backend, session: session,
+            configStore: ConfigStore(paths: paths), paths: paths, backend: backend, session: session, mfSession: mfSession,
             provisioner: WinePrefixProvisioner(runner: fake))
         return (vm, fake, paths)
     }
@@ -97,9 +104,14 @@ struct GameLibraryViewModelTests {
         backend.gptkRuntimeName = gptkRuntime   // stamps the learned hint; a change invalidates a stale hint
         let session = SteamClientSession(bottle: bottle, orchestrator: orchestrator)
         session.updateWine(backend.wineBinaryPath); session.readinessTimeout = 0
+        let mfSession = SteamClientSession(
+            bottle: SteamBottle(runner: fake, session: FakeURLProtocol.makeSession(),
+                                paths: paths, kind: .mediaFoundation),
+            orchestrator: orchestrator)
+        mfSession.updateWine(backend.wineBinaryPath); mfSession.readinessTimeout = 0
         let vm = GameLibraryViewModel(
             bottle: bottle, discovery: DiscoveryEngine(), orchestrator: orchestrator,
-            configStore: ConfigStore(paths: paths), paths: paths, backend: backend, session: session,
+            configStore: ConfigStore(paths: paths), paths: paths, backend: backend, session: session, mfSession: mfSession,
             provisioner: WinePrefixProvisioner(runner: fake))
         return (vm, fake, paths)
     }
@@ -542,9 +554,14 @@ struct GameLibraryViewModelTests {
         backend.dxmtLibDirPath = dxmtLib
         let session = SteamClientSession(bottle: bottle, orchestrator: orchestrator)
         session.updateWine(backend.wineBinaryPath); session.readinessTimeout = 0
+        let mfSession = SteamClientSession(
+            bottle: SteamBottle(runner: fake, session: FakeURLProtocol.makeSession(),
+                                paths: paths, kind: .mediaFoundation),
+            orchestrator: orchestrator)
+        mfSession.updateWine(backend.wineBinaryPath); mfSession.readinessTimeout = 0
         let vm = GameLibraryViewModel(
             bottle: bottle, discovery: DiscoveryEngine(), orchestrator: orchestrator,
-            configStore: ConfigStore(paths: paths), paths: paths, backend: backend, session: session,
+            configStore: ConfigStore(paths: paths), paths: paths, backend: backend, session: session, mfSession: mfSession,
             provisioner: WinePrefixProvisioner(runner: fake))
 
         let exe = try tmp.write("Games/Old/old.exe", "MZ")
@@ -656,9 +673,14 @@ struct GameLibraryViewModelTests {
         // ONE shared session — exactly how AppEnvironment wires the Library + the settings pane.
         let session = SteamClientSession(bottle: bottle, orchestrator: orchestrator)
         session.updateWine(backend.wineBinaryPath); session.readinessTimeout = 0
+        let mfSession = SteamClientSession(
+            bottle: SteamBottle(runner: fake, session: FakeURLProtocol.makeSession(),
+                                paths: paths, kind: .mediaFoundation),
+            orchestrator: orchestrator)
+        mfSession.updateWine(backend.wineBinaryPath); mfSession.readinessTimeout = 0
         let library = GameLibraryViewModel(
             bottle: bottle, discovery: DiscoveryEngine(), orchestrator: orchestrator,
-            configStore: ConfigStore(paths: paths), paths: paths, backend: backend, session: session,
+            configStore: ConfigStore(paths: paths), paths: paths, backend: backend, session: session, mfSession: mfSession,
             provisioner: WinePrefixProvisioner(runner: fake))
         let settings = SteamBottleViewModel(bottle: bottle, session: session)
         try installSteam(paths)
@@ -763,9 +785,15 @@ struct GameLibraryViewModelTests {
         let session = SteamClientSession(bottle: bottle, orchestrator: orchestrator)
         session.readinessTimeout = 0
         // Deliberately leave the session WITHOUT a wine binary → bottle.launchSteam throws → ensureRunning false.
+        // The MF session is unused here (the game isn't flagged) but has to exist to build the VM.
+        let mfSession = SteamClientSession(
+            bottle: SteamBottle(runner: fake, session: FakeURLProtocol.makeSession(),
+                                paths: paths, kind: .mediaFoundation),
+            orchestrator: orchestrator)
+        mfSession.readinessTimeout = 0
         let vm = GameLibraryViewModel(
             bottle: bottle, discovery: DiscoveryEngine(), orchestrator: orchestrator,
-            configStore: ConfigStore(paths: paths), paths: paths, backend: backend, session: session,
+            configStore: ConfigStore(paths: paths), paths: paths, backend: backend, session: session, mfSession: mfSession,
             provisioner: WinePrefixProvisioner(runner: fake))
         try installSteam(paths)
         let game = try installedGame(paths, appID: 220, name: "HL2", dir: "HL2")
@@ -847,4 +875,5 @@ struct GameLibraryViewModelTests {
         #expect(fake.terminatedPIDs.isEmpty)
         #expect(!fake.invocations.contains { $0.arguments.first == "taskkill" })
     }
+
 }

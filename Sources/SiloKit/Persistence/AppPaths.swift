@@ -63,25 +63,62 @@ public struct AppPaths: Sendable, Hashable {
     /// The shared Wine prefix — the Steam client + its games co-resident under GPTK/D3DMetal. Historically
     /// named `SteamBottle`.
     public var steamBottle: URL { bottlesRoot.appendingPathComponent("SteamBottle", isDirectory: true) }
+    /// The Media Foundation twin of `steamBottle` — a clone with the real Windows MF DLLs installed.
+    ///
+    /// A whole second bottle rather than a switch inside one, because the two configurations can't
+    /// coexist: the native MF stack that lets some titles play their video stops others from starting
+    /// (measured on-device). Cloned copy-on-write, so it costs little disk, and both bottles point at the
+    /// same Steam library — games stay installed once, and the library still shows one entry each.
+    public var steamBottleMF: URL {
+        bottlesRoot.appendingPathComponent("SteamBottleMF", isDirectory: true)
+    }
+
+    /// Which of the two Steam bottles a path refers to. They're identical in layout — the MF one is a
+    /// clone — so everything below is the same shape with a different root, and a separate log so two
+    /// clients can never overwrite each other's output.
+    public enum SteamBottleKind: String, Sendable, CaseIterable {
+        case standard
+        case mediaFoundation
+    }
+
+    /// The prefix for either bottle. Named distinctly from the `steamBottle` property it returns, so
+    /// there's no chance of a call resolving to the wrong one.
+    public func steamBottleRoot(_ kind: SteamBottleKind = .standard) -> URL {
+        kind == .standard ? steamBottle : steamBottleMF
+    }
 
     /// The Windows Steam install inside the bottle (`drive_c/Program Files (x86)/Steam`).
-    public var steamBottleClientDir: URL {
-        steamBottle
+    public func steamBottleClientDir(_ kind: SteamBottleKind = .standard) -> URL {
+        steamBottleRoot(kind)
             .appendingPathComponent("drive_c", isDirectory: true)
             .appendingPathComponent("Program Files (x86)", isDirectory: true)
             .appendingPathComponent("Steam", isDirectory: true)
     }
 
     /// `steam.exe` inside the bottle.
-    public var steamBottleExe: URL { steamBottleClientDir.appendingPathComponent("steam.exe") }
+    public func steamBottleExe(_ kind: SteamBottleKind = .standard) -> URL {
+        steamBottleClientDir(kind).appendingPathComponent("steam.exe")
+    }
 
     /// The directory holding Steam's CEF binaries inside the bottle. The leaf name varies by Steam version
     /// (currently `cef.win7x64`), so callers that need the exact `steamwebhelper.exe` glob this dir's
     /// children rather than assume the leaf — see `SteamBottle.webHelpers()`.
-    public var steamBottleCEFDir: URL { steamBottleClientDir.appendingPathComponent("bin/cef") }
+    public func steamBottleCEFDir(_ kind: SteamBottleKind = .standard) -> URL {
+        steamBottleClientDir(kind).appendingPathComponent("bin/cef")
+    }
 
-    /// The Steam bottle's client log.
-    public var steamBottleLog: URL { logsDir.appendingPathComponent("steam-bottle.log") }
+    /// The bottle's client log. Distinct per bottle: one file for two clients would interleave their
+    /// output and make either one unreadable.
+    public func steamBottleLog(_ kind: SteamBottleKind = .standard) -> URL {
+        logsDir.appendingPathComponent(
+            kind == .standard ? "steam-bottle.log" : "steam-bottle-mf.log")
+    }
+
+    // Unchanged spellings for the standard bottle, so existing call sites keep working.
+    public var steamBottleClientDir: URL { steamBottleClientDir(.standard) }
+    public var steamBottleExe: URL { steamBottleExe(.standard) }
+    public var steamBottleCEFDir: URL { steamBottleCEFDir(.standard) }
+    public var steamBottleLog: URL { steamBottleLog(.standard) }
 
     /// Parent of the per-game isolated bottles used by manual (non-Steam) games.
     public var manualBottlesDir: URL { bottlesRoot.appendingPathComponent("ManualBottles", isDirectory: true) }

@@ -177,3 +177,38 @@
 "Off" = "Off";
 "None" = "None";
 "steam_appid.txt" = "steam_appid.txt";
+
+/* Media Foundation (settings tab + status messages) */
+"Media Foundation" = "Media Foundation";
+"Media Foundation package" = "Media Foundation package";
+"Package" = "Package";
+"Imported" = "Imported";
+"Replace…" = "Replace…";
+"Choose Media Foundation folder…" = "Choose Media Foundation folder…";
+"Media Foundation bottle" = "Media Foundation bottle";
+"Ready" = "Ready";
+"Create Media Foundation bottle" = "Create Media Foundation bottle";
+"Working…" = "Working…";
+"Remove the Media Foundation bottle?" = "Remove the Media Foundation bottle?";
+"Media Foundation package imported." = "Media Foundation package imported.";
+"Package removed. The Media Foundation bottle, if any, still works." = "Package removed. The Media Foundation bottle, if any, still works.";
+"Set up the Steam bottle first — the Media Foundation bottle is a copy of it." = "Set up the Steam bottle first — the Media Foundation bottle is a copy of it.";
+"Media Foundation bottle ready. Turn it on per game in that game's settings." = "Media Foundation bottle ready. Turn it on per game in that game's settings.";
+"Finished, but the bottle doesn't look ready — try again." = "Finished, but the bottle doesn't look ready — try again.";
+"Copying the Steam bottle…" = "Copying the Steam bottle…";
+"Copying Media Foundation DLLs…" = "Copying Media Foundation DLLs…";
+"Writing DLL overrides…" = "Writing DLL overrides…";
+"Importing registry entries…" = "Importing registry entries…";
+"Registering components…" = "Registering components…";
+"Some games' in-game videos come up black because Wine's own Media Foundation can't decode them. Silo can use the real Windows ones instead, but doesn't provide them: point it at a folder containing system32, syswow64, mf.reg and wmf.reg, taken from a Windows installation you're licensed for." = "Some games' in-game videos come up black because Wine's own Media Foundation can't decode them. Silo can use the real Windows ones instead, but doesn't provide them: point it at a folder containing system32, syswow64, mf.reg and wmf.reg, taken from a Windows installation you're licensed for.";
+"A copy of the Steam bottle with those DLLs installed. It's a separate bottle because the two setups can't coexist — the one that fixes some games stops others from starting. Copying is near-instant and takes almost no extra disk. Its Steam signs in on its own, and only one Steam can run at a time. Turn it on per game in that game's settings." = "A copy of the Steam bottle with those DLLs installed. It's a separate bottle because the two setups can't coexist — the one that fixes some games stops others from starting. Copying is near-instant and takes almost no extra disk. Its Steam signs in on its own, and only one Steam can run at a time. Turn it on per game in that game's settings.";
+"Its Steam sign-in goes with it, along with any saves for games you only played there. Games with Steam Cloud keep their progress." = "Its Steam sign-in goes with it, along with any saves for games you only played there. Games with Steam Cloud keep their progress.";
+
+/* Media Foundation — per-game toggle (Phase 4) */
+"Run in the Media Foundation bottle" = "Run in the Media Foundation bottle";
+"For games whose in-game videos come up black. That bottle has its own Steam, and only one Steam runs at a time — Silo switches for you. Takes effect next launch." = "For games whose in-game videos come up black. That bottle has its own Steam, and only one Steam runs at a time — Silo switches for you. Takes effect next launch.";
+"Media Foundation bottle removed. Games that used it are back on the normal bottle." = "Media Foundation bottle removed. Games that used it are back on the normal bottle.";
+
+/* Media Foundation — cross-bottle Steam guard (Phase 5a) */
+"Quit Steam first — this game runs in the Media Foundation bottle, which has its own Steam." = "Quit Steam first — this game runs in the Media Foundation bottle, which has its own Steam.";
+"Quit the Media Foundation bottle's Steam first — this game runs in the normal bottle." = "Quit the Media Foundation bottle's Steam first — this game runs in the normal bottle.";

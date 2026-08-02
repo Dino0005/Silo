@@ -177,3 +177,38 @@
 "Off" = "Disattivato";
 "None" = "Nessuno";
 "steam_appid.txt" = "steam_appid.txt";
+
+/* Media Foundation (settings tab + status messages) */
+"Media Foundation" = "Media Foundation";
+"Media Foundation package" = "Pacchetto Media Foundation";
+"Package" = "Pacchetto";
+"Imported" = "Importato";
+"Replace…" = "Sostituisci…";
+"Choose Media Foundation folder…" = "Scegli la cartella Media Foundation…";
+"Media Foundation bottle" = "Bottiglia Media Foundation";
+"Ready" = "Pronta";
+"Create Media Foundation bottle" = "Crea la bottiglia Media Foundation";
+"Working…" = "Elaborazione…";
+"Remove the Media Foundation bottle?" = "Rimuovere la bottiglia Media Foundation?";
+"Media Foundation package imported." = "Pacchetto Media Foundation importato.";
+"Package removed. The Media Foundation bottle, if any, still works." = "Pacchetto rimosso. La bottiglia Media Foundation, se creata, continua a funzionare.";
+"Set up the Steam bottle first — the Media Foundation bottle is a copy of it." = "Configura prima la bottiglia Steam — quella Media Foundation ne è una copia.";
+"Media Foundation bottle ready. Turn it on per game in that game's settings." = "Bottiglia Media Foundation pronta. Attivala per singolo gioco nelle sue impostazioni.";
+"Finished, but the bottle doesn't look ready — try again." = "Operazione conclusa, ma la bottiglia non risulta pronta — riprova.";
+"Copying the Steam bottle…" = "Copia della bottiglia Steam…";
+"Copying Media Foundation DLLs…" = "Copia delle DLL Media Foundation…";
+"Writing DLL overrides…" = "Scrittura degli override DLL…";
+"Importing registry entries…" = "Importazione delle voci di registro…";
+"Registering components…" = "Registrazione dei componenti…";
+"Some games' in-game videos come up black because Wine's own Media Foundation can't decode them. Silo can use the real Windows ones instead, but doesn't provide them: point it at a folder containing system32, syswow64, mf.reg and wmf.reg, taken from a Windows installation you're licensed for." = "In alcuni giochi i video interni restano neri perché il Media Foundation di Wine non riesce a decodificarli. Silo può usare quelli veri di Windows, ma non li fornisce: indica una cartella che contenga system32, syswow64, mf.reg e wmf.reg, presi da un'installazione di Windows per cui hai la licenza.";
+"A copy of the Steam bottle with those DLLs installed. It's a separate bottle because the two setups can't coexist — the one that fixes some games stops others from starting. Copying is near-instant and takes almost no extra disk. Its Steam signs in on its own, and only one Steam can run at a time. Turn it on per game in that game's settings." = "Una copia della bottiglia Steam con quelle DLL installate. È una bottiglia separata perché le due configurazioni non possono convivere: quella che risolve alcuni giochi ne impedisce l'avvio ad altri. La copia è quasi istantanea e occupa pochissimo spazio in più. Il suo Steam accede per conto proprio, e può essere in esecuzione un solo Steam alla volta. Attivala per singolo gioco nelle sue impostazioni.";
+"Its Steam sign-in goes with it, along with any saves for games you only played there. Games with Steam Cloud keep their progress." = "Se ne va anche l'accesso a Steam, insieme ai salvataggi dei giochi usati solo lì. I giochi con Steam Cloud mantengono i progressi.";
+
+/* Media Foundation — per-game toggle (Phase 4) */
+"Run in the Media Foundation bottle" = "Esegui nella bottiglia Media Foundation";
+"For games whose in-game videos come up black. That bottle has its own Steam, and only one Steam runs at a time — Silo switches for you. Takes effect next launch." = "Per i giochi i cui video interni restano neri. Quella bottiglia ha un suo Steam, e può essere in esecuzione un solo Steam alla volta — Silo si occupa del passaggio. Ha effetto al prossimo avvio.";
+"Media Foundation bottle removed. Games that used it are back on the normal bottle." = "Bottiglia Media Foundation rimossa. I giochi che la usavano tornano alla bottiglia normale.";
+
+/* Media Foundation — cross-bottle Steam guard (Phase 5a) */
+"Quit Steam first — this game runs in the Media Foundation bottle, which has its own Steam." = "Chiudi prima Steam — questo gioco gira nella bottiglia Media Foundation, che ha un suo Steam.";
+"Quit the Media Foundation bottle's Steam first — this game runs in the normal bottle." = "Chiudi prima Steam nella bottiglia Media Foundation — questo gioco gira nella bottiglia normale.";

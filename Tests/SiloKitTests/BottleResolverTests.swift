@@ -146,4 +146,65 @@ struct BottleResolverTests {
             try BottleResolver(paths: paths).steamTool(config: BackendConfig())   // no wineBinaryPath
         }
     }
+
+    // MARK: - Media Foundation bottle
+
+    /// Mark the MF bottle as fully set up (cloned AND recipe applied).
+    private func makeReadyMFBottle(_ paths: AppPaths) throws {
+        try FileManager.default.createDirectory(
+            at: paths.steamBottleMF.appendingPathComponent("drive_c"), withIntermediateDirectories: true)
+        FileManager.default.createFile(
+            atPath: MediaFoundationInstaller.marker(inPrefix: paths.steamBottleMF).path, contents: Data())
+    }
+
+    @Test("A game with the MF flag launches in the Media Foundation bottle")
+    func mediaFoundationRoutesToMFBottle() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (config, paths) = try fixtures(tmp)
+        try makeReadyMFBottle(paths)
+
+        let context = try BottleResolver(paths: paths)
+            .steam(backend: .gptk, config: config, mediaFoundation: true)
+
+        #expect(context.prefix == paths.steamBottleMF)
+    }
+
+    @Test("Without the flag, the normal Steam bottle is used even when the MF one exists")
+    func withoutFlagUsesNormalBottle() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (config, paths) = try fixtures(tmp)
+        try makeReadyMFBottle(paths)
+
+        let context = try BottleResolver(paths: paths).steam(backend: .gptk, config: config)
+
+        #expect(context.prefix == paths.steamBottle)
+    }
+
+    @Test("A stale flag falls back to the normal bottle rather than launching into nothing")
+    func staleFlagFallsBack() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (config, paths) = try fixtures(tmp)
+        // The MF bottle was deleted outside the app, so the flag survived in config.json.
+
+        let context = try BottleResolver(paths: paths)
+            .steam(backend: .gptk, config: config, mediaFoundation: true)
+
+        #expect(context.prefix == paths.steamBottle)
+    }
+
+    @Test("A copied-but-unconfigured MF bottle doesn't count as ready")
+    func halfBuiltBottleIsIgnored() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (config, paths) = try fixtures(tmp)
+        // Cloned, but the recipe never ran — no marker. Launching there would silently behave like the
+        // normal bottle, so the resolver treats it as absent.
+        try FileManager.default.createDirectory(
+            at: paths.steamBottleMF.appendingPathComponent("drive_c"), withIntermediateDirectories: true)
+
+        let context = try BottleResolver(paths: paths)
+            .steam(backend: .gptk, config: config, mediaFoundation: true)
+
+        #expect(context.prefix == paths.steamBottle)
+    }
+
 }

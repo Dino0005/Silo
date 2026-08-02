@@ -21,6 +21,11 @@ public final class AppEnvironment {
     /// DXMT (its own releases, its own default persisted to `BackendConfig.dxmtLibDirPath`).
     public let dxmtRuntime: RuntimeViewModel
     public let gptkManager: GPTKManagerViewModel
+    /// The Media Foundation settings tab — imports the MF package and builds the MF bottle from it.
+    public let mediaFoundation: MediaFoundationViewModel
+    /// The Media Foundation bottle's Steam client. Held so backend changes reach it too — it launches
+    /// Steam with the same wine as the normal one.
+    let mfClientSession: SteamClientSession
     /// The Steam bottle's settings VM (setup / launch), shared by the Library + the settings pane.
     public let steamBottleVM: SteamBottleViewModel
     /// The owner of the Steam bottle's live client (shared by the Library + the settings pane).
@@ -78,20 +83,37 @@ public final class AppEnvironment {
                         wineRuntimeName: { backendSettings.config.wineRuntimeName }),
             manager: runtimeManager, repo: Silo.wineRepo)
         self.gptkManager = GPTKManagerViewModel(importer: GPTKImporter(runner: runner, paths: paths))
+        // Reads the wine binary lazily off `backendSettings`: it's chosen (and can change) in another
+        // tab, and the recipe only needs it at the moment it runs.
+        self.mediaFoundation = MediaFoundationViewModel(
+            importer: MediaFoundationImporter(paths: paths),
+            cloner: BottleCloner(runner: runner),
+            installer: MediaFoundationInstaller(runner: runner),
+            paths: paths,
+            configStore: configStore,
+            wineBinary: { backendSettings.config.wineBinaryPath })
 
         // The single Steam bottle + its live client session + settings VM. The client runs on the base wine
         // (CEF needs no d3d; a co-resident game picks the variant runtime — shared wineserver).
         let steamBottle = SteamBottle(runner: runner, paths: paths)
         let steamClientSession = SteamClientSession(bottle: steamBottle, orchestrator: orchestrator)
+        // The Media Foundation bottle's own client. A second session rather than a switchable one: each
+        // owns its bottle's client for the app's lifetime, and a game's flag picks which it launches
+        // against. Steamworks IPC is prefix-scoped, so the game and its client must share a prefix.
+        let mfClientSession = SteamClientSession(
+            bottle: SteamBottle(runner: runner, paths: paths, kind: .mediaFoundation),
+            orchestrator: orchestrator)
         let steamBottleVM = SteamBottleViewModel(
             bottle: steamBottle, session: steamClientSession)
         self.steamClientSession = steamClientSession
+        self.mfClientSession = mfClientSession
         self.steamBottleVM = steamBottleVM
 
         let gameLibrary = GameLibraryViewModel(
             bottle: steamBottle, discovery: discovery, orchestrator: orchestrator,
             configStore: configStore, paths: paths, backend: initialBackend,
             session: steamClientSession,
+            mfSession: mfClientSession,
             provisioner: WinePrefixProvisioner(runner: runner))
         self.gameLibrary = gameLibrary
 
@@ -136,10 +158,14 @@ public final class AppEnvironment {
         // The Steam client runs on the base wine (CEF; a co-resident game picks the variant runtime).
         // updateWine on the bottle VM also updates its session's wine.
         steamBottleVM.updateWine(config.wineBinaryPath)
+        // The MF bottle's client needs it too — without a wine binary its launchSteam throws straight
+        // away, which surfaces as "needs Steam, which couldn't start".
+        mfClientSession.updateWine(config.wineBinaryPath)
     }
 
     /// Load persisted config and populate the UI. Idempotent.
     public func bootstrap() async {
+        mediaFoundation.refresh()   // so the MF tab shows its real state before it's first opened
         guard !didBootstrap, !isBootstrapping else { return }
         isBootstrapping = true
         let state = await configStore.load()

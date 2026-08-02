@@ -67,6 +67,23 @@ struct GameSettingsSheet: View {
             }
 
             PerformanceFlagsSection(flags: $vm.config.envFlags)
+
+            // Only offered once the Media Foundation bottle exists — otherwise there's nothing to switch
+            // to, and a toggle that does nothing is worse than no toggle. Removing that bottle turns the
+            // flag off on every game, so this can't hide an enabled-but-invisible setting.
+            // Checked against the bottle itself, not the MF tab's cached state: that state is only
+            // refreshed when that tab is opened, so reading it here hid the toggle until the user had
+            // visited Settings → Media Foundation at least once since launching.
+            if MediaFoundationInstaller.isInstalled(inPrefix: env.paths.steamBottleMF) {
+                Section {
+                    Toggle("Run in the Media Foundation bottle",
+                           isOn: $vm.config.envFlags.mediaFoundationNative)
+                } footer: {
+                    Text("For games whose in-game videos come up black. That bottle has its own Steam, and only one Steam runs at a time — Silo switches for you. Takes effect next launch.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
             LaunchOptionsSection(text: $vm.config.launchOptionsString)
 
             Section("Executable") {
