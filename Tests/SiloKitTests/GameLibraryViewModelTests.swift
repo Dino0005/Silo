@@ -898,4 +898,37 @@ struct GameLibraryViewModelTests {
         #expect(vm.statusMessage == "Quit Steam first")
     }
 
+
+    @Test("Steam badges carry the choice as set, and flag MF only when that bottle is ready")
+    func steamBadgesReflectConfig() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (vm, _, paths) = make(tmp)
+        try installSteam(paths)
+        // A manifest, not installedGame(): that helper only lays down the install dir and returns a
+        // SteamApp for launch tests — discoverGames reads manifests, so without one `games` stays empty
+        // and there'd be nothing to badge.
+        try writeManifest(paths, #""AppState" { "appid" "220" "name" "HL2" "StateFlags" "4" "installdir" "HL2" "LastOwner" "76561197960287930" "SizeOnDisk" "12000000" }"#, appID: 220)
+        let store = ConfigStore(paths: paths)
+        try await store.updateGame(appID: 220) {
+            $0.graphics = .dxmt
+            $0.envFlags.mediaFoundationNative = true
+        }
+
+        await vm.load()
+
+        let badges = try #require(vm.steamBadges[220])
+        #expect(badges.graphics == .dxmt)
+        // The flag is on, but there's no MF bottle — the game would launch in the normal one, so
+        // badging it MF would describe something that isn't happening.
+        #expect(!badges.mediaFoundation)
+
+        try FileManager.default.createDirectory(
+            at: paths.steamBottleMF.appendingPathComponent("drive_c"), withIntermediateDirectories: true)
+        FileManager.default.createFile(
+            atPath: MediaFoundationInstaller.marker(inPrefix: paths.steamBottleMF).path, contents: Data())
+        await vm.refreshSteamBadges()
+
+        #expect(vm.steamBadges[220]?.mediaFoundation == true)
+    }
+
 }

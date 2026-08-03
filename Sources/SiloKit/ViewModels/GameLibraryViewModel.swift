@@ -19,6 +19,23 @@ public final class GameLibraryViewModel {
 
     /// Games installed in the Steam bottle (parsed from its `appmanifest_*.acf`).
     public private(set) var games: [SteamApp] = []
+    /// Per-game badge facts for the Steam tiles, keyed by appID.
+    ///
+    /// A `ManualGame` carries its own graphics choice, so its tile can badge itself. A `SteamApp` can't:
+    /// it's what Silo reads out of Steam's manifests — appID, name, size — and the configuration lives
+    /// separately in config.json. Rather than have every tile hit the store, the library caches the two
+    /// facts a badge needs when it loads, and refreshes them when a game's settings are saved.
+    public private(set) var steamBadges: [Int: SteamGameBadges] = [:]
+
+    public struct SteamGameBadges: Sendable, Equatable {
+        /// The choice as SET — not what Automatic later learned. Matching the manual tiles matters more
+        /// than showing the resolved backend, and a badge that changed by itself after a launch would be
+        /// hard to account for.
+        public let graphics: GraphicsChoice
+        /// Only true when the flag is on AND the MF bottle is really there: a stale flag still launches
+        /// in the normal bottle, so badging it would claim something that isn't happening.
+        public let mediaFoundation: Bool
+    }
     /// Non-Steam games the user added by hand (persisted in `config.json`; launched in the same bottle
     /// prefix under GPTK, without Steamworks).
     public private(set) var manualGames: [ManualGame] = []
@@ -225,7 +242,20 @@ public final class GameLibraryViewModel {
             guard !manualGames.isEmpty else { loadState = .error(failure); return }
             setStatus(failure)
         }
+        await refreshSteamBadges()
         loadState = (games.isEmpty && manualGames.isEmpty) ? .empty : .loaded
+    }
+
+    /// Re-read the badge facts for every Steam game. Cheap — one config load, no disk walk per game.
+    func refreshSteamBadges() async {
+        let state = await configStore.load()
+        let mfReady = MediaFoundationInstaller.isInstalled(inPrefix: paths.steamBottleMF)
+        steamBadges = Dictionary(uniqueKeysWithValues: games.map { game in
+            let config = state.config(for: game.appID)
+            return (game.appID, SteamGameBadges(
+                graphics: config.graphics,
+                mediaFoundation: config.envFlags.mediaFoundationNative && mfReady))
+        })
     }
 
     private func sortedManual(_ list: [ManualGame]) -> [ManualGame] {

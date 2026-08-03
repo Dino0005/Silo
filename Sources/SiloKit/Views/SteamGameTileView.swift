@@ -30,6 +30,10 @@ struct SteamGameTileView: View {
             if let size = lib.sizeString(game) {
                 Text(size).font(.caption).foregroundStyle(.secondary)
             }
+            if let badges = lib.steamBadges[game.appID] {
+                BackendTag(choice: badges.graphics)
+                if badges.mediaFoundation { MediaFoundationTag() }
+            }
         } menuItems: {
             menuItems()
         }

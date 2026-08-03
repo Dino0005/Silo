@@ -23,7 +23,15 @@ struct GameSettingsSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if let vm { Task { if await vm.save() { dismiss() } } }
+                        if let vm {
+                            Task {
+                                guard await vm.save() else { return }
+                                // The tile badges the saved choice, so they'd show the old one until
+                                // the next full library load without this.
+                                await env.gameLibrary.refreshSteamBadges()
+                                dismiss()
+                            }
+                        }
                     }
                 }
             }
