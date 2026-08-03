@@ -42,6 +42,9 @@ struct ManualGameTileView: View {
                        value: LogTarget(title: "\(game.name) — Log", url: env.paths.manualLog(game.id)))
         }
         Button("Wine Config…") { Task { await env.gameLibrary.openManualWinecfg(game) } }
+        Button("Game Controllers…") {
+            Task { await env.gameLibrary.openManualGameControllers(game) }
+        }
             .disabled(!env.gameLibrary.canLaunch)
         Button("Create Desktop Shortcut") {
             Task {

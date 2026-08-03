@@ -207,4 +207,28 @@ struct BottleResolverTests {
         #expect(context.prefix == paths.steamBottle)
     }
 
+
+    @Test("Wine tools follow the game's bottle — an MF game is configured in the MF bottle")
+    func toolsFollowTheMediaFoundationBottle() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (config, paths) = try fixtures(tmp)
+        try makeReadyMFBottle(paths)
+
+        let resolver = BottleResolver(paths: paths)
+        // Otherwise winecfg/joy.cpl would edit a prefix the game never runs in — settings that look
+        // applied but do nothing.
+        #expect(try resolver.steamTool(config: config, mediaFoundation: true).prefix == paths.steamBottleMF)
+        #expect(try resolver.steamTool(config: config).prefix == paths.steamBottle)
+    }
+
+    @Test("With no MF bottle set up, tools fall back to the normal one")
+    func toolsFallBackWithoutMFBottle() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (config, paths) = try fixtures(tmp)
+
+        let target = try BottleResolver(paths: paths).steamTool(config: config, mediaFoundation: true)
+
+        #expect(target.prefix == paths.steamBottle)
+    }
+
 }

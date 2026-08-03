@@ -348,9 +348,13 @@ public final class AppEnvironment {
     /// the prefix by hand. Routes through the shared `runWineTool` (single tool-launch path). The tool's own
     /// window IS the feedback — it deliberately posts NO status (the UI's status line lives in a different,
     /// Retina-preferences section, where an "Opened winecfg" toast just reads as misplaced).
-    public func openWineTool(_ tool: String) async {
-        guard let ctx = try? BottleResolver(paths: paths).steamTool(config: backendSettings.config) else { return }
-        await orchestrator.runWineTool(tool, prefix: ctx.prefix, wine: ctx.wineBinary)
+    public func openWineTool(
+        _ tool: String, arguments: [String] = [], mediaFoundation: Bool = false
+    ) async {
+        guard let ctx = try? BottleResolver(paths: paths)
+            .steamTool(config: backendSettings.config, mediaFoundation: mediaFoundation) else { return }
+        await orchestrator.runWineTool(tool, arguments: arguments,
+                                       prefix: ctx.prefix, wine: ctx.wineBinary)
     }
 
     /// Build a per-game settings view model with the game's persisted config, keyed by appID.

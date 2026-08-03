@@ -217,3 +217,8 @@
 "This game runs in the Media Foundation bottle, which has its own Steam. Any game still running in the normal bottle will close." = "This game runs in the Media Foundation bottle, which has its own Steam. Any game still running in the normal bottle will close.";
 "This game runs in the normal bottle. Any game still running in the Media Foundation bottle will close." = "This game runs in the normal bottle. Any game still running in the Media Foundation bottle will close.";
 "Close the game running in the other bottle first, then try again." = "Close the game running in the other bottle first, then try again.";
+
+/* Game-controller panel shortcut */
+"Game Controllers…" = "Game Controllers…";
+"Control Panels" = "Control Panels";
+"These configure the Media Foundation bottle. The ones in General configure the normal one — the two keep separate settings." = "These configure the Media Foundation bottle. The ones in General configure the normal one — the two keep separate settings.";

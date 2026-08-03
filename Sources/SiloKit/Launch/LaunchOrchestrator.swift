@@ -280,9 +280,11 @@ public struct LaunchOrchestrator: Sendable {
     /// Run a built-in wine tool (e.g. `winecfg`) against `prefix` with the resolved `wine`, detached. The
     /// caller resolves `{prefix, wine}` through `BottleResolver` (never hard-codes them). Msync env so the
     /// tool shares the bottle's wineserver instead of forking a second one on the same prefix.
-    public func runWineTool(_ tool: String, prefix: URL, wine: URL) async {
+    /// - Parameter arguments: extra words after the tool, e.g. `["joy.cpl"]` to have `control` open the
+    ///   game-controller panel directly instead of the Control Panel's icon grid.
+    public func runWineTool(_ tool: String, arguments: [String] = [], prefix: URL, wine: URL) async {
         _ = try? await runner.spawnDetached(
-            executable: wine, arguments: [tool],
+            executable: wine, arguments: [tool] + arguments,
             environment: Silo.msyncWineEnvironment(prefix: prefix, wine: wine), currentDirectory: nil,
             logURL: prefix.appendingPathComponent("winetool.log"))
     }

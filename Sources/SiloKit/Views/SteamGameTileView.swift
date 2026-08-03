@@ -44,7 +44,12 @@ struct SteamGameTileView: View {
                        value: LogTarget(title: "\(game.name) — Log",
                                         url: env.logURL(forAppID: game.appID)))
         }
-        Button("Wine Config…") { Task { await env.gameLibrary.openWinecfg() } }
+        // Both carry the appID so they open the bottle this game actually runs in — with Media
+        // Foundation on, that's the MF bottle, and configuring the other one would be meaningless.
+        Button("Wine Config…") { Task { await env.gameLibrary.openWinecfg(appID: game.appID) } }
+        Button("Game Controllers…") {
+            Task { await env.gameLibrary.openGameControllers(appID: game.appID) }
+        }
             .disabled(!env.gameLibrary.canLaunch)
         Button("Create Desktop Shortcut") {
             Task {

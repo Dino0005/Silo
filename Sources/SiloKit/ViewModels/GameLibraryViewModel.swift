@@ -370,11 +370,27 @@ public final class GameLibraryViewModel {
     }
 
     /// Open `winecfg` for the Steam bottle prefix (prefix-wide, so not per-game).
-    public func openWinecfg() async {
-        guard let ctx = try? BottleResolver(paths: paths).steamTool(config: backend) else {
+    /// - Parameter appID: the game the tool was opened from. Its Media Foundation flag decides which
+    ///   bottle to target — a game that RUNS in the MF bottle must be configured there too, or the
+    ///   settings the user edits belong to a prefix its game never touches. Omit for a bottle-wide tool.
+    public func openWinecfg(appID: Int? = nil) async {
+        await openSteamWineTool("winecfg", appID: appID)
+    }
+
+    /// Wine's game-controller panel, straight to `joy.cpl` rather than by way of the Control Panel grid.
+    public func openGameControllers(appID: Int? = nil) async {
+        await openSteamWineTool("control", arguments: ["joy.cpl"], appID: appID)
+    }
+
+    private func openSteamWineTool(_ tool: String, arguments: [String] = [], appID: Int?) async {
+        var wantsMF = false
+        if let appID { wantsMF = await configStore.load().config(for: appID).envFlags.mediaFoundationNative }
+        guard let ctx = try? BottleResolver(paths: paths)
+            .steamTool(config: backend, mediaFoundation: wantsMF) else {
             setStatus("No Wine configured."); return
         }
-        await orchestrator.runWineTool("winecfg", prefix: ctx.prefix, wine: ctx.wineBinary)
+        await orchestrator.runWineTool(tool, arguments: arguments,
+                                       prefix: ctx.prefix, wine: ctx.wineBinary)
     }
 
     // MARK: - Manual (non-Steam) games — each in its OWN isolated bottle (paths.manualBottle(id))
@@ -608,11 +624,22 @@ public final class GameLibraryViewModel {
 
     /// Open `winecfg` for a manual game's OWN bottle (Windows version, libraries — isolated per game).
     public func openManualWinecfg(_ game: ManualGame) async {
+        await openManualWineTool("winecfg", game: game)
+    }
+
+    /// Wine's game-controller panel for a manual game's own bottle. Reachable nowhere else: unlike the
+    /// Steam bottle, a manual bottle has no Control Panel entry in Settings.
+    public func openManualGameControllers(_ game: ManualGame) async {
+        await openManualWineTool("control", arguments: ["joy.cpl"], game: game)
+    }
+
+    private func openManualWineTool(_ tool: String, arguments: [String] = [], game: ManualGame) async {
         guard await ensureManualBottle(game.id) else { return }
         guard let ctx = try? BottleResolver(paths: paths).manualTool(game.id, config: backend) else {
             setStatus("No Wine configured."); return
         }
-        await orchestrator.runWineTool("winecfg", prefix: ctx.prefix, wine: ctx.wineBinary)
+        await orchestrator.runWineTool(tool, arguments: arguments,
+                                       prefix: ctx.prefix, wine: ctx.wineBinary)
     }
 
     /// Remove a manual game's bottle directory off the main actor (it can be large once a game is

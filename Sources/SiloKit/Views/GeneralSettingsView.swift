@@ -253,10 +253,19 @@ struct SteamBottleControls: View {
             openWindow(id: LogTarget.windowID, value: LogTarget(title: logWindowTitle, url: logURL))
         }
         LabeledContent("Repair") {
-            HStack(spacing: 8) {
-                Button("Wine Config") { Task { await env.openWineTool("winecfg") } }
-                Button("Registry") { Task { await env.openWineTool("regedit") } }
-                Button("Control Panel") { Task { await env.openWineTool("control") } }
+            // Two rows of two: four across truncates every label in the settings pane's width.
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Button("Wine Config") { Task { await env.openWineTool("winecfg") } }
+                    Button("Registry") { Task { await env.openWineTool("regedit") } }
+                }
+                HStack(spacing: 8) {
+                    Button("Control Panel") { Task { await env.openWineTool("control") } }
+                    // Straight to joy.cpl: the panel people actually come here for, without the grid.
+                    Button("Game Controllers…") {
+                        Task { await env.openWineTool("control", arguments: ["joy.cpl"]) }
+                    }
+                }
             }
             .disabled(env.wineBinary == nil || !bottle.steamInstalled)
         }

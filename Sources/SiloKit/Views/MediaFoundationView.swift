@@ -57,6 +57,28 @@ struct MediaFoundationView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            // The MF bottle's own tools. Settings → General has these for the normal bottle; without a
+            // pair here, the copy — which is where some games actually run — would be unreachable.
+            if vm.bottleReady {
+                Section {
+                    Button("Control Panel") {
+                        Task { await env.openWineTool("control", mediaFoundation: true) }
+                    }
+                    Button("Game Controllers…") {
+                        Task { await env.openWineTool("control", arguments: ["joy.cpl"],
+                                                      mediaFoundation: true) }
+                    }
+                    Button("Wine Config…") {
+                        Task { await env.openWineTool("winecfg", mediaFoundation: true) }
+                    }
+                } header: {
+                    Text("Control Panels")
+                } footer: {
+                    Text("These configure the Media Foundation bottle. The ones in General configure the normal one — the two keep separate settings.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
             if let message = vm.statusMessage {
                 Section { Text(LocalizedStringKey(message)).font(.callout).foregroundStyle(.secondary) }
             }

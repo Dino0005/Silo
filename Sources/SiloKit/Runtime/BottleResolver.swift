@@ -77,8 +77,14 @@ public struct BottleResolver: Sendable {
     }
 
     /// The tool target for the shared Steam bottle.
-    public func steamTool(config: BackendConfig) throws -> ToolTarget {
-        try tool(prefix: paths.steamBottle, config: config)
+    /// - Parameter mediaFoundation: target the Media Foundation bottle instead. A tool run against the
+    ///   wrong prefix would show — and edit — settings that have nothing to do with the game the user
+    ///   opened it from, so this has to follow the same rule as the launch itself. Falls back to the
+    ///   normal bottle when the MF one isn't set up, matching `steam(backend:config:mediaFoundation:)`.
+    public func steamTool(config: BackendConfig, mediaFoundation: Bool = false) throws -> ToolTarget {
+        let useMF = mediaFoundation
+            && MediaFoundationInstaller.isInstalled(inPrefix: paths.steamBottleMF)
+        return try tool(prefix: useMF ? paths.steamBottleMF : paths.steamBottle, config: config)
     }
 
     /// The tool target for a manual game's own bottle.
