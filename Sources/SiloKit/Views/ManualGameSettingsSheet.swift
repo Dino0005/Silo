@@ -52,6 +52,7 @@ struct ManualGameSettingsSheet: View {
                     }
                     Text(LocalizedStringKey(game.graphics.recommendedFor))
                         .font(.caption).foregroundStyle(.secondary)
+                    DXMTMismatchNote(choice: game.graphics, executable: game.executablePath)
                 } header: {
                     Text("Graphics Backend")
                 } footer: {

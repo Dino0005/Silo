@@ -6,6 +6,9 @@ struct GameSettingsSheet: View {
     let game: SteamApp
     @State private var vm: GameSettingsViewModel?
     @State private var executables: [String] = []
+    /// The exe the game would actually launch — resolved alongside the executable list (same walk, same
+    /// off-main hop) so the DXMT note can read its imports.
+    @State private var resolvedExe: URL?
 
     var body: some View {
         NavigationStack {
@@ -44,6 +47,9 @@ struct GameSettingsSheet: View {
             // would jank the sheet as it opens.
             let installURL = game.installURL
             executables = await Task.detached { ExecutableResolver.allExecutables(in: installURL) }.value
+            if let config = vm?.config {
+                resolvedExe = env.orchestrator.resolvedExecutable(app: game, config: config)
+            }
         }
     }
 
@@ -58,6 +64,7 @@ struct GameSettingsSheet: View {
                 Picker("Graphics", selection: $vm.config.graphics) {
                     ForEach(GraphicsChoice.allCases) { Text(LocalizedStringKey($0.displayName)).tag($0) }
                 }
+                DXMTMismatchNote(choice: vm.config.graphics, executable: resolvedExe)
                 if let learned = vm.learnedBackend {
                     HStack {
                         Text("Automatic is using \(learned.displayName) — GPTK couldn't run this game.")

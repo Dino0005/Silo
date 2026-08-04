@@ -317,8 +317,14 @@ public final class GameLibraryViewModel {
             return (exe, exe.map { WindowsExecutable.is32Bit($0) } ?? false)
         }.value
         // A learned hint only counts if it was learned under the CURRENT GPTK runtime — a GPTK upgrade may
-        // fix the title, so a stale hint is dropped (passed as nil) and GPTK is re-probed.
-        let learned = config.learnedUnderRuntime == cfg.gptkRuntimeName ? config.learnedBackend : nil
+        // fix the title, so a stale hint is dropped (passed as nil) and GPTK is re-probed. A hint pointing at
+        // a backend whose runtime is GONE (the user removed DXMT in Settings) is dropped too — otherwise
+        // Automatic would keep routing to a missing runtime and dead-end every launch on "…isn't installed",
+        // even though GPTK could have served the game. Dropping it degrades to the normal forward choice; if
+        // that can't drive the game either, the reactive path re-learns an installed backend.
+        // (From upstream d2addb8.)
+        var learned = config.learnedUnderRuntime == cfg.gptkRuntimeName ? config.learnedBackend : nil
+        if let hint = learned, cfg.libDir(for: hint) == nil { learned = nil }
         let chosen = BackendChooser.choose(config.graphics, is32Bit: is32, learned: learned)
         if let refusal = Self.bitnessRefusal(
             name: game.name, choice: config.graphics, chosen: chosen,

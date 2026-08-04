@@ -71,7 +71,8 @@ public struct LaunchOrchestrator: Sendable {
         prefix: URL,
         logURL: URL,
         sharedBottle: Bool = true,
-        desktopGeometry: String? = nil
+        desktopGeometry: String? = nil,
+        steamArguments: [String] = []
     ) throws -> LaunchPlan {
         guard let wine = wine ?? backend.wineBinaryPath else {
             throw LaunchError.wineNotConfigured
@@ -116,7 +117,11 @@ public struct LaunchOrchestrator: Sendable {
                 environment["WINEDLLOVERRIDES"], graphics.dllOverrides)
         }
 
-        var arguments = Self.invocation(for: gameExe) + config.customArgs
+        // Steam's own launch options first, then the user's — anything they typed by hand WINS and Steam's
+        // copy of it is dropped (see `mergeArguments`), so a hand-added switch extends the game's required
+        // arguments instead of duplicating them.
+        var arguments = Self.invocation(for: gameExe)
+            + Self.mergeArguments(steam: steamArguments, user: config.customArgs)
         // winemac.drv only ever honors a ChangeDisplaySettings/fullscreen request against what IT considers
         // the PRIMARY adapter (see dlls/winemac.drv/display.c — a deliberate upstream Wine limitation, not
         // a Silo bug: it rejects (fakes success on) any other adapter, "Changing non-primary adapter
@@ -184,7 +189,9 @@ public struct LaunchOrchestrator: Sendable {
         try presenceInstaller.apply(strategy: config.presence, appID: app.appID, gameExe: gameExe)
         let plan = try Self.makePlan(
             config: config, backend: backend, graphics: graphics, wine: launchWine,
-            gameExe: gameExe, prefix: prefix, logURL: logURL, desktopGeometry: desktopGeometry)
+            gameExe: gameExe, prefix: prefix, logURL: logURL, desktopGeometry: desktopGeometry,
+            steamArguments: SteamAppInfo.windowsLaunch(steamRoot: app.libraryPath,
+                                                       appID: app.appID)?.arguments ?? [])
         return try await spawn(plan)
     }
 
@@ -291,6 +298,29 @@ public struct LaunchOrchestrator: Sendable {
 
     // MARK: - Helpers
 
+    /// Combine Steam's launch options with the user's own, without duplicating a switch the user already
+    /// set by hand.
+    ///
+    /// **Why not a plain concatenation.** Before Silo read `appinfo.vdf`, the only way to pass a game its
+    /// required arguments was to type them into the game's settings — so existing configs already contain
+    /// them. Appending Steam's copy would produce `-game dab -windowed -game dab`, and a game that takes the
+    /// LAST occurrence would quietly load something else. A switch present in `user` therefore suppresses
+    /// Steam's copy of it, along with the values that follow. Tokens starting with `-` or `+` count as
+    /// switches, which is how both game arguments and Steam's own options are written.
+    /// (From upstream 1343c13.)
+    static func mergeArguments(steam: [String], user: [String]) -> [String] {
+        guard !user.isEmpty else { return steam }
+        func isSwitch(_ token: String) -> Bool { token.hasPrefix("-") || token.hasPrefix("+") }
+        let userSwitches = Set(user.filter(isSwitch))
+        var out: [String] = []
+        var dropping = false
+        for token in steam {
+            if isSwitch(token) { dropping = userSwitches.contains(token) }
+            if !dropping { out.append(token) }
+        }
+        return out + user
+    }
+
     private func resolveExecutable(app: SteamApp, config: GameConfig) throws -> URL {
         let installURL = app.installURL
         if let relative = config.executableRelativePath {
@@ -299,6 +329,13 @@ public struct LaunchOrchestrator: Sendable {
                 throw LaunchError.executableNotFound(installURL)
             }
             return installURL.appendingPathComponent(relative)
+        }
+        // Steam knows exactly which binary it would run — use that before guessing. The heuristic picks the
+        // BIGGEST exe in the tree, which for Source titles is a model viewer buried in bin/ rather than the
+        // 250 KB launcher at the root.
+        if let entry = SteamAppInfo.windowsLaunch(steamRoot: app.libraryPath, appID: app.appID) {
+            let exe = installURL.appendingPathComponent(entry.executable)
+            if FileManager.default.fileExists(atPath: exe.path) { return exe }
         }
         if let found = ExecutableResolver.firstExecutable(in: installURL) { return found }
         throw LaunchError.executableNotFound(installURL)
