@@ -112,7 +112,10 @@ public struct EnvFlags: Codable, Sendable, Hashable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        if let mode = try c.decodeIfPresent(SyncMode.self, forKey: .syncMode) {
+        // Read as a RAW STRING for the same reason GameConfig does: a strict decode of an unknown case
+        // throws, the throw escapes AppState, and ConfigStore hands back a fresh document — wiping every
+        // setting. An unrecognised mode degrades to the safe default rather than taking the file with it.
+        if let mode = (try c.decodeIfPresent(String.self, forKey: .syncMode)).flatMap(SyncMode.init(rawValue:)) {
             syncMode = mode
         } else {
             let legacyMsync = try c.decodeIfPresent(Bool.self, forKey: .msync) ?? false

@@ -221,6 +221,16 @@ public final class SteamClientSession {
     private func startSteam() async {
         guard await launchSteamProcess() != nil else { return }   // spawned detached; we don't track its PID
         launchError = nil
+        // NOT gated on the readiness result, and that is deliberate. Upstream bacb7a1 turned a readiness
+        // TIMEOUT into a launch failure; ported here, it refused the first launch every single time — this
+        // Steam takes longer than the 20 s failsafe to come up cold (big bottle, external drive, the CEF
+        // webhelper), and a second attempt then "worked" only because Steam had finished in the meantime.
+        //
+        // `readinessTimeout` is a failsafe against HANGING, not a verdict on success — see its doc comment.
+        // Treating it as a verdict inverts what it's for, and repeats the mistake upstream had just
+        // written up for its ssfn sign-in gate: a check built on an INFERRED signal must fail OPEN, or a
+        // rare failure becomes a total one. A Steam that truly never starts still surfaces — the game
+        // fails its own SteamAPI_Init — and that is the rarer, cheaper error of the two.
         await awaitSteamReady()
     }
 
@@ -229,10 +239,12 @@ public final class SteamClientSession {
     /// the INSTANT that happens via a kqueue watch on `user.reg`: no fixed wait, no polling. The
     /// `readinessTimeout` is purely a failsafe so a missing signal can't hang a launch — in normal operation
     /// the event resolves first. Returns immediately when readiness is already present or disabled (tests).
-    private func awaitSteamReady() async {
-        guard readinessTimeout > 0 else { return }
+    /// - Returns: true if Steam actually signalled readiness; false if only the failsafe fired.
+    @discardableResult
+    private func awaitSteamReady() async -> Bool {
+        guard readinessTimeout > 0 else { return true }
         let prefix = bottle.prefix
-        if SteamReadiness.isReady(prefix: prefix) { return }
+        if SteamReadiness.isReady(prefix: prefix) { return true }
         let timeout = readinessTimeout
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             let gate = ReadyGate(continuation)
@@ -250,6 +262,7 @@ public final class SteamClientSession {
                 gate.finish()
             }
         }
+        return SteamReadiness.isReady(prefix: prefix)   // false ⇒ the failsafe fired, Steam never registered
     }
 
     /// Launch the bottle's Steam client (re-applying the steamwebhelper wrapper first); returns the PID,

@@ -76,7 +76,7 @@ struct SteamClientSessionTests {
         #expect(clock.now - start < .seconds(5))    // far under the 10s failsafe → the watch resolved it
     }
 
-    @Test("failsafe resolves the wait when the readiness signal never arrives")
+    @Test("the failsafe lets a slow-starting Steam through — it never refuses the launch")
     func failsafeFallback() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let (session, paths) = make(tmp)
@@ -87,7 +87,12 @@ struct SteamClientSessionTests {
         let start = clock.now
         let running = await session.ensureRunning()
 
-        #expect(running)                            // failsafe lets the launch proceed rather than hang
+        // The failsafe lets the launch PROCEED rather than hang — and must keep doing so. Upstream bacb7a1
+        // made a timeout a failure instead; on this machine Steam takes longer than the failsafe to start
+        // cold, so that refused the first launch every time while the game would have run fine. A check on
+        // an inferred signal has to fail open.
+        #expect(running)
+        #expect(session.launchError == nil)
         #expect(clock.now - start >= .seconds(0.25))   // it actually waited the failsafe, not an instant return
     }
 

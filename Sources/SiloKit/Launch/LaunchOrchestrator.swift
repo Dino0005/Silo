@@ -328,7 +328,15 @@ public struct LaunchOrchestrator: Sendable {
             guard !relative.split(separator: "/").contains("..") else {
                 throw LaunchError.executableNotFound(installURL)
             }
-            return installURL.appendingPathComponent(relative)
+            // The pinned path must still EXIST. A game update that renames or moves its exe (routine for UE
+            // and Unity titles) otherwise left us spawning `wine <gone.exe>`: the process starts, writes an
+            // error into the log, exits — and the user is told "Launched <game>." `launchManualGame` already
+            // checks; this path didn't. (From upstream bacb7a1.)
+            let pinned = installURL.appendingPathComponent(relative)
+            guard FileManager.default.fileExists(atPath: pinned.path) else {
+                throw LaunchError.executableNotFound(pinned)
+            }
+            return pinned
         }
         // Steam knows exactly which binary it would run — use that before guessing. The heuristic picks the
         // BIGGEST exe in the tree, which for Source titles is a model viewer buried in bin/ rather than the
