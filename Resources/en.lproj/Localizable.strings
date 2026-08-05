@@ -51,7 +51,7 @@
 "Library" = "Library";
 "Loading details…" = "Loading details…";
 "Log" = "Log";
-"MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer." = "MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer.";
+"MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer. Metal backend picks the renderer GPTK's DirectX 12 path translates through: Automatic follows Apple's default — Metal 3 on macOS 26, Metal 4 on macOS 27 and later. If a game regressed after a GPTK update, try Metal 3 first. GPTK only." = "MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer. Metal backend picks the renderer GPTK's DirectX 12 path translates through: Automatic follows Apple's default — Metal 3 on macOS 26, Metal 4 on macOS 27 and later. If a game regressed after a GPTK update, try Metal 3 first. GPTK only.";
 "MetalFX upscaling" = "MetalFX upscaling";
 "Move…" = "Move…";
 "Moving bottles…" = "Moving bottles…";
@@ -222,3 +222,8 @@
 "Game Controllers…" = "Game Controllers…";
 "Control Panels" = "Control Panels";
 "These configure the Media Foundation bottle. The ones in General configure the normal one — the two keep separate settings." = "These configure the Media Foundation bottle. The ones in General configure the normal one — the two keep separate settings.";
+
+/* Metal 3 / Metal 4 selector (GPTK) */
+"Metal backend" = "Metal backend";
+"Metal 4" = "Metal 4";
+"Metal 3 (compatibility)" = "Metal 3 (compatibility)";

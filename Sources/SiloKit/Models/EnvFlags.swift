@@ -18,6 +18,35 @@ public enum SyncMode: String, Codable, Sendable, CaseIterable, Identifiable {
 
 /// Per-game performance + environment tuning applied at launch. Defaults reflect the known-good GPTK
 /// configuration for Apple Silicon (MSync + advertise-AVX).
+/// Which renderer D3DMetal's **DirectX 12** path translates through. GPTK 4.0 beta 1 shipped the Metal 4
+/// backend as opt-in (`D3DM_MTL4=1`); beta 2 makes it the default on macOS 27 and later, with
+/// `D3DM_MTL4=0` as the way back to the Metal 3 backend. Which of those two Apple's default resolves to
+/// therefore depends on BOTH the GPTK version and the OS — so `.auto` deliberately emits **nothing** and
+/// lets D3DMetal decide. That keeps `makePlan` pure (no OS-version probe) and means a config written today
+/// can't silently pin an old renderer once macOS 27 ships.
+///
+/// This is a *backend* selector, not a feature toggle (compare `metalFX`/`dxr`, which add a capability),
+/// so it gets the Automatic-plus-members shape Silo already uses for `GraphicsChoice` and `SyncMode`.
+/// (From upstream 27dde3f.)
+public enum MetalBackendChoice: String, Codable, Sendable, CaseIterable, Identifiable {
+    /// Emit no `D3DM_MTL4` — Apple's default for this GPTK + OS combination.
+    case auto
+    /// `D3DM_MTL4=1` — force the Metal 4 backend (the opt-in on macOS 26).
+    case metal4
+    /// `D3DM_MTL4=0` — force the Metal 3 backend. The first thing to try when a game regresses on a
+    /// newer GPTK.
+    case metal3
+
+    public var id: String { rawValue }
+    public var displayName: String {
+        switch self {
+        case .auto: "Automatic"
+        case .metal4: "Metal 4"
+        case .metal3: "Metal 3 (compatibility)"
+        }
+    }
+}
+
 public struct EnvFlags: Codable, Sendable, Hashable {
     /// Sync primitive (`WINEMSYNC`/`WINEESYNC`). Defaults to `.msync` on Apple Silicon.
     public var syncMode: SyncMode
@@ -32,6 +61,9 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// `D3DM_SUPPORT_DXR=1` — expose DirectX Raytracing in D3DMetal's DX12 layer. GPTK only (DXMT is
     /// D3D10/11, no DX12), so it's emitted only for the GPTK backend.
     public var dxr: Bool
+    /// Which renderer D3DMetal's DX12 path uses (`D3DM_MTL4`). GPTK only, and `.auto` (the default)
+    /// emits nothing — see `MetalBackendChoice`.
+    public var metalBackend: MetalBackendChoice
     /// Run this game in the **Media Foundation bottle** (a copy of the Steam bottle with the real Windows
     /// MF DLLs installed) instead of the normal one. Off by default.
     ///
@@ -61,6 +93,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         metalHUD: Bool = false,
         metalFX: Bool = false,
         dxr: Bool = false,
+        metalBackend: MetalBackendChoice = .auto,
         mediaFoundationNative: Bool = false,
         extra: [String: String] = [:]
     ) {
@@ -69,6 +102,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.metalHUD = metalHUD
         self.metalFX = metalFX
         self.dxr = dxr
+        self.metalBackend = metalBackend
         self.mediaFoundationNative = mediaFoundationNative
         self.extra = extra
     }
@@ -91,6 +125,15 @@ public struct EnvFlags: Codable, Sendable, Hashable {
             }
         }
         if dxr, graphics == .gptk { env["D3DM_SUPPORT_DXR"] = "1" }   // DX12 raytracing — GPTK only
+        if graphics == .gptk {
+            // D3DMetal's DX12 renderer. `.auto` emits nothing so Apple's own default applies (Metal 3 on
+            // macOS 26, Metal 4 on 27+ with GPTK 4.0b2) — DXMT has no Metal-4 concept.
+            switch metalBackend {
+            case .auto: break
+            case .metal4: env["D3DM_MTL4"] = "1"
+            case .metal3: env["D3DM_MTL4"] = "0"
+            }
+        }
         // NOTE: `mediaFoundationNative` deliberately emits NOTHING here. It used to add a per-process
         // `WINEDLLOVERRIDES=...=n` for the MF modules; that model turned out to be wrong. Media Foundation
         // has to be applied to a WHOLE bottle (DLLs copied into system32/syswow64, mf.reg/wmf.reg imported,
@@ -106,7 +149,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     // MARK: - Codable (migrates legacy esync/msync bools; tolerates missing perf fields)
 
     private enum CodingKeys: String, CodingKey {
-        case syncMode, advertiseAVX, metalHUD, metalFX, dxr, mediaFoundationNative, extra
+        case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, extra
         case esync, msync   // legacy fields from configs written before the SyncMode enum
     }
 
@@ -126,6 +169,10 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         metalHUD = try c.decodeIfPresent(Bool.self, forKey: .metalHUD) ?? false
         metalFX = try c.decodeIfPresent(Bool.self, forKey: .metalFX) ?? false
         dxr = try c.decodeIfPresent(Bool.self, forKey: .dxr) ?? false
+        // Raw string, like the other enums here: a value written by a NEWER Silo degrades to `.auto`
+        // instead of throwing and taking the whole document with it.
+        metalBackend = (try c.decodeIfPresent(String.self, forKey: .metalBackend))
+            .flatMap(MetalBackendChoice.init(rawValue:)) ?? .auto
         mediaFoundationNative = try c.decodeIfPresent(Bool.self, forKey: .mediaFoundationNative) ?? false
         extra = try c.decodeIfPresent([String: String].self, forKey: .extra) ?? [:]
     }
@@ -137,6 +184,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         try c.encode(metalHUD, forKey: .metalHUD)
         try c.encode(metalFX, forKey: .metalFX)
         try c.encode(dxr, forKey: .dxr)
+        try c.encode(metalBackend, forKey: .metalBackend)
         try c.encode(mediaFoundationNative, forKey: .mediaFoundationNative)
         try c.encode(extra, forKey: .extra)
     }

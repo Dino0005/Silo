@@ -51,7 +51,7 @@
 "Library" = "Libreria";
 "Loading details…" = "Caricamento dettagli…";
 "Log" = "Log";
-"MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer." = "MSync + Supporto AVX è la configurazione di base consigliata per Apple Silicon. L'HUD Prestazioni mostra FPS/frame time in tempo reale sul gioco. MetalFX aumenta gli FPS tramite upscaling; il ray tracing richiede un M3 o successivo.";
+"MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer. Metal backend picks the renderer GPTK's DirectX 12 path translates through: Automatic follows Apple's default — Metal 3 on macOS 26, Metal 4 on macOS 27 and later. If a game regressed after a GPTK update, try Metal 3 first. GPTK only." = "MSync + Supporto AVX è la configurazione di base consigliata per Apple Silicon. L'HUD Prestazioni mostra FPS/frame time in tempo reale sul gioco. MetalFX aumenta gli FPS tramite upscaling; il ray tracing richiede un M3 o successivo. Backend Metal sceglie il renderer attraverso cui passa il percorso DirectX 12 di GPTK: Automatico segue la scelta predefinita di Apple — Metal 3 su macOS 26, Metal 4 su macOS 27 e successivi. Se un gioco è peggiorato dopo un aggiornamento di GPTK, prova prima Metal 3. Solo GPTK.";
 "MetalFX upscaling" = "Upscaling MetalFX";
 "Move…" = "Sposta…";
 "Moving bottles…" = "Spostamento bottiglia in corso…";
@@ -222,3 +222,8 @@
 "Game Controllers…" = "Controller di Gioco…";
 "Control Panels" = "Pannelli di controllo";
 "These configure the Media Foundation bottle. The ones in General configure the normal one — the two keep separate settings." = "Questi configurano la bottiglia Media Foundation. Quelli in Generale configurano quella normale: le due mantengono impostazioni separate.";
+
+/* Metal 3 / Metal 4 selector (GPTK) */
+"Metal backend" = "Backend Metal";
+"Metal 4" = "Metal 4";
+"Metal 3 (compatibility)" = "Metal 3 (compatibilità)";

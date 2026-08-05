@@ -212,6 +212,27 @@ struct MakePlanTests {
         #expect(plan.environment["ROSETTA_ADVERTISE_AVX"] == "1")
     }
 
+    @Test("A pinned Metal backend reaches the launch environment as D3DM_MTL4")
+    func metalBackendReachesPlan() throws {
+        var cfg = GameConfig(appID: 220)
+        cfg.envFlags = EnvFlags(metalBackend: .metal3)
+        let plan = try LaunchOrchestrator.makePlan(
+            config: cfg, backend: backend(), gameExe: gameExe, prefix: prefix, logURL: log)
+        #expect(plan.environment["D3DM_MTL4"] == "0")
+
+        // The `extra` escape hatch still wins over the picker, all the way through makePlan.
+        cfg.envFlags = EnvFlags(metalBackend: .metal3, extra: ["D3DM_MTL4": "1"])
+        let overridden = try LaunchOrchestrator.makePlan(
+            config: cfg, backend: backend(), gameExe: gameExe, prefix: prefix, logURL: log)
+        #expect(overridden.environment["D3DM_MTL4"] == "1")
+
+        // .auto emits nothing at all, so Apple's default for this GPTK + OS applies.
+        cfg.envFlags = EnvFlags()
+        let auto = try LaunchOrchestrator.makePlan(
+            config: cfg, backend: backend(), gameExe: gameExe, prefix: prefix, logURL: log)
+        #expect(auto.environment["D3DM_MTL4"] == nil)
+    }
+
     @Test("mediaFoundationNative emits NOTHING into the environment — it selects a bottle, not DLL overrides")
     func mediaFoundationNativeEmitsNothing() throws {
         // Pins the 2026-07-30 finding: a per-process MF override on top of a bottle-wide registry is an

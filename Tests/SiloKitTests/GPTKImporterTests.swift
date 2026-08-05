@@ -242,4 +242,26 @@ struct GPTKImporterTests {
         // The outer mount is still detached on failure.
         #expect(fake.invocations.filter { $0.arguments.contains("detach") }.count == 1)
     }
+
+    @Test("Refuses a runtime name that isn't a safe path component (the derived name builds a deleted dir)")
+    func rejectsUnsafeRuntimeName() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
+        let importer = GPTKImporter(runner: FakeProcessRunner(), paths: paths)
+        // The real exposure is the explicit `name:` — it reaches installDir, which is handed to removeItem
+        // when an existing install is replaced. (A *filename* can't express traversal: URL normalizes
+        // `../evil.dmg` down to "evil". A dot-prefixed one still gets refused rather than making a hidden
+        // runtime dir.) (From upstream 27dde3f.)
+        #expect(GPTKImporter.runtimeName(forDMG: URL(fileURLWithPath: "/x/..dmg")) == "..dmg")
+        await #expect(throws: GPTKImporter.ImportError.unsafeRuntimeName("..dmg")) {
+            try await importer.importGPTK(fromDMG: URL(fileURLWithPath: "/x/..dmg"))
+        }
+        await #expect(throws: GPTKImporter.ImportError.unsafeRuntimeName("../../evil")) {
+            try await importer.importGPTK(fromDMG: URL(fileURLWithPath: "/x/ok.dmg"), name: "../../evil")
+        }
+        #expect(throws: GPTKImporter.ImportError.unsafeRuntimeName("../../evil")) {
+            try importer.remove(name: "../../evil")
+        }
+    }
+
 }
