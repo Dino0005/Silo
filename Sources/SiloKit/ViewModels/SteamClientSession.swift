@@ -18,7 +18,13 @@ public final class SteamClientSession {
     /// Last-resort failsafe (seconds) for the readiness wait so a missing signal can't hang a launch — NOT
     /// a fixed wait: a cold start resolves the instant Steam registers its `ActiveProcess` (event-driven,
     /// see `awaitSteamReady`). 0 disables the wait entirely (tests).
-    var readinessTimeout: Double = 20
+    ///
+    /// Raised from 20 s after timing a cold start on-device: the Steam window appears at ~10 s but the
+    /// client only finishes signing in at ~26 s, so the old failsafe expired SIX seconds early and the game
+    /// was launched against a client that wasn't ready — it then came up with the wrong settings, or asked
+    /// to. Since the wait ends the moment Steam registers, a higher number costs nothing in the normal case;
+    /// it only decides how long a launch waits before giving up on a signal that will never arrive.
+    var readinessTimeout: Double = 30
     /// The last launch failure message (for the UI), cleared on a successful launch.
     public private(set) var launchError: String?
 

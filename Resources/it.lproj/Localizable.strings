@@ -227,3 +227,6 @@
 "Metal backend" = "Backend Metal";
 "Metal 4" = "Metal 4";
 "Metal 3 (compatibility)" = "Metal 3 (compatibilità)";
+
+/* DXMT / Direct3D 12 mismatch warning */
+"This game uses Direct3D 12, which DXMT doesn't translate: the graphics still go through GPTK, with DXMT covering only part of the stack — a mix that can cause display problems. Switch to GPTK. If the game also offers a Direct3D 11 mode (Unreal titles take the launch option -d3d11), that avoids the split altogether and either backend will handle it." = "Questo gioco usa Direct3D 12, che DXMT non traduce: la grafica passa comunque da GPTK, con DXMT che copre solo una parte dello stack — una combinazione che può causare problemi di visualizzazione. Passa a GPTK. Se il gioco offre anche una modalità Direct3D 11 (i titoli Unreal accettano l'opzione di avvio -d3d11), quella evita del tutto la sovrapposizione e funziona con entrambi i backend.";

@@ -8,6 +8,9 @@ struct ManualGameSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     /// A local editable copy — only written back on Save.
     @State var game: ManualGame
+    /// Whether the chosen executable needs D3D12 (drives the DXMT warning). Recomputed whenever the user
+    /// picks a different exe, since that changes the answer.
+    @State private var needsD3D12 = false
 
     var body: some View {
         NavigationStack {
@@ -52,7 +55,7 @@ struct ManualGameSettingsSheet: View {
                     }
                     Text(LocalizedStringKey(game.graphics.recommendedFor))
                         .font(.caption).foregroundStyle(.secondary)
-                    DXMTMismatchNote(choice: game.graphics, executable: game.executablePath)
+                    DXMTMismatchNote(choice: game.graphics, needsD3D12: needsD3D12)
                 } header: {
                     Text("Graphics Backend")
                 } footer: {
@@ -72,5 +75,12 @@ struct ManualGameSettingsSheet: View {
             }
         }
         .frame(width: 480, height: 560)
+        // Keyed on the executable so picking a different one re-answers the question. Off the main actor:
+        // reading a PE's imports and walking the install tree is disk work, and the game may live on an
+        // external drive.
+        .task(id: game.executablePath) {
+            let exe = game.executablePath
+            needsD3D12 = await Task.detached { BackendChooser.needsD3D12(exe: exe) }.value
+        }
     }
 }

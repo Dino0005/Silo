@@ -6,9 +6,10 @@ struct GameSettingsSheet: View {
     let game: SteamApp
     @State private var vm: GameSettingsViewModel?
     @State private var executables: [String] = []
-    /// The exe the game would actually launch — resolved alongside the executable list (same walk, same
-    /// off-main hop) so the DXMT note can read its imports.
-    @State private var resolvedExe: URL?
+    /// Whether the game needs D3D12 — decided once when the sheet opens, off the main actor, and handed to
+    /// the note as a plain value. Computing it inside the note (keyed on an executable that arrived a render
+    /// later) never produced a visible warning.
+    @State private var needsD3D12 = false
 
     var body: some View {
         NavigationStack {
@@ -47,8 +48,11 @@ struct GameSettingsSheet: View {
             // would jank the sheet as it opens.
             let installURL = game.installURL
             executables = await Task.detached { ExecutableResolver.allExecutables(in: installURL) }.value
-            if let config = vm?.config {
-                resolvedExe = env.orchestrator.resolvedExecutable(app: game, config: config)
+            if let config = vm?.config,
+               let exe = env.orchestrator.resolvedExecutable(app: game, config: config) {
+                // Reading a PE's imports and walking the install tree is disk work, and the game may be on
+                // an external drive.
+                needsD3D12 = await Task.detached { BackendChooser.needsD3D12(exe: exe) }.value
             }
         }
     }
@@ -64,7 +68,7 @@ struct GameSettingsSheet: View {
                 Picker("Graphics", selection: $vm.config.graphics) {
                     ForEach(GraphicsChoice.allCases) { Text(LocalizedStringKey($0.displayName)).tag($0) }
                 }
-                DXMTMismatchNote(choice: vm.config.graphics, executable: resolvedExe)
+                DXMTMismatchNote(choice: vm.config.graphics, needsD3D12: needsD3D12)
                 if let learned = vm.learnedBackend {
                     HStack {
                         Text("Automatic is using \(learned.displayName) — GPTK couldn't run this game.")

@@ -33,6 +33,53 @@ enum BackendChooser {
     /// with no static Direct3D imports (dynamic `LoadLibrary` loaders — common) returns `true` so DXMT still
     /// gets a chance. Only suppresses the switch when we're CONFIDENT DXMT can't help: the exe imports D3D12
     /// (DXMT has no d3d12), or imports D3D9 and NONE of D3D10/11 (DXMT has no d3d9).
+    /// Whether `exe` needs Direct3D 12 — the question the DXMT mismatch note asks.
+    ///
+    /// Two checks, because neither sees what the other does: the import table catches a game that LINKS
+    /// d3d12, and the layout check catches Unreal, which loads its RHI with `LoadLibrary` and so appears
+    /// in no import table at all.
+    static func needsD3D12(exe: URL) -> Bool {
+        !dxmtMightHelp(exe: exe) || isUnrealD3D12(exe: exe)
+    }
+
+    /// Whether `exe` belongs to an Unreal Engine game shipping the D3D12 renderer — recognised by the
+    /// install LAYOUT, because the import table can't see it.
+    ///
+    /// Unreal loads its RHI modules with `LoadLibrary` at runtime, so `d3d12.dll` appears in neither the
+    /// import table nor the delay-import table: `dxmtMightHelp` reads both and still comes back "maybe".
+    /// Measured on Fatal Fury, whose log shows dxgi at line 31 and d3d12 only at 219 — long after start-up,
+    /// which is what a dynamic load looks like.
+    ///
+    /// Searched from the DIRECTORIES, never from the executable's name. Both shapes ship in practice: the
+    /// shipping binary itself (`<Game>/Binaries/Win64/<Game>-Win64-Shipping.exe`) and a small launcher at
+    /// the install root beside `Engine/`. `TEKKEN 8.exe` is the latter, and keying on the `-Win64-Shipping`
+    /// suffix missed it while catching every other Unreal title in the same library.
+    ///
+    /// Deliberately NOT folded into `dxmtMightHelp`: that decides ROUTING for Automatic, where an unknown
+    /// profile means "let DXMT try". This only feeds a warning shown for an EXPLICIT DXMT pick, so a false
+    /// positive costs a note the user can ignore — not a launch sent down the wrong path.
+    static func isUnrealD3D12(exe: URL) -> Bool {
+        let fm = FileManager.default
+        // Walk up from the executable looking for the engine tree. Four levels covers both shapes: a
+        // launcher sits one level below the install root, a shipping binary three.
+        var dir = exe.deletingLastPathComponent()
+        for _ in 0..<4 {
+            // `Engine/Binaries` — NOT `Engine/Binaries/Win64`. Both exist in the wild: Fatal Fury has the
+            // Win64 folder, Tekken 8 has only `Engine/Binaries/ThirdParty` and keeps its engine binaries
+            // under the project folder instead. Requiring Win64 missed Tekken entirely while catching
+            // every other Unreal title in the same library.
+            //
+            // The engine tree alone is the signal. When UE ships the D3D12 renderer as its own DLL it sits
+            // beside these binaries; when it doesn't, the renderer is linked into the shipping binary (the
+            // monolithic case, e.g. Fatal Fury) — and UE 4.25+ defaults to D3D12 on Windows either way.
+            if fm.fileExists(atPath: dir.appendingPathComponent("Engine/Binaries").path) { return true }
+            let parent = dir.deletingLastPathComponent()
+            if parent == dir { break }   // reached the filesystem root
+            dir = parent
+        }
+        return false
+    }
+
     static func dxmtMightHelp(exe: URL) -> Bool {
         let imports = WindowsExecutable.importedDLLs(of: exe)
         if imports.isEmpty { return true }                                  // unknown → let DXMT try
