@@ -108,7 +108,7 @@ public final class SteamBottleViewModel {
     /// (the user chose to stop) with a clear "run Set up again" cue; anything else is a plain failure.
     static func setupFailureMessage(_ error: Error) -> String {
         if case SteamBottle.BottleError.componentCancelled(let component) = error {
-            return "You cancelled the \(component.title) installer. Run Set up again."
+            return String(localized: "You cancelled the \(component.title) installer. Run Set up again.")
         }
         return String(localized: "Setup failed: \((error as NSError).localizedDescription)")
     }

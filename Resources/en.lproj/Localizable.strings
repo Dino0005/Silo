@@ -248,6 +248,7 @@
 "Couldn't download the Steam installer (HTTP %lld) — check your connection." = "Couldn't download the Steam installer (HTTP %lld) — check your connection.";
 "The Steam installer didn't finish (exit %d)." = "The Steam installer didn't finish (exit %d).";
 "You cancelled the %@ installer." = "You cancelled the %@ installer.";
+"You cancelled the %@ installer. Run Set up again." = "You cancelled the %@ installer. Run Set up again.";
 
 /* Prefixes that wrap an error. */
 "Couldn't install: %@" = "Couldn't install: %@";

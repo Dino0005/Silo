@@ -248,6 +248,7 @@
 "Couldn't download the Steam installer (HTTP %lld) — check your connection." = "Impossibile scaricare l'installer di Steam (HTTP %lld) — controlla la connessione.";
 "The Steam installer didn't finish (exit %d)." = "L'installer di Steam non è stato completato (uscita %d).";
 "You cancelled the %@ installer." = "Hai annullato l'installazione di %@.";
+"You cancelled the %@ installer. Run Set up again." = "Hai annullato l'installazione di %@. Esegui di nuovo Configura.";
 
 /* Prefissi che avvolgono un errore. Volutamente non aperti con "Impossibile": diverse frasi
    d'errore gia' cominciano cosi', e ne uscirebbe "Impossibile installare: Impossibile estrarre…". */
