@@ -53,6 +53,27 @@ struct GPTKManagerViewModelTests {
         #expect(vm.defaultName == nil)
     }
 
+    @Test("refresh on a GPTK install deleted underneath us fires onDefaultRemoved")
+    func refreshFiresDefaultRemoved() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        try seedInstall(tmp, "GPTK-4.0")
+        let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
+        let vm = GPTKManagerViewModel(importer: GPTKImporter(runner: FakeProcessRunner(), paths: paths))
+        vm.refresh()
+        vm.setDefault(vm.installs[0])
+        var cleared = 0
+        vm.onDefaultRemoved = { cleared += 1 }
+
+        vm.refresh()
+        #expect(vm.defaultName == "GPTK-4.0")
+        #expect(cleared == 0)
+
+        try FileManager.default.removeItem(at: paths.runtimesDir.appendingPathComponent("GPTK-4.0"))
+        vm.refresh()
+        #expect(vm.defaultName == nil)
+        #expect(cleared == 1)
+    }
+
     @Test("importGPTK failure surfaces a message and resets the spinner without refreshing")
     func importFailureSurfacesStatus() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

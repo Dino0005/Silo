@@ -98,7 +98,14 @@ public final class RuntimeViewModel {
     public func refresh() async {
         installed = await kind.installed()
         if let name = defaultName, !installed.contains(where: { $0.name == name }) {
+            // The default's runtime is GONE (deleted outside the app, a restore that copied only
+            // config.json, or a crash mid-install). Clearing `defaultName` alone left the PERSISTED path
+            // dangling, so the readiness gates — plain `!= nil` checks — stayed green: onboarding showed
+            // "Done", runFullSetup skipped the install, and every launch failed against a path that isn't
+            // there while this tab said "None installed". Tell the owner so the config is cleared and setup
+            // re-surfaces the step. `remove()` already did this; only this path was missing it.
             defaultName = nil
+            onDefaultRemoved?()
         }
     }
 

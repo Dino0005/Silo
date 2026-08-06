@@ -339,6 +339,23 @@ struct RuntimeManagerTests {
         #expect(await manager.installedWines().map(\.name) == ["Wine-1"])
     }
 
+    @Test("both listings exclude a crash-leftover staging tree (dot-prefixed, mid-extraction)")
+    func listingsExcludeStagingTrees() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        // Genuine installs.
+        try tmp.write("Silo/Runtimes/wine-cx-26.3.0/bin/wine64", "x")
+        try tmp.write("Silo/Runtimes/dxmt-v0.72-cx26.3.0/x86_64-windows/d3d11.dll", "x")
+        try tmp.write("Silo/Runtimes/dxmt-v0.72-cx26.3.0/x86_64-windows/winemetal.dll", "x")
+        // What `installWine` / `installDXMT` leave behind when the process dies between the tar and the
+        // atomic rename: a dot-prefixed staging tree that ALREADY satisfies each listing's predicate.
+        try tmp.write("Silo/Runtimes/.wine-cx-26.3.0.extracting-DEADBEEF/bin/wine64", "x")
+        try tmp.write("Silo/Runtimes/.dxmt-v0.72.extracting-DEADBEEF/x86_64-windows/d3d11.dll", "x")
+        try tmp.write("Silo/Runtimes/.dxmt-v0.72.extracting-DEADBEEF/x86_64-windows/winemetal.dll", "x")
+        let manager = makeManager(tmp, FakeProcessRunner(), session: FakeURLProtocol.makeSession())
+        #expect(await manager.installedWines().map(\.name) == ["wine-cx-26.3.0"])
+        #expect(await manager.installedDXMT().map(\.name) == ["dxmt-v0.72-cx26.3.0"])
+    }
+
     @Test("both listings exclude a DXMT variant CLONE (it carries a wine binary AND the DXMT modules)")
     func listingsExcludeVariantClone() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

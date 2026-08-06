@@ -80,7 +80,8 @@ public actor RuntimeManager {
         guard let dirs = try? fileManager.contentsOfDirectory(
             at: paths.runtimesDir, includingPropertiesForKeys: [.isDirectoryKey]) else { return [] }
         return dirs.compactMap { dir -> WineInstall? in
-            guard !RuntimeVariants.isVariantClone(dir.lastPathComponent),
+            guard !dir.lastPathComponent.hasPrefix("."),        // crash-leftover staging tree, not an install
+                  !RuntimeVariants.isVariantClone(dir.lastPathComponent),
                   let binary = Self.locateWineBinary(in: dir) else { return nil }
             return WineInstall(name: dir.lastPathComponent, installDir: dir, wineBinary: binary)
         }.sorted { $0.name > $1.name }   // newest tag first
@@ -188,7 +189,8 @@ public actor RuntimeManager {
         guard let dirs = try? fileManager.contentsOfDirectory(
             at: paths.runtimesDir, includingPropertiesForKeys: [.isDirectoryKey]) else { return [] }
         return dirs.compactMap { dir -> DXMTInstall? in
-            guard !RuntimeVariants.isVariantClone(dir.lastPathComponent),
+            guard !dir.lastPathComponent.hasPrefix("."),        // crash-leftover staging tree, not an install
+                  !RuntimeVariants.isVariantClone(dir.lastPathComponent),
                   let lib = Self.standardDXMTLibDir(in: dir) else { return nil }
             return DXMTInstall(name: dir.lastPathComponent, installDir: dir, libDir: lib)
         }.sorted { $0.name > $1.name }   // newest tag first

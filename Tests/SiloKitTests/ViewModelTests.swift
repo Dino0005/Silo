@@ -129,13 +129,36 @@ struct ViewModelTests {
         #expect(vm.installed.first?.artifact?.lastPathComponent == "wine64")
     }
 
-    @Test("installLatest PAGINA oltre una prima pagina piena di release dell'app per trovare il runtime")
+    @Test("refresh on a runtime deleted underneath us fires onDefaultRemoved, not just a nil name")
+    func runtimeVMRefreshFiresDefaultRemoved() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        try tmp.write("Silo/Runtimes/wine-cx-26.3.0/bin/wine64", "x")
+        let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
+        let vm = RuntimeViewModel(
+            manager: RuntimeManager(paths: paths, runner: FakeProcessRunner()),
+            repo: "acme/wine", defaultName: "wine-cx-26.3.0")
+        var cleared = 0
+        vm.onDefaultRemoved = { cleared += 1 }
+
+        await vm.refresh()
+        #expect(vm.defaultName == "wine-cx-26.3.0")     // still there: nothing to clear
+        #expect(cleared == 0)
+
+        // Deleted from under the app (Finder, a restore, a crash mid-install).
+        try FileManager.default.removeItem(
+            at: paths.runtimesDir.appendingPathComponent("wine-cx-26.3.0"))
+        await vm.refresh()
+        #expect(vm.defaultName == nil)
+        #expect(cleared == 1)                           // the persisted path gets cleared too
+    }
+
+    @Test("installLatest PAGES past a full first page of app releases to find the runtime")
     func wineReleasePagination() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
-        // Il repo vero alterna le release `v*` dell'app ai tag dei runtime, e il runtime affonda a ogni
-        // release dell'app. Qui pagina 1 e' TUTTA release dell'app: con la fetch a pagina singola
-        // `installLatest` rispondeva "No Wine build published yet." e l'onboarding finiva in un vicolo
-        // cieco anche se Wine era pubblicato.
+        // The real repo interleaves the app's `v*` releases with the runtime tags, and the runtime sinks
+        // with every app release. Page 1 here is ALL app releases: with the single-page fetch,
+        // `installLatest` answered "No Wine build published yet." and onboarding dead-ended even though
+        // Wine WAS published.
         let page1 = (1...15).map {
             #"{"tag_name":"v0.\#($0).0","name":"app","assets":[{"name":"Silo.zip","browser_download_url":"https://e.com/s.zip","size":1}]}"#
         }.joined(separator: ",")

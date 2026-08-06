@@ -82,6 +82,20 @@ struct GPTKImporterTests {
         #expect(importer.installed().map(\.name) == ["GPTK-4.0"])
     }
 
+    @Test("installed() excludes a crash-leftover import staging tree (dot-prefixed)")
+    func installedExcludesStagingTree() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        try tmp.write("Silo/Runtimes/GPTK-4.0/lib/wine/x86_64-windows/d3d11.dll", "x")
+        try tmp.makeDir("Silo/Runtimes/GPTK-4.0/lib/external/D3DMetal.framework")
+        // `importGPTK` stages into `.gptk-import-<uuid>`; a crash mid-copy leaves a tree that satisfies the
+        // GPTK predicate exactly (overlay layout, no wine binary) and was listed as a real install.
+        try tmp.write("Silo/Runtimes/.gptk-import-DEADBEEF/lib/wine/x86_64-windows/d3d11.dll", "x")
+        try tmp.makeDir("Silo/Runtimes/.gptk-import-DEADBEEF/lib/external/D3DMetal.framework")
+        let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
+        let importer = GPTKImporter(runner: FakeProcessRunner(), paths: paths)
+        #expect(importer.installed().map(\.name) == ["GPTK-4.0"])
+    }
+
     @Test("a failed de-quarantine fires onWarning naming the install (import still succeeds)")
     func importWarnsOnHardeningFailure() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

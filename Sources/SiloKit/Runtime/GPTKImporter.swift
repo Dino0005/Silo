@@ -54,6 +54,12 @@ public struct GPTKImporter: Sendable {
         guard let dirs = try? fileManager.contentsOfDirectory(
             at: paths.runtimesDir, includingPropertiesForKeys: [.isDirectoryKey]) else { return [] }
         return dirs.compactMap { dir in
+            // `importGPTK` stages into `.gptk-import-<uuid>` in THIS same dir and publishes with an atomic
+            // rename, so a crash mid-copy leaves a partial tree behind — and a partial tree already has
+            // lib/wine/x86_64-windows + lib/external/D3DMetal.framework and no wine binary, i.e. it matches
+            // the predicate below exactly and was listed (and selectable as Default) as a real install.
+            // Upstream added this filter to the wine/DXMT listings only; the importer stages here too.
+            guard !dir.lastPathComponent.hasPrefix(".") else { return nil }
             let libDir = dir.appendingPathComponent("lib/wine/x86_64-windows", isDirectory: true)
             let framework = dir.appendingPathComponent("lib/external/D3DMetal.framework", isDirectory: true)
             guard fileManager.fileExists(atPath: libDir.path),

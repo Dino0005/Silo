@@ -23,9 +23,15 @@ public final class GPTKManagerViewModel {
 
     public func refresh() {
         installs = importer.installed()
-        // Drop a stale default if its install was removed out from under us.
+        // Drop a stale default if its install was removed out from under us — and TELL the owner, so the
+        // persisted GPTK lib dir is cleared with it. Same defect `RuntimeViewModel.refresh` had: clearing
+        // `defaultName` alone left `AppEnvironment`'s wiring (`onDefaultRemoved -> clearGPTKDefault`) never
+        // fired, so the backend config kept pointing at a lib dir that is no longer there while this tab
+        // showed nothing installed. Upstream fixed only the RuntimeViewModel side; GPTK is the default
+        // backend in this fork, so it matters more here.
         if let name = defaultName, !installs.contains(where: { $0.name == name }) {
             defaultName = nil
+            onDefaultRemoved?()
         }
     }
 
