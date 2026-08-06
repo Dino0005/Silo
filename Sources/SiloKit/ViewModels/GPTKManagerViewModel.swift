@@ -53,7 +53,7 @@ public final class GPTKManagerViewModel {
             statusMessage = warning.value.map { "Imported \(result.name) — ⚠️ \($0)" }
                 ?? "Imported \(result.name)."
         } catch {
-            statusMessage = "Couldn't import: \((error as NSError).localizedDescription)"
+            statusMessage = String(localized: "Couldn't import: \((error as NSError).localizedDescription)")
         }
     }
 
@@ -66,7 +66,7 @@ public final class GPTKManagerViewModel {
             if wasDefault { onDefaultRemoved?() }   // clear the dangling lib dir in the persisted config
             statusMessage = "Removed \(install.displayName)."
         } catch {
-            statusMessage = "Couldn't remove: \((error as NSError).localizedDescription)"
+            statusMessage = String(localized: "Couldn't remove: \((error as NSError).localizedDescription)")
         }
     }
 

@@ -170,7 +170,7 @@ public final class RuntimeViewModel {
             statusMessage = warning.map { "Installed \(release.version) — ⚠️ \($0)" }
                 ?? "Installed \(release.version)."
         } catch {
-            statusMessage = "Couldn't install: \((error as NSError).localizedDescription)"
+            statusMessage = String(localized: "Couldn't install: \((error as NSError).localizedDescription)")
         }
     }
 
@@ -183,7 +183,7 @@ public final class RuntimeViewModel {
             if wasDefault { onDefaultRemoved?() }   // clear the dangling path in the persisted config
             statusMessage = "Removed \(install.displayName)."
         } catch {
-            statusMessage = "Couldn't remove: \((error as NSError).localizedDescription)"
+            statusMessage = String(localized: "Couldn't remove: \((error as NSError).localizedDescription)")
         }
     }
 

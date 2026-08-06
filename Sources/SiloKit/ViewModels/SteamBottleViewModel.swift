@@ -110,7 +110,7 @@ public final class SteamBottleViewModel {
         if case SteamBottle.BottleError.componentCancelled(let component) = error {
             return "You cancelled the \(component.title) installer. Run Set up again."
         }
-        return "Setup failed: \((error as NSError).localizedDescription)"
+        return String(localized: "Setup failed: \((error as NSError).localizedDescription)")
     }
 
     /// User-facing status for a component-install phase. Pure + testable; user-guided steps ask the user to

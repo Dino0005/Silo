@@ -14,7 +14,7 @@
 "Automatic picks the backend per game — 32-bit games use DXMT, others use GPTK / D3DMetal. Using DXMT requires installing it in Settings → DXMT. Takes effect next launch." = "La modalità automatica sceglie il backend per ogni gioco — i giochi a 32 bit usano DXMT, gli altri GPTK / D3DMetal. Per usare DXMT è necessario installarlo in Impostazioni → DXMT. Ha effetto al prossimo avvio.";
 "Automatic picks the best translation layer per game — 32-bit games use DXMT, others start on GPTK / D3DMetal and switch to DXMT if GPTK can't run them. Using DXMT requires installing it in Settings → DXMT. Takes effect next launch." = "La modalità automatica sceglie il miglior livello di traduzione per ogni gioco — i giochi a 32 bit usano DXMT, gli altri partono con GPTK / D3DMetal e passano a DXMT se GPTK non riesce ad avviarli. Per usare DXMT è necessario installarlo in Impostazioni → DXMT. Ha effetto al prossimo avvio.";
 "Autoscroll" = "Scorrimento automatico";
-"Bottle" = "Bottigla";
+"Bottle" = "Bottiglia";
 "Bottles" = "Bottiglie";
 "Bottles drive not connected" = "Disco delle bottiglie non connesso";
 "Cancel" = "Annulla";
@@ -230,3 +230,28 @@
 
 /* DXMT / Direct3D 12 mismatch warning */
 "This game uses Direct3D 12, which DXMT doesn't translate: the graphics still go through GPTK, with DXMT covering only part of the stack — a mix that can cause display problems. Switch to GPTK. If the game also offers a Direct3D 11 mode (Unreal titles take the launch option -d3d11), that avoids the split altogether and either backend will handle it." = "Questo gioco usa Direct3D 12, che DXMT non traduce: la grafica passa comunque da GPTK, con DXMT che copre solo una parte dello stack — una combinazione che può causare problemi di visualizzazione. Passa a GPTK. Se il gioco offre anche una modalità Direct3D 11 (i titoli Unreal accettano l'opzione di avvio -d3d11), quella evita del tutto la sovrapposizione e funziona con entrambi i backend.";
+
+
+/* Errori leggibili (LocalizedError su RuntimeError / ImportError / BottleError) */
+"GitHub rate-limited this Mac (HTTP 403). Wait a few minutes and try again." = "GitHub ha limitato le richieste da questo Mac (HTTP 403). Attendi qualche minuto e riprova.";
+"GitHub returned HTTP %lld while listing releases." = "GitHub ha risposto HTTP %lld durante l'elenco delle release.";
+"The download failed (HTTP %lld) — check your connection and try again." = "Scaricamento non riuscito (HTTP %lld) — controlla la connessione e riprova.";
+"Couldn't unpack the download (tar exit %d). You may be out of disk space." = "Impossibile estrarre il file scaricato (tar è uscito con %d). Potrebbe non esserci spazio su disco.";
+"The download didn't match its published checksum, so it was discarded. Try again." = "Il file scaricato non corrisponde al checksum pubblicato ed è stato scartato. Riprova.";
+"The download has no published checksum, so it wasn't installed." = "Il file scaricato non ha un checksum pubblicato, quindi non è stato installato.";
+"\"%@\" isn't a usable runtime name." = "\"%@\" non è un nome di runtime utilizzabile.";
+"Couldn't open the disk image: %@" = "Impossibile aprire l'immagine disco: %@";
+"That doesn't look like Apple's Game Porting Toolkit disk image — no inner .dmg was found." = "Questa non sembra l'immagine disco del Game Porting Toolkit di Apple — non è stato trovato alcun .dmg interno.";
+"That disk image doesn't contain the Game Porting Toolkit's redistributable libraries." = "Questa immagine disco non contiene le librerie ridistribuibili del Game Porting Toolkit.";
+"No Wine runtime is set up yet." = "Nessun runtime Wine è ancora configurato.";
+"Couldn't create the Windows bottle (wineboot exit %d). Check the Wine runtime in Settings." = "Impossibile creare la bottiglia Windows (wineboot è uscito con %d). Controlla il runtime Wine nelle Impostazioni.";
+"Couldn't download the Steam installer (HTTP %lld) — check your connection." = "Impossibile scaricare l'installer di Steam (HTTP %lld) — controlla la connessione.";
+"The Steam installer didn't finish (exit %d)." = "L'installer di Steam non è stato completato (uscita %d).";
+"You cancelled the %@ installer." = "Hai annullato l'installazione di %@.";
+
+/* Prefissi che avvolgono un errore. Volutamente non aperti con "Impossibile": diverse frasi
+   d'errore gia' cominciano cosi', e ne uscirebbe "Impossibile installare: Impossibile estrarre…". */
+"Couldn't install: %@" = "Installazione non riuscita: %@";
+"Couldn't remove: %@" = "Rimozione non riuscita: %@";
+"Couldn't import: %@" = "Importazione non riuscita: %@";
+"Setup failed: %@" = "Configurazione non riuscita: %@";

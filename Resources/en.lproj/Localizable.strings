@@ -230,3 +230,27 @@
 
 /* DXMT / Direct3D 12 mismatch warning */
 "This game uses Direct3D 12, which DXMT doesn't translate: the graphics still go through GPTK, with DXMT covering only part of the stack — a mix that can cause display problems. Switch to GPTK. If the game also offers a Direct3D 11 mode (Unreal titles take the launch option -d3d11), that avoids the split altogether and either backend will handle it." = "This game uses Direct3D 12, which DXMT doesn't translate: the graphics still go through GPTK, with DXMT covering only part of the stack — a mix that can cause display problems. Switch to GPTK. If the game also offers a Direct3D 11 mode (Unreal titles take the launch option -d3d11), that avoids the split altogether and either backend will handle it.";
+
+
+/* Readable errors (LocalizedError on RuntimeError / ImportError / BottleError) */
+"GitHub rate-limited this Mac (HTTP 403). Wait a few minutes and try again." = "GitHub rate-limited this Mac (HTTP 403). Wait a few minutes and try again.";
+"GitHub returned HTTP %lld while listing releases." = "GitHub returned HTTP %lld while listing releases.";
+"The download failed (HTTP %lld) — check your connection and try again." = "The download failed (HTTP %lld) — check your connection and try again.";
+"Couldn't unpack the download (tar exit %d). You may be out of disk space." = "Couldn't unpack the download (tar exit %d). You may be out of disk space.";
+"The download didn't match its published checksum, so it was discarded. Try again." = "The download didn't match its published checksum, so it was discarded. Try again.";
+"The download has no published checksum, so it wasn't installed." = "The download has no published checksum, so it wasn't installed.";
+"\"%@\" isn't a usable runtime name." = "\"%@\" isn't a usable runtime name.";
+"Couldn't open the disk image: %@" = "Couldn't open the disk image: %@";
+"That doesn't look like Apple's Game Porting Toolkit disk image — no inner .dmg was found." = "That doesn't look like Apple's Game Porting Toolkit disk image — no inner .dmg was found.";
+"That disk image doesn't contain the Game Porting Toolkit's redistributable libraries." = "That disk image doesn't contain the Game Porting Toolkit's redistributable libraries.";
+"No Wine runtime is set up yet." = "No Wine runtime is set up yet.";
+"Couldn't create the Windows bottle (wineboot exit %d). Check the Wine runtime in Settings." = "Couldn't create the Windows bottle (wineboot exit %d). Check the Wine runtime in Settings.";
+"Couldn't download the Steam installer (HTTP %lld) — check your connection." = "Couldn't download the Steam installer (HTTP %lld) — check your connection.";
+"The Steam installer didn't finish (exit %d)." = "The Steam installer didn't finish (exit %d).";
+"You cancelled the %@ installer." = "You cancelled the %@ installer.";
+
+/* Prefixes that wrap an error. */
+"Couldn't install: %@" = "Couldn't install: %@";
+"Couldn't remove: %@" = "Couldn't remove: %@";
+"Couldn't import: %@" = "Couldn't import: %@";
+"Setup failed: %@" = "Setup failed: %@";
