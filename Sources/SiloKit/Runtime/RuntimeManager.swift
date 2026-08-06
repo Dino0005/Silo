@@ -44,8 +44,17 @@ public actor RuntimeManager {
     }
 
     /// The latest `limit` releases of `repo` (newest first) — for the Heroic-style Wine list.
-    public func availableReleases(repo: String, limit: Int = 3) async throws -> [GitHubRelease] {
-        let url = URL(string: "https://api.github.com/repos/\(repo)/releases?per_page=\(limit)")!
+    ///
+    /// - Parameter page: 1-based page of the release list. **Load-bearing:** the runtime repo interleaves
+    ///   the app's own `v*` releases with the runtime tags (`wine-cx-*`, `dxmt-*`), so the newest runtime
+    ///   of a given kind steadily sinks as app releases are published. Fetching only page 1 meant that once
+    ///   enough releases stacked above it, `pickRelease` found nothing and onboarding died with
+    ///   "No Wine build published yet." — on a repo that has Wine published all along. Callers page until
+    ///   they find their kind (see `RuntimeViewModel.installLatest`). NOTE for this fork: `Silo.updateRepo`
+    ///   points at Dino0005/Silo, but `Silo.wineRepo` is still upstream — this is the repo where the
+    ///   runtime tags sink under the app releases, so the fix applies here unchanged.
+    public func availableReleases(repo: String, limit: Int = 3, page: Int = 1) async throws -> [GitHubRelease] {
+        let url = URL(string: "https://api.github.com/repos/\(repo)/releases?per_page=\(limit)&page=\(page)")!
         try DownloadGuard.requireHTTPS(url)   // defense-in-depth: every remote fetch goes through the guard
         let (data, response) = try await session.data(for: .github(url))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {

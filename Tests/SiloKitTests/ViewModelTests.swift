@@ -129,6 +129,39 @@ struct ViewModelTests {
         #expect(vm.installed.first?.artifact?.lastPathComponent == "wine64")
     }
 
+    @Test("installLatest PAGINA oltre una prima pagina piena di release dell'app per trovare il runtime")
+    func wineReleasePagination() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        // Il repo vero alterna le release `v*` dell'app ai tag dei runtime, e il runtime affonda a ogni
+        // release dell'app. Qui pagina 1 e' TUTTA release dell'app: con la fetch a pagina singola
+        // `installLatest` rispondeva "No Wine build published yet." e l'onboarding finiva in un vicolo
+        // cieco anche se Wine era pubblicato.
+        let page1 = (1...15).map {
+            #"{"tag_name":"v0.\#($0).0","name":"app","assets":[{"name":"Silo.zip","browser_download_url":"https://e.com/s.zip","size":1}]}"#
+        }.joined(separator: ",")
+        FakeURLProtocol.stub("https://api.github.com/repos/acme/winepaged/releases?per_page=15&page=1",
+                             data: Data("[\(page1)]".utf8))
+        FakeURLProtocol.stub("https://api.github.com/repos/acme/winepaged/releases?per_page=15&page=2",
+                             data: Data(#"[{"tag_name":"wine-cx-26.3.0","name":"Wine CX 26.3.0","assets":[{"name":"wine.tar.xz","browser_download_url":"https://e.com/wp.tar.xz","size":1}]}]"#.utf8))
+        FakeURLProtocol.stub("https://e.com/wp.tar.xz", data: Data("WINE".utf8))
+        let fake = FakeProcessRunner()
+        fake.onRun = { inv in
+            if inv.executable.lastPathComponent == "tar",
+               let i = inv.arguments.firstIndex(of: "-C"), i + 1 < inv.arguments.count {
+                let bin = URL(fileURLWithPath: inv.arguments[i + 1]).appendingPathComponent("bin")
+                try? FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+                FileManager.default.createFile(atPath: bin.appendingPathComponent("wine64").path, contents: Data("x".utf8))
+            }
+        }
+        let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
+        let vm = RuntimeViewModel(
+            manager: RuntimeManager(paths: paths, runner: fake, session: FakeURLProtocol.makeSession()),
+            repo: "acme/winepaged")
+        await vm.installLatest()
+        #expect(vm.statusMessage?.contains("No Wine build published") != true)
+        #expect(vm.installed.map(\.name) == ["wine-cx-26.3.0"])
+    }
+
     @Test("installLatest installs the newest wine-* release, ignoring app v* releases in the same repo")
     func wineReleaseFilter() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
@@ -140,7 +173,7 @@ struct ViewModelTests {
             {"name":"wine.tar.xz","browser_download_url":"https://e.com/wf.tar.xz","size":1}]}
         ]
         """
-        FakeURLProtocol.stub("https://api.github.com/repos/acme/winefilter/releases?per_page=15", data: Data(json.utf8))
+        FakeURLProtocol.stub("https://api.github.com/repos/acme/winefilter/releases?per_page=15&page=1", data: Data(json.utf8))
         FakeURLProtocol.stub("https://e.com/wf.tar.xz", data: Data("WINE".utf8))
         let fake = FakeProcessRunner()
         fake.onRun = { inv in
@@ -166,7 +199,7 @@ struct ViewModelTests {
         [ {"tag_name":"wine-cx-26.2.0","name":"Wine CX 26.2.0","assets":[
             {"name":"wine.tar.xz","browser_download_url":"https://e.com/already.tar.xz","size":1}]} ]
         """
-        FakeURLProtocol.stub("https://api.github.com/repos/acme/already/releases?per_page=15", data: Data(json.utf8))
+        FakeURLProtocol.stub("https://api.github.com/repos/acme/already/releases?per_page=15&page=1", data: Data(json.utf8))
         // Deliberately do NOT stub the asset URL — a download would fail, proving we don't attempt one.
         let fake = FakeProcessRunner()
         let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
@@ -194,7 +227,7 @@ struct ViewModelTests {
         [{"tag_name":"v0.5.0","name":"Silo 0.5.0","assets":[
           {"name":"Silo.zip","browser_download_url":"https://e.com/Silo.zip","size":1}]}]
         """
-        FakeURLProtocol.stub("https://api.github.com/repos/acme/noWine/releases?per_page=15", data: Data(json.utf8))
+        FakeURLProtocol.stub("https://api.github.com/repos/acme/noWine/releases?per_page=15&page=1", data: Data(json.utf8))
         let vm = RuntimeViewModel(
             manager: RuntimeManager(paths: paths, runner: FakeProcessRunner(), session: FakeURLProtocol.makeSession()),
             repo: "acme/noWine")
@@ -210,7 +243,7 @@ struct ViewModelTests {
         let json = """
         [{"tag_name":"wine-cx-26.2.0","name":"Wine CX 26.2.0","assets":[]}]
         """
-        FakeURLProtocol.stub("https://api.github.com/repos/acme/noAsset/releases?per_page=15", data: Data(json.utf8))
+        FakeURLProtocol.stub("https://api.github.com/repos/acme/noAsset/releases?per_page=15&page=1", data: Data(json.utf8))
         let vm = RuntimeViewModel(
             manager: RuntimeManager(paths: paths, runner: FakeProcessRunner(), session: FakeURLProtocol.makeSession()),
             repo: "acme/noAsset")
@@ -251,7 +284,7 @@ struct ViewModelTests {
             {"name":"m.tar.xz","browser_download_url":"https://e.com/matched.tar.xz","size":1}]},
          {"tag_name":"v0.5.0","name":"Silo","assets":[]}]
         """
-        FakeURLProtocol.stub("https://api.github.com/repos/acme/dxmt/releases?per_page=30", data: Data(json.utf8))
+        FakeURLProtocol.stub("https://api.github.com/repos/acme/dxmt/releases?per_page=30&page=1", data: Data(json.utf8))
         FakeURLProtocol.stub("https://e.com/matched.tar.xz", data: Data("DXMT".utf8))
         let fake = FakeProcessRunner(); dxmtExtractHook(fake)
         let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
@@ -274,7 +307,7 @@ struct ViewModelTests {
     func dxmtInstallLatestNoRelease() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let json = #"[{"tag_name":"wine-cx-26.2.0","name":"Wine","assets":[]}]"#
-        FakeURLProtocol.stub("https://api.github.com/repos/acme/dxmtnone/releases?per_page=30", data: Data(json.utf8))
+        FakeURLProtocol.stub("https://api.github.com/repos/acme/dxmtnone/releases?per_page=30&page=1", data: Data(json.utf8))
         let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
         let manager = RuntimeManager(paths: paths, runner: FakeProcessRunner(), session: FakeURLProtocol.makeSession())
         let vm = RuntimeViewModel(
@@ -289,7 +322,7 @@ struct ViewModelTests {
     func dxmtInstallLatestAlready() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let json = #"[{"tag_name":"dxmt-v0.72-cx26.2.0","name":"DXMT","assets":[{"name":"d.tar.xz","browser_download_url":"https://e.com/already-dxmt.tar.xz","size":1}]}]"#
-        FakeURLProtocol.stub("https://api.github.com/repos/acme/dxmtalready/releases?per_page=30", data: Data(json.utf8))
+        FakeURLProtocol.stub("https://api.github.com/repos/acme/dxmtalready/releases?per_page=30&page=1", data: Data(json.utf8))
         // Deliberately do NOT stub the asset — a download would fail, proving we don't attempt one.
         let fake = FakeProcessRunner()
         let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))

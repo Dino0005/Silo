@@ -102,6 +102,10 @@ public final class RuntimeViewModel {
         }
     }
 
+    /// How many pages of releases to walk looking for this kind's newest build (see `installLatest`).
+    /// `releaseLimit` per page, so 5 pages covers 75–150 releases — far beyond any realistic backlog.
+    private static let maxReleasePages = 5
+
     /// Download + install the latest build of this kind published to Silo's releases. Self-contained —
     /// also used by the Library onboarding.
     public func installLatest() async {
@@ -110,9 +114,26 @@ public final class RuntimeViewModel {
         defer { isInstalling = false }
         do {
             // The repo also hosts the app's own `v*` releases (and the other runtime kind), so the kind
-            // picks its own newest release.
-            let releases = try await manager.availableReleases(repo: repo, limit: kind.releaseLimit)
-            guard let release = kind.pickRelease(releases) else {
+            // picks its own newest release — and we PAGE until we find it. A single page silently broke as
+            // soon as enough app releases stacked above the newest runtime tag (it sinks with every app
+            // release), so onboarding would have started failing with "No <kind> build published yet." on a
+            // repo that had the runtime published all along.
+            var release: GitHubRelease?
+            for page in 1...Self.maxReleasePages {
+                // Page 1 failing is a real "can't reach GitHub" and propagates. A LATER page failing is not
+                // worth discarding the search over — stop and use what we have, rather than turning a blip
+                // on page 3 into an install failure.
+                let batch: [GitHubRelease]
+                if page == 1 {
+                    batch = try await manager.availableReleases(repo: repo, limit: kind.releaseLimit, page: 1)
+                } else if let more = try? await manager.availableReleases(
+                    repo: repo, limit: kind.releaseLimit, page: page) {
+                    batch = more
+                } else { break }
+                if batch.isEmpty { break }                    // ran off the end of the release list
+                if let found = kind.pickRelease(batch) { release = found; break }
+            }
+            guard let release else {
                 statusMessage = "No \(kind.noun) build published yet."
                 return
             }
