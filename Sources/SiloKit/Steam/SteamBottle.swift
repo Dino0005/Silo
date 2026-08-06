@@ -320,41 +320,33 @@ public struct SteamBottle: Sendable {
     }
 
     /// Install the native `d3dcompiler_47.dll` (HLSL shader compiler) for both ABIs (idempotent, no EULA).
-    /// Extracts the DLL from Microsoft's own Windows-SDK cabinet files via Wine's builtin `expand` (no
-    /// cabextract dependency): 64-bit → `system32`, 32-bit → `syswow64`. No DLL override is set — Wine's
+    /// Extracts the DLL from Microsoft's own Windows-SDK cabinet files with `CabinetArchive` — a native
+    /// reader, no wine and no cabextract: 64-bit → `system32`, 32-bit → `syswow64`. No DLL override is set — Wine's
     /// builtin (vkd3d-shader-backed) drives shader compilation for the vast majority of titles; the native
     /// file is kept for the odd app that loads it by explicit path and for dependency detection. Best-effort
     /// per ABI.
-    func installD3DCompiler47(wine: URL?, downloads: SetupDownloads) async throws {
-        guard let wine else { throw BottleError.wineNotConfigured }
+    func installD3DCompiler47(downloads: SetupDownloads) async throws {
         if hasD3DCompiler47 { return }
         let driveC = prefixDir.appendingPathComponent("drive_c")
-        try? fileManager.createDirectory(at: driveC, withIntermediateDirectories: true)
         let cabs = await downloads.d3dCabFiles()   // member → local .cab (already SHA-verified)
-        // (member, unix dest dir, windows dest dir)
-        let targets: [(member: String, unixDir: String, winDir: String)] = [
-            (Silo.d3dCompiler47X64Member, "windows/system32", "windows\\system32"),
-            (Silo.d3dCompiler47X86Member, "windows/syswow64", "windows\\syswow64"),
+        let targets: [(member: String, unixDir: String)] = [
+            (Silo.d3dCompiler47X64Member, "windows/system32"),
+            (Silo.d3dCompiler47X86Member, "windows/syswow64"),
         ]
-        for (member, unixDir, winDir) in targets {
-            guard let src = cabs[member] else { continue }
-            // Stage the downloaded cab into drive_c so `wine expand` can reach it by its `C:\…` path.
-            let cab = driveC.appendingPathComponent("\(member).cab")
-            try? fileManager.removeItem(at: cab)
-            guard (try? fileManager.copyItem(at: src, to: cab)) != nil else { continue }
+        for (member, unixDir) in targets {
+            // Extracted NATIVELY (`CabinetArchive`), not via `wine expand` — wine's `expand` has no
+            // cabinet-member extraction and no `-F:` flag, so the old invocation exited 0 and wrote nothing,
+            // leaving wine's own builtin in place on every machine. Worse, `expand` read `-F:<member>` as an
+            // output FILENAME and dropped the DLL there: the `-F:fil…` files sitting in this bottle were
+            // Microsoft's d3dcompiler_47, extracted to a nonsense path. Doing it here also means the
+            // component needs no wine binary, no prefix and no exit code to interpret.
+            // (From upstream a4a821e.)
+            guard let src = cabs[member],
+                  let cab = try? Data(contentsOf: src, options: .mappedIfSafe),
+                  let dll = CabinetArchive.extract(member: member, from: cab) else { continue }
             let destDir = driveC.appendingPathComponent(unixDir)
             try? fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
-            // `wine expand <cab> -F:<member> C:\windows\<dir>` extracts the single member (named `member`)
-            // into the dir; then rename it to the canonical `d3dcompiler_47.dll`.
-            _ = try? await runner.run(
-                executable: wine, arguments: ["expand", "C:\\\(member).cab", "-F:\(member)", "C:\\\(winDir)"],
-                environment: Silo.msyncWineEnvironment(prefix: prefixDir, wine: wine),
-                currentDirectory: prefixDir)
-            let extracted = destDir.appendingPathComponent(member)
-            let finalDLL = destDir.appendingPathComponent("d3dcompiler_47.dll")
-            try? fileManager.removeItem(at: finalDLL)
-            try? fileManager.moveItem(at: extracted, to: finalDLL)
-            try? fileManager.removeItem(at: cab)
+            try? dll.write(to: destDir.appendingPathComponent("d3dcompiler_47.dll"))
         }
         // No DLL override: the native file is kept in system32/syswow64, but Wine's builtin d3dcompiler_47
         // (vkd3d-shader) drives shader compilation at runtime — the reliable, Wine-integrated choice.
@@ -464,7 +456,7 @@ public struct SteamBottle: Sendable {
         switch component {
         case .coreFonts:     try await installCoreFonts(wine: wine, downloads: downloads)
         case .sourceHanSans: try await installSourceHanSans(downloads: downloads)
-        case .d3dcompiler47: try await installD3DCompiler47(wine: wine, downloads: downloads)
+        case .d3dcompiler47: try await installD3DCompiler47(downloads: downloads)
         case .vcRedistX86:   try await installVCRedist(x86: true, wine: wine, downloads: downloads)
         case .vcRedistX64:   try await installVCRedist(x86: false, wine: wine, downloads: downloads)
         case .msync:         break                   // env-only; nothing to install
