@@ -21,6 +21,10 @@ public struct GameConfig: Codable, Sendable, Hashable, Identifiable {
     public var executableRelativePath: String?
     /// Extra arguments appended after the game executable.
     public var customArgs: [String]
+    /// Save directories kept SHARED with the Media Foundation bottle, so a game played on both sides keeps
+    /// one set of saves instead of two. Empty = nothing shared (the default, and every game until the
+    /// folder picker populates it). See `SharedSaveLinker`.
+    public var sharedSaveFolders: [SharedSaveFolder]
     public var lastPlayed: Date?
 
     public init(
@@ -32,6 +36,7 @@ public struct GameConfig: Codable, Sendable, Hashable, Identifiable {
         learnedUnderRuntime: String? = nil,
         executableRelativePath: String? = nil,
         customArgs: [String] = [],
+        sharedSaveFolders: [SharedSaveFolder] = [],
         lastPlayed: Date? = nil
     ) {
         self.appID = appID
@@ -42,12 +47,13 @@ public struct GameConfig: Codable, Sendable, Hashable, Identifiable {
         self.learnedUnderRuntime = learnedUnderRuntime
         self.executableRelativePath = executableRelativePath
         self.customArgs = customArgs
+        self.sharedSaveFolders = sharedSaveFolders
         self.lastPlayed = lastPlayed
     }
 
     private enum CodingKeys: String, CodingKey {
         case appID, envFlags, presence, graphics, learnedBackend, learnedUnderRuntime
-        case executableRelativePath, customArgs, lastPlayed
+        case executableRelativePath, customArgs, sharedSaveFolders, lastPlayed
     }
 
     /// Tolerant decode: every field defaults if absent (the legacy dual-bottle `backend` key is simply
@@ -72,7 +78,23 @@ public struct GameConfig: Codable, Sendable, Hashable, Identifiable {
         learnedUnderRuntime = try c.decodeIfPresent(String.self, forKey: .learnedUnderRuntime)
         executableRelativePath = try c.decodeIfPresent(String.self, forKey: .executableRelativePath)
         customArgs = try c.decodeIfPresent([String].self, forKey: .customArgs) ?? []
+        // Lossy: a folder whose `root` this build doesn't recognise is DROPPED rather than throwing, for
+        // the same reason `graphics` decodes from a raw string — one unknown value must never take the
+        // whole config down with it.
+        sharedSaveFolders = (try c.decodeIfPresent(
+            [FailableCodable<SharedSaveFolder>].self, forKey: .sharedSaveFolders))?
+            .compactMap(\.value) ?? []
         lastPlayed = try c.decodeIfPresent(Date.self, forKey: .lastPlayed)
+    }
+
+    /// Decodes an element, or swallows the failure and yields nil — so ONE bad entry in an array doesn't
+    /// throw the whole `GameConfig` away. See `sharedSaveFolders`.
+    struct FailableCodable<Wrapped: Codable & Sendable>: Codable, Sendable {
+        let value: Wrapped?
+        init(from decoder: any Decoder) throws {
+            value = try? Wrapped(from: decoder)
+        }
+        func encode(to encoder: any Encoder) throws { try value?.encode(to: encoder) }
     }
 
     /// Single-field, space-separated view of `customArgs` for a Steam-style "launch options" editor.

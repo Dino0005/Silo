@@ -255,6 +255,9 @@
 "Steam is ready, but %@ and %@ didn't install — run Set up again to finish." = "Steam is ready, but %@ and %@ didn't install — run Set up again to finish.";
 "Steam is ready, but %@ and %lld others didn't install — run Set up again to finish." = "Steam is ready, but %@ and %lld others didn't install — run Set up again to finish.";
 
+/* Saves shared between the Steam bottle and the Media Foundation bottle */
+"Shared saves for %@ weren't linked: the Media Foundation bottle has its own copy. Open the game's settings to resolve it." = "Shared saves for %@ weren't linked: the Media Foundation bottle has its own copy. Open the game's settings to resolve it.";
+
 /* Prefixes that wrap an error. */
 "Couldn't install: %@" = "Couldn't install: %@";
 "Couldn't remove: %@" = "Couldn't remove: %@";

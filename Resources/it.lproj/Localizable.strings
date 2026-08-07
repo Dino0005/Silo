@@ -256,6 +256,9 @@
 "Steam is ready, but %@ and %@ didn't install — run Set up again to finish." = "Steam è pronto, ma %@ e %@ non sono stati installati — esegui di nuovo Configura per completare.";
 "Steam is ready, but %@ and %lld others didn't install — run Set up again to finish." = "Steam è pronto, ma %@ e altri %lld non sono stati installati — esegui di nuovo Configura per completare.";
 
+/* Salvataggi condivisi fra la bottiglia Steam e quella Media Foundation */
+"Shared saves for %@ weren't linked: the Media Foundation bottle has its own copy. Open the game's settings to resolve it." = "I salvataggi condivisi di %@ non sono stati collegati: la bottiglia Media Foundation ha una copia propria. Aprine le impostazioni per risolvere.";
+
 /* Prefissi che avvolgono un errore. Volutamente non aperti con "Impossibile": diverse frasi
    d'errore gia' cominciano cosi', e ne uscirebbe "Impossibile installare: Impossibile estrarre…". */
 "Couldn't install: %@" = "Installazione non riuscita: %@";

@@ -340,6 +340,22 @@ public final class GameLibraryViewModel {
             // fails SteamAPI_Init and quits on its own.
             let wantsMF = config.envFlags.mediaFoundationNative
                 && MediaFoundationInstaller.isInstalled(inPrefix: paths.steamBottleMF)
+            // The MF bottle is a CLONE, so from the first launch on that side the same game accumulates a
+            // second, separate set of saves. Re-point the declared folders at the normal bottle's copy
+            // before the game can write anything. Idempotent — already-correct links cost one stat each —
+            // and it never deletes a populated directory (see `SharedSaveLinker`).
+            if wantsMF, !config.sharedSaveFolders.isEmpty {
+                let folders = config.sharedSaveFolders
+                let blocked = await Task.detached { [paths] in
+                    SharedSaveLinker().ensure(folders, mfPrefix: paths.steamBottleMF,
+                                              canonicalPrefix: paths.steamBottle)
+                }.value
+                if !blocked.isEmpty {
+                    setStatus(String(localized:
+                        "Shared saves for \(game.name) weren't linked: the Media Foundation bottle has its own copy. Open the game's settings to resolve it."),
+                        actionable: true)
+                }
+            }
             let session = wantsMF ? mfSession : self.session
             let other = wantsMF ? self.session : mfSession
 
