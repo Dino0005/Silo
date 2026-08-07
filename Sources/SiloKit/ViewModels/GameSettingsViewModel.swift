@@ -49,6 +49,7 @@ public final class GameSettingsViewModel {
         let appID = config.appID
         let (envFlags, presence, graphics) = (config.envFlags, config.presence, config.graphics)
         let (exePath, args) = (config.executableRelativePath, config.customArgs)
+        let sharedSaves = config.sharedSaveFolders
         do {
             // Field-merge into the CURRENT record rather than upserting the whole snapshot captured when the
             // sheet opened — otherwise a `lastPlayed` written by launching the same game while the sheet is
@@ -64,6 +65,7 @@ public final class GameSettingsViewModel {
                 $0.graphics = graphics
                 $0.executableRelativePath = exePath
                 $0.customArgs = args
+                $0.sharedSaveFolders = sharedSaves
             }
             errorMessage = nil
             return true

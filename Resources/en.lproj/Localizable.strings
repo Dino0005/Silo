@@ -257,6 +257,16 @@
 
 /* Saves shared between the Steam bottle and the Media Foundation bottle */
 "Shared saves for %@ weren't linked: the Media Foundation bottle has its own copy. Open the game's settings to resolve it." = "Shared saves for %@ weren't linked: the Media Foundation bottle has its own copy. Open the game's settings to resolve it.";
+"Shared save folders" = "Shared save folders";
+"The Media Foundation bottle keeps its own copy of everything. Choose where %@ saves, so both bottles use one set." = "The Media Foundation bottle keeps its own copy of everything. Choose where %@ saves, so both bottles use one set.";
+"No folders to show yet. Play %@ once, then turn Media Foundation on again." = "No folders to show yet. Play %@ once, then turn Media Foundation on again.";
+"Modified %@" = "Modified %@";
+"In both bottles" = "In both bottles";
+"Only in the Steam bottle" = "Only in the Steam bottle";
+"Only in the Media Foundation bottle" = "Only in the Media Foundation bottle";
+"Share" = "Share";
+"Not now" = "Not now";
+"This folder has saves in both bottles. Silo won't merge them — copy the one you want to keep into the Steam bottle first." = "This folder has saves in both bottles. Silo won't merge them — copy the one you want to keep into the Steam bottle first.";
 
 /* Prefixes that wrap an error. */
 "Couldn't install: %@" = "Couldn't install: %@";

@@ -258,6 +258,16 @@
 
 /* Salvataggi condivisi fra la bottiglia Steam e quella Media Foundation */
 "Shared saves for %@ weren't linked: the Media Foundation bottle has its own copy. Open the game's settings to resolve it." = "I salvataggi condivisi di %@ non sono stati collegati: la bottiglia Media Foundation ha una copia propria. Aprine le impostazioni per risolvere.";
+"Shared save folders" = "Cartelle dei salvataggi condivise";
+"The Media Foundation bottle keeps its own copy of everything. Choose where %@ saves, so both bottles use one set." = "La bottiglia Media Foundation ha una copia propria di tutto. Scegli dove %@ salva, così entrambe le bottiglie useranno un unico set.";
+"No folders to show yet. Play %@ once, then turn Media Foundation on again." = "Ancora nessuna cartella da mostrare. Gioca una volta a %@, poi riattiva Media Foundation.";
+"Modified %@" = "Modificata il %@";
+"In both bottles" = "In entrambe le bottiglie";
+"Only in the Steam bottle" = "Solo nella bottiglia Steam";
+"Only in the Media Foundation bottle" = "Solo nella bottiglia Media Foundation";
+"Share" = "Condividi";
+"Not now" = "Non ora";
+"This folder has saves in both bottles. Silo won't merge them — copy the one you want to keep into the Steam bottle first." = "Questa cartella ha salvataggi in entrambe le bottiglie. Silo non li unisce: copia prima nella bottiglia Steam quella che vuoi tenere.";
 
 /* Prefissi che avvolgono un errore. Volutamente non aperti con "Impossibile": diverse frasi
    d'errore gia' cominciano cosi', e ne uscirebbe "Impossibile installare: Impossibile estrarre…". */

@@ -10,6 +10,9 @@ struct GameSettingsSheet: View {
     /// the note as a plain value. Computing it inside the note (keyed on an executable that arrived a render
     /// later) never produced a visible warning.
     @State private var needsD3D12 = false
+    /// Non-nil while the shared-save picker is up. Populated when the Media Foundation toggle is turned ON:
+    /// that bottle is a clone, so from the first launch on that side the game keeps a SECOND set of saves.
+    @State private var saveCandidates: [SharedSaveCandidate]?
 
     var body: some View {
         NavigationStack {
@@ -97,6 +100,31 @@ struct GameSettingsSheet: View {
                 Section {
                     Toggle("Run in the Media Foundation bottle",
                            isOn: $vm.config.envFlags.mediaFoundationNative)
+                        .onChange(of: vm.config.envFlags.mediaFoundationNative) { _, isOn in
+                            // Only on the way ON, and only when nothing is shared yet — re-opening the sheet
+                            // on an already-configured game must not nag.
+                            guard isOn, vm.config.sharedSaveFolders.isEmpty else { return }
+                            let paths = env.paths
+                            let shared = vm.config.sharedSaveFolders
+                            Task {
+                                // Two directory listings across both prefixes, one of which may be on an
+                                // external volume.
+                                saveCandidates = await Task.detached {
+                                    SharedSaveCandidates().candidates(mfPrefix: paths.steamBottleMF,
+                                                                      canonicalPrefix: paths.steamBottle,
+                                                                      keeping: shared)
+                                }.value
+                            }
+                        }
+                        .sheet(isPresented: Binding(
+                            get: { saveCandidates != nil },
+                            set: { if !$0 { saveCandidates = nil } })) {
+                            SharedSaveFolderPicker(
+                                gameName: game.name,
+                                candidates: saveCandidates ?? []) { folders in
+                                    vm.config.sharedSaveFolders = folders
+                                }
+                        }
                 } footer: {
                     Text("For games whose in-game videos come up black. That bottle has its own Steam, and only one Steam runs at a time — Silo switches for you. Takes effect next launch.")
                         .font(.caption).foregroundStyle(.secondary)
