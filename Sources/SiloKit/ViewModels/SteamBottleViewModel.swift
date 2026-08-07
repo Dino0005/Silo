@@ -94,13 +94,44 @@ public final class SteamBottleViewModel {
             // Report "ready" only if the client actually WARMED (steamui.dll + webhelper). A failed or
             // interrupted warm-up leaves just the bootstrapper and must not flip the onboarding gate.
             steamInstalled = bottle.isClientFullyDownloaded
-            status = steamInstalled
-                ? "Steam is ready. Launch it and sign in once."
-                : "Steam client didn't finish downloading. Run Set up again."
+            // Most component installs are deliberately best-effort (a mirror 404, a declined licence, an
+            // odd installer exit) so one bad artifact can't block the whole setup. But reporting plain
+            // success over a bottle missing the MSVC runtime or its fonts is how a setup problem later
+            // resurfaces as "games are broken" — so name what didn't install.
+            let missing = await Task.detached { [bottle] in bottle.unsatisfiedComponents() }.value
+            status = Self.setupOutcome(steamInstalled: steamInstalled, missing: missing)
             onSteamInstalled?()   // refresh the library's cached readiness (now reflects the warmed client)
         } catch {
             warmingUp = false
             status = Self.setupFailureMessage(error)
+        }
+    }
+
+    /// The end-of-setup line: ready, ready-but-incomplete, or the Steam client never finished. Pure so the
+    /// wording is table-testable.
+    ///
+    /// Picks between THREE complete sentences rather than concatenating fragments the way the English
+    /// original does ("A and B" + " (and N more)" + " didn't install"). Italian can't take that shape: the
+    /// verb agrees with number, so a glued sentence reads "Core Fonts e Asian Fonts non È STATO installato",
+    /// and the tail would render as "altri 1". Whole sentences also give a translator the full context.
+    /// Beyond two, only the first name is shown and the rest are counted.
+    static func setupOutcome(steamInstalled: Bool, missing: [BottleComponent]) -> String {
+        guard steamInstalled else {
+            return String(localized: "Steam client didn't finish downloading. Run Set up again.")
+        }
+        let names = missing.map(\.title)
+        switch names.count {
+        case 0:
+            return String(localized: "Steam is ready. Launch it and sign in once.")
+        case 1:
+            return String(localized:
+                "Steam is ready, but \(names[0]) didn't install — run Set up again to finish.")
+        case 2:
+            return String(localized:
+                "Steam is ready, but \(names[0]) and \(names[1]) didn't install — run Set up again to finish.")
+        default:
+            return String(localized:
+                "Steam is ready, but \(names[0]) and \(names.count - 1) others didn't install — run Set up again to finish.")
         }
     }
 

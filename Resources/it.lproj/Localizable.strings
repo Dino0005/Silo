@@ -250,6 +250,12 @@
 "You cancelled the %@ installer." = "Hai annullato l'installazione di %@.";
 "You cancelled the %@ installer. Run Set up again." = "Hai annullato l'installazione di %@. Esegui di nuovo Configura.";
 
+/* Esito del setup quando la bottiglia resta incompleta (frasi intere, non frammenti:
+   in italiano il verbo concorda col numero) */
+"Steam is ready, but %@ didn't install — run Set up again to finish." = "Steam è pronto, ma %@ non è stato installato — esegui di nuovo Configura per completare.";
+"Steam is ready, but %@ and %@ didn't install — run Set up again to finish." = "Steam è pronto, ma %@ e %@ non sono stati installati — esegui di nuovo Configura per completare.";
+"Steam is ready, but %@ and %lld others didn't install — run Set up again to finish." = "Steam è pronto, ma %@ e altri %lld non sono stati installati — esegui di nuovo Configura per completare.";
+
 /* Prefissi che avvolgono un errore. Volutamente non aperti con "Impossibile": diverse frasi
    d'errore gia' cominciano cosi', e ne uscirebbe "Impossibile installare: Impossibile estrarre…". */
 "Couldn't install: %@" = "Installazione non riuscita: %@";

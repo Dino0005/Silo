@@ -2,6 +2,18 @@ import Foundation
 @testable import SiloKit
 
 extension AppPaths {
+    /// Drop every core-font ARTIFACT into the bottle's Fonts dir. `hasCoreFonts` now requires all eleven
+    /// witnesses (a single Arial.TTF used to be enough), so any test that wants coreFonts pre-satisfied has
+    /// to seed the whole set. Test-only.
+    func createCoreFontArtifacts() {
+        let fm = FileManager.default
+        let fonts = steamBottle.appendingPathComponent("drive_c/windows/Fonts")
+        try? fm.createDirectory(at: fonts, withIntermediateDirectories: true)
+        for witness in Silo.coreFontWitness.values {
+            fm.createFile(atPath: fonts.appendingPathComponent(witness).path, contents: Data())
+        }
+    }
+
     /// Create a WARMED Steam client on disk — steamui.dll + a CEF steamwebhelper.exe (what
     /// `SteamBottle.hasWarmedClient` / `steamReady` key on), not just the ~2 MB bootstrapper. Test-only.
     func createWarmedSteamClient() {
@@ -13,10 +25,8 @@ extension AppPaths {
         let cef = steamBottleCEFDir.appendingPathComponent("cef.win7x64")
         try? fm.createDirectory(at: cef, withIntermediateDirectories: true)
         fm.createFile(atPath: cef.appendingPathComponent("steamwebhelper.exe").path, contents: Data())
-        // Core-fonts marker so setUp() skips installCoreFonts (which would hit the real network in tests).
-        let fonts = steamBottle.appendingPathComponent("drive_c/windows/Fonts")
-        try? fm.createDirectory(at: fonts, withIntermediateDirectories: true)
-        fm.createFile(atPath: fonts.appendingPathComponent("Arial.TTF").path, contents: Data())
+        // Core fonts pre-satisfied so setUp() skips installCoreFonts (which would hit the real network).
+        createCoreFontArtifacts()
     }
 
     /// Drop the markers for the NON-Steam bottle components (Core Fonts, Source Han Sans, d3dcompiler_47,
@@ -27,9 +37,7 @@ extension AppPaths {
     func createComponentMarkers() {
         let fm = FileManager.default
         let driveC = steamBottle.appendingPathComponent("drive_c")
-        let fonts = driveC.appendingPathComponent("windows/Fonts")
-        try? fm.createDirectory(at: fonts, withIntermediateDirectories: true)
-        fm.createFile(atPath: fonts.appendingPathComponent("Arial.TTF").path, contents: Data())   // coreFonts
+        createCoreFontArtifacts()                                                                 // coreFonts
         let markers = steamBottle.appendingPathComponent(".silo-installed")
         try? fm.createDirectory(at: markers, withIntermediateDirectories: true)
         for pack in Silo.sourceHanSansPacks {

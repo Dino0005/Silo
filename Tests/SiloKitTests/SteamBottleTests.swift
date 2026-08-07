@@ -284,7 +284,9 @@ struct SteamBottleTests {
                 .replacingOccurrences(of: ".exe", with: "")
             if inv.arguments.contains("/C") {
                 try? FileManager.default.createDirectory(at: extractDir, withIntermediateDirectories: true)
-                let ttf = font == "arial32" ? "Arial.TTF" : "\(font).TTF"
+                // Must be the REAL artifact name — `hasCoreFonts` checks `Silo.coreFontWitness`, not the
+                // package name, so "\(font).TTF" would extract but never satisfy the component.
+                let ttf = Silo.coreFontWitness[font] ?? "\(font).TTF"
                 FileManager.default.createFile(atPath: extractDir.appendingPathComponent(ttf).path, contents: Data("TTF".utf8))
             } else if font == firstFont {
                 try? FileManager.default.createDirectory(at: fontsDir, withIntermediateDirectories: true)
@@ -614,9 +616,7 @@ struct SteamBottleTests {
         let (bottle, fake, paths, _) = make(tmp, session: session)
         // Satisfy every component BEFORE vcRedistX86 so it's the first to actually run, then cancel it.
         let driveC = paths.steamBottle.appendingPathComponent("drive_c")
-        let fonts = driveC.appendingPathComponent("windows/Fonts")
-        try FileManager.default.createDirectory(at: fonts, withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: fonts.appendingPathComponent("Arial.TTF").path, contents: Data())
+        paths.createCoreFontArtifacts()
         let markers = paths.steamBottle.appendingPathComponent(".silo-installed")
         try FileManager.default.createDirectory(at: markers, withIntermediateDirectories: true)
         for pack in Silo.sourceHanSansPacks {
@@ -701,10 +701,8 @@ struct SteamBottleTests {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let session = FakeURLProtocol.makeSession()
         let (bottle, _, paths, _) = make(tmp, session: session)
-        // Pre-satisfy coreFonts (Arial.TTF) + steamClient (steam.exe); leave the rest unsatisfied.
-        let fonts = paths.steamBottle.appendingPathComponent("drive_c/windows/Fonts")
-        try FileManager.default.createDirectory(at: fonts, withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: fonts.appendingPathComponent("Arial.TTF").path, contents: Data())
+        // Pre-satisfy coreFonts (all eleven artifacts) + steamClient (steam.exe); leave the rest unsatisfied.
+        paths.createCoreFontArtifacts()
         try FileManager.default.createDirectory(at: paths.steamBottleClientDir, withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: paths.steamBottleExe.path, contents: Data())
         // Stub the remaining components so they can proceed.

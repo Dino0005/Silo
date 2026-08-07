@@ -250,6 +250,11 @@
 "You cancelled the %@ installer." = "You cancelled the %@ installer.";
 "You cancelled the %@ installer. Run Set up again." = "You cancelled the %@ installer. Run Set up again.";
 
+/* Setup outcome when the bottle is left incomplete */
+"Steam is ready, but %@ didn't install — run Set up again to finish." = "Steam is ready, but %@ didn't install — run Set up again to finish.";
+"Steam is ready, but %@ and %@ didn't install — run Set up again to finish." = "Steam is ready, but %@ and %@ didn't install — run Set up again to finish.";
+"Steam is ready, but %@ and %lld others didn't install — run Set up again to finish." = "Steam is ready, but %@ and %lld others didn't install — run Set up again to finish.";
+
 /* Prefixes that wrap an error. */
 "Couldn't install: %@" = "Couldn't install: %@";
 "Couldn't remove: %@" = "Couldn't remove: %@";

@@ -150,15 +150,35 @@ public struct SteamBottle: Sendable {
             executable: wine, arguments: args,
             environment: Silo.msyncWineEnvironment(prefix: prefixDir, wine: wine),
             currentDirectory: prefixDir)
+        // A CLOSED wizard is not a failure: SteamSetup is NSIS, which exits 2 when the user cancels. Without
+        // this the user got a raw exit code where the redist path already said "you cancelled it" — same
+        // action, two different-looking outcomes. `Silo.installerCancelCodes` keeps the two from drifting.
+        if !result.succeeded, Silo.installerCancelCodes.contains(result.exitCode) {
+            throw BottleError.componentCancelled(.steamClient)
+        }
         guard result.succeeded else { throw BottleError.steamInstallFailed(result.exitCode) }
         try? fileManager.removeItem(at: installer)
     }
 
-    /// Whether the bottle already has Microsoft core fonts (checks a marker font). Wine installs none, so a
-    /// fresh bottle is missing them.
+    /// True only when EVERY core font actually installed. Keying on a single file (Arial.TTF) was a trap:
+    /// Arial comes from the SECOND of eleven packages, so two landing made the component read satisfied —
+    /// and a set interrupted partway (a flaky mirror, a quit mid-install) stayed missing the other nine
+    /// PERMANENTLY, because every later Set up skipped the step as already done. An incomplete set now
+    /// stays unsatisfied so the next run retries it (and `setUp` reports it — see `unsatisfiedComponents`).
     var hasCoreFonts: Bool {
-        fileManager.fileExists(atPath:
-            prefixDir.appendingPathComponent("drive_c/windows/Fonts/Arial.TTF").path)
+        let installed = installedFontNames()
+        return Silo.coreFonts.allSatisfy { package in
+            guard let witness = Silo.coreFontWitness[package] else { return false }
+            return installed.contains(witness.lowercased())
+        }
+    }
+
+    /// Lowercased names of every file in the bottle's Fonts directory — the ARTIFACT the font components
+    /// exist to produce, and the only thing worth asking about.
+    private func installedFontNames() -> Set<String> {
+        let dir = prefixDir.appendingPathComponent("drive_c/windows/Fonts")
+        let names = (try? fileManager.contentsOfDirectory(atPath: dir.path)) ?? []
+        return Set(names.map { $0.lowercased() })
     }
 
     /// Install Microsoft's core web fonts into the bottle (idempotent). Wine ships no TrueType MS fonts, so
@@ -398,7 +418,7 @@ public struct SteamBottle: Sendable {
         // that actually completed can still return a non-standard exit code (the same unreliability the
         // core-fonts path documents), so a weird code must NOT falsely halt setup before Steam. Leave it
         // unmarked (re-prompts next run) and continue.
-        if let code = result?.exitCode, [1602, 1223].contains(code) {
+        if let code = result?.exitCode, Silo.installerCancelCodes.contains(code) {
             throw BottleError.componentCancelled(x86 ? .vcRedistX86 : .vcRedistX64)
         }
     }
@@ -437,6 +457,14 @@ public struct SteamBottle: Sendable {
     }
 
     // MARK: - Ordered component provisioning
+
+    /// Components still unsatisfied after a provisioning pass — i.e. ones whose install was best-effort and
+    /// silently failed (a mirror 404, a declined licence, a bad exit code). `setUp` surfaces these instead of
+    /// reporting unqualified success over a bottle that is missing, say, the MSVC runtime — which would later
+    /// look like a Silo bug when every game dies with `vcruntime140.dll not found`.
+    func unsatisfiedComponents() -> [BottleComponent] {
+        BottleComponent.allCases.filter { !isSatisfied($0) }
+    }
 
     /// Whether a component is already satisfied (installed, or a no-op like msync) — so `provisionComponents`
     /// can skip it (resumable/idempotent setup).

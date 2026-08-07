@@ -44,6 +44,17 @@ public enum Silo {
     public static let coreFontsBaseURL = URL(string: "https://downloads.sourceforge.net/corefonts/")!
     public static let coreFonts = ["andale32", "arial32", "arialb32", "comic32", "courie32", "georgi32",
                                    "impact32", "times32", "trebuc32", "verdan32", "webdin32"]
+    /// The `.ttf` each core-font package actually produces — the ARTIFACT, keyed by `coreFonts` entry.
+    /// `hasCoreFonts` checks these against the bottle's Fonts directory instead of keying on a single file:
+    /// Arial.TTF comes from the SECOND of eleven packages, so once two landed the component read satisfied
+    /// and a set interrupted partway (a mirror hiccup, a quit mid-install) stayed permanently incomplete
+    /// while every later Set up skipped the step. Names are the installers' own casing.
+    public static let coreFontWitness: [String: String] = [
+        "andale32": "AndaleMo.TTF", "arial32": "Arial.TTF", "arialb32": "AriBlk.TTF",
+        "comic32": "Comic.TTF", "courie32": "cour.ttf", "georgi32": "Georgia.TTF",
+        "impact32": "Impact.TTF", "times32": "Times.TTF", "trebuc32": "trebuc.ttf",
+        "verdan32": "Verdana.TTF", "webdin32": "Webdings.TTF",
+    ]
     /// Winetricks' current corefonts mirror (its OWN primary download URL for these files) — byte-identical
     /// to SourceForge. SourceForge's `downloads.sourceforge.net` redirector is flaky, so each font falls back
     /// to this GitHub raw mirror when the primary download fails. Both mirrors are tamper-checked against the
@@ -101,6 +112,13 @@ public enum Silo {
     /// no-verification path.
     public static let d3dCompiler47X64CabSHA256 = "f736e161547095bb8d98c636b85fdfeb4070fefeee3c3745db3ce88f6eb1d9de"
     public static let d3dCompiler47X86CabSHA256 = "d0440eb81c532dc23639c0c63f2fcde9deddb23bb4cce01c19ac6b96cc3e269d"
+
+    /// Exit codes that mean **the user closed/cancelled an installer**, as opposed to it failing.
+    /// `ERROR_INSTALL_USER_EXIT` (1602) and `ERROR_CANCELLED` (1223) are the MSI/Windows-documented ones;
+    /// NSIS (SteamSetup) returns 2 for a cancelled wizard. Shared so the redist and Steam installers can't
+    /// drift apart on what "cancelled" means — before this, cancelling Steam's wizard surfaced a raw NSIS
+    /// exit code while cancelling the redist got the friendly "you cancelled it, run Set up again" path.
+    public static let installerCancelCodes: Set<Int32> = [1602, 1223, 2]
 
     /// `WINEDLLOVERRIDES` used while creating/booting a prefix: disables wine-mono and wine-gecko so
     /// `wineboot` doesn't pop blocking "install Mono/Gecko?" dialogs and can complete headlessly.
