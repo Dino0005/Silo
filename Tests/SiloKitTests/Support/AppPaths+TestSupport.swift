@@ -46,7 +46,10 @@ extension AppPaths {
         for arch in ["x86", "x64"] {
             fm.createFile(atPath: markers.appendingPathComponent("vcredist-\(arch)").path, contents: Data())  // vcRedist
         }
-        fm.createFile(atPath: markers.appendingPathComponent("wine-defaults").path, contents: Data())   // applyWineDefaults
+        // Must carry the CURRENT stamp: `hasWineDefaults` compares content now, so an empty marker would
+        // read as "an older override set" and setUp would re-apply the defaults mid-test.
+        fm.createFile(atPath: markers.appendingPathComponent("wine-defaults").path,
+                      contents: Data(SteamBottle.wineDefaultsStamp.utf8))                   // applyWineDefaults
         // d3dcompiler_47 is size-gated (the real DLL is multi-MB) — write a large-enough dummy to satisfy it.
         for dir in ["windows/system32", "windows/syswow64"] {
             let d = driveC.appendingPathComponent(dir)

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// The shared "Steam bottle": one Wine prefix that hosts a logged-in **Windows Steam client** plus the
 /// games that run co-resident with it. This is the post-revert model for Steamworks/DRM games —
@@ -428,8 +429,22 @@ public struct SteamBottle: Sendable {
     /// Silo marker recording that the default DLL overrides were applied to the bottle.
     private var wineDefaultsMarker: URL { markerDir.appendingPathComponent("wine-defaults") }
 
-    /// Whether Silo's default `DllOverrides` set has been applied to the bottle.
-    var hasWineDefaults: Bool { fileManager.fileExists(atPath: wineDefaultsMarker.path) }
+    /// Fingerprint of the override SET, written into the marker so the set is versioned by its own content.
+    /// A bare existence flag meant an override added in a later release never reached bottles that were
+    /// already set up — they kept the old set forever, and the only repair was deleting the bottle.
+    /// MUST be stable across processes: `String.hashValue` is randomly seeded per run and would have
+    /// re-applied every override on every single launch.
+    static var wineDefaultsStamp: String {
+        let joined = Silo.defaultDllOverrides.map { "\($0.0)=\($0.1)" }.sorted().joined(separator: ",")
+        let digest = SHA256.hash(data: Data(joined.utf8)).map { String(format: "%02x", $0) }.joined()
+        return "\(Silo.defaultDllOverrides.count):\(digest)"
+    }
+
+    /// Whether the CURRENT default `DllOverrides` set has been applied to the bottle. A marker holding an
+    /// older stamp (or a legacy empty one) reads false, so the next run re-applies and re-stamps it.
+    var hasWineDefaults: Bool {
+        (try? String(contentsOf: wineDefaultsMarker, encoding: .utf8)) == Self.wineDefaultsStamp
+    }
 
     /// Apply Silo's default `HKCU\Software\Wine\DllOverrides` set (`Silo.defaultDllOverrides` — the standard
     /// Windows-compatibility overrides a bare `wineboot` prefix omits) to the bottle (idempotent, best-effort)
@@ -453,7 +468,8 @@ public struct SteamBottle: Sendable {
         try? fileManager.removeItem(at: regFile)
         guard result?.succeeded == true else { return }
         try? fileManager.createDirectory(at: markerDir, withIntermediateDirectories: true)
-        fileManager.createFile(atPath: wineDefaultsMarker.path, contents: Data())
+        fileManager.createFile(atPath: wineDefaultsMarker.path,
+                               contents: Data(Self.wineDefaultsStamp.utf8))
     }
 
     // MARK: - Ordered component provisioning
