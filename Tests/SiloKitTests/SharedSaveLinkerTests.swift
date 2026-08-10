@@ -114,6 +114,53 @@ struct SharedSaveLinkerTests {
         #expect(try String(contentsOf: real.appendingPathComponent("save.dat"), encoding: .utf8) == "MF")
     }
 
+    @Test("an IDENTICAL copy is replaced by the link — the freshly-cloned-bottle case")
+    func identicalCopyIsReplaced() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let canonical = tmp.url.appendingPathComponent("SteamBottle")
+        let mf = tmp.url.appendingPathComponent("SteamBottleMF")
+        let canonicalUser = try makePrefix(canonical, user: "crossover")
+        let mfUser = try makePrefix(mf, user: "crossover")
+
+        // Exactly what BottleCloner leaves behind: the same save folder on both sides, same contents.
+        for user in [canonicalUser, mfUser] {
+            let dir = local(user, "SoulcaliburVI").appendingPathComponent("Saved")
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            fm.createFile(atPath: dir.appendingPathComponent("save.dat").path, contents: Data("S".utf8))
+        }
+
+        let folder = SharedSaveFolder(root: .appDataLocal, name: "SoulcaliburVI")
+        #expect(SharedSaveLinker().ensure([folder], mfPrefix: mf, canonicalPrefix: canonical).isEmpty)
+        let attributes = try fm.attributesOfItem(atPath: local(mfUser, "SoulcaliburVI").path)
+        #expect(attributes[.type] as? FileAttributeType == .typeSymbolicLink)
+        // The canonical copy — the one everything now points at — is untouched.
+        #expect(try String(
+            contentsOf: local(canonicalUser, "SoulcaliburVI")
+                .appendingPathComponent("Saved/save.dat"), encoding: .utf8) == "S")
+    }
+
+    @Test("a copy that DIFFERS by a single byte is still refused")
+    func differingCopyIsStillRefused() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let canonical = tmp.url.appendingPathComponent("SteamBottle")
+        let mf = tmp.url.appendingPathComponent("SteamBottleMF")
+        let canonicalUser = try makePrefix(canonical, user: "crossover")
+        let mfUser = try makePrefix(mf, user: "crossover")
+
+        // Same file name and the SAME SIZE — a name-and-size heuristic would call these identical and
+        // delete the MF side. They are not identical.
+        for (user, byte) in [(canonicalUser, "A"), (mfUser, "B")] {
+            let dir = local(user, "MK1")
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            fm.createFile(atPath: dir.appendingPathComponent("save.dat").path, contents: Data(byte.utf8))
+        }
+
+        let folder = SharedSaveFolder(root: .appDataLocal, name: "MK1")
+        #expect(SharedSaveLinker().ensure([folder], mfPrefix: mf, canonicalPrefix: canonical) == [folder])
+        #expect(try String(
+            contentsOf: local(mfUser, "MK1").appendingPathComponent("save.dat"), encoding: .utf8) == "B")
+    }
+
     @Test("an EMPTY directory is replaced by the link — there is nothing to lose")
     func emptyDirectoryIsReplaced() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

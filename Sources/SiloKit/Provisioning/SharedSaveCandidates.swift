@@ -91,8 +91,12 @@ public struct SharedSaveCandidates: Sendable {
                     inMF && inCanonical ? .both : (inCanonical ? .canonicalOnly : .mediaFoundationOnly)
                 // An MF side that is already a SYMLINK is the shared state, not a second copy — so a
                 // folder linked by hand reads as `both` and never as divergent.
+                // Identical contents aren't a divergence: a freshly cloned MF bottle has every save folder
+                // on both sides, byte for byte the same. Warning about those trained the eye to ignore the
+                // warning that matters — the one where the two sides really did drift apart.
                 let divergent = inMF && inCanonical
                     && !isSymlink(mfEntry) && hasContent(mfEntry) && hasContent(canonicalEntry)
+                    && !sameContents(mfEntry, canonicalEntry)
                 found.append(SharedSaveCandidate(
                     folder: SharedSaveFolder(root: root, name: name),
                     presence: presence,
@@ -133,6 +137,13 @@ public struct SharedSaveCandidates: Sendable {
         guard let url,
               let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
         return attributes[.type] as? FileAttributeType == .typeSymbolicLink
+    }
+
+    /// Byte-for-byte equality of two directory trees. See `SharedSaveLinker`'s `state(of:expecting:)` for
+    /// why this is a real comparison rather than a name-and-size heuristic.
+    private func sameContents(_ a: URL?, _ b: URL?) -> Bool {
+        guard let a, let b else { return false }
+        return fileManager.contentsEqual(atPath: a.path, andPath: b.path)
     }
 
     private func hasContent(_ url: URL?) -> Bool {

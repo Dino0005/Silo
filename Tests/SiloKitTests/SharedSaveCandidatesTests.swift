@@ -80,9 +80,14 @@ struct SharedSaveCandidatesTests {
         let canonicalUser = try makeUser(canonical)
         let mfUser = try makeUser(mf)
 
-        // Played on both sides — two save sets, and Silo must not merge them.
-        try makeFolder(canonicalUser, "AppData/Local", "MK1", file: "save.dat")
-        try makeFolder(mfUser, "AppData/Local", "MK1", file: "save.dat")
+        // Played on both sides — two save sets, and Silo must not merge them. The two files must really
+        // DIFFER: `makeFolder(file:)` writes identical bytes, which is the cloned-bottle case and reads as
+        // not divergent (see `identicalCopiesAreNotDivergent`).
+        let mk1Canonical = try makeFolder(canonicalUser, "AppData/Local", "MK1")
+        fm.createFile(atPath: mk1Canonical.appendingPathComponent("save.dat").path,
+                      contents: Data("canonical".utf8))
+        let mk1MF = try makeFolder(mfUser, "AppData/Local", "MK1")
+        fm.createFile(atPath: mk1MF.appendingPathComponent("save.dat").path, contents: Data("mf".utf8))
 
         // Already linked by hand: the MF side IS the canonical one, so there is nothing to reconcile.
         let target = try makeFolder(canonicalUser, "AppData/Local", "SoulcaliburVI", file: "save.dat")
@@ -100,6 +105,30 @@ struct SharedSaveCandidatesTests {
         #expect(byName["SoulcaliburVI"]?.divergent == false)
         #expect(byName["SoulcaliburVI"]?.presence == .both)
         #expect(byName["Tekken8"]?.divergent == false)
+    }
+
+    @Test("identical copies are NOT flagged divergent — the freshly-cloned-bottle case")
+    func identicalCopiesAreNotDivergent() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let canonical = tmp.url.appendingPathComponent("SteamBottle")
+        let mf = tmp.url.appendingPathComponent("SteamBottleMF")
+        let canonicalUser = try makeUser(canonical)
+        let mfUser = try makeUser(mf)
+
+        // Cloned: same contents on both sides.
+        try makeFolder(canonicalUser, "AppData/Local", "SoulcaliburVI", file: "save.dat")
+        try makeFolder(mfUser, "AppData/Local", "SoulcaliburVI", file: "save.dat")
+        // Played on both sides: genuinely different.
+        let a = try makeFolder(canonicalUser, "AppData/Local", "MK1")
+        fm.createFile(atPath: a.appendingPathComponent("save.dat").path, contents: Data("A".utf8))
+        let b = try makeFolder(mfUser, "AppData/Local", "MK1")
+        fm.createFile(atPath: b.appendingPathComponent("save.dat").path, contents: Data("B".utf8))
+
+        let list = SharedSaveCandidates().candidates(mfPrefix: mf, canonicalPrefix: canonical)
+        let byName = Dictionary(uniqueKeysWithValues: list.map { ($0.folder.name, $0) })
+        #expect(byName["SoulcaliburVI"]?.divergent == false)
+        #expect(byName["SoulcaliburVI"]?.presence == .both)
+        #expect(byName["MK1"]?.divergent == true)
     }
 
     @Test("infrastructure folders are dropped — the list reads as the game list")

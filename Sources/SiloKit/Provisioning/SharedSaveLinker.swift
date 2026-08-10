@@ -54,14 +54,16 @@ public struct SharedSaveLinker: Sendable {
                 continue
             case .populatedDirectory:
                 blocked.append(folder)
-            case .absent, .emptyDirectory, .wrongLink:
+            case .absent, .emptyDirectory, .wrongLink, .identicalDirectory:
                 // The target may not exist yet — a brand-new user profile after a runtime switch, or a game
                 // whose first run happens on the MF side. Create it so the very first launch still shares
                 // instead of quietly falling back to two separate copies.
                 try? fileManager.createDirectory(at: target, withIntermediateDirectories: true)
                 try? fileManager.createDirectory(at: link.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
-                try? fileManager.removeItem(at: link)     // no-op when absent; safe for an empty dir / bad link
+                // No-op when absent; safe for an empty dir, a bad link, or a copy proven identical to the
+                // target. NEVER reached for a populated directory whose contents differ.
+                try? fileManager.removeItem(at: link)
                 guard (try? fileManager.createSymbolicLink(at: link, withDestinationURL: target)) != nil else {
                     blocked.append(folder)
                     continue
@@ -109,6 +111,9 @@ public struct SharedSaveLinker: Sendable {
         case correct
         case wrongLink
         case emptyDirectory
+        /// A real directory whose contents are byte-identical to the canonical side — the state a freshly
+        /// cloned MF bottle is in. Nothing to reconcile and nothing to lose, so it's replaced by the link.
+        case identicalDirectory
         case populatedDirectory
     }
 
@@ -125,6 +130,13 @@ public struct SharedSaveLinker: Sendable {
                 ? .correct : .wrongLink
         }
         let contents = (try? fileManager.contentsOfDirectory(atPath: link.path)) ?? []
-        return contents.isEmpty ? .emptyDirectory : .populatedDirectory
+        if contents.isEmpty { return .emptyDirectory }
+        // The MF bottle is a CLONE, so right after building it every save folder exists on both sides with
+        // identical contents — which looked exactly like the "played on both sides" case and blocked the
+        // link in the single most common situation. `contentsEqual` walks the directories and compares file
+        // contents: a name-and-size heuristic would be faster but would call two different saves of the
+        // same size identical, and the cost of that mistake is deleting the MF-side copy.
+        if fileManager.contentsEqual(atPath: link.path, andPath: target.path) { return .identicalDirectory }
+        return .populatedDirectory
     }
 }
