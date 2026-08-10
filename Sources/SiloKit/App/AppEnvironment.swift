@@ -291,6 +291,21 @@ public final class AppEnvironment {
         //    and idempotent with the Task. If the download failed, `wineReady` stays false — bail so the real
         //    error (`runtime.statusMessage`) surfaces instead of setUp masking it with "Set up Wine first."
         if !wineReady {
+            // ADOPT before downloading. The gate above reads the CONFIG, not the disk, so on a fresh install
+            // (empty config.json) a runtime already sitting in Runtimes/ — e.g. one placed there by
+            // install-local-crossover-wine.sh before onboarding — was ignored and a second Wine downloaded
+            // on top of it, leaving the config pointed at the wrong one and the Steam bottle built under it.
+            // `refresh()` first: a runtime installed by an external script after launch isn't in the
+            // in-memory list yet. The order is `installedWines()`' own — newest tag first, the same order the
+            // Runtimes list shows — so this picks what the user sees at the top rather than a rule invented
+            // here. With several installed and none configured the pick may not be the intended one; it stays
+            // changeable in Settings, and is still better than downloading yet another.
+            await runtime.refresh()
+            if let existing = runtime.installed.first(where: { $0.isUsable }) {
+                await backendSettings.applyDefaultWine(existing)
+            }
+        }
+        if !wineReady {
             await runtime.installLatest()
             if let wine = runtime.installed.first(where: { $0.name == runtime.defaultName }) {
                 await backendSettings.applyDefaultWine(wine)
@@ -299,6 +314,15 @@ public final class AppEnvironment {
         }
         // 2. DXMT runtime (best-effort — readies the future auto-backend; not a prerequisite for the bottle).
         //    Matched to the configured wine, so it must run AFTER the wine default is applied (step 1).
+        if !dxmtReady {
+            // Same adoption rule as step 1 — an already-extracted DXMT (the CrossOver import script drops one
+            // next to the wine it came from) is used instead of fetching another.
+            await dxmtRuntime.refresh()
+            if let existing = dxmtRuntime.installed.first(where: { $0.isUsable }),
+               let lib = existing.artifact {
+                await backendSettings.applyDXMTLibDir(lib, name: existing.name)
+            }
+        }
         if !dxmtReady {
             await dxmtRuntime.installLatest()
             // Apply the freshly-installed default HERE, awaited — `onDefaultChanged` is a fire-and-forget
