@@ -260,7 +260,8 @@
 "Shared saves for %@ weren't linked: the Media Foundation bottle has its own copy. Open the game's settings to resolve it." = "I salvataggi condivisi di %@ non sono stati collegati: la bottiglia Media Foundation ha una copia propria. Aprine le impostazioni per risolvere.";
 "Shared save folders" = "Cartelle dei salvataggi condivise";
 "The Media Foundation bottle keeps its own copy of everything. Choose where %@ saves, so both bottles use one set." = "La bottiglia Media Foundation ha una copia propria di tutto. Scegli dove %@ salva, così entrambe le bottiglie useranno un unico set.";
-"No folders to show yet. Play %@ once, then turn Media Foundation on again." = "Ancora nessuna cartella da mostrare. Gioca una volta a %@, poi riattiva Media Foundation.";
+"No folders to show yet. Play %@ once, then open this again." = "Ancora nessuna cartella da mostrare. Gioca una volta a %@, poi riapri questa schermata.";
+"Shared save folders: %lld" = "Cartelle condivise: %lld";
 "Modified %@" = "Modificata il %@";
 "In both bottles" = "In entrambe le bottiglie";
 "Only in the Steam bottle" = "Solo nella bottiglia Steam";

@@ -71,6 +71,37 @@ public struct SharedSaveLinker: Sendable {
         return blocked
     }
 
+    /// Undo the sharing for `folders`: remove the MF-side symlink so that game keeps its own saves there
+    /// again. Returns the folders actually unlinked.
+    ///
+    /// Removes a path ONLY when it is a symlink pointing at this folder's counterpart in the canonical
+    /// bottle — the exact condition `ensure` reads as "already correct". A real directory is never touched,
+    /// nor is a link aimed somewhere else: unticking a checkbox must not be able to delete save data.
+    ///
+    /// What's left behind is nothing, not an empty stub: the saves live in the canonical bottle, which is
+    /// what the link pointed at all along. The game recreates the folder on its next launch in the MF
+    /// bottle and starts its own set there, which is what "no longer shared" means.
+    @discardableResult
+    public func unlink(_ folders: [SharedSaveFolder],
+                       mfPrefix: URL, canonicalPrefix: URL) -> [SharedSaveFolder] {
+        guard !folders.isEmpty,
+              let mfUser = windowsUserDir(inPrefix: mfPrefix),
+              let canonicalUser = windowsUserDir(inPrefix: canonicalPrefix) else { return [] }
+
+        var removed: [SharedSaveFolder] = []
+        for folder in folders {
+            let target = canonicalUser
+                .appendingPathComponent(folder.root.relativePath, isDirectory: true)
+                .appendingPathComponent(folder.name, isDirectory: true)
+            let link = mfUser
+                .appendingPathComponent(folder.root.relativePath, isDirectory: true)
+                .appendingPathComponent(folder.name, isDirectory: true)
+            guard state(of: link, expecting: target) == .correct else { continue }
+            if (try? fileManager.removeItem(at: link)) != nil { removed.append(folder) }
+        }
+        return removed
+    }
+
     // MARK: - what is at the link path right now
 
     private enum LinkState {

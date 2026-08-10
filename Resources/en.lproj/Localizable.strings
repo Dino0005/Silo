@@ -259,7 +259,8 @@
 "Shared saves for %@ weren't linked: the Media Foundation bottle has its own copy. Open the game's settings to resolve it." = "Shared saves for %@ weren't linked: the Media Foundation bottle has its own copy. Open the game's settings to resolve it.";
 "Shared save folders" = "Shared save folders";
 "The Media Foundation bottle keeps its own copy of everything. Choose where %@ saves, so both bottles use one set." = "The Media Foundation bottle keeps its own copy of everything. Choose where %@ saves, so both bottles use one set.";
-"No folders to show yet. Play %@ once, then turn Media Foundation on again." = "No folders to show yet. Play %@ once, then turn Media Foundation on again.";
+"No folders to show yet. Play %@ once, then open this again." = "No folders to show yet. Play %@ once, then open this again.";
+"Shared save folders: %lld" = "Shared save folders: %lld";
 "Modified %@" = "Modified %@";
 "In both bottles" = "In both bottles";
 "Only in the Steam bottle" = "Only in the Steam bottle";

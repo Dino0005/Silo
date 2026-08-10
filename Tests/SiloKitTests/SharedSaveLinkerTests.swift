@@ -129,6 +129,73 @@ struct SharedSaveLinkerTests {
         #expect(attributes[.type] as? FileAttributeType == .typeSymbolicLink)
     }
 
+    // MARK: - unsharing
+
+    @Test("unlink removes the symlink, and the canonical saves are untouched")
+    func unlinkRemovesTheLink() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let canonical = tmp.url.appendingPathComponent("SteamBottle")
+        let mf = tmp.url.appendingPathComponent("SteamBottleMF")
+        let canonicalUser = try makePrefix(canonical, user: "crossover")
+        let mfUser = try makePrefix(mf, user: "crossover")
+
+        let folder = SharedSaveFolder(root: .appDataLocal, name: "SoulcaliburVI")
+        let linker = SharedSaveLinker()
+        #expect(linker.ensure([folder], mfPrefix: mf, canonicalPrefix: canonical).isEmpty)
+        let target = local(canonicalUser, "SoulcaliburVI")
+        fm.createFile(atPath: target.appendingPathComponent("save.dat").path, contents: Data("S".utf8))
+
+        #expect(linker.unlink([folder], mfPrefix: mf, canonicalPrefix: canonical) == [folder])
+        // Gone from the MF side — the game recreates it on its next launch and starts its own set.
+        #expect(!fm.fileExists(atPath: local(mfUser, "SoulcaliburVI").path))
+        // The saves were never in the link; they're in the canonical bottle, untouched.
+        #expect(try String(contentsOf: target.appendingPathComponent("save.dat"), encoding: .utf8) == "S")
+    }
+
+    @Test("unlink NEVER removes a real directory, nor a link aimed elsewhere")
+    func unlinkRefusesAnythingButItsOwnLink() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let canonical = tmp.url.appendingPathComponent("SteamBottle")
+        let mf = tmp.url.appendingPathComponent("SteamBottleMF")
+        try makePrefix(canonical, user: "crossover")
+        let mfUser = try makePrefix(mf, user: "crossover")
+
+        // A real directory with saves that exist ONLY here.
+        let real = local(mfUser, "CotW")
+        try fm.createDirectory(at: real, withIntermediateDirectories: true)
+        fm.createFile(atPath: real.appendingPathComponent("save.dat").path, contents: Data("MF".utf8))
+
+        // And a link the user aimed somewhere of their own.
+        let elsewhere = tmp.url.appendingPathComponent("Elsewhere", isDirectory: true)
+        try fm.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        let stray = local(mfUser, "MK1")
+        try fm.createSymbolicLink(at: stray, withDestinationURL: elsewhere)
+
+        let folders = [SharedSaveFolder(root: .appDataLocal, name: "CotW"),
+                       SharedSaveFolder(root: .appDataLocal, name: "MK1")]
+        #expect(SharedSaveLinker().unlink(folders, mfPrefix: mf, canonicalPrefix: canonical).isEmpty)
+        #expect(try String(contentsOf: real.appendingPathComponent("save.dat"), encoding: .utf8) == "MF")
+        #expect(fm.fileExists(atPath: stray.path))
+    }
+
+    @Test("unlink then ensure round-trips — unsharing isn't one-way")
+    func unlinkIsReversible() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let canonical = tmp.url.appendingPathComponent("SteamBottle")
+        let mf = tmp.url.appendingPathComponent("SteamBottleMF")
+        try makePrefix(canonical, user: "crossover")
+        let mfUser = try makePrefix(mf, user: "crossover")
+        let folder = SharedSaveFolder(root: .appDataLocal, name: "CotW")
+        let linker = SharedSaveLinker()
+
+        linker.ensure([folder], mfPrefix: mf, canonicalPrefix: canonical)
+        linker.unlink([folder], mfPrefix: mf, canonicalPrefix: canonical)
+        #expect(linker.ensure([folder], mfPrefix: mf, canonicalPrefix: canonical).isEmpty)
+
+        let attributes = try fm.attributesOfItem(atPath: local(mfUser, "CotW").path)
+        #expect(attributes[.type] as? FileAttributeType == .typeSymbolicLink)
+    }
+
     // MARK: - the record survives a runtime change
 
     @Test("root + name resolves against WHATEVER user dir each prefix has")

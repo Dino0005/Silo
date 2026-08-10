@@ -1,15 +1,31 @@
 import SwiftUI
 
-/// Shown when Media Foundation is turned ON for a game: pick the directories whose saves both bottles
-/// should share. The MF bottle is a clone, so without this the same game keeps two separate save sets.
+/// Pick the directories whose saves both bottles should share. The MF bottle is a clone, so without this
+/// the same game keeps two separate save sets.
+///
+/// Raised when Media Foundation is turned ON, and again from the "Shared save folders" row — which is the
+/// only way back in once a choice has been made, so it opens with the current choices already ticked.
 struct SharedSaveFolderPicker: View {
     @Environment(\.dismiss) private var dismiss
     let gameName: String
     let candidates: [SharedSaveCandidate]
-    /// Called with the chosen folders. Dismissing without choosing leaves the game's list untouched.
+    /// Called with the chosen folders. Dismissing without confirming leaves the game's list untouched.
     let onShare: ([SharedSaveFolder]) -> Void
 
-    @State private var selected: Set<String> = []
+    /// What was already shared when the sheet opened — the baseline "Share" is compared against.
+    private let initialSelection: Set<String>
+    @State private var selected: Set<String>
+
+    init(gameName: String,
+         candidates: [SharedSaveCandidate],
+         selected: Set<String> = [],
+         onShare: @escaping ([SharedSaveFolder]) -> Void) {
+        self.gameName = gameName
+        self.candidates = candidates
+        self.onShare = onShare
+        self.initialSelection = selected
+        _selected = State(initialValue: selected)
+    }
 
     private var chosen: [SharedSaveCandidate] {
         candidates.filter { selected.contains($0.id) }
@@ -23,7 +39,7 @@ struct SharedSaveFolderPicker: View {
                         Text("Shared save folders")
                     } description: {
                         Text(String(localized:
-                            "No folders to show yet. Play \(gameName) once, then turn Media Foundation on again."))
+                            "No folders to show yet. Play \(gameName) once, then open this again."))
                     }
                 } else {
                     list
@@ -39,7 +55,10 @@ struct SharedSaveFolderPicker: View {
                         onShare(chosen.map(\.folder))
                         dismiss()
                     }
-                    .disabled(selected.isEmpty)
+                    // Enabled when there's a CHANGE to apply, not merely a non-empty selection. On a first
+                    // open the baseline is empty so this behaves as before; on a re-open it also allows
+                    // clearing every tick to stop sharing, which an `isEmpty` check made impossible.
+                    .disabled(selected == initialSelection)
                 }
             }
         }
