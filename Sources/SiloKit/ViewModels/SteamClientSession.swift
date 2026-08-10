@@ -20,11 +20,15 @@ public final class SteamClientSession {
     /// see `awaitSteamReady`). 0 disables the wait entirely (tests).
     ///
     /// Raised from 20 s after timing a cold start on-device: the Steam window appears at ~10 s but the
-    /// client only finishes signing in at ~26 s, so the old failsafe expired SIX seconds early and the game
+    /// client only finished signing in at ~26 s, so the old failsafe expired SIX seconds early and the game
     /// was launched against a client that wasn't ready — it then came up with the wrong settings, or asked
     /// to. Since the wait ends the moment Steam registers, a higher number costs nothing in the normal case;
     /// it only decides how long a launch waits before giving up on a signal that will never arrive.
-    var readinessTimeout: Double = 30
+    ///
+    /// Trimmed to 25 s after a clean reinstall brought the same cold start down to ~15 s. Note this now
+    /// sits BELOW the 26 s once measured: if an install ever gets slow again the failsafe would expire
+    /// early, and the symptom would be a game launched against a client that isn't signed in yet.
+    var readinessTimeout: Double = 25
     /// The last launch failure message (for the UI), cleared on a successful launch.
     public private(set) var launchError: String?
 
