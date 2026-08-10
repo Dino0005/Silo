@@ -91,7 +91,8 @@ public final class AppEnvironment {
             installer: MediaFoundationInstaller(runner: runner),
             paths: paths,
             configStore: configStore,
-            wineBinary: { backendSettings.config.wineBinaryPath })
+            wineBinary: { backendSettings.config.wineBinaryPath },
+            wineRuntimeName: { backendSettings.config.wineRuntimeName })
 
         // The single Steam bottle + its live client session + settings VM. The client runs on the base wine
         // (CEF needs no d3d; a co-resident game picks the variant runtime — shared wineserver).

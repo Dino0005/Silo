@@ -26,6 +26,13 @@ public final class MediaFoundationViewModel {
     /// The wine binary to run the recipe with, and whether the source bottle is set up — both live
     /// elsewhere and change over time, so they're read at the moment they're needed.
     private let wineBinary: @MainActor () -> URL?
+    /// Name of the configured Wine runtime, stamped into the bottle when it's built and compared against on
+    /// every refresh. Defaults to nil so existing callers (and tests) are unaffected: an unstamped bottle
+    /// simply never reads as stale.
+    private let wineRuntimeName: @MainActor () -> String?
+    /// Non-nil when the bottle was built under a different Wine than the one configured — the pane shows
+    /// this instead of pretending the bottle is usable.
+    public private(set) var rebuildNotice: String?
 
     public init(
         importer: MediaFoundationImporter,
@@ -33,8 +40,10 @@ public final class MediaFoundationViewModel {
         installer: MediaFoundationInstaller,
         paths: AppPaths,
         configStore: ConfigStore,
-        wineBinary: @escaping @MainActor () -> URL?
+        wineBinary: @escaping @MainActor () -> URL?,
+        wineRuntimeName: @escaping @MainActor () -> String? = { nil }
     ) {
+        self.wineRuntimeName = wineRuntimeName
         self.importer = importer
         self.cloner = cloner
         self.installer = installer
@@ -45,7 +54,20 @@ public final class MediaFoundationViewModel {
 
     public func refresh() {
         package = importer.installed()
-        bottleReady = MediaFoundationInstaller.isInstalled(inPrefix: paths.steamBottleMF)
+        let current = wineRuntimeName()
+        let stale = MediaFoundationInstaller.isStale(
+            inPrefix: paths.steamBottleMF, currentRuntime: current)
+        // A stale bottle is NOT ready: the pane offers to rebuild rather than claiming everything is fine
+        // while the videos it exists for are black again.
+        bottleReady = MediaFoundationInstaller.isInstalled(inPrefix: paths.steamBottleMF) && !stale
+        if stale,
+           let built = MediaFoundationInstaller.builtRuntimeName(inPrefix: paths.steamBottleMF),
+           let current {
+            rebuildNotice = String(localized:
+                "The Media Foundation bottle was built with \(built), but Wine is now \(current). Rebuild it to use it again.")
+        } else {
+            rebuildNotice = nil
+        }
     }
 
     /// True when there's a Steam bottle to clone from. Building without one would produce a bottle with
@@ -118,6 +140,7 @@ public final class MediaFoundationViewModel {
             }
             try await installer.install(
                 package: package, intoPrefix: paths.steamBottleMF, wine: wine,
+                runtimeName: wineRuntimeName(),
                 progress: { box.report(Self.describe($0)) })
 
             refresh()

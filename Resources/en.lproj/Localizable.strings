@@ -261,6 +261,10 @@
 "The Media Foundation bottle keeps its own copy of everything. Choose where %@ saves, so both bottles use one set." = "The Media Foundation bottle keeps its own copy of everything. Choose where %@ saves, so both bottles use one set.";
 "No folders to show yet. Play %@ once, then open this again." = "No folders to show yet. Play %@ once, then open this again.";
 "Shared save folders: %lld" = "Shared save folders: %lld";
+
+/* Media Foundation bottle built under a different Wine runtime */
+"The Media Foundation bottle was built with %@, but Wine is now %@. Rebuild it to use it again." = "The Media Foundation bottle was built with %@, but Wine is now %@. Rebuild it to use it again.";
+"%@ started in the normal bottle: the Media Foundation bottle needs rebuilding after the Wine change." = "%@ started in the normal bottle: the Media Foundation bottle needs rebuilding after the Wine change.";
 "Modified %@" = "Modified %@";
 "In both bottles" = "In both bottles";
 "Only in the Steam bottle" = "Only in the Steam bottle";

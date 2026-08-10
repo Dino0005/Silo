@@ -338,8 +338,21 @@ public final class GameLibraryViewModel {
             // The game's bottle and its Steam client have to be the SAME prefix: Steamworks IPC is
             // prefix-scoped, so a game launched into the MF bottle against the normal bottle's client
             // fails SteamAPI_Init and quits on its own.
+            // A bottle built under a different Wine is treated as absent: the recipe's DLLs and registry
+            // entries get regenerated over by a runtime change, so it would launch into a bottle whose MF
+            // support is gone. Falling back to the normal bottle is a KNOWN state (black videos) rather
+            // than an unknown one — but it's said out loud, because the silent version of this is what
+            // makes a runtime change look like a broken game.
+            let mfStale = MediaFoundationInstaller.isStale(
+                inPrefix: paths.steamBottleMF, currentRuntime: backend.wineRuntimeName)
             let wantsMF = config.envFlags.mediaFoundationNative
                 && MediaFoundationInstaller.isInstalled(inPrefix: paths.steamBottleMF)
+                && !mfStale
+            if config.envFlags.mediaFoundationNative, mfStale {
+                setStatus(String(localized:
+                    "\(game.name) started in the normal bottle: the Media Foundation bottle needs rebuilding after the Wine change."),
+                    actionable: true)
+            }
             // The MF bottle is a CLONE, so from the first launch on that side the same game accumulates a
             // second, separate set of saves. Re-point the declared folders at the normal bottle's copy
             // before the game can write anything. Idempotent — already-correct links cost one stat each —

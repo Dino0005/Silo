@@ -55,12 +55,47 @@ public struct MediaFoundationInstaller: Sendable {
         prefix.appendingPathComponent(".silo-media-foundation", isDirectory: false)
     }
 
+    /// The Wine runtime the recipe was applied WITH, read back from the marker. nil when the marker is
+    /// empty — every bottle built before the stamp existed — which callers must treat as "unknown", not as
+    /// "mismatched".
+    public static func builtRuntimeName(inPrefix prefix: URL,
+                                        fileManager: FileManager = .default) -> String? {
+        guard let text = try? String(contentsOf: marker(inPrefix: prefix), encoding: .utf8) else {
+            return nil
+        }
+        let name = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
+    }
+
+    /// The bottle was built under a DIFFERENT Wine than the one configured now.
+    ///
+    /// The recipe writes into the prefix — DLLs in system32/syswow64, imported .reg, overrides, registered
+    /// COM modules — and a different runtime regenerates the prefix's fakedlls over the top of it, which is
+    /// why CrossOver's own docs say to re-apply the MF fix after an update. The bottle then still LOOKS
+    /// installed while the videos it exists for come up black again, with nothing pointing at the runtime
+    /// as the cause.
+    ///
+    /// Fails SAFE in both unknown cases: a legacy (empty) marker, or no configured runtime name, reads as
+    /// not stale. Telling someone with a working bottle to rebuild it, on no evidence, is worse than the
+    /// defect this catches.
+    public static func isStale(inPrefix prefix: URL, currentRuntime: String?,
+                               fileManager: FileManager = .default) -> Bool {
+        guard isInstalled(inPrefix: prefix, fileManager: fileManager),
+              let built = builtRuntimeName(inPrefix: prefix, fileManager: fileManager),
+              let current = currentRuntime else { return false }
+        return built != current
+    }
+
     /// Apply the whole recipe. Roughly a dozen wine invocations, each with its own start-up cost, so
     /// `progress` exists to drive a real indicator rather than a button that looks stuck.
+    /// - Parameter runtimeName: the Wine runtime this is being applied with, stamped into the marker so a
+    ///   later runtime change can be detected (see `isStale`). Defaults to nil — an unstamped marker, i.e.
+    ///   the pre-stamp behaviour.
     public func install(
         package: MediaFoundationPackage,
         intoPrefix prefix: URL,
         wine: URL,
+        runtimeName: String? = nil,
         progress: (@Sendable (Stage) -> Void)? = nil
     ) async throws {
         let fileManager = FileManager.default
@@ -120,7 +155,8 @@ public struct MediaFoundationInstaller: Sendable {
             }
         }
 
-        fileManager.createFile(atPath: Self.marker(inPrefix: prefix).path, contents: Data())
+        fileManager.createFile(atPath: Self.marker(inPrefix: prefix).path,
+                               contents: Data((runtimeName ?? "").utf8))
         progress?(.done)
     }
 

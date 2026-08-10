@@ -79,6 +79,12 @@ struct MediaFoundationView: View {
                 }
             }
 
+            if let notice = vm.rebuildNotice {
+                Section {
+                    Label(LocalizedStringKey(notice), systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                }
+            }
             if let message = vm.statusMessage {
                 Section { Text(LocalizedStringKey(message)).font(.callout).foregroundStyle(.secondary) }
             }

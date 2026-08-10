@@ -262,6 +262,10 @@
 "The Media Foundation bottle keeps its own copy of everything. Choose where %@ saves, so both bottles use one set." = "La bottiglia Media Foundation ha una copia propria di tutto. Scegli dove %@ salva, così entrambe le bottiglie useranno un unico set.";
 "No folders to show yet. Play %@ once, then open this again." = "Ancora nessuna cartella da mostrare. Gioca una volta a %@, poi riapri questa schermata.";
 "Shared save folders: %lld" = "Cartelle condivise: %lld";
+
+/* Bottiglia Media Foundation costruita sotto un altro runtime Wine */
+"The Media Foundation bottle was built with %@, but Wine is now %@. Rebuild it to use it again." = "La bottiglia Media Foundation è stata creata con %@, ma ora Wine è %@. Ricostruiscila per tornare a usarla.";
+"%@ started in the normal bottle: the Media Foundation bottle needs rebuilding after the Wine change." = "%@ è stato avviato nella bottiglia normale: la bottiglia Media Foundation va ricostruita dopo il cambio di Wine.";
 "Modified %@" = "Modificata il %@";
 "In both bottles" = "In entrambe le bottiglie";
 "Only in the Steam bottle" = "Solo nella bottiglia Steam";
