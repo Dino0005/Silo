@@ -28,6 +28,11 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
     public var graphics: GraphicsChoice
     /// Extra arguments appended after the executable.
     public var customArgs: [String]
+    /// File NAME of this game's cover inside `AppPaths.coversDir` — never a path. Steam games get artwork
+    /// from Steam; a manual game shows its `.exe` icon unless one is chosen here. Storing the name means
+    /// the cover survives the support directory being moved, exactly as `SharedSaveFolder` stores a root
+    /// plus a name rather than an absolute path. nil = no cover, fall back to the icon.
+    public var coverArtFileName: String?
     public var lastPlayed: Date?
 
     public init(
@@ -39,6 +44,7 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
         envFlags: EnvFlags = EnvFlags(),
         graphics: GraphicsChoice = .auto,
         customArgs: [String] = [],
+        coverArtFileName: String? = nil,
         lastPlayed: Date? = nil
     ) {
         self.id = id
@@ -49,6 +55,7 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
         self.envFlags = envFlags
         self.graphics = graphics
         self.customArgs = customArgs
+        self.coverArtFileName = coverArtFileName
         self.lastPlayed = lastPlayed
     }
 
@@ -71,7 +78,7 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
     private enum CodingKeys: String, CodingKey {
         // `backend` is read-only legacy — decoded for migration, never encoded (new configs write `graphics`).
         case id, bottleID, name, executablePath, workingDirectory, envFlags, graphics, backend, customArgs,
-             lastPlayed
+             coverArtFileName, lastPlayed
     }
 
     public init(from decoder: any Decoder) throws {
@@ -97,6 +104,7 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
             graphics = .auto
         }
         customArgs = try c.decodeIfPresent([String].self, forKey: .customArgs) ?? []
+        coverArtFileName = try c.decodeIfPresent(String.self, forKey: .coverArtFileName)
         lastPlayed = try c.decodeIfPresent(Date.self, forKey: .lastPlayed)
     }
 
@@ -110,6 +118,7 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
         try c.encode(envFlags, forKey: .envFlags)
         try c.encode(graphics, forKey: .graphics)
         try c.encode(customArgs, forKey: .customArgs)
+        try c.encodeIfPresent(coverArtFileName, forKey: .coverArtFileName)
         try c.encodeIfPresent(lastPlayed, forKey: .lastPlayed)
     }
 }

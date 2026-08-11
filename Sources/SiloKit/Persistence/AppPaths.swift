@@ -33,6 +33,9 @@ public struct AppPaths: Sendable, Hashable {
     public var configFile: URL { supportDir.appendingPathComponent("config.json") }
     /// Scratch dir for downloaded app-update archives (the inline updater stages the `.zip` here).
     public var updatesDir: URL { supportDir.appendingPathComponent("Updates", isDirectory: true) }
+    /// Cover images chosen for manual games. The picked file is COPIED here rather than referenced in
+    /// place, so a cover taken off an external drive keeps working once that drive is unplugged.
+    public var coversDir: URL { supportDir.appendingPathComponent("Covers", isDirectory: true) }
     /// Temp dir for a setup run's artifact downloads (`SetupDownloads`) — under `supportDir` so downloads can
     /// start the moment "Set up" is pressed, BEFORE the bottle prefix / its `drive_c` exists. NOT a cache: it's
     /// wiped at the start of every run and removed when setup finishes, so a stale installer is never reused.

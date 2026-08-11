@@ -265,6 +265,13 @@
 /* Media Foundation bottle built under a different Wine runtime */
 "The Media Foundation bottle was built with %@, but Wine is now %@. Rebuild it to use it again." = "The Media Foundation bottle was built with %@, but Wine is now %@. Rebuild it to use it again.";
 "%@ started in the normal bottle: the Media Foundation bottle needs rebuilding after the Wine change." = "%@ started in the normal bottle: the Media Foundation bottle needs rebuilding after the Wine change.";
+
+/* Cover art for non-Steam games */
+"Cover" = "Cover";
+"Choose image…" = "Choose image…";
+"Remove cover" = "Remove cover";
+"No cover set — the game's icon is used." = "No cover set — the game's icon is used.";
+"Choose a cover image for this game." = "Choose a cover image for this game.";
 "Modified %@" = "Modified %@";
 "In both bottles" = "In both bottles";
 "Only in the Steam bottle" = "Only in the Steam bottle";

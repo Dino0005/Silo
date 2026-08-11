@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 /// Edit a manual (non-Steam) game: name, executable, its isolated bottle, performance flags, and launch
 /// options. Saving persists the edited copy through the library view model.
@@ -11,6 +12,16 @@ struct ManualGameSettingsSheet: View {
     /// Whether the chosen executable needs D3D12 (drives the DXMT warning). Recomputed whenever the user
     /// picks a different exe, since that changes the answer.
     @State private var needsD3D12 = false
+
+    /// Pick an image file for the tile. Mirrors `chooseExecutable`, restricted to image types.
+    private func chooseCoverImage() -> URL? {
+        let panel = NSOpenPanel()
+        panel.message = String(localized: "Choose a cover image for this game.")
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        return panel.runModal() == .OK ? panel.url : nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -30,6 +41,33 @@ struct ManualGameSettingsSheet: View {
                             game.executablePath = exe
                         }
                     }
+                }
+
+                Section {
+                    if let cover = CoverArtStore(coversDir: env.paths.coversDir)
+                        .url(named: game.coverArtFileName) {
+                        Text(cover.lastPathComponent)
+                            .font(.caption).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.middle)
+                    } else {
+                        Text("No cover set — the game's icon is used.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Button("Choose image…") {
+                        guard let picked = chooseCoverImage() else { return }
+                        // Copied in at CHOOSE time, not on Save: the row above then shows the real stored
+                        // file, and a cancelled sheet at worst leaves one file the next choice overwrites.
+                        game.coverArtFileName = CoverArtStore(coversDir: env.paths.coversDir)
+                            .store(picked, for: game.id)
+                    }
+                    if game.coverArtFileName != nil {
+                        Button("Remove cover", role: .destructive) {
+                            CoverArtStore(coversDir: env.paths.coversDir).remove(for: game.id)
+                            game.coverArtFileName = nil
+                        }
+                    }
+                } header: {
+                    Text("Cover")
                 }
 
                 Section {

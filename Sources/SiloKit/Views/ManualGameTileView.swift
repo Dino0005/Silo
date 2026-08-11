@@ -20,7 +20,9 @@ struct ManualGameTileView: View {
             onPlay: { Task { await lib.playManual(game) } },
             onTap: onSettings
         ) {
-            ManualGameArtwork(exe: game.executablePath)
+            ManualGameArtwork(exe: game.executablePath,
+                              cover: CoverArtStore(coversDir: env.paths.coversDir)
+                                  .url(named: game.coverArtFileName))
         } subtitle: {
             Text("Non-Steam game").font(.caption).foregroundStyle(.secondary)
             BackendTag(choice: game.graphics)
@@ -66,12 +68,17 @@ struct ManualGameTileView: View {
 /// placeholder. The PE is parsed off the main thread, once, and the result cached by exe path.
 struct ManualGameArtwork: View {
     let exe: URL
+    /// A chosen cover, already resolved to an existing file. Wins over the `.exe` icon and fills the tile
+    /// the way Steam artwork does; a cover deleted from Finder resolves to nil and the icon comes back.
+    var cover: URL? = nil
     @State private var icon: NSImage?
 
     var body: some View {
         ZStack {
             GameArtworkPlaceholder()
-            if let icon {
+            if let cover, let art = NSImage(contentsOf: cover) {
+                Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
+            } else if let icon {
                 Image(nsImage: icon).resizable().aspectRatio(contentMode: .fit).padding(14)
             } else {
                 Image(systemName: "gamecontroller.fill")

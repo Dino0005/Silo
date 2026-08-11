@@ -551,6 +551,9 @@ public final class GameLibraryViewModel {
             return
         }
         _ = try? await configStore.removeManualGame(id: game.id)
+        // The cover belongs to the entry, not to the files on disk — dropping the entry drops it too, so
+        // Covers/ doesn't accumulate images for games that no longer exist.
+        CoverArtStore(coversDir: paths.coversDir).remove(for: game.id)
         manualGames.removeAll { $0.id == game.id }
         if games.isEmpty && manualGames.isEmpty { loadState = .empty }
         // Ref-counted: entries installed together share a bottle — only delete the prefix when this was the
