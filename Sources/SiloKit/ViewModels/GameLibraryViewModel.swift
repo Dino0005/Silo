@@ -266,9 +266,26 @@ public final class GameLibraryViewModel {
 
     // MARK: - Install / uninstall (routed through the shared Steam client)
 
-    /// Open the bottle's Steam so the user can browse + install games.
+    /// Open a bottle's Steam so the user can browse + install games.
+    ///
+    /// Only ONE Steam client can be signed in at a time, so this never opens a second one. `ensureRunning`
+    /// is idempotent against its OWN session only: with Steam live in the MF bottle, the normal bottle's
+    /// `isRunning` reads false and this used to launch a second client — the very thing `play()`'s
+    /// bottle-switch confirmation exists to prevent, just on a path that had no such guard.
+    ///
+    /// A live MF client is reported rather than replaced. Unlike a game launch, this doesn't need one
+    /// specific bottle — the store is the same from either — so quitting the other client, and possibly
+    /// dropping a game running alongside it, would cost more than it's worth. Silo can't raise the window
+    /// itself: Wine's windows belong to `wine64`, not to an identifiable macOS app, and no Steam pid is
+    /// tracked. Naming where the client is lets the user reach it with Cmd-Tab.
     public func openSteam() async {
         if launchBlockedByBottles() { return }
+        if mfSession.isRunning {
+            setStatus(String(localized: "Steam is already running in the Media Foundation bottle."),
+                      actionable: true)
+            return
+        }
+        // The normal bottle's own client needs no message: `ensureRunning` is already a silent no-op there.
         await session.ensureRunning()
     }
 
