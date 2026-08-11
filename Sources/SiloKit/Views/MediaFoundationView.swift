@@ -61,15 +61,22 @@ struct MediaFoundationView: View {
             // pair here, the copy — which is where some games actually run — would be unreachable.
             if vm.bottleReady {
                 Section {
-                    Button("Control Panel") {
-                        Task { await env.openWineTool("control", mediaFoundation: true) }
-                    }
-                    Button("Game Controllers…") {
-                        Task { await env.openWineTool("control", arguments: ["joy.cpl"],
-                                                      mediaFoundation: true) }
-                    }
-                    Button("Wine Config…") {
-                        Task { await env.openWineTool("winecfg", mediaFoundation: true) }
+                    // Two per row, like the General tab does for the normal bottle's tools. NOT all three
+                    // on one line: the Italian labels ("Pannello di controllo", "Controller di Gioco…") are
+                    // much longer than the English ones and three of them crowd the row.
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Button("Control Panel") {
+                                Task { await env.openWineTool("control", mediaFoundation: true) }
+                            }
+                            Button("Game Controllers…") {
+                                Task { await env.openWineTool("control", arguments: ["joy.cpl"],
+                                                              mediaFoundation: true) }
+                            }
+                        }
+                        Button("Wine Config…") {
+                            Task { await env.openWineTool("winecfg", mediaFoundation: true) }
+                        }
                     }
                 } header: {
                     Text("Control Panels")
