@@ -287,3 +287,7 @@
 "Couldn't remove: %@" = "Rimozione non riuscita: %@";
 "Couldn't import: %@" = "Importazione non riuscita: %@";
 "Setup failed: %@" = "Configurazione non riuscita: %@";
+
+/* Tooltip delle tessere della libreria */
+"Show details" = "Mostra dettagli";
+"Edit settings" = "Modifica impostazioni";

@@ -10,7 +10,10 @@ struct GameTileCard<Artwork: View, Subtitle: View, MenuItems: View>: View {
     let title: String
     let isBusy: Bool
     let canLaunch: Bool
-    let helpText: String
+    /// A LocalizedStringKey, not a String: `.help()` takes both, but a String arrives already resolved and
+    /// never reaches Localizable.strings — which is why these two tooltips stayed English in an Italian UI.
+    /// Callers pass literals, so nothing changes at the call sites.
+    let helpText: LocalizedStringKey
     let onPlay: () -> Void
     let onTap: () -> Void
     @ViewBuilder let artwork: () -> Artwork

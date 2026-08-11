@@ -285,3 +285,7 @@
 "Couldn't remove: %@" = "Couldn't remove: %@";
 "Couldn't import: %@" = "Couldn't import: %@";
 "Setup failed: %@" = "Setup failed: %@";
+
+/* Library tile tooltips */
+"Show details" = "Show details";
+"Edit settings" = "Edit settings";
