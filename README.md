@@ -111,6 +111,23 @@ Pushing only powers the CI Wine build. To exercise the whole app locally:
 ./Scripts/install-local-wine.sh .wine-build/install wine-cx-26.2.0
 ```
 
+If CrossOver is already installed, there's a shortcut that skips the compile entirely:
+
+```sh
+./Scripts/install-local-crossover-wine.sh      # defaults to /Applications/CrossOver.app
+```
+
+It copies CrossOver's own Wine tree into `Runtimes/` and bundles its dependency dylibs, naming the
+runtime `wine-crossover-<version>` from CrossOver's `Info.plist` — so re-running after a CrossOver
+update installs alongside the old one instead of overwriting it. (`bin/wine64` is symlinked to
+`wineloader`: CrossOver's top-level `wine` is a Perl wrapper, not a Mach-O binary, which Silo's runtime
+discovery and dylib bundling both need.)
+
+Such a runtime also carries CrossOver's `lib64/apple_gptk` tree, which Silo detects and wires up
+(`CX_ROOT`, `CX_APPLEGPTK_LIBD3DSHARED_PATH`, GStreamer). Note that **changing the Wine runtime under an
+existing setup is not free**: a different Wine regenerates a prefix's fakedlls, which is why a Media
+Foundation bottle records the runtime it was built with and asks to be rebuilt when that changes.
+
 Then in the app: Settings → **Wine** → Set default, **GPTK** → import your `.dmg`, and the
 Library onboarding's **Set up Steam bottle** runs everything else locally. Building DXMT
 additionally needs full Xcode's Metal toolchain — see `Scripts/build-dxmt.sh`.
