@@ -39,6 +39,16 @@ public final class GameLibraryViewModel {
     /// Non-Steam games the user added by hand (persisted in `config.json`; launched in the same bottle
     /// prefix under GPTK, without Steamworks).
     public private(set) var manualGames: [ManualGame] = []
+    /// Manual games whose executable wasn't reachable at the last `load()` — typically an external drive
+    /// that's unplugged. Kept as a set of ids ALONGSIDE `manualGames` rather than filtering that array:
+    /// `manualGames` is also the bottle ref-count (`removeManual` only deletes a prefix when no other entry
+    /// shares it), so hiding an entry from it could delete a bottle still in use by a game that exists.
+    private var unavailableManualIDs: Set<UUID> = []
+
+    /// The manual games worth showing: everything whose executable is there right now.
+    public var availableManualGames: [ManualGame] {
+        manualGames.filter { !unavailableManualIDs.contains($0.id) }
+    }
     public private(set) var loadState: LoadState = .idle
     /// Steam games mid-launch, keyed by appID so only the launching card's button spins.
     public private(set) var busyGames: Set<Int> = []
@@ -180,10 +190,14 @@ public final class GameLibraryViewModel {
             : games.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
 
-    /// Search filter over the manual (non-Steam) games (kept name-sorted).
+    /// Search filter over the manual (non-Steam) games (kept name-sorted), minus any whose executable is
+    /// currently unreachable — a game on an unplugged drive would otherwise sit there offering a Play
+    /// button that can only fail. Steam games on that same drive vanish on their own (the library scan
+    /// doesn't find them), so this keeps the two kinds behaving alike.
     public var filteredManual: [ManualGame] {
-        searchText.isEmpty ? manualGames
-            : manualGames.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        let visible = availableManualGames
+        return searchText.isEmpty ? visible
+            : visible.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
 
     public func isBusy(_ game: SteamApp) -> Bool { busyGames.contains(game.appID) }
@@ -221,6 +235,13 @@ public final class GameLibraryViewModel {
     public func load() async {
         await refreshSteamInstalled()
         manualGames = sortedManual(await configStore.load().manualGames)
+        // Off the main actor: a path under a missing /Volumes mount answers immediately, but a stalled
+        // filesystem is not something to discover by freezing the library.
+        let entries = manualGames
+        unavailableManualIDs = await Task.detached {
+            Set(entries.filter { !FileManager.default.fileExists(atPath: $0.executablePath.path) }
+                .map(\.id))
+        }.value
         // Manual games also live in a bottle, so the library still gates on the Steam bottle existing
         // (notReady drives the onboarding until Steam is set up).
         guard steamReady else { loadState = .notReady; return }
@@ -239,11 +260,11 @@ public final class GameLibraryViewModel {
         if let failure {
             // The library couldn't be READ (permissions/IO). With nothing else to show that's the load's
             // error state; if manual games exist, keep the library up and surface the failure as a status.
-            guard !manualGames.isEmpty else { loadState = .error(failure); return }
+            guard !availableManualGames.isEmpty else { loadState = .error(failure); return }
             setStatus(failure)
         }
         await refreshSteamBadges()
-        loadState = (games.isEmpty && manualGames.isEmpty) ? .empty : .loaded
+        loadState = (games.isEmpty && availableManualGames.isEmpty) ? .empty : .loaded
     }
 
     /// Re-read the badge facts for every Steam game. Cheap — one config load, no disk walk per game.
@@ -572,7 +593,7 @@ public final class GameLibraryViewModel {
         // Covers/ doesn't accumulate images for games that no longer exist.
         CoverArtStore(coversDir: paths.coversDir).remove(for: game.id)
         manualGames.removeAll { $0.id == game.id }
-        if games.isEmpty && manualGames.isEmpty { loadState = .empty }
+        if games.isEmpty && availableManualGames.isEmpty { loadState = .empty }
         // Ref-counted: entries installed together share a bottle — only delete the prefix when this was the
         // last entry using it. A portable game's original files (outside the bottle) are never touched.
         if manualGames.contains(where: { $0.bottleID == game.bottleID }) {

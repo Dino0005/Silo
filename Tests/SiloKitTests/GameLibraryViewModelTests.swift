@@ -652,6 +652,31 @@ struct GameLibraryViewModelTests {
         #expect(!fake.invocations.contains { $0.detached && $0.arguments.first == exe.path })   // never launched
     }
 
+    @Test("a manual game whose drive is unplugged is HIDDEN, and comes back when it returns")
+    func unreachableManualGameIsHidden() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (vm, _, paths) = make(tmp)
+        try installSteam(paths)
+
+        // Stands in for /Volumes/Extreme Pro: a game whose exe lives outside the bottle.
+        let exe = try tmp.write("Extreme Pro/Batman/game.exe", "MZ")
+        _ = await vm.addManualGame(name: "Batman", executable: exe)
+        await vm.load()
+        #expect(vm.filteredManual.map(\.name) == ["Batman"])
+
+        // Drive unplugged.
+        try FileManager.default.removeItem(at: tmp.url.appendingPathComponent("Extreme Pro"))
+        await vm.load()
+        #expect(vm.filteredManual.isEmpty)
+        // The ENTRY is untouched — hiding is a display decision, not a deletion.
+        #expect(vm.manualGames.map(\.name) == ["Batman"])
+
+        // Plugged back in.
+        _ = try tmp.write("Extreme Pro/Batman/game.exe", "MZ")
+        await vm.load()
+        #expect(vm.filteredManual.map(\.name) == ["Batman"])
+    }
+
     @Test("addManualGame defaults the name to the exe filename and persists across a reload")
     func manualGameDefaultNameAndPersistence() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
