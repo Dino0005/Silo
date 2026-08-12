@@ -6,19 +6,21 @@
 
 100% SwiftUI · Apple GPTK4/D3DMetal + DXMT graphics
 
-[![Latest release](https://img.shields.io/github/v/release/mikaelhug/Silo)](https://github.com/mikaelhug/Silo/releases)
+[![Latest release](https://img.shields.io/github/v/release/Dino0005/Silo)](https://github.com/Dino0005/Silo/releases)
 ![Platform](https://img.shields.io/badge/platform-macOS%2015%2B%20%C2%B7%20Apple%20Silicon-blue)
 ![Swift](https://img.shields.io/badge/Swift%206-strict%20concurrency-orange)
 [![License](https://img.shields.io/badge/license-LGPL--2.1+-blue)](LICENSE)
 
-[Discord](https://discord.gg/kNysBA9VU5) ·
-[Website](https://mikaelhug.github.io/Silo/) ·
-[Releases](https://github.com/mikaelhug/Silo/releases) ·
+[Releases](https://github.com/Dino0005/Silo/releases) ·
+[Changelog](CHANGELOG.md) ·
 [Architecture](CLAUDE.md) ·
 [Wine build](WINE-BUILD.md) ·
 [Status](STATUS.md)
 
-<img src="docs/images/dashboard.png" width="820" alt="Silo library — a grid of installed Steam games (Bloons TD 6, Bloons TD Battles 2, It Takes Two, Overcooked 2, Split Fiction, Victoria 3), each with cover art, install size, a per-game graphics-backend badge (Automatic, GPTK, or DXMT), and a Play button" />
+A personal fork of [mikaelhug/Silo](https://github.com/mikaelhug/Silo), tracking it selectively —
+see the [changelog](CHANGELOG.md) for what's been added here.
+
+<img src="docs/images/dashboard.png" width="820" alt="Silo library — a grid of installed games (Devil May Cry 5, Fatal Fury: City of the Wolves, Mortal Kombat 1, Soulcalibur VI, Tekken 8, and Batman Arkham Knight as a non-Steam game), each with cover art, install size, a per-game graphics-backend badge (Automatic, GPTK, or DXMT) plus an MF badge on the games that run in the Media Foundation bottle, and a Play button" />
 
 </div>
 
