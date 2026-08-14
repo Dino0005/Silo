@@ -3,6 +3,8 @@ import SwiftUI
 /// First-run guided setup shown in the Library when Silo isn't configured yet.
 struct OnboardingView: View {
     @Environment(AppEnvironment.self) private var env
+    /// Non-nil while the "download or import from CrossOver?" question is up.
+    @State private var crossOverOffer: CrossOverWineImporter.Found?
 
     var body: some View {
         let runtime = env.runtime
@@ -31,9 +33,31 @@ struct OnboardingView: View {
                         subtitle: "Download and configure the Steam client",
                         done: env.steamReady, busy: env.setupBusy, locked: !env.gptkReady,
                         actionLabel: "Set up",
-                        action: { Task { await env.runFullSetup() } })
+                        action: {
+                            // Ask only when there's a real choice: no Wine anywhere and CrossOver installed.
+                            if let offer = env.crossOverWineOffer { crossOverOffer = offer }
+                            else { Task { await env.runFullSetup() } }
+                        })
                 }
                 .frame(maxWidth: 540)
+                .confirmationDialog(
+                    Text("Use CrossOver's Wine?"),
+                    isPresented: Binding(get: { crossOverOffer != nil },
+                                         set: { if !$0 { crossOverOffer = nil } }),
+                    presenting: crossOverOffer
+                ) { offer in
+                    Button("Import from CrossOver") {
+                        crossOverOffer = nil
+                        Task { await env.importCrossOverWineThenSetUp() }
+                    }
+                    Button("Download") {
+                        crossOverOffer = nil
+                        Task { await env.runFullSetup() }
+                    }
+                    Button("Cancel", role: .cancel) { crossOverOffer = nil }
+                } message: { offer in
+                    Text(String(localized: "CrossOver \(offer.version) is installed. Silo can import its Wine instead of downloading one — it includes GStreamer, which some games need for in-game video. The copy is self-contained: CrossOver isn't needed afterwards."))
+                }
 
                 if env.setupBusy {
                     // A blue indeterminate progress bar — with the active phase's status under it — instead of

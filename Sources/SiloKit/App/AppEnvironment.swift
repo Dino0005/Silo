@@ -281,6 +281,27 @@ public final class AppEnvironment {
     /// runtime (if missing) → download the latest DXMT runtime (if missing) → set up the Steam bottle
     /// (download Steam → create the bottle → install the game-dependency component set, user-guided where a
     /// license is shown → warm up the client). GPTK is imported separately (its own onboarding step).
+    /// Whether onboarding should ASK before downloading a Wine: nothing configured, nothing on disk, and a
+    /// CrossOver installed whose Wine is the better of the two (GStreamer, `lib64/apple_gptk`).
+    public var crossOverWineOffer: CrossOverWineImporter.Found? {
+        guard !wineReady, runtime.installed.isEmpty else { return nil }
+        return runtime.crossOverWine
+    }
+
+    /// Import CrossOver's Wine, then run the usual setup — which adopts what was just imported.
+    ///
+    /// STOPS if the import fails, rather than falling back to the download: someone who chose CrossOver's
+    /// Wine would otherwise end up silently running a different one, and the reason (a changed CrossOver
+    /// layout, a failed copy) is exactly what the status message is there to explain.
+    public func importCrossOverWineThenSetUp() async {
+        guard await runtime.importFromCrossOver() else { return }
+        // DXMT too, when this CrossOver bundles one: step 2's adoption then finds BOTH already installed
+        // and downloads neither. Best-effort — DXMT is optional (most games use GPTK), so a CrossOver
+        // without it, or a failed extraction, must not stop a setup whose Wine is already in place.
+        await dxmtRuntime.importFromCrossOver()
+        await runFullSetup()
+    }
+
     public func runFullSetup() async {
         guard !isRunningFullSetup else { return }
         isRunningFullSetup = true

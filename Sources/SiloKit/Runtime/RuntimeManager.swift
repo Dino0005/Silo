@@ -43,6 +43,14 @@ public actor RuntimeManager {
         return cleaned
     }
 
+    /// Install one of CrossOver's runtimes into `Runtimes/`, returning its name.
+    @discardableResult
+    public func importFromCrossOver(
+        _ component: CrossOverWineImporter.Component
+    ) async throws -> String {
+        try await CrossOverWineImporter(runner: runner).install(component, into: paths.runtimesDir)
+    }
+
     /// The latest `limit` releases of `repo` (newest first) — for the Heroic-style Wine list.
     ///
     /// - Parameter page: 1-based page of the release list. **Load-bearing:** the runtime repo interleaves

@@ -290,3 +290,20 @@
 "Show details" = "Show details";
 "Edit settings" = "Edit settings";
 "Steam is already running in the Media Foundation bottle." = "Steam is already running in the Media Foundation bottle.";
+
+/* Importing CrossOver's Wine */
+"Use CrossOver's Wine?" = "Use CrossOver's Wine?";
+"CrossOver %@ is installed. Silo can import its Wine instead of downloading one — it includes GStreamer, which some games need for in-game video. The copy is self-contained: CrossOver isn't needed afterwards." = "CrossOver %@ is installed. Silo can import its Wine instead of downloading one — it includes GStreamer, which some games need for in-game video. The copy is self-contained: CrossOver isn't needed afterwards.";
+"Import from CrossOver" = "Import from CrossOver";
+"Download" = "Download";
+"Import Wine from CrossOver %@" = "Import Wine from CrossOver %@";
+"Import DXMT from CrossOver %@" = "Import DXMT from CrossOver %@";
+"Importing from CrossOver…" = "Importing from CrossOver…";
+"Imported %@ from CrossOver." = "Imported %@ from CrossOver.";
+"Couldn't import from CrossOver: %@" = "Couldn't import from CrossOver: %@";
+"CrossOver isn't installed at %@." = "CrossOver isn't installed at %@.";
+"That doesn't look like a CrossOver app bundle." = "That doesn't look like a CrossOver app bundle.";
+"Couldn't read CrossOver's version." = "Couldn't read CrossOver's version.";
+"This CrossOver doesn't contain a Wine tree where Silo expects one." = "This CrossOver doesn't contain a Wine tree where Silo expects one.";
+"CrossOver's Wine loader wasn't where Silo expects it — its layout may have changed." = "CrossOver's Wine loader wasn't where Silo expects it — its layout may have changed.";
+"Copying CrossOver's Wine failed (cp exit %d)." = "Copying CrossOver's Wine failed (cp exit %d).";

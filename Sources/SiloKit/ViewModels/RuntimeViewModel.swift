@@ -23,6 +23,9 @@ public struct RuntimeKind {
     let installed: () async -> [RuntimeInstall]
     /// Download + install a release's asset, returning the located install.
     let install: (_ name: String, _ url: URL, _ requireDigest: Bool) async throws -> RuntimeInstall
+    /// Which of CrossOver's runtimes this tab imports, if any. Both kinds have one — CrossOver bundles a
+    /// real standalone DXMT alongside its Wine — but they're separate runtimes and each tab takes its own.
+    var crossOverComponent: CrossOverWineImporter.Component?
 }
 
 public extension RuntimeKind {
@@ -38,7 +41,8 @@ public extension RuntimeKind {
             installed: { await manager.installedWines().map(\.runtimeInstall) },
             install: { name, url, digest in
                 try await manager.installWine(name: name, from: url, requireDigest: digest).runtimeInstall
-            })
+            },
+            crossOverComponent: .wine)
     }
 
     /// The DXMT flow: the `dxmt-*-cx<ver>` build matched to the configured wine (read live at click time
@@ -54,7 +58,8 @@ public extension RuntimeKind {
             installed: { await manager.installedDXMT().map(\.runtimeInstall) },
             install: { name, url, digest in
                 try await manager.installDXMT(name: name, from: url, requireDigest: digest).runtimeInstall
-            })
+            },
+            crossOverComponent: .dxmt)
     }
 }
 
@@ -97,6 +102,9 @@ public final class RuntimeViewModel {
 
     public func refresh() async {
         installed = await kind.installed()
+        // Re-read here rather than from a view body: CrossOver can be installed or removed while Silo is
+        // open, and detection touches the filesystem.
+        crossOverWine = crossOverSource()
         if let name = defaultName, !installed.contains(where: { $0.name == name }) {
             // The default's runtime is GONE (deleted outside the app, a restore that copied only
             // config.json, or a crash mid-install). Clearing `defaultName` alone left the PERSISTED path
@@ -112,6 +120,46 @@ public final class RuntimeViewModel {
     /// How many pages of releases to walk looking for this kind's newest build (see `installLatest`).
     /// `releaseLimit` per page, so 5 pages covers 75–150 releases — far beyond any realistic backlog.
     private static let maxReleasePages = 5
+
+    /// An installed CrossOver whose Wine could be imported — nil on the DXMT tab, which has no such
+    /// source, and nil when CrossOver isn't installed.
+    ///
+    /// STORED and refreshed by `refresh()`, not computed: detection touches the filesystem, and a computed
+    /// property would re-read it on every redraw of the settings pane.
+    public private(set) var crossOverWine: CrossOverWineImporter.Found?
+
+    /// Import CrossOver's Wine instead of downloading one. Returns whether it worked, so a caller that has
+    /// more to do (the onboarding runs setup afterwards) can stop on failure rather than carrying on with
+    /// no Wine.
+    /// The CrossOver this tab could import from — nil when CrossOver isn't installed, or when it has
+    /// nothing for this kind (an older build with no bundled DXMT).
+    private func crossOverSource() -> CrossOverWineImporter.Found? {
+        guard let component = kind.crossOverComponent,
+              let found = CrossOverWineImporter.detect() else { return nil }
+        return (component == .dxmt && !found.hasDXMT) ? nil : found
+    }
+
+    @discardableResult
+    public func importFromCrossOver() async -> Bool {
+        guard !isInstalling, let component = kind.crossOverComponent else { return false }
+        isInstalling = true
+        statusMessage = String(localized: "Importing from CrossOver…")
+        defer { isInstalling = false }
+        do {
+            let name = try await manager.importFromCrossOver(component)
+            await refresh()
+            // Adopt it if nothing else is set — the same courtesy `installLatest` does.
+            if defaultName == nil, let new = installed.first(where: { $0.name == name }) {
+                setDefault(new)
+            }
+            statusMessage = String(localized: "Imported \(name) from CrossOver.")
+            return true
+        } catch {
+            statusMessage = String(localized:
+                "Couldn't import from CrossOver: \((error as NSError).localizedDescription)")
+            return false
+        }
+    }
 
     /// Download + install the latest build of this kind published to Silo's releases. Self-contained —
     /// also used by the Library onboarding.

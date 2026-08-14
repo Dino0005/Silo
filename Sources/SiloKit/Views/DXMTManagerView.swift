@@ -16,6 +16,17 @@ struct DXMTManagerView: View {
                     Label("Install latest DXMT", systemImage: "arrow.down.circle")
                 }
                 .disabled(vm.isInstalling)
+                // CrossOver bundles a real standalone DXMT beside its Wine. Extracting it is both faster
+                // than a download and guaranteed to match that Wine's ABI.
+                if let offer = vm.crossOverWine {
+                    Button {
+                        Task { await vm.importFromCrossOver() }
+                    } label: {
+                        Label(String(localized: "Import DXMT from CrossOver \(offer.version)"),
+                              systemImage: "square.and.arrow.down.on.square")
+                    }
+                    .disabled(vm.isInstalling)
+                }
                 if vm.isInstalling { ProgressView().controlSize(.small) }
             } header: {
                 Text("DXMT runtime")
