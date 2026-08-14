@@ -101,22 +101,44 @@ struct LibraryGridView: View {
         Button { Task { await lib.openSteam() } } label: { label() }
     }
 
-    /// The Steam logo for the toolbar button, loaded explicitly via Bundle.module + NSImage rather than
-    /// the string-based Image(_:bundle:) lookup — that lookup is built for Asset Catalog entries and is
+    /// The Steam logo for the toolbar button, loaded from a file URL + NSImage rather than the
+    /// string-based Image(_:bundle:) lookup — that lookup is built for Asset Catalog entries and is
     /// unreliable for a loose (non-catalog) SwiftPM resource file, which is what a pure-SwiftPM package
     /// (no Xcode project, no actool) produces. PDF (not PNG): NSToolbar rasterizes bitmap toolbar icons
     /// once internally at a fixed size regardless of source resolution — a raster PNG came out pixelated
     /// even at 512x512, matching how SF Symbols (vector) stay crisp while bitmap custom icons don't.
     /// A PDF is vector data straight through, so there's no fixed-resolution rasterization step to lose
-    /// quality at. Falls back to a generic SF Symbol if the resource can't be found for any reason, so
-    /// the button is never left blank.
+    /// quality at.
+    ///
+    /// Deliberately NOT `Bundle.module`. SwiftPM's generated accessor tries `Bundle.main.bundleURL +
+    /// "Silo_SiloKit.bundle"` and then the absolute path of the build directory of whoever compiled — and
+    /// `fatalError`s when neither exists. In a shipped app neither does: `Bundle.main.bundleURL` is
+    /// `Silo.app` while the bundle sits under `Contents/Resources`, and the build path belongs to another
+    /// machine. The app therefore died the moment the toolbar drew this icon — everywhere except on the
+    /// Mac that built it, where the build path happened to resolve.
+    ///
+    /// Looking the file up directly covers every real case and cannot terminate the process.
     private var steamIcon: Image {
-        if let url = Bundle.module.url(forResource: "steam", withExtension: "pdf"),
-           let nsImage = NSImage(contentsOf: url) {
+        if let url = Self.steamIconURL, let nsImage = NSImage(contentsOf: url) {
             return Image(nsImage: nsImage)
         }
-        return Image(systemName: "cart")   // SF Symbol fallback (never expected to trigger)
+        return Image(systemName: "cart")   // last resort; unreachable in app, local build, or swift run
     }
+
+    /// The three places `steam.pdf` can actually be, checked in order of how the app is run.
+    private static let steamIconURL: URL? = {
+        let fm = FileManager.default
+        // 1. A shipped app: build-app.sh copies SiloKit's resources straight into Contents/Resources.
+        if let url = Bundle.main.url(forResource: "steam", withExtension: "pdf") { return url }
+        // 2. The same app, via the nested SwiftPM bundle that build-app.sh also copies.
+        // 3. `swift run` in development: the bundle sits next to the built executable.
+        for root in [Bundle.main.resourceURL, Bundle.main.bundleURL] {
+            guard let candidate = root?
+                .appendingPathComponent("Silo_SiloKit.bundle/steam.pdf") else { continue }
+            if fm.fileExists(atPath: candidate.path) { return candidate }
+        }
+        return nil
+    }()
 
     private let columns = [GridItem(.adaptive(minimum: 250), spacing: 16)]
 

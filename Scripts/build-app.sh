@@ -44,6 +44,16 @@ shopt -u nullglob
 
 [ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 
+# SiloKit's own resources, flat in Contents/Resources so Bundle.main finds them — the standard macOS app
+# layout. The nested SwiftPM bundle copied above is NOT enough on its own: SwiftPM's generated
+# `Bundle.module` looks beside the .app and then in the build directory of whoever compiled, so a shipped
+# app resolved neither and trapped on first use. See LibraryGridView.steamIconURL.
+shopt -s nullglob
+for resource in Sources/SiloKit/Resources/*; do
+    cp -R "$resource" "$APP/Contents/Resources/"
+done
+shopt -u nullglob
+
 # Localizations (EN source + IT translation): plain Localizable.strings per language, resolved
 # automatically by SwiftUI's default LocalizedStringKey lookup (Bundle.main, table "Localizable") —
 # no changes needed at Text()/Button()/etc. call sites in Sources/.
