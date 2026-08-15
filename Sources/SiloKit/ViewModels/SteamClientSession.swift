@@ -199,6 +199,18 @@ public final class SteamClientSession {
             try? await Task.sleep(for: .milliseconds(500)); waited += 0.5
         }
         if orchestrator.isRunning(pid: pid) { orchestrator.terminate(pid: pid) }
+        // Terminating the tracked pid is not enough: the updater re-execs a client Silo never spawned (see
+        // above), whose host pid nothing here knows. Measured after a clean onboarding — two `steam.exe`
+        // and a `wineserver` still alive at the end, so the next press of Open Steam quietly added a third.
+        // `forceQuit` kills by IMAGE NAME, which catches the re-exec'd copy and its webhelpers.
+        //
+        // Only as a fallback: the graceful `-shutdown` above stays the normal path, because it lets Steam
+        // flush its config on the way out. Liveness comes from `WineServerProbe`, which now asks who holds
+        // the wineserver lock rather than trusting files that outlive the process.
+        if WineServerProbe.isLive(prefix: bottle.prefix) {
+            await bottle.forceQuit(wine: wine)
+            try? await Task.sleep(for: .seconds(warmUpForceQuitSettle))   // let the wineserver reap them
+        }
     }
 
     /// Bring the (already-downloaded) client fully up ONCE so it creates its runtime CEF dir (cef.win64,
