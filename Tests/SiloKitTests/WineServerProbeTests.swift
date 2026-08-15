@@ -36,6 +36,46 @@ struct WineServerProbeTests {
         #expect(!WineServerProbe.isLive(prefix: prefix))          // socket gone → not live
     }
 
+    @Test("files left behind by a KILLED wineserver are not a live bottle")
+    func leftoverFilesAreNotLive() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let prefix = tmp.url.appendingPathComponent("SteamBottle")
+        let held = try holdWineServerLock(for: prefix)
+        defer { held.release() }
+        #expect(WineServerProbe.isLive(prefix: prefix))
+
+        // Exactly what `kill -9` leaves: nobody holds the lock any more, but lock and socket are still on
+        // disk. Before this the bottle read live forever and every launch was silently refused.
+        held.unlock()
+        let dir = try #require(held.dir)
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("socket").path))
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("lock").path))
+        #expect(!WineServerProbe.isLive(prefix: prefix))
+    }
+
+    @Test("a lock nobody holds reads as free; an unopenable one is assumed live")
+    func lockProbeAnswers() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let path = tmp.url.appendingPathComponent("lock").path
+        FileManager.default.createFile(atPath: path, contents: Data())
+        #expect(!WineServerProbe.isLockHeld(at: path))
+        // Can't ask → the safe answer is "live", never "go ahead and move the prefix".
+        #expect(WineServerProbe.isLockHeld(at: tmp.url.appendingPathComponent("absent").path))
+    }
+
+    @Test("a socket without a held lock isn't live, and neither is a held lock without a socket")
+    func bothPiecesAreRequired() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let prefix = tmp.url.appendingPathComponent("SteamBottle")
+        let held = try holdWineServerLock(for: prefix)
+        defer { held.release() }
+        let dir = try #require(held.dir)
+
+        // A server that lost its socket isn't reachable, however firmly it holds its lock.
+        try FileManager.default.removeItem(at: dir.appendingPathComponent("socket"))
+        #expect(!WineServerProbe.isLive(prefix: prefix))
+    }
+
     @Test("isAnyBottleLive spots a live manual bottle, and reports false when all are quiet")
     func anyBottleLive() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

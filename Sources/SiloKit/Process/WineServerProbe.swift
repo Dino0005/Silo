@@ -21,14 +21,44 @@ public enum WineServerProbe {
         guard let dirName = serverDirName(for: prefix) else { return false }
         let uid = getuid()
         for root in candidateRoots() {
-            let socket = root
+            let dir = root
                 .appendingPathComponent(".wine-\(uid)", isDirectory: true)
                 .appendingPathComponent(dirName, isDirectory: true)
-                .appendingPathComponent("socket")
-            // Require the SOCKET file, not just the dir — the dir can linger after the server exits.
-            if fileManager.fileExists(atPath: socket.path) { return true }
+            // The FILES are not the answer: they outlive the process — nothing unlinks them — so after a
+            // `kill -9`, a crash or an incomplete shutdown the bottle read live forever and every launch
+            // was refused with no explanation. Observed in /tmp: one directory with lock + socket and a
+            // live wineserver holding the lock, and another with only a leftover lock and nobody home.
+            //
+            // Both are required: a server that lost its socket isn't reachable anyway.
+            guard fileManager.fileExists(atPath: dir.appendingPathComponent("socket").path) else {
+                continue
+            }
+            if isLockHeld(at: dir.appendingPathComponent("lock").path) { return true }
         }
         return false
+    }
+
+    /// Whether a `wineserver` currently holds the write lock on its `lock` file.
+    ///
+    /// `F_GETLK` ASKS who holds the lock without taking it — no write, no connection, nothing the running
+    /// server can notice. `F_UNLCK` in the reply means nobody holds it, which is the definitive proof that
+    /// the files left in the directory are leftovers.
+    ///
+    /// Only a definite answer downgrades to "not live": if the file can't be opened or `fcntl` fails, the
+    /// answer stays "live". The two mistakes don't cost the same — refusing a launch is an annoyance,
+    /// moving a prefix out from under a live server corrupts it.
+    static func isLockHeld(at path: String) -> Bool {
+        let fd = open(path, O_RDONLY)
+        guard fd >= 0 else { return true }        // can't ask → assume live
+        defer { close(fd) }
+
+        var probe = flock()
+        probe.l_type = Int16(F_WRLCK)             // "could I write-lock it?" — conflicts with the holder
+        probe.l_whence = Int16(SEEK_SET)
+        probe.l_start = 0
+        probe.l_len = 0                           // whole file
+        guard fcntl(fd, F_GETLK, &probe) != -1 else { return true }
+        return probe.l_type != Int16(F_UNLCK)     // F_UNLCK ⇒ nobody holds it ⇒ leftover
     }
 
     /// Whether ANY Silo bottle (the shared Steam bottle or any manual bottle) has a live wineserver — the
