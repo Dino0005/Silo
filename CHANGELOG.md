@@ -25,6 +25,9 @@ the truth about what it did.
 - **Metal 3 / Metal 4 selector** for GPTK's D3D12 path (ported from upstream).
 - Backend badge on Steam games' tiles, and a direct shortcut to Wine's Game Controllers panel.
 - Italian + English localization across the whole UI, error messages included.
+- **Import Wine and DXMT from an installed CrossOver**, from the app: offered during onboarding, and
+  available afterwards from Settings → Wine and → DXMT (e.g. after a CrossOver update). DXMT is installed
+  as a runtime of its own, since the copy inside CrossOver's Wine tree isn't where detection looks.
 
 ### Fixed
 - **Fullscreen on GPTK.** Steam's Wine virtual desktop was hardcoded to 1440×900, capping every game
@@ -52,6 +55,17 @@ the truth about what it did.
 - MSync isolation for non-Steam bottles; external-drive Steam library discovery; `CX_ROOT`,
   `CX_APPLEGPTK_LIBD3DSHARED_PATH` and GStreamer environment for CrossOver-derived runtimes (which
   unblocked Tekken 8 launching at all); two DXMT detection bugs.
+- **The app crashed on opening the library on any Mac but the one that built it.** SwiftPM's generated
+  `Bundle.module` accessor resolves the resource bundle beside the .app and then at the absolute build
+  path of whoever compiled — neither exists in a shipped app, and it traps rather than returning nil. The
+  Steam toolbar icon is loaded by path now, and `build-app.sh` also copies SiloKit's resources flat into
+  `Contents/Resources` where `Bundle.main` finds them.
+- **A crashed bottle stayed "busy" forever.** Liveness was `fileExists` on the wineserver socket, but the
+  files in `/tmp` outlive the process — so after a `kill -9`, a crash or an incomplete shutdown every
+  launch was silently refused. It's now `fcntl(F_GETLK)` on the server's lock: who holds it, asked without
+  taking it.
+- **Setup left a Steam client running.** The shutdown terminated only the tracked pid, but the updater
+  re-execs a client Silo didn't spawn; two `steam.exe` and a `wineserver` survived a clean onboarding.
 - Developer ID signing.
 
 ### Changed
