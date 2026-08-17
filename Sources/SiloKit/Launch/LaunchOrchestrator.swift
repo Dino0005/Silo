@@ -359,7 +359,9 @@ public struct LaunchOrchestrator: Sendable {
     ) throws {
         guard let libDir = backendConfig.libDir(for: graphics) else { return }
         switch graphics {
-        case .gptk: try linker.overlayGPTK(wineBinary: wine, gptkLibDir: libDir)
+        case .gptk:
+            try linker.overlayGPTK(wineBinary: wine, gptkLibDir: libDir)
+            try linker.installGPTKPrefixLoaders(prefix: prefix, gptkLibDir: libDir)
         case .dxmt:
             try linker.overlayDXMT(wineBinary: wine, dxmtLibDir: libDir)
             try linker.installDXMTPrefixLoaders(prefix: prefix, dxmtLibDir: libDir)

@@ -186,6 +186,42 @@ public struct GraphicsLinker: Sendable {
         }
     }
 
+    /// Seed GPTK's NVIDIA shims into the game **prefix** so wine can resolve them by name — the same trap
+    /// `installDXMTPrefixLoaders` documents for `winemetal`, for the same reason.
+    ///
+    /// `wineboot` creates a `system32` fakedll placeholder only for names wine itself knows. A bottle is
+    /// booted against the BASE runtime, which ships neither `nvapi64` nor `nvngx` — they arrive later, when
+    /// `overlayGPTK` runs at first launch — so on such a runtime neither name resolves on the Windows search
+    /// path and the `=b` override never gets the chance to load the builtin.
+    ///
+    /// A CrossOver-derived runtime carries both from the moment it's imported, so `wineboot` DOES create the
+    /// stubs and the bridge works without this (measured: Tekken 8 has DLSS active). This is insurance for
+    /// the runtime that isn't CrossOver's — one built by `build-wine.sh`, or a future one that stops
+    /// shipping them.
+    ///
+    /// GPTK is 64-bit only (Apple ships no i386 D3DMetal), so `system32` alone — no `syswow64` twin, unlike
+    /// the dual-ABI DXMT seed. `nvngx` comes from the `-on-metalfx` shim and lands under its plain name,
+    /// matching the rename `copyModules` performs in the runtime tree. Idempotent, and a no-op for a module
+    /// this GPTK doesn't ship.
+    ///
+    /// - Parameters:
+    ///   - prefix: the game's Wine prefix (its `drive_c/windows/system32` is seeded).
+    ///   - gptkLibDir: GPTK's PE module dir (`<gptk>/lib/wine/x86_64-windows`).
+    public func installGPTKPrefixLoaders(prefix: URL, gptkLibDir: URL) throws {
+        let system32 = prefix.appendingPathComponent("drive_c/windows/system32")
+        // source file name → the name it has to resolve under inside the prefix.
+        let seeds = [("nvapi64.dll", "nvapi64.dll"), ("nvngx-on-metalfx.dll", "nvngx.dll")]
+        for (sourceName, destName) in seeds {
+            let src = gptkLibDir.appendingPathComponent(sourceName)
+            guard fileManager.fileExists(atPath: src.path) else { continue }   // this GPTK doesn't ship it
+            let dst = system32.appendingPathComponent(destName)
+            if fileManager.contentsEqual(atPath: src.path, andPath: dst.path) { continue }   // already placed
+            try fileManager.createDirectory(at: system32, withIntermediateDirectories: true)
+            if fileManager.fileExists(atPath: dst.path) { try fileManager.removeItem(at: dst) }
+            try fileManager.copyItem(at: src, to: dst)
+        }
+    }
+
     // MARK: - Helpers
 
     /// The idempotency check shared by both overlays: if a representative module (preferring `d3d11.dll`)

@@ -299,6 +299,51 @@ struct GraphicsLinkerTests {
         #expect(!FileManager.default.fileExists(atPath: wineLib.appendingPathComponent("wine/i386-windows").path))
     }
 
+    @Test("installGPTKPrefixLoaders seeds the NVIDIA shims into system32, nvngx under its plain name")
+    func gptkPrefixLoaders() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLib = tmp.url.appendingPathComponent("GPTK/lib/wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: gptkLib, withIntermediateDirectories: true)
+        FileManager.default.createFile(
+            atPath: gptkLib.appendingPathComponent("nvapi64.dll").path, contents: Data("NVAPI".utf8))
+        // GPTK ships the NGX shim under a suffixed, inert name — the prefix needs the plain one.
+        FileManager.default.createFile(
+            atPath: gptkLib.appendingPathComponent("nvngx-on-metalfx.dll").path, contents: Data("NGX".utf8))
+
+        let prefix = tmp.url.appendingPathComponent("Bottle")
+        try linker.installGPTKPrefixLoaders(prefix: prefix, gptkLibDir: gptkLib)
+
+        let system32 = prefix.appendingPathComponent("drive_c/windows/system32")
+        #expect(try String(contentsOf: system32.appendingPathComponent("nvapi64.dll"),
+                           encoding: .utf8) == "NVAPI")
+        #expect(try String(contentsOf: system32.appendingPathComponent("nvngx.dll"),
+                           encoding: .utf8) == "NGX")
+        // The suffixed name is NOT what wine looks up, so it has no business in the prefix.
+        #expect(!FileManager.default.fileExists(
+            atPath: system32.appendingPathComponent("nvngx-on-metalfx.dll").path))
+        // 64-bit only: Apple ships no i386 D3DMetal, so there's no syswow64 twin to seed.
+        #expect(!FileManager.default.fileExists(
+            atPath: prefix.appendingPathComponent("drive_c/windows/syswow64/nvngx.dll").path))
+    }
+
+    @Test("installGPTKPrefixLoaders is idempotent, and skips a module this GPTK doesn't ship")
+    func gptkPrefixLoadersTolerateMissing() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLib = tmp.url.appendingPathComponent("GPTK/lib/wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: gptkLib, withIntermediateDirectories: true)
+        // Only nvapi64 — an older GPTK with no MetalFX shim at all.
+        FileManager.default.createFile(
+            atPath: gptkLib.appendingPathComponent("nvapi64.dll").path, contents: Data("NVAPI".utf8))
+
+        let prefix = tmp.url.appendingPathComponent("Bottle")
+        try linker.installGPTKPrefixLoaders(prefix: prefix, gptkLibDir: gptkLib)
+        try linker.installGPTKPrefixLoaders(prefix: prefix, gptkLibDir: gptkLib)   // second run: no-op
+
+        let system32 = prefix.appendingPathComponent("drive_c/windows/system32")
+        #expect(FileManager.default.fileExists(atPath: system32.appendingPathComponent("nvapi64.dll").path))
+        #expect(!FileManager.default.fileExists(atPath: system32.appendingPathComponent("nvngx.dll").path))
+    }
+
     @Test("installDXMTPrefixLoaders seeds winemetal.dll into the prefix per ABI (x86_64→system32, i386→syswow64)")
     func installDXMTPrefixLoaders() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
