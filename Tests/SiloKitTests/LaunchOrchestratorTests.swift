@@ -157,7 +157,8 @@ struct MakePlanTests {
             config: cfg, backend: b, graphics: .dxmt, gameExe: gameExe, prefix: prefix, logURL: log)
 
         // DXMT forces ITS module set (incl. its winemetal Metal bridge) to builtin — D3D10/11 only, no d3d12.
-        #expect(plan.environment["WINEDLLOVERRIDES"] == "d3d10core,d3d11,dxgi,winemetal=b")
+        #expect(plan.environment["WINEDLLOVERRIDES"]
+                == "d3d10core,d3d11,dxgi,winemetal=b;nvapi64,nvngx=")
         // Unlike GPTK, DXMT ships no framework in lib/external — winemetal.so links the system Metal.framework
         // — so makePlan must NOT prepend /w/lib/external; the base bundled-deps DYLD path is left intact.
         #expect(plan.environment["DYLD_FALLBACK_FRAMEWORK_PATH"] == nil)
@@ -469,7 +470,8 @@ struct LaunchPipelineTests {
         #expect(try String(contentsOf: overlaid, encoding: .utf8) == "DXMT-PE")
 
         let spawn = try #require(fake.invocations.last { $0.detached })
-        #expect(spawn.environment["WINEDLLOVERRIDES"] == "d3d10core,d3d11,dxgi,winemetal=b")
+        #expect(spawn.environment["WINEDLLOVERRIDES"]
+                == "d3d10core,d3d11,dxgi,winemetal=b;nvapi64,nvngx=")
         #expect(spawn.environment["WINEPREFIX"] == prefix.path)
     }
 

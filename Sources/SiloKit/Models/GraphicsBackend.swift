@@ -47,10 +47,17 @@ public enum GraphicsBackend: String, Codable, Sendable, CaseIterable, Identifiab
     ///   (`nvapi64`, `nvngx` — the latter activated by `GraphicsLinker.copyModules`'s rename step).
     ///   `d3d9`/`d3dcompiler_*` left native.
     /// - DXMT: `d3d10core`/`d3d11`/`dxgi` + `winemetal` (its Metal bridge). D3D10/11 only — no d3d12/d3d9.
+    ///
+    /// The same coherence rule covers `nvapi64`/`nvngx`. GPTK claims them `=b` to load its own NGX/MetalFX
+    /// shim, and the overlay leaves them in the runtime tree afterwards — so under DXMT they would still
+    /// resolve as builtin, even though DXMT has no D3DMetal behind them. DXMT therefore DISABLES them (`=`,
+    /// empty value): neither non-GPTK backend has an NGX provider, so a game correctly concludes there is no
+    /// NVIDIA adapter rather than half-binding one. Same family as the DXMT/D3D12 mismatch that produced
+    /// Fatal Fury's misaligned display.
     public var dllOverrides: String {
         switch self {
         case .gptk: "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b"
-        case .dxmt: "d3d10core,d3d11,dxgi,winemetal=b"
+        case .dxmt: "d3d10core,d3d11,dxgi,winemetal=b;nvapi64,nvngx="
         }
     }
 

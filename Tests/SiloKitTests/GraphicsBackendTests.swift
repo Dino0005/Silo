@@ -13,9 +13,15 @@ struct GraphicsBackendTests {
 
     @Test("DXMT overrides d3d10/11 + its winemetal bridge, no d3d12, no external framework")
     func dxmtShape() {
-        #expect(GraphicsBackend.dxmt.dllOverrides == "d3d10core,d3d11,dxgi,winemetal=b")
+        #expect(GraphicsBackend.dxmt.dllOverrides == "d3d10core,d3d11,dxgi,winemetal=b;nvapi64,nvngx=")
         #expect(!GraphicsBackend.dxmt.dllOverrides.contains("d3d12"))   // DXMT is D3D10/11 only
         #expect(GraphicsBackend.dxmt.dllOverrides.contains("winemetal"))
+        // The NVIDIA shims are DISABLED, not claimed: GPTK's overlay leaves them in the runtime tree, so
+        // without this they'd still resolve as builtin under a backend that has no D3DMetal behind them.
+        #expect(GraphicsBackend.dxmt.dllOverrides.hasSuffix("nvapi64,nvngx="))
+        #expect(!GraphicsBackend.dxmt.dllOverrides.contains("nvapi64,nvngx=b"))
+        // GPTK is the only backend that claims them.
+        #expect(GraphicsBackend.gptk.dllOverrides.contains("nvapi64,nvngx=b"))
         #expect(!GraphicsBackend.dxmt.overlaysExternalFramework)        // winemetal.so links system Metal
     }
 
