@@ -7,6 +7,32 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.5.1
+
+### Fixed
+- **Silo installed one GPTK and ran another.** On a CrossOver-derived runtime the overlay wrote to `lib/`,
+  but CrossOver's wine loads D3DMetal from `lib64/apple_gptk` — left untouched, so the runtime kept
+  executing the GPTK CrossOver shipped. Measured: GPTK 4.0 beta 2 selected, Tekken 8's HUD reporting
+  "Game Porting Toolkit 3.0", `lib/external/D3DMetal` at 7,578,032 bytes against 5,263,744 in
+  `lib64/apple_gptk/external`. This is what made the "AMD graphics driver" warning appear, the Metal 3 /
+  Metal 4 selector inert, and the GPTK choice in Settings ineffective. The overlay now covers that tree
+  too, with its own idempotency check, running before the `lib/` early-return so an already-overlaid
+  runtime is repaired instead of skipped.
+- **DXMT no longer leaves GPTK's NVIDIA shims resolvable.** `nvapi64`/`nvngx` stay in the runtime tree
+  after a GPTK overlay, so under DXMT — which has no D3DMetal behind them — a game could half-bind an
+  NVIDIA adapter that isn't there. They're now explicitly disabled for that backend.
+
+### Added
+- GPTK's NVIDIA shims are seeded into the game prefix, so they resolve by name on a runtime that doesn't
+  ship them (a wine built from source). A no-op on a CrossOver-derived runtime, which carries them already.
+
+The last two are ports of upstream's `aec535a`, itself credited to this fork for the three controls it
+re-implements.
+
+### Note
+With GPTK 4 genuinely in play, DLSS is unavailable — a GPTK 4 limitation, not a regression here. It had
+been working only because GPTK 3 was still the one running. Selecting GPTK 3 restores it.
+
 ## 0.5.0
 
 Media Foundation video playback in a second bottle, saves shared between the two, and a setup that tells
