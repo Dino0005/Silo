@@ -74,6 +74,13 @@ public struct GraphicsLinker: Sendable {
         // is missing (the silent-wined3d-fallback regression).
         try linkD3DMetalFramework(unixDir: wineUnixDir, externalDir: wineExternal)
 
+        // A CrossOver-derived runtime loads GPTK from its OWN tree, not from lib/ — overlay that too. Like
+        // the framework link above, this MUST precede the witness early-return: a runtime whose lib/ is
+        // already up to date would otherwise never get its apple_gptk tree repaired, which is exactly the
+        // state that had Silo installing GPTK 4 and running GPTK 3.
+        try overlayAppleGPTKTree(layout: wineLayout, modules: modules,
+                                 gptkUnixDir: gptkUnixDir, gptkExternal: gptkExternal)
+
         // Idempotent: if a witness module is already byte-identical, the runtime carries THIS GPTK — skip.
         if witnessMatches(modules, in: wineWinDir) { return }
 
@@ -87,6 +94,43 @@ public struct GraphicsLinker: Sendable {
         // Now that D3DMetal.framework is in lib/external, link it into the unix-modules dir (the pre-witness
         // call above was a no-op on a fresh runtime where the framework didn't exist yet).
         try linkD3DMetalFramework(unixDir: wineUnixDir, externalDir: wineExternal)
+    }
+
+    /// Overlay the same GPTK modules into a CrossOver-derived runtime's `lib64/apple_gptk` tree.
+    ///
+    /// CrossOver's wine loads D3DMetal from THERE, not from `lib/` — its own launcher points
+    /// `CX_APPLEGPTK_LIBD3DSHARED_PATH` at `lib64/apple_gptk/external/libd3dshared.dylib`, and the modules
+    /// beside it are the ones that end up running. Overlaying only `lib/` therefore installed the chosen
+    /// GPTK while the runtime kept executing the one CrossOver shipped: measured on-device, GPTK 4.0 beta 2
+    /// selected in Settings and Tekken 8's HUD reporting "Game Porting Toolkit 3.0", with the NVIDIA bridge
+    /// and the Metal 3/4 selector both belonging to the older build.
+    ///
+    /// Same `copyModules` as `lib/`, so the `nvngx-on-metalfx` → `nvngx` rename, the recreated relative
+    /// `.so` symlinks and the witness-copied-last ordering all carry over. The symlinks' relative target
+    /// (`../../external/libd3dshared.dylib`) sits at the same depth in both trees, so it resolves
+    /// identically.
+    ///
+    /// A no-op on a runtime without `lib64/apple_gptk` — one built by `build-wine.sh` has a single tree.
+    private func overlayAppleGPTKTree(
+        layout: WineRuntimeLayout, modules: [URL], gptkUnixDir: URL, gptkExternal: URL
+    ) throws {
+        let root = layout.root.appendingPathComponent("lib64/apple_gptk", isDirectory: true)
+        guard fileManager.fileExists(atPath: root.path) else { return }   // not CrossOver-derived
+
+        let winDir = root.appendingPathComponent("wine/x86_64-windows", isDirectory: true)
+        let unixDir = root.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
+        let external = root.appendingPathComponent("external", isDirectory: true)
+        // Its own witness: this tree can be stale while lib/ is current, and vice versa.
+        if witnessMatches(modules, in: winDir) { return }
+
+        for dir in [winDir, unixDir, external] {
+            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        try copyModules(modules, unixSource: gptkUnixDir, toWin: winDir, toUnix: unixDir)
+        for item in (try? fileManager.contentsOfDirectory(at: gptkExternal, includingPropertiesForKeys: nil)) ?? [] {
+            try replace(item, in: external)
+        }
+        try linkD3DMetalFramework(unixDir: unixDir, externalDir: external)
     }
 
     // MARK: - DXMT overlay

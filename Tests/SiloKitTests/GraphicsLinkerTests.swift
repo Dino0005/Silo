@@ -59,6 +59,74 @@ struct GraphicsLinkerTests {
         #expect(FileManager.default.fileExists(atPath: wineLib.appendingPathComponent("external/D3DMetal.framework/D3DMetal").path))
     }
 
+    @Test("overlayGPTK also overlays a CrossOver-derived runtime's lib64/apple_gptk tree")
+    func overlayReachesAppleGPTKTree() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLibDir = try makeGPTK(tmp, modules: ["d3d11.dll", "nvngx-on-metalfx.dll"])
+        let wine = try makeWine(tmp)
+        let root = wine.deletingLastPathComponent().deletingLastPathComponent()
+
+        // What a CrossOver import leaves: a second GPTK tree, with ITS OWN older modules.
+        let apple = root.appendingPathComponent("lib64/apple_gptk")
+        let appleWin = apple.appendingPathComponent("wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: appleWin, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: apple.appendingPathComponent("external"), withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: appleWin.appendingPathComponent("d3d11.dll").path,
+                                       contents: Data("OLD-CROSSOVER".utf8))
+
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: gptkLibDir)
+
+        // The tree CrossOver's wine actually loads now carries the chosen GPTK.
+        #expect(FileManager.default.contentsEqual(
+            atPath: appleWin.appendingPathComponent("d3d11.dll").path,
+            andPath: gptkLibDir.appendingPathComponent("d3d11.dll").path))
+        // The NGX shim is activated here too — under its plain name, or nothing answers as NVIDIA.
+        #expect(FileManager.default.fileExists(atPath: appleWin.appendingPathComponent("nvngx.dll").path))
+        // Relative symlink, same depth as in lib/, so it resolves against apple_gptk/external.
+        let so = apple.appendingPathComponent("wine/x86_64-unix/nvngx.so")
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: so.path)
+            == "../../external/libd3dshared.dylib")
+        // And the Metal backend those symlinks point at.
+        #expect(FileManager.default.fileExists(
+            atPath: apple.appendingPathComponent("external/libd3dshared.dylib").path))
+    }
+
+    @Test("the apple_gptk overlay is repaired even when lib/ is already up to date")
+    func appleGPTKTreeRepairedDespiteCurrentLib() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLibDir = try makeGPTK(tmp)
+        let wine = try makeWine(tmp)
+        let root = wine.deletingLastPathComponent().deletingLastPathComponent()
+
+        // First pass with no apple_gptk tree: only lib/ is overlaid.
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: gptkLibDir)
+
+        // The tree appears afterwards (a re-imported CrossOver runtime, or a Silo that didn't write here).
+        // lib/ now matches the witness, so without running before the early-return this would stay stale.
+        let appleWin = root.appendingPathComponent("lib64/apple_gptk/wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: appleWin, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: appleWin.appendingPathComponent("d3d11.dll").path,
+                                       contents: Data("STALE".utf8))
+
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: gptkLibDir)
+        #expect(FileManager.default.contentsEqual(
+            atPath: appleWin.appendingPathComponent("d3d11.dll").path,
+            andPath: gptkLibDir.appendingPathComponent("d3d11.dll").path))
+    }
+
+    @Test("a runtime with no lib64/apple_gptk is left alone")
+    func noAppleGPTKTreeIsANoOp() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLibDir = try makeGPTK(tmp)
+        let wine = try makeWine(tmp)
+        let root = wine.deletingLastPathComponent().deletingLastPathComponent()
+
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: gptkLibDir)
+        // A built-from-source runtime has one tree; the overlay must not invent a second.
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("lib64").path))
+    }
+
     @Test("overlayGPTK is idempotent — a second call is a no-op and does not throw")
     func overlayIdempotent() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
