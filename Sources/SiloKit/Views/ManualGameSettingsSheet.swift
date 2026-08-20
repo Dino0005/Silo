@@ -12,6 +12,45 @@ struct ManualGameSettingsSheet: View {
     /// Whether the chosen executable needs D3D12 (drives the DXMT warning). Recomputed whenever the user
     /// picks a different exe, since that changes the answer.
     @State private var needsD3D12 = false
+    /// What's typed in the Steam app ID field, before it's been checked against the store.
+    @State private var appIDField = ""
+    @State private var checkingCard = false
+    /// Set when a lookup fails, so the sheet can say so without borrowing the library's status bar.
+    @State private var cardProblem: String?
+
+    /// Check the entered app ID against the Steam store and, if it resolves, keep it.
+    ///
+    /// The lookup is the confirmation: a number that returns nothing is a typo or the wrong game, and
+    /// storing it would leave a card that renders empty every time it's opened.
+    ///
+    /// On success, and only when no cover has been chosen, Steam's artwork is downloaded and archived like
+    /// any other cover. Copying it beats relying on the URL cache — a file on disk still shows with no
+    /// network, which is exactly when a game library is least useful if it can't draw itself.
+    private func createCard() async {
+        guard let appID = Int(appIDField.trimmingCharacters(in: .whitespaces)) else { return }
+        checkingCard = true
+        cardProblem = nil
+        defer { checkingCard = false }
+
+        guard let details = await SteamStoreClient().details(appID: appID) else {
+            cardProblem = String(localized: "No Steam game found with ID \(appIDField).")
+            return
+        }
+        game.steamAppID = appID
+
+        if game.coverArtFileName == nil, let art = details.headerImageURL {
+            let store = CoverArtStore(coversDir: env.paths.coversDir)
+            let id = game.id
+            game.coverArtFileName = await Task.detached { () -> String? in
+                guard let (data, _) = try? await URLSession.shared.data(from: art) else { return nil }
+                let scratch = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("silo-cover-\(id.uuidString).jpg")
+                guard (try? data.write(to: scratch)) != nil else { return nil }
+                defer { try? FileManager.default.removeItem(at: scratch) }
+                return store.store(scratch, for: id)
+            }.value
+        }
+    }
 
     /// Pick an image file for the tile. Mirrors `chooseExecutable`, restricted to image types.
     private func chooseCoverImage() -> URL? {
@@ -68,6 +107,34 @@ struct ManualGameSettingsSheet: View {
                     }
                 } header: {
                     Text("Cover")
+                }
+
+                Section {
+                    if let appID = game.steamAppID {
+                        HStack {
+                            Text(verbatim: "\(appID)").foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Remove card", role: .destructive) {
+                                // The cover stays: once downloaded it's just an image like any other, and
+                                // deleting it here would be a surprise. Its own button removes it.
+                                game.steamAppID = nil
+                                cardProblem = nil
+                            }
+                        }
+                    } else {
+                        TextField("Steam app ID", text: $appIDField)
+                            .disabled(checkingCard)
+                        Button("Create game card") { Task { await createCard() } }
+                            .disabled(checkingCard || Int(appIDField.trimmingCharacters(in: .whitespaces)) == nil)
+                        if checkingCard { ProgressView().controlSize(.small) }
+                    }
+                    if let cardProblem {
+                        Text(LocalizedStringKey(cardProblem)).font(.caption).foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Game card")
+                } footer: {
+                    Text("Silo fetches the description, developer, genres and release date from Steam, and uses Steam's artwork if you haven't chosen a cover. The app ID is the number in the game's Steam store page address.")
                 }
 
                 Section {

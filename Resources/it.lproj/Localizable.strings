@@ -331,3 +331,13 @@
 "Couldn't create the shortcut: %@" = "Impossibile creare il collegamento: %@";
 "%@: GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch." = "%@: GPTK / D3DMetal non è riuscito a eseguire questo gioco — Silo userà DXMT al prossimo avvio.";
 "%@: GPTK / D3DMetal couldn't run this game. Set its graphics to DXMT." = "%@: GPTK / D3DMetal non è riuscito a eseguire questo gioco. Imposta la grafica su DXMT.";
+
+/* Scheda del gioco per i giochi non Steam */
+"Game card" = "Scheda del gioco";
+"Steam app ID" = "ID app Steam";
+"Create game card" = "Crea scheda del gioco";
+"Remove card" = "Rimuovi scheda";
+"Silo fetches the description, developer, genres and release date from Steam, and uses Steam's artwork if you haven't chosen a cover. The app ID is the number in the game's Steam store page address." = "Silo recupera da Steam la descrizione, lo sviluppatore, i generi e la data di uscita, e usa l'immagine di Steam se non hai scelto una copertina. L'ID app è il numero nell'indirizzo della pagina del gioco su Steam.";
+"No Steam game found with ID %@." = "Nessun gioco Steam trovato con ID %@.";
+"Card created from %@." = "Scheda creata da %@.";
+"Card removed." = "Scheda rimossa.";

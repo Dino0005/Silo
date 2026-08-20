@@ -329,3 +329,13 @@
 "Couldn't create the shortcut: %@" = "Couldn't create the shortcut: %@";
 "%@: GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch." = "%@: GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch.";
 "%@: GPTK / D3DMetal couldn't run this game. Set its graphics to DXMT." = "%@: GPTK / D3DMetal couldn't run this game. Set its graphics to DXMT.";
+
+/* Game card for non-Steam games */
+"Game card" = "Game card";
+"Steam app ID" = "Steam app ID";
+"Create game card" = "Create game card";
+"Remove card" = "Remove card";
+"Silo fetches the description, developer, genres and release date from Steam, and uses Steam's artwork if you haven't chosen a cover. The app ID is the number in the game's Steam store page address." = "Silo fetches the description, developer, genres and release date from Steam, and uses Steam's artwork if you haven't chosen a cover. The app ID is the number in the game's Steam store page address.";
+"No Steam game found with ID %@." = "No Steam game found with ID %@.";
+"Card created from %@." = "Card created from %@.";
+"Card removed." = "Card removed.";

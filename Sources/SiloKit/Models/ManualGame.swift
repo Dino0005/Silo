@@ -28,6 +28,16 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
     public var graphics: GraphicsChoice
     /// Extra arguments appended after the executable.
     public var customArgs: [String]
+    /// The Steam app whose store page describes this game, when the user has pointed Silo at one.
+    ///
+    /// A non-Steam copy (GOG, a standalone installer) usually has a Steam listing all the same, and that
+    /// listing is the only place Silo can get a description, developer, genres and release date from. nil
+    /// means no card: clicking the tile opens the settings, the way it always has.
+    ///
+    /// Entered by hand rather than searched by name: a text search returns near-identical candidates —
+    /// "God of War" also matches its sequel, Batman Arkham Knight has several editions — and picking one
+    /// on the user's behalf eventually shows them the wrong game with no way to tell why.
+    public var steamAppID: Int?
     /// File NAME of this game's cover inside `AppPaths.coversDir` — never a path. Steam games get artwork
     /// from Steam; a manual game shows its `.exe` icon unless one is chosen here. Storing the name means
     /// the cover survives the support directory being moved, exactly as `SharedSaveFolder` stores a root
@@ -44,6 +54,7 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
         envFlags: EnvFlags = EnvFlags(),
         graphics: GraphicsChoice = .auto,
         customArgs: [String] = [],
+        steamAppID: Int? = nil,
         coverArtFileName: String? = nil,
         lastPlayed: Date? = nil
     ) {
@@ -55,6 +66,7 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
         self.envFlags = envFlags
         self.graphics = graphics
         self.customArgs = customArgs
+        self.steamAppID = steamAppID
         self.coverArtFileName = coverArtFileName
         self.lastPlayed = lastPlayed
     }
@@ -78,7 +90,7 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
     private enum CodingKeys: String, CodingKey {
         // `backend` is read-only legacy — decoded for migration, never encoded (new configs write `graphics`).
         case id, bottleID, name, executablePath, workingDirectory, envFlags, graphics, backend, customArgs,
-             coverArtFileName, lastPlayed
+             steamAppID, coverArtFileName, lastPlayed
     }
 
     public init(from decoder: any Decoder) throws {
@@ -104,6 +116,7 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
             graphics = .auto
         }
         customArgs = try c.decodeIfPresent([String].self, forKey: .customArgs) ?? []
+        steamAppID = try c.decodeIfPresent(Int.self, forKey: .steamAppID)
         coverArtFileName = try c.decodeIfPresent(String.self, forKey: .coverArtFileName)
         lastPlayed = try c.decodeIfPresent(Date.self, forKey: .lastPlayed)
     }
@@ -118,6 +131,7 @@ public struct ManualGame: Codable, Sendable, Hashable, Identifiable {
         try c.encode(envFlags, forKey: .envFlags)
         try c.encode(graphics, forKey: .graphics)
         try c.encode(customArgs, forKey: .customArgs)
+        try c.encodeIfPresent(steamAppID, forKey: .steamAppID)
         try c.encodeIfPresent(coverArtFileName, forKey: .coverArtFileName)
         try c.encodeIfPresent(lastPlayed, forKey: .lastPlayed)
     }
