@@ -315,8 +315,8 @@ public final class GameLibraryViewModel {
     public func uninstall(_ game: SteamApp) async {
         do {
             try await session.sendURL("steam://uninstall/\(game.appID)")
-            setStatus("Told Steam to uninstall \(game.name).")
-        } catch { setStatus("Couldn't reach Steam: \((error as NSError).localizedDescription)") }
+            setStatus(String(localized: "Told Steam to uninstall \(game.name)."))
+        } catch { setStatus(String(localized: "Couldn't reach Steam: \((error as NSError).localizedDescription)")) }
     }
 
     // MARK: - Launch (co-resident in the bottle)
@@ -436,7 +436,7 @@ public final class GameLibraryViewModel {
             // surface why rather than launching against a dead Steam (which fails SteamAPI_Init silently).
             guard await session.ensureRunning() else {
                 let why = session.launchError.map { ": \($0)" } ?? ""
-                setStatus("\(game.name) needs Steam, which couldn't start\(why).")
+                setStatus(String(localized: "\(game.name) needs Steam, which couldn't start\(why)."))
                 return
             }
             try await orchestrator.launchInBottle(
@@ -455,10 +455,10 @@ public final class GameLibraryViewModel {
             // virtual-desktop approach is a dead end regardless of geometry.
             do {
                 _ = try await configStore.updateGame(appID: game.appID) { $0.lastPlayed = Date() }
-                setStatus("Launched \(game.name).")
+                setStatus(String(localized: "Launched \(game.name)."))
             } catch {
                 // The game IS running, but config.json is unwritable — say so (settings won't stick either).
-                setStatus("Launched \(game.name) — play date not saved.")
+                setStatus(String(localized: "Launched \(game.name) — play date not saved."))
             }
             // Automatic learns: an AUTO game GPTK can't drive gets remembered as DXMT for next time. The
             // eligibility is RE-checked with fresh state when the failure actually fires (see `watchGraphics`),
@@ -468,7 +468,7 @@ public final class GameLibraryViewModel {
             watchGraphics(gameID(game), log: paths.log(forAppID: game.appID), name: game.name,
                           backend: chosen, exe: exe, autoLearnAppID: learnAppID)
         } catch {
-            setStatus("\(game.name): \(Self.resolveMessage(error))")
+            setStatus(String(localized: "\(game.name): \(Self.resolveMessage(error))"))
         }
     }
 
@@ -509,7 +509,7 @@ public final class GameLibraryViewModel {
             try await provisioner.provision(prefix: paths.manualBottle(id), wine: wine)
             return true
         } catch {
-            setStatus("Couldn't set up the game's bottle: \(Self.resolveMessage(error))")
+            setStatus(String(localized: "Couldn't set up the game's bottle: \(Self.resolveMessage(error))"))
             return false
         }
     }
@@ -517,7 +517,7 @@ public final class GameLibraryViewModel {
     /// Delete a draft bottle that was provisioned but never added to the library (Add sheet cancel).
     public func discardManualBottle(_ id: UUID) async {
         if await !deleteBottle(id) {
-            setStatus("Couldn't remove the bottle. Delete it in Finder: \(paths.manualBottle(id).path)")
+            setStatus(String(localized: "Couldn't remove the bottle. Delete it in Finder: \(paths.manualBottle(id).path)"))
         }
     }
 
@@ -531,7 +531,7 @@ public final class GameLibraryViewModel {
                 exe: installer, backend: backend, prefix: paths.manualBottle(id), logURL: paths.manualLog(id))
             // `runInstaller` blocks until the installer window closes, so we're here once setup is done.
             setStatus("Installer finished.")
-        } catch { setStatus("Couldn't run the installer: \(Self.resolveMessage(error))") }
+        } catch { setStatus(String(localized: "Couldn't run the installer: \(Self.resolveMessage(error))")) }
     }
 
     /// The launchable shortcuts an installer wrote into a manual bottle (off-main FS scan). Empty until the
@@ -564,10 +564,10 @@ public final class GameLibraryViewModel {
             _ = try await configStore.saveManualGame(game)
             manualGames = sortedManual(manualGames + [game])
             if loadState == .empty { loadState = .loaded }
-            setStatus("Added \(finalName).")
+            setStatus(String(localized: "Added \(finalName)."))
             return game
         } catch {
-            setStatus("Couldn't add game: \((error as NSError).localizedDescription)")
+            setStatus(String(localized: "Couldn't add game: \((error as NSError).localizedDescription)"))
             return nil
         }
     }
@@ -577,7 +577,7 @@ public final class GameLibraryViewModel {
         do {
             _ = try await configStore.saveManualGame(game)
             manualGames = sortedManual(manualGames.filter { $0.id != game.id } + [game])
-        } catch { setStatus("Couldn't save: \((error as NSError).localizedDescription)") }
+        } catch { setStatus(String(localized: "Couldn't save: \((error as NSError).localizedDescription)")) }
     }
 
     /// Remove a manual game from the library AND delete its isolated bottle. A portable game's original
@@ -585,7 +585,7 @@ public final class GameLibraryViewModel {
     /// wineserver ⇒ the game is running; deleting the prefix under it would corrupt/orphan it).
     public func removeManual(_ game: ManualGame) async {
         guard !WineServerProbe.isLive(prefix: paths.manualBottle(game.bottleID)) else {
-            setStatus("\(game.name) is running — quit it first.")
+            setStatus(String(localized: "\(game.name) is running — quit it first."))
             return
         }
         _ = try? await configStore.removeManualGame(id: game.id)
@@ -597,12 +597,12 @@ public final class GameLibraryViewModel {
         // Ref-counted: entries installed together share a bottle — only delete the prefix when this was the
         // last entry using it. A portable game's original files (outside the bottle) are never touched.
         if manualGames.contains(where: { $0.bottleID == game.bottleID }) {
-            setStatus("Removed \(game.name).")
+            setStatus(String(localized: "Removed \(game.name)."))
         } else if await deleteBottle(game.bottleID) {
-            setStatus("Removed \(game.name).")
+            setStatus(String(localized: "Removed \(game.name)."))
         } else {
-            setStatus("Removed \(game.name), but couldn't delete its bottle — remove it in Finder: "
-                      + paths.manualBottle(game.bottleID).path)
+            setStatus(String(localized:
+                "Removed \(game.name), but couldn't delete its bottle — remove it in Finder: \(paths.manualBottle(game.bottleID).path)"))
         }
     }
 
@@ -634,7 +634,7 @@ public final class GameLibraryViewModel {
                 try BottleResolver(paths: paths).manual(game, backend: chosen, config: cfg)
             }.value
         } catch {
-            setStatus("\(game.name): \(Self.resolveMessage(error))")
+            setStatus(String(localized: "\(game.name): \(Self.resolveMessage(error))"))
             return
         }
         do {
@@ -645,17 +645,17 @@ public final class GameLibraryViewModel {
             // See the matching NOTE in play(above) — reverted for the same reason.
             do {
                 _ = try await configStore.updateManualGame(id: game.id) { $0.lastPlayed = Date() }
-                setStatus("Launched \(game.name).")
+                setStatus(String(localized: "Launched \(game.name)."))
             } catch {
                 // The game IS running, but config.json is unwritable — say so (settings won't stick either).
-                setStatus("Launched \(game.name) — play date not saved.")
+                setStatus(String(localized: "Launched \(game.name) — play date not saved."))
             }
             // Watch the ACTUALLY-chosen backend engage; manual games never auto-learn (no reactive reroute) —
             // an Automatic manual game GPTK can't drive surfaces the honest "switch to DXMT" fallback message.
             watchGraphics(.manual(game.id), log: paths.manualLog(game.id),
                           name: game.name, backend: chosen, exe: game.executablePath)
         } catch {
-            setStatus("\(game.name): \(Self.resolveMessage(error))")
+            setStatus(String(localized: "\(game.name): \(Self.resolveMessage(error))"))
         }
     }
 
@@ -716,14 +716,14 @@ public final class GameLibraryViewModel {
         }
         do {
             let app = try await Task.detached { try GameShortcut(name: name, link: link).write(into: dir) }.value
-            setStatus("Created a Desktop shortcut for \(name).")
+            setStatus(String(localized: "Created a Desktop shortcut for \(name)."))
             return app
         } catch GameShortcut.ShortcutError.destinationOccupied(let filename) {
             // Something the user owns already has that name — never silently delete it.
-            setStatus("Couldn't create the shortcut — “\(filename)” already exists there. Rename or remove it first.")
+            setStatus(String(localized: "Couldn't create the shortcut — “\(filename)” already exists there. Rename or remove it first."))
             return nil
         } catch {
-            setStatus("Couldn't create the shortcut: \((error as NSError).localizedDescription)")
+            setStatus(String(localized: "Couldn't create the shortcut: \((error as NSError).localizedDescription)"))
             return nil
         }
     }
@@ -808,9 +808,9 @@ public final class GameLibraryViewModel {
                 $0.learnedBackend = .dxmt
                 $0.learnedUnderRuntime = runtime
             }
-            setStatus("\(name): GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch.")
+            setStatus(String(localized: "\(name): GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch."))
         } catch {   // persist failed — don't promise a switch that didn't stick
-            setStatus("\(name): GPTK / D3DMetal couldn't run this game. Set its graphics to DXMT.")
+            setStatus(String(localized: "\(name): GPTK / D3DMetal couldn't run this game. Set its graphics to DXMT."))
         }
     }
 

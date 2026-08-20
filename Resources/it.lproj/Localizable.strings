@@ -216,7 +216,7 @@
 "Quit and Play" = "Chiudi e gioca";
 "This game runs in the Media Foundation bottle, which has its own Steam. Any game still running in the normal bottle will close." = "Questo gioco gira nella bottiglia Media Foundation, che ha un suo Steam. Eventuali giochi ancora in esecuzione nella bottiglia normale verranno chiusi.";
 "This game runs in the normal bottle. Any game still running in the Media Foundation bottle will close." = "Questo gioco gira nella bottiglia normale. Eventuali giochi ancora in esecuzione nella bottiglia Media Foundation verranno chiusi.";
-"Close the game running in the other bottle first, then try again." = "Chiudi prima il gioco in esecuzione nell'altra bottiglia, poi riprova.";
+"Close the game running in the other bottle first, then try again." = "Termina prima l'esecuzione nell'altra bottiglia, poi riprova.";
 
 /* Game-controller panel shortcut */
 "Game Controllers…" = "Controller di Gioco…";
@@ -309,3 +309,25 @@
 "This CrossOver doesn't contain a Wine tree where Silo expects one." = "Questo CrossOver non contiene un albero Wine dove Silo se lo aspetta.";
 "CrossOver's Wine loader wasn't where Silo expects it — its layout may have changed." = "Il loader Wine di CrossOver non è dove Silo se lo aspetta: la sua struttura potrebbe essere cambiata.";
 "Copying CrossOver's Wine failed (cp exit %d)." = "Copia del Wine di CrossOver non riuscita (cp è uscito con %d).";
+
+/* Messaggi della barra di stato che contengono il nome del gioco */
+"Launched %@." = "%@ avviato.";
+"Launched %@ — play date not saved." = "%@ avviato — data di gioco non salvata.";
+"Added %@." = "%@ aggiunto.";
+"Removed %@." = "%@ rimosso.";
+"Removed %@, but couldn't delete its bottle — remove it in Finder: %@" = "%@ rimosso, ma non è stato possibile eliminarne la bottiglia — rimuovila dal Finder: %@";
+"%@ is running — quit it first." = "%@ è in esecuzione — chiudilo prima.";
+"%@ needs Steam, which couldn't start%@." = "%@ richiede Steam, che non è riuscito ad avviarsi%@.";
+"Told Steam to uninstall %@." = "Richiesta a Steam la disinstallazione di %@.";
+"Couldn't reach Steam: %@" = "Impossibile raggiungere Steam: %@";
+"%@: %@" = "%@: %@";
+"Couldn't set up the game's bottle: %@" = "Impossibile creare la bottiglia del gioco: %@";
+"Couldn't remove the bottle. Delete it in Finder: %@" = "Impossibile rimuovere la bottiglia. Eliminala dal Finder: %@";
+"Couldn't run the installer: %@" = "Impossibile eseguire l'installer: %@";
+"Couldn't add game: %@" = "Impossibile aggiungere il gioco: %@";
+"Couldn't save: %@" = "Impossibile salvare: %@";
+"Created a Desktop shortcut for %@." = "Creato un collegamento sulla Scrivania per %@.";
+"Couldn't create the shortcut — “%@” already exists there. Rename or remove it first." = "Impossibile creare il collegamento — «%@» esiste già. Rinominalo o rimuovilo prima.";
+"Couldn't create the shortcut: %@" = "Impossibile creare il collegamento: %@";
+"%@: GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch." = "%@: GPTK / D3DMetal non è riuscito a eseguire questo gioco — Silo userà DXMT al prossimo avvio.";
+"%@: GPTK / D3DMetal couldn't run this game. Set its graphics to DXMT." = "%@: GPTK / D3DMetal non è riuscito a eseguire questo gioco. Imposta la grafica su DXMT.";

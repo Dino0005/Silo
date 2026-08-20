@@ -307,3 +307,25 @@
 "This CrossOver doesn't contain a Wine tree where Silo expects one." = "This CrossOver doesn't contain a Wine tree where Silo expects one.";
 "CrossOver's Wine loader wasn't where Silo expects it — its layout may have changed." = "CrossOver's Wine loader wasn't where Silo expects it — its layout may have changed.";
 "Copying CrossOver's Wine failed (cp exit %d)." = "Copying CrossOver's Wine failed (cp exit %d).";
+
+/* Status-bar messages that carry a game's name */
+"Launched %@." = "Launched %@.";
+"Launched %@ — play date not saved." = "Launched %@ — play date not saved.";
+"Added %@." = "Added %@.";
+"Removed %@." = "Removed %@.";
+"Removed %@, but couldn't delete its bottle — remove it in Finder: %@" = "Removed %@, but couldn't delete its bottle — remove it in Finder: %@";
+"%@ is running — quit it first." = "%@ is running — quit it first.";
+"%@ needs Steam, which couldn't start%@." = "%@ needs Steam, which couldn't start%@.";
+"Told Steam to uninstall %@." = "Told Steam to uninstall %@.";
+"Couldn't reach Steam: %@" = "Couldn't reach Steam: %@";
+"%@: %@" = "%@: %@";
+"Couldn't set up the game's bottle: %@" = "Couldn't set up the game's bottle: %@";
+"Couldn't remove the bottle. Delete it in Finder: %@" = "Couldn't remove the bottle. Delete it in Finder: %@";
+"Couldn't run the installer: %@" = "Couldn't run the installer: %@";
+"Couldn't add game: %@" = "Couldn't add game: %@";
+"Couldn't save: %@" = "Couldn't save: %@";
+"Created a Desktop shortcut for %@." = "Created a Desktop shortcut for %@.";
+"Couldn't create the shortcut — “%@” already exists there. Rename or remove it first." = "Couldn't create the shortcut — “%@” already exists there. Rename or remove it first.";
+"Couldn't create the shortcut: %@" = "Couldn't create the shortcut: %@";
+"%@: GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch." = "%@: GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch.";
+"%@: GPTK / D3DMetal couldn't run this game. Set its graphics to DXMT." = "%@: GPTK / D3DMetal couldn't run this game. Set its graphics to DXMT.";
