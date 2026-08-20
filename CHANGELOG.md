@@ -7,6 +7,25 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.5.2
+
+### Added
+- **A game card for non-Steam games.** Point a manual game at the matching Steam app ID (Settings → Game
+  card) and its tile opens a card with hero art, description, developer, genres and release date instead
+  of the settings sheet. No Store button — the copy in play wasn't bought there — and the destructive
+  action is Remove rather than Uninstall, which is what it actually does. With no association the tile
+  behaves exactly as before, and removing one restores that.
+- When a manual game has no cover, the association downloads Steam's artwork into `Covers/`, so the tile
+  draws without a network. A chosen cover is never replaced, and removing the card keeps it.
+
+### Fixed
+- **Status messages carrying a game's name were never translated.** "Launched God of War.", "Added …",
+  "Removed …" and twenty-two others interpolate a name, so the runtime string could never match a fixed
+  catalogue key — the same defect fixed for error messages earlier. One of them was also split across a
+  `+`, which would have put half the sentence in the key.
+- Reworded the bottle-switch message: it told you to close the game running in the other bottle, when
+  what's usually running there is Steam alone.
+
 ## 0.5.1
 
 ### Fixed

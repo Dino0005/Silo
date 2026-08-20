@@ -1,47 +1,45 @@
-# Silo 0.5.1
+# Silo 0.5.2
 
-The GPTK you pick is now the GPTK that runs.
+A game card for the games Steam doesn't know about, and the last of the Italian translation.
 
-## The fix that matters
+## Game card for non-Steam games
 
-On a CrossOver-derived runtime, Silo overlaid the chosen GPTK into `lib/` — but CrossOver's wine loads
-D3DMetal from its own `lib64/apple_gptk` tree, which was left untouched. So the app installed one GPTK and
-executed another: Tekken 8's performance HUD reported **Game Porting Toolkit 3.0** with GPTK 4.0 beta 2
-selected in Settings, and it was telling the truth.
+Clicking a Steam game's tile opens a card — hero art, description, developer, genres, release date.
+Clicking a non-Steam game's tile opened the settings sheet, because Silo had nowhere to get any of that
+from.
 
-That one mismatch was behind a lot:
+It does now, if you tell it where. A manual game's settings gained a **Game card** section: enter the
+Steam app ID of the same game — the number in its store page address — and Silo checks it against the
+store and keeps it. From then on the tile opens a card like any other game's.
 
-- the **"AMD graphics driver" warning** some games show at startup — the NVIDIA/MetalFX bridge in play
-  belonged to the older build;
-- the **Metal 3 / Metal 4 selector** doing nothing (`D3DM_MTL4` is a GPTK 4 option);
-- **picking a GPTK in Settings** having no real effect.
+- **The ID is typed, not searched.** A text search returns near-identical candidates — "God of War" also
+  matches its sequel, Batman Arkham Knight has several editions — and choosing one on your behalf
+  eventually shows you the wrong game with no way to tell why.
+- **No Store button**, unlike the Steam card: the copy you're playing wasn't bought there.
+- **Remove, not Uninstall**: for a manual game it forgets the entry and its bottle and leaves the
+  installed files alone.
+- **If the game has no cover yet**, the association downloads Steam's artwork and files it in `Covers/`
+  like one you'd pick yourself — so the tile still draws with no network. A cover you chose is never
+  replaced, and removing the card leaves it in place.
 
-The overlay now writes to that tree as well, with the same module handling as `lib/` — the
-`nvngx-on-metalfx` → `nvngx` activation, the recreated relative `.so` symlinks, the witness copied last.
-It has its own idempotency check and runs before the `lib/` early-return, so a runtime that was already
-overlaid gets repaired rather than skipped. A runtime with no `lib64/apple_gptk` — one built by
-`build-wine.sh` — is unaffected.
+Entirely optional and reversible: with no association the tile opens the settings, exactly as before.
 
-**Consequence worth knowing:** with GPTK 4 genuinely running, DLSS is unavailable (a GPTK 4 limitation
-others have reported too). It was never gone before — GPTK 3 was quietly still running. Choosing GPTK 3 in
-Settings brings DLSS back, on both Tekken 8 and God of War. The choice is now a real one.
+## Italian, finished
 
-## Also in this release
+Status messages carrying a game's name — "Launched God of War.", "Added …", "Removed …" — stayed in
+English however the app was set. An interpolated message can never match a fixed catalogue key, so the
+lookup silently fell through; the same defect fixed for error messages earlier. Twenty-five of them now
+resolve properly.
 
-- **DXMT disables GPTK's NVIDIA shims.** The GPTK overlay leaves `nvapi64`/`nvngx` in the runtime tree, so
-  under DXMT they still resolved as builtin even though DXMT has no D3DMetal behind them — a game could
-  half-bind an NVIDIA adapter that isn't there. Same family as the DXMT/D3D12 mismatch behind Fatal Fury's
-  misaligned display.
-- **GPTK's NVIDIA shims are seeded into the game prefix.** `wineboot` only creates a `system32` stub for
-  names wine already knows, and bottles are booted against the base runtime — so on a runtime that doesn't
-  ship them, neither name resolves and the `=b` override has nothing to bind. Insurance for a runtime that
-  isn't CrossOver-derived.
-
-Both ported from upstream's `aec535a`, a commit that in turn credits this fork for the three controls it
-re-implements.
+Also reworded the bottle-switch line: it said to close the game running in the other bottle, when what's
+usually running there is just Steam.
 
 ---
 
 Silo downloads its own Wine (built from CrossOver's FOSS source in CI) and imports Apple's GPTK from your
-`.dmg`. Runs on macOS 15+ on Apple Silicon. Gatekeeper: the build is ad-hoc signed, so right-click →
-**Open** on first launch (or `xattr -dr com.apple.quarantine` on the app).
+`.dmg`. Runs on macOS 15+ on Apple Silicon.
+
+Gatekeeper: the build is ad-hoc signed, so right-click → **Open** on first launch, then allow it in
+**System Settings → Privacy & Security** — macOS blocks the first attempt and offers the override there.
+If you'd rather use the terminal, move Silo.app to Applications first, then
+`xattr -dr com.apple.quarantine /Applications/Silo.app`.

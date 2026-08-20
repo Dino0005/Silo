@@ -86,8 +86,10 @@ per-game settings, which also cover the executable, performance flags — msync,
 raytracing — and launch options). Settings (⌘,) manages Wine/GPTK/DXMT runtime versions, bottle tools
 (Retina mode, winecfg/regedit), bottle location, and updates.
 
-> **Gatekeeper:** the app is ad-hoc signed, so a downloaded build is quarantined until you
-> right-click → Open (or `xattr -dr com.apple.quarantine Silo.app`).
+> **Gatekeeper:** the app is ad-hoc signed, so a downloaded build is quarantined. Right-click → Open on
+> first launch, then allow it in **System Settings → Privacy & Security** — macOS blocks the first attempt
+> and offers the override there. From the terminal instead: move Silo.app to Applications, then
+> `xattr -dr com.apple.quarantine /Applications/Silo.app`.
 
 ## Build from source
 
