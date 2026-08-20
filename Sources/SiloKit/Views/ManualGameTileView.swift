@@ -9,6 +9,9 @@ struct ManualGameTileView: View {
     @Environment(\.openWindow) private var openWindow
     let game: ManualGame
     let onSettings: () -> Void
+    /// Opens the game card. Called instead of `onSettings` only when the game has a Steam association —
+    /// without one there's nothing to show, so the tile keeps its original behaviour.
+    let onDetails: () -> Void
     @State private var confirmingRemove = false
 
     var body: some View {
@@ -16,9 +19,9 @@ struct ManualGameTileView: View {
         GameTileCard(
             title: game.name,
             isBusy: lib.isBusy(game), canLaunch: lib.canLaunch,
-            helpText: "Edit settings",
+            helpText: game.steamAppID == nil ? "Edit settings" : "Show details",
             onPlay: { Task { await lib.playManual(game) } },
-            onTap: onSettings
+            onTap: game.steamAppID == nil ? onSettings : onDetails
         ) {
             ManualGameArtwork(exe: game.executablePath,
                               cover: CoverArtStore(coversDir: env.paths.coversDir)

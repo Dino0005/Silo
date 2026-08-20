@@ -9,6 +9,7 @@ struct LibraryGridView: View {
     @Environment(\.openSettings) private var openSettings
     @State private var settingsTarget: SteamApp?
     @State private var manualSettingsTarget: ManualGame?
+    @State private var manualDetailTarget: ManualGame?
     @State private var detailTarget: SteamApp?
     @State private var showAddGame = false
     /// The user has dismissed the first-run onboarding. Kept SEPARATE from `setupComplete` so finishing the
@@ -63,6 +64,10 @@ struct LibraryGridView: View {
         .sheet(item: $manualSettingsTarget) { ManualGameSettingsSheet(game: $0) }
         .sheet(item: $detailTarget) { game in
             GameDetailView(game: game, onSettings: { detailTarget = nil; settingsTarget = game })
+        }
+        .sheet(item: $manualDetailTarget) { game in
+            ManualGameDetailView(game: game,
+                                 onSettings: { manualDetailTarget = nil; manualSettingsTarget = game })
         }
         .navigationSubtitle(showLibrary ? subtitle(steamShown.count + manualShown.count) : "")
         .searchable(text: $lib.searchText, placement: .toolbar, prompt: "Search games")
@@ -173,7 +178,8 @@ struct LibraryGridView: View {
                         }
                         ForEach(manual) { game in
                             ManualGameTileView(game: game,
-                                               onSettings: { manualSettingsTarget = game })
+                                               onSettings: { manualSettingsTarget = game },
+                                               onDetails: { manualDetailTarget = game })
                         }
                     }
                     .padding()
