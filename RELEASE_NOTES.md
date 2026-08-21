@@ -1,6 +1,6 @@
 # Silo 0.5.2
 
-A game card for the games Steam doesn't know about, and the last of the Italian translation.
+A game card for the games you didn't install through Steam, and the last of the Italian translation.
 
 ## Game card for non-Steam games
 

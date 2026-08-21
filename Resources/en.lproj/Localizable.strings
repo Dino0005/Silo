@@ -339,3 +339,21 @@
 "No Steam game found with ID %@." = "No Steam game found with ID %@.";
 "Card created from %@." = "Card created from %@.";
 "Card removed." = "Card removed.";
+
+/* Settings-pane status messages */
+"Saved." = "Saved.";
+"Importing %@…" = "Importing %@…";
+"Default %@: %@." = "Default %@: %@.";
+"Set default, but %@ %@." = "Set default, but %@ %@.";
+"Installed %@." = "Installed %@.";
+"Installed %@ — ⚠️ %@" = "Installed %@ — ⚠️ %@";
+"Media Foundation package imported." = "Media Foundation package imported.";
+"Package removed. The Media Foundation bottle, if any, still works." = "Package removed. The Media Foundation bottle, if any, still works.";
+"Couldn't remove: %@" = "Couldn't remove: %@";
+"Set up the Steam bottle first — the Media Foundation bottle is a copy of it." = "Set up the Steam bottle first — the Media Foundation bottle is a copy of it.";
+"Media Foundation bottle removed. Games that used it are back on the normal bottle." = "Media Foundation bottle removed. Games that used it are back on the normal bottle.";
+"Couldn't remove the bottle: %@" = "Couldn't remove the bottle: %@";
+"No %@ build published yet." = "No %@ build published yet.";
+"Latest %@ (%@) is already installed." = "Latest %@ (%@) is already installed.";
+"Latest %@ release has no installable archive." = "Latest %@ release has no installable archive.";
+"Downloading %@… %@" = "Downloading %@… %@";

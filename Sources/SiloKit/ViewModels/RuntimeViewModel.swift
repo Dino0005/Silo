@@ -189,21 +189,21 @@ public final class RuntimeViewModel {
                 if let found = kind.pickRelease(batch) { release = found; break }
             }
             guard let release else {
-                statusMessage = "No \(kind.noun) build published yet."
+                statusMessage = String(localized: "No \(kind.noun) build published yet.")
                 return
             }
             // Already have the latest? Don't re-download — just say so (and adopt it as the default if none
             // is set).
             if let existing = installed.first(where: { $0.name == release.tagName }) {
                 if defaultName == nil { setDefault(existing) }
-                statusMessage = "Latest \(kind.noun) (\(release.version)) is already installed."
+                statusMessage = String(localized: "Latest \(kind.noun) (\(release.version)) is already installed.")
                 return
             }
             guard let asset = RuntimeManager.preferredAsset(release) else {
-                statusMessage = "Latest \(kind.noun) release has no installable archive."
+                statusMessage = String(localized: "Latest \(kind.noun) release has no installable archive.")
                 return
             }
-            statusMessage = "Downloading \(release.version)… \(kind.downloadHint)"
+            statusMessage = String(localized: "Downloading \(release.version)… \(kind.downloadHint)")
             // The built-in repo MUST publish a SHA-256 (fail-closed); a user's own override repo may not,
             // so the digest stays best-effort there.
             let requireDigest = repo == Silo.wineRepo
@@ -215,8 +215,8 @@ public final class RuntimeViewModel {
             // A failed de-quarantine means Gatekeeper may block this runtime — warn now, at install time,
             // instead of leaving the eventual launch failure unexplained.
             let warning = await manager.lastHardeningIssue
-            statusMessage = warning.map { "Installed \(release.version) — ⚠️ \($0)" }
-                ?? "Installed \(release.version)."
+            statusMessage = warning.map { String(localized: "Installed \(release.version) — ⚠️ \($0)") }
+                ?? String(localized: "Installed \(release.version).")
         } catch {
             statusMessage = String(localized: "Couldn't install: \((error as NSError).localizedDescription)")
         }
@@ -229,7 +229,7 @@ public final class RuntimeViewModel {
             if wasDefault { defaultName = nil }
             await refresh()
             if wasDefault { onDefaultRemoved?() }   // clear the dangling path in the persisted config
-            statusMessage = "Removed \(install.displayName)."
+            statusMessage = String(localized: "Removed \(install.displayName).")
         } catch {
             statusMessage = String(localized: "Couldn't remove: \((error as NSError).localizedDescription)")
         }
@@ -238,8 +238,9 @@ public final class RuntimeViewModel {
     public func setDefault(_ install: RuntimeInstall) {
         defaultName = install.name
         onDefaultChanged?(install)
-        statusMessage = install.isUsable ? "Default \(kind.noun): \(install.displayName)."
-                                         : "Set default, but \(kind.unusableWarning) \(install.displayName)."
+        statusMessage = install.isUsable
+            ? String(localized: "Default \(kind.noun): \(install.displayName).")
+            : String(localized: "Set default, but \(kind.unusableWarning) \(install.displayName).")
     }
 
     public func isDefault(_ install: RuntimeInstall) -> Bool { defaultName == install.name }

@@ -86,11 +86,11 @@ public final class MediaFoundationViewModel {
         do {
             _ = try importer.importPackage(from: folder)
             refresh()
-            statusMessage = "Media Foundation package imported."
+            statusMessage = String(localized: "Media Foundation package imported.")
         } catch let error as MediaFoundationImporter.ImportError {
             statusMessage = Self.describe(error)
         } catch {
-            statusMessage = "Couldn't import: \((error as NSError).localizedDescription)"
+            statusMessage = String(localized: "Couldn't import: \((error as NSError).localizedDescription)")
         }
     }
 
@@ -99,9 +99,9 @@ public final class MediaFoundationViewModel {
         do {
             try importer.remove()
             refresh()
-            statusMessage = "Package removed. The Media Foundation bottle, if any, still works."
+            statusMessage = String(localized: "Package removed. The Media Foundation bottle, if any, still works.")
         } catch {
-            statusMessage = "Couldn't remove: \((error as NSError).localizedDescription)"
+            statusMessage = String(localized: "Couldn't remove: \((error as NSError).localizedDescription)")
         }
     }
 
@@ -116,11 +116,11 @@ public final class MediaFoundationViewModel {
     public func buildBottle() async {
         guard !isWorking, let package else { return }
         guard let wine = wineBinary() else {
-            statusMessage = "Set up Wine first."
+            statusMessage = String(localized: "Set up Wine first.")
             return
         }
         guard BottleCloner.isPrefix(paths.steamBottle) else {
-            statusMessage = "Set up the Steam bottle first — the Media Foundation bottle is a copy of it."
+            statusMessage = String(localized: "Set up the Steam bottle first — the Media Foundation bottle is a copy of it.")
             return
         }
         isWorking = true
@@ -167,9 +167,9 @@ public final class MediaFoundationViewModel {
             // have no way to turn it off again.
             _ = try? await configStore.updateAllGames { $0.envFlags.mediaFoundationNative = false }
             refresh()
-            statusMessage = "Media Foundation bottle removed. Games that used it are back on the normal bottle."
+            statusMessage = String(localized: "Media Foundation bottle removed. Games that used it are back on the normal bottle.")
         } catch {
-            statusMessage = "Couldn't remove the bottle: \((error as NSError).localizedDescription)"
+            statusMessage = String(localized: "Couldn't remove the bottle: \((error as NSError).localizedDescription)")
         }
     }
 

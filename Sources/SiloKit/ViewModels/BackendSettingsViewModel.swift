@@ -60,10 +60,10 @@ public final class BackendSettingsViewModel {
     public func save() async {
         do {
             try await configStore.saveBackend(config)
-            statusMessage = "Saved."
+            statusMessage = String(localized: "Saved.")
             onChange?(config)
         } catch {
-            statusMessage = "Couldn't save: \((error as NSError).localizedDescription)"
+            statusMessage = String(localized: "Couldn't save: \((error as NSError).localizedDescription)")
         }
     }
 }

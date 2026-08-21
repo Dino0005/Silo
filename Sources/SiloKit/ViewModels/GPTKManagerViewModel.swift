@@ -3,6 +3,9 @@ import Foundation
 @MainActor
 @Observable
 public final class GPTKManagerViewModel {
+    /// Interpolated into the shared "Default %@: %@." key, so one entry covers Wine, DXMT and GPTK.
+    private static let noun = "GPTK"
+
     public private(set) var installs: [GPTKInstall] = []
     public var defaultName: String?
     public var statusMessage: String?
@@ -39,7 +42,7 @@ public final class GPTKManagerViewModel {
         guard !isImporting else { return }
         isImporting = true
         defer { isImporting = false }
-        statusMessage = "Importing \(dmgURL.lastPathComponent)…"
+        statusMessage = String(localized: "Importing \(dmgURL.lastPathComponent)…")
         do {
             // The warning callback fires off the main actor mid-import; collect it in a box and fold it
             // into the final status (a Task hop could land before OR after the "Imported" assignment).
@@ -64,7 +67,7 @@ public final class GPTKManagerViewModel {
             if wasDefault { defaultName = nil }
             refresh()
             if wasDefault { onDefaultRemoved?() }   // clear the dangling lib dir in the persisted config
-            statusMessage = "Removed \(install.displayName)."
+            statusMessage = String(localized: "Removed \(install.displayName).")
         } catch {
             statusMessage = String(localized: "Couldn't remove: \((error as NSError).localizedDescription)")
         }
@@ -73,7 +76,7 @@ public final class GPTKManagerViewModel {
     public func setDefault(_ install: GPTKInstall) {
         defaultName = install.name
         onDefaultChanged?(install)
-        statusMessage = "Default GPTK: \(install.displayName)."
+        statusMessage = String(localized: "Default \(Self.noun): \(install.displayName).")
     }
 
     public func isDefault(_ install: GPTKInstall) -> Bool { defaultName == install.name }
