@@ -1,38 +1,37 @@
-# Silo 0.5.2
+# Silo 0.5.3
 
-A game card for the games you didn't install through Steam, and the last of the Italian translation.
+The library draws itself with no network, and the settings panes finish speaking Italian.
 
-## Game card for non-Steam games
+## Tile artwork lives on disk
 
-Clicking a Steam game's tile opens a card — hero art, description, developer, genres, release date.
-Clicking a non-Steam game's tile opened the settings sheet, because Silo had nowhere to get any of that
-from.
+A Steam game's tile guessed its image address from the app ID — `…/steam/apps/<id>/header.jpg` — without
+asking Steam anything. Fast, and it's why opening the library made no API calls. Two things followed:
 
-It does now, if you tell it where. A manual game's settings gained a **Game card** section: enter the
-Steam app ID of the same game — the number in its store page address — and Silo checks it against the
-store and keeps it. From then on the tile opens a card like any other game's.
+- **Some games have no `header.jpg` at all.** Their tile stayed blank while their card showed artwork
+  perfectly well, because the card uses the `header_image` the store actually returns.
+- **With no network the tiles came up empty.** They relied on URLSession's cache, and images are evicted
+  from it long before the small JSON responses are.
 
-- **The ID is typed, not searched.** A text search returns near-identical candidates — "God of War" also
-  matches its sequel, Batman Arkham Knight has several editions — and choosing one on your behalf
-  eventually shows you the wrong game with no way to tell why.
-- **No Store button**, unlike the Steam card: the copy you're playing wasn't bought there.
-- **Remove, not Uninstall**: for a manual game it forgets the entry and its bottle and leaves the
-  installed files alone.
-- **If the game has no cover yet**, the association downloads Steam's artwork and files it in `Covers/`
-  like one you'd pick yourself — so the tile still draws with no network. A cover you chose is never
-  replaced, and removing the card leaves it in place.
+Artwork is now stored in `Artwork/`, one file per app ID. The saved file is drawn immediately — instantly,
+offline included — and refreshed behind it. Not on every open: a file younger than a day is left alone,
+because Steam rotates seasonal art but re-fetching everything each time would be waste. A failed refresh
+never blanks a tile that was drawing fine.
 
-Entirely optional and reversible: with no association the tile opens the settings, exactly as before.
+When the guessed address 404s, and only then, Silo asks the store for the real one. One request, for the
+few games that need it, and the answer lands on disk so it isn't asked again.
 
-## Italian, finished
+The card falls back to that same file when the network is gone. Its description and metadata still don't
+survive offline — they arrive in the same API response, and caching those is a separate job.
 
-Status messages carrying a game's name — "Launched God of War.", "Added …", "Removed …" — stayed in
-English however the app was set. An interpolated message can never match a fixed catalogue key, so the
-lookup silently fell through; the same defect fixed for error messages earlier. Twenty-five of them now
-resolve properly.
+`Artwork/` is deliberately not `Covers/`: that holds images you chose, this is a cache the app can empty
+without losing anything.
 
-Also reworded the bottle-switch line: it said to close the game running in the other bottle, when what's
-usually running there is just Steam.
+## Italian, actually finished
+
+The 0.5.2 notes said the translation was done. The library's messages were; the **settings panes** weren't
+— Wine, GPTK, DXMT, Media Foundation and Backend still answered in English whenever the message carried a
+name: "Removed wine cx 26.3.0.", "Installed …". Same cause as before, an interpolated string can't match a
+fixed catalogue key. Twenty-two of them now resolve.
 
 ---
 

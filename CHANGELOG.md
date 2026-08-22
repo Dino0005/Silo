@@ -7,6 +7,25 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.5.3
+
+### Fixed
+- **Tile artwork is cached on disk**, in `Artwork/` by app ID. The tile used to guess its image URL from
+  the app ID and fetch it every time, so the library came up blank with no network — images are evicted
+  from URLSession's cache long before JSON is. The stored file draws first and is refreshed behind it, at
+  most once a day, and a failed refresh leaves the existing image alone.
+- **Games whose `header.jpg` doesn't exist now get artwork.** The guessed address 404s for some apps
+  (seen on 3764200) while their store page has an image; when it fails, Silo asks the API for the real
+  `header_image` — one request, only for those games, and the result is stored.
+- The Steam card falls back to the cached file when the network is gone. Its description and metadata
+  still require a connection.
+- **Settings-pane status messages were never translated.** Wine, GPTK, DXMT, Media Foundation and Backend
+  answered in English whenever the message carried a name — "Removed wine cx 26.3.0.", "Installed …" —
+  because an interpolated string can't match a fixed catalogue key. Twenty-two now resolve. Four were
+  written across two lines and escaped the first pass, which searched for a single spelling.
+- Corrected the 0.5.2 notes: the subtitle read "the games Steam doesn't know about", which is the reverse
+  of how the game card works — it exists precisely because Steam does know them.
+
 ## 0.5.2
 
 ### Added
