@@ -3,6 +3,43 @@ import AppKit
 
 /// A library tile for a game installed in the Steam bottle (`SteamApp`). Play launches it co-resident
 /// with the bottle's Steam client; the menu exposes Settings, Log, Wine config, Finder, Uninstall.
+/// A Steam game's tile artwork, served from disk and refreshed behind it.
+///
+/// Not `AsyncImage`: that redraws from the network every time, which leaves the tiles blank with no
+/// connection and has nothing to fall back on when an app has no `header.jpg` at all. The stored file
+/// shows first — instantly, offline included — and the refresh only replaces it once new bytes have
+/// actually arrived, so a failed fetch never blanks a tile that was drawing fine.
+struct SteamHeaderArt: View {
+    @Environment(AppEnvironment.self) private var env
+    let game: SteamApp
+    @State private var artwork: NSImage?
+
+    var body: some View {
+        ZStack {
+            GameArtworkPlaceholder()
+            if let artwork {
+                Image(nsImage: artwork).resizable().aspectRatio(contentMode: .fill)
+            }
+        }
+        .task(id: game.appID) { await load() }
+    }
+
+    private func load() async {
+        let store = SteamArtworkStore(dir: env.paths.artworkDir)
+        let appID = game.appID
+        if let cached = store.cached(appID: appID), let image = NSImage(contentsOf: cached) {
+            artwork = image
+        }
+        guard store.isStale(appID: appID) else { return }   // fresh enough — don't spend a request
+        let steamStore = env.steamStore
+        let guessed = game.headerArtURL
+        let refreshed = await Task.detached { () -> URL? in
+            await store.refresh(appID: appID, guessed: guessed, store: steamStore)
+        }.value
+        if let refreshed, let image = NSImage(contentsOf: refreshed) { artwork = image }
+    }
+}
+
 struct SteamGameTileView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.openWindow) private var openWindow
@@ -20,12 +57,7 @@ struct SteamGameTileView: View {
             onPlay: { Task { await lib.play(game) } },
             onTap: onDetails
         ) {
-            AsyncImage(url: game.headerArtURL) { phase in
-                switch phase {
-                case .success(let image): image.resizable().aspectRatio(contentMode: .fill)
-                default: GameArtworkPlaceholder()
-                }
-            }
+            SteamHeaderArt(game: game)
         } subtitle: {
             if let size = lib.sizeString(game) {
                 Text(size).font(.caption).foregroundStyle(.secondary)

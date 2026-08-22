@@ -22,7 +22,18 @@ struct GameDetailView: View {
                     AsyncImage(url: details?.headerImageURL ?? game.headerArtURL) { phase in
                         switch phase {
                         case .success(let image): image.resizable().aspectRatio(contentMode: .fit)
-                        default: GameArtworkPlaceholder(iconFont: .largeTitle).aspectRatio(460.0 / 215.0, contentMode: .fit)
+                        default:
+                            // The store's image needs the network twice over — the API call for its URL,
+                            // then the image itself — so offline this is all there is. The tile's cached
+                            // artwork is a different crop of the same game, which beats a grey rectangle.
+                            if let cached = SteamArtworkStore(dir: env.paths.artworkDir)
+                                .cached(appID: game.appID),
+                               let stored = NSImage(contentsOf: cached) {
+                                Image(nsImage: stored).resizable().aspectRatio(contentMode: .fit)
+                            } else {
+                                GameArtworkPlaceholder(iconFont: .largeTitle)
+                                    .aspectRatio(460.0 / 215.0, contentMode: .fit)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: 12))
