@@ -169,6 +169,10 @@ public final class AppEnvironment {
         mediaFoundation.refresh()   // so the MF tab shows its real state before it's first opened
         guard !didBootstrap, !isBootstrapping else { return }
         isBootstrapping = true
+        // Before anything can launch: drop the `server-*` directories no wineserver is holding. They
+        // outlive a crash or a force-quit and nothing else ever removes them. Off the main actor — it's
+        // filesystem work — and best-effort, so a failure here never delays startup.
+        Task.detached { WineServerProbe.sweepLeftovers() }
         let state = await configStore.load()
         backendSettings.config = state.backend
         applyBackend(state.backend)

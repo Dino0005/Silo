@@ -81,6 +81,49 @@ public enum WineServerProbe {
     }
 
     /// The temp roots to probe for the wineserver socket, most-specific first, de-duplicated.
+    /// Remove the `server-*` directories no `wineserver` is holding, and report how many went.
+    ///
+    /// A server that dies badly leaves its directory behind with the socket and lock still in it. Since
+    /// `isLive` reads the lock rather than the files, those leftovers no longer block a launch — but they
+    /// pile up, and anyone reading /tmp to work out what's running has to tell them from the real thing.
+    ///
+    /// The test is the same one that answers "not live": if nobody holds the lock, there is nothing alive
+    /// in there to protect. A HELD lock is left alone even when it belongs to another prefix or to
+    /// CrossOver — not ours, and someone may be using it.
+    ///
+    /// Call at startup, never at exit: Silo deliberately lets a game outlive it, and sweeping on the way
+    /// out would pull the socket from under one still playing.
+    ///
+    /// Best-effort throughout — an unreadable root or a directory that vanishes mid-sweep skips that entry
+    /// and no more. Cleaning up is not a precondition for launching.
+    /// - Parameter gracePeriod: how recently a directory may have been touched and still be spared. There
+    ///   is a window between a server creating its directory and taking the lock, and during it the lock
+    ///   reads as free — sweeping then would delete the directory out from under a bottle that is starting
+    ///   up. A leftover comes from an earlier session by definition, so waiting a minute costs it nothing
+    ///   and closes that window.
+    @discardableResult
+    public static func sweepLeftovers(fileManager: FileManager = .default,
+                                      gracePeriod: TimeInterval = 60,
+                                      now: Date = Date()) -> Int {
+        let uid = getuid()
+        var removed = 0
+        for root in candidateRoots() {
+            let wineDir = root.appendingPathComponent(".wine-\(uid)", isDirectory: true)
+            let entries = (try? fileManager.contentsOfDirectory(
+                at: wineDir, includingPropertiesForKeys: nil)) ?? []
+            for dir in entries where dir.lastPathComponent.hasPrefix("server-") {
+                let lock = dir.appendingPathComponent("lock").path
+                // No lock file at all is a leftover too — a live server always has one.
+                if fileManager.fileExists(atPath: lock), isLockHeld(at: lock) { continue }
+                // Too young to be from a previous session: it may be mid-startup, lock not taken yet.
+                if let touched = try? fileManager.attributesOfItem(atPath: dir.path)[.modificationDate]
+                    as? Date, now.timeIntervalSince(touched) < gracePeriod { continue }
+                if (try? fileManager.removeItem(at: dir)) != nil { removed += 1 }
+            }
+        }
+        return removed
+    }
+
     private static func candidateRoots() -> [URL] {
         let env = ProcessInfo.processInfo.environment
         var raw: [String] = []

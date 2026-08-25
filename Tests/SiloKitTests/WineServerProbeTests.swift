@@ -76,6 +76,66 @@ struct WineServerProbeTests {
         #expect(!WineServerProbe.isLive(prefix: prefix))
     }
 
+    @Test("the sweep removes an unheld leftover and spares a directory whose lock is held")
+    func sweepRemovesOnlyLeftovers() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        // Two prefixes: one with a live holder, one whose holder has gone.
+        let live = tmp.url.appendingPathComponent("LiveBottle")
+        let dead = tmp.url.appendingPathComponent("DeadBottle")
+        let held = try holdWineServerLock(for: live)
+        defer { held.release() }
+        let leftover = try holdWineServerLock(for: dead)
+        defer { leftover.release() }
+        leftover.unlock()                      // exactly what a killed wineserver leaves
+
+        #expect(WineServerProbe.isLive(prefix: live))
+        #expect(!WineServerProbe.isLive(prefix: dead))
+
+        // Both are backdated past the grace period, so the sweep's decision rests on the lock alone —
+        // which is the behaviour worth testing. A freshly-made directory is spared whatever its lock says.
+        try backdate(try #require(held.dir))
+        try backdate(try #require(leftover.dir))
+        WineServerProbe.sweepLeftovers()
+
+        // The dead one's directory is gone; the live one's is untouched — someone is still using it.
+        #expect(!FileManager.default.fileExists(atPath: try #require(leftover.dir).path))
+        #expect(FileManager.default.fileExists(atPath: try #require(held.dir).path))
+        #expect(WineServerProbe.isLive(prefix: live))     // and it still reads as live afterwards
+    }
+
+    @Test("a directory with no lock file at all is swept — a live server always has one")
+    func sweepRemovesLocklessDirectory() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let prefix = tmp.url.appendingPathComponent("Bottle")
+        let leftover = try holdWineServerLock(for: prefix)
+        defer { leftover.release() }
+        leftover.unlock()
+        let dir = try #require(leftover.dir)
+        try FileManager.default.removeItem(at: dir.appendingPathComponent("lock"))
+
+        try backdate(dir)
+        WineServerProbe.sweepLeftovers()
+        #expect(!FileManager.default.fileExists(atPath: dir.path))
+    }
+
+    @Test("a directory made moments ago is spared even with nobody holding its lock")
+    func sweepSparesYoungDirectory() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let prefix = tmp.url.appendingPathComponent("Starting")
+        let starting = try holdWineServerLock(for: prefix)
+        defer { starting.release() }
+        starting.unlock()          // the window between creating the dir and taking the lock
+
+        WineServerProbe.sweepLeftovers()      // no backdating: it's seconds old
+        #expect(FileManager.default.fileExists(atPath: try #require(starting.dir).path))
+    }
+
+    /// Push a directory's modification date past the sweep's grace period.
+    private func backdate(_ dir: URL, by seconds: TimeInterval = 3600) throws {
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-seconds)], ofItemAtPath: dir.path)
+    }
+
     @Test("isAnyBottleLive spots a live manual bottle, and reports false when all are quiet")
     func anyBottleLive() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
