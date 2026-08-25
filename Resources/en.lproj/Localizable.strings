@@ -347,6 +347,13 @@
 "Set default, but %@ %@." = "Set default, but %@ %@.";
 "Installed %@." = "Installed %@.";
 "Installed %@ — ⚠️ %@" = "Installed %@ — ⚠️ %@";
+
+/* Stopping bottle processes */
+"Stop All Bottle Processes" = "Stop All Bottle Processes";
+"Something is still running in a bottle." = "Something is still running in a bottle.";
+"Quitting Silo won't stop it. You can close everything first if you're done." = "Quitting Silo won't stop it. You can close everything first if you're done.";
+"Quit and Leave Running" = "Quit and Leave Running";
+"Close Everything and Quit" = "Close Everything and Quit";
 "Media Foundation package imported." = "Media Foundation package imported.";
 "Package removed. The Media Foundation bottle, if any, still works." = "Package removed. The Media Foundation bottle, if any, still works.";
 "Couldn't remove: %@" = "Couldn't remove: %@";

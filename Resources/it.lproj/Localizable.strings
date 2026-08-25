@@ -349,6 +349,13 @@
 "Set default, but %@ %@." = "Impostato come predefinito, ma %@ %@.";
 "Installed %@." = "%@ installato.";
 "Installed %@ — ⚠️ %@" = "%@ installato — ⚠️ %@";
+
+/* Interruzione dei processi nelle bottiglie */
+"Stop All Bottle Processes" = "Interrompi tutti i processi delle bottiglie";
+"Something is still running in a bottle." = "Qualcosa è ancora in esecuzione in una bottiglia.";
+"Quitting Silo won't stop it. You can close everything first if you're done." = "Uscire da Silo non lo interrompe. Se hai finito, puoi chiudere tutto prima.";
+"Quit and Leave Running" = "Esci e lascia in esecuzione";
+"Close Everything and Quit" = "Chiudi tutto ed esci";
 "Media Foundation package imported." = "Pacchetto Media Foundation importato.";
 "Package removed. The Media Foundation bottle, if any, still works." = "Pacchetto rimosso. La bottiglia Media Foundation, se esiste, continua a funzionare.";
 "Couldn't remove: %@" = "Impossibile rimuovere: %@";

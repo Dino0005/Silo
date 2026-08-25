@@ -165,6 +165,43 @@ public final class AppEnvironment {
     }
 
     /// Load persisted config and populate the UI. Idempotent.
+    /// Every bottle Silo knows about: the shared Steam one, plus each manual game's.
+    nonisolated func allBottlePrefixes() -> [URL] {
+        let manual = (try? FileManager.default.contentsOfDirectory(
+            at: paths.manualBottlesDir, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
+        return [paths.steamBottle] + manual
+    }
+
+    /// Whether anything is running in any bottle — the question the quit prompt turns on.
+    public nonisolated func anythingRunningInBottles() -> Bool {
+        WineServerProbe.isAnyBottleLive(paths: paths)
+    }
+
+    /// Stop everything running in Silo's bottles, and report how many were stopped.
+    ///
+    /// `wineserver -k` rather than killing processes: it's Wine's own mechanism, so the session ends the
+    /// way it would on a normal shutdown instead of being cut off mid-write.
+    ///
+    /// It does NOT clear /tmp, though — measured: after stopping Steam from the menu the `server-*`
+    /// directory was still there, and went only on the next launch, swept by `WineServerProbe`. The two
+    /// halves complement each other: `-k` stops what's running, the startup sweep removes what it leaves.
+    ///
+    /// Only bottles that read as live are touched: asking a stopped prefix to die would start a wineserver
+    /// just to tell it to quit.
+    @discardableResult
+    public func stopBottleProcesses() async -> Int {
+        guard let wine = backendSettings.config.wineBinaryPath else { return 0 }
+        let server = WineRuntimeLayout(wineBinary: wine).wineserver
+        var stopped = 0
+        for prefix in allBottlePrefixes() where WineServerProbe.isLive(prefix: prefix) {
+            let result = try? await runner.run(
+                executable: server, arguments: ["-k"],
+                environment: ["WINEPREFIX": prefix.path], currentDirectory: nil)
+            if result != nil { stopped += 1 }
+        }
+        return stopped
+    }
+
     public func bootstrap() async {
         mediaFoundation.refresh()   // so the MF tab shows its real state before it's first opened
         guard !didBootstrap, !isBootstrapping else { return }
