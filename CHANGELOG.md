@@ -7,6 +7,26 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.5.4
+
+### Added
+- **Silo → Stop All Bottle Processes**, for when a crash or a force-quit leaves something running and the
+  only remedy was a terminal. Acts immediately — it's explicit, and chosen on purpose.
+- **Quitting with something still running asks what to do**, defaulting to leaving it running: a game
+  outliving Silo is deliberate, and the case it protects (quitting to free memory mid-game) is real. The
+  prompt only appears when something is actually running.
+- Both stop bottles with `wineserver -k` rather than killing processes, so the session ends the way it
+  would on a normal shutdown instead of being cut off mid-write.
+
+### Fixed
+- **Leftover `server-*` directories are cleared at startup.** A wineserver that dies badly leaves one in
+  `/tmp` and nothing removes it; they no longer block launches but they accumulate and make it impossible
+  to tell, by looking, what's really running. A directory whose lock nobody holds is removed; one whose
+  lock is held is left alone, whoever owns it. Startup only — sweeping at quit would pull the socket from
+  under a game Silo deliberately let outlive it.
+- The sweep waits a minute before touching anything, closing a race the tests surfaced: between creating
+  its directory and taking its lock, a starting server's lock reads as free.
+
 ## 0.5.3
 
 ### Fixed

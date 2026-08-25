@@ -1,37 +1,39 @@
-# Silo 0.5.3
+# Silo 0.5.4
 
-The library draws itself with no network, and the settings panes finish speaking Italian.
+Housekeeping for what gets left behind.
 
-## Tile artwork lives on disk
+## Leftover wineservers are cleared at startup
 
-A Steam game's tile guessed its image address from the app ID — `…/steam/apps/<id>/header.jpg` — without
-asking Steam anything. Fast, and it's why opening the library made no API calls. Two things followed:
+A `wineserver` that dies badly — a crash, a force-quit, a shutdown that didn't finish — leaves its
+`server-*` directory in `/tmp` with the socket and lock still inside, and nothing ever removes it. Since
+0.5.1 those leftovers no longer block a launch, but they pile up, and anyone opening `/tmp` to work out
+what's actually running has to tell them from the real thing.
 
-- **Some games have no `header.jpg` at all.** Their tile stayed blank while their card showed artwork
-  perfectly well, because the card uses the `header_image` the store actually returns.
-- **With no network the tiles came up empty.** They relied on URLSession's cache, and images are evicted
-  from it long before the small JSON responses are.
+Silo now clears them when it starts: a directory whose lock nobody holds has nothing alive in it to
+protect. One whose lock **is** held is left alone, even when it belongs to another prefix or to CrossOver.
 
-Artwork is now stored in `Artwork/`, one file per app ID. The saved file is drawn immediately — instantly,
-offline included — and refreshed behind it. Not on every open: a file younger than a day is left alone,
-because Steam rotates seasonal art but re-fetching everything each time would be waste. A failed refresh
-never blanks a tile that was drawing fine.
+Startup only, never on the way out — Silo deliberately lets a game outlive it, and sweeping at quit would
+pull the socket from under one still playing.
 
-When the guessed address 404s, and only then, Silo asks the store for the real one. One request, for the
-few games that need it, and the answer lands on disk so it isn't asked again.
+There's a one-minute grace period, which the test suite made necessary by finding a real race: between a
+server creating its directory and taking its lock there's a moment where the lock reads as free, and
+sweeping then would delete the directory out from under a bottle that was starting up.
 
-The card falls back to that same file when the network is gone. Its description and metadata still don't
-survive offline — they arrive in the same API response, and caching those is a separate job.
+## Stopping what's running, on purpose
 
-`Artwork/` is deliberately not `Covers/`: that holds images you chose, this is a cache the app can empty
-without losing anything.
+**Silo → Stop All Bottle Processes** ends everything running in Silo's bottles. It's there for after
+something goes wrong — a crash, a force-quit — when a stray process used to mean opening a terminal. No
+confirmation: it says what it does, and it's chosen deliberately.
 
-## Italian, actually finished
+**Quitting with something still running** now asks. The default is **Quit and Leave Running**, because a
+game surviving Silo is a deliberate choice (quitting Silo to free memory mid-game is a real thing to want),
+and nobody should lose a session to a stray return key. If you're done, one click closes everything.
 
-The 0.5.2 notes said the translation was done. The library's messages were; the **settings panes** weren't
-— Wine, GPTK, DXMT, Media Foundation and Backend still answered in English whenever the message carried a
-name: "Removed wine cx 26.3.0.", "Installed …". Same cause as before, an interpolated string can't match a
-fixed catalogue key. Twenty-two of them now resolve.
+The prompt only appears when something actually is running, so an ordinary quit is unchanged.
+
+Both use `wineserver -k` rather than killing processes: it's Wine's own mechanism, so the session ends the
+way it would on a normal shutdown. It doesn't clear `/tmp` — the startup sweep handles that on the next
+launch.
 
 ---
 
