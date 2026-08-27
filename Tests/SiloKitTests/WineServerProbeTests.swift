@@ -95,7 +95,7 @@ struct WineServerProbeTests {
         // which is the behaviour worth testing. A freshly-made directory is spared whatever its lock says.
         try backdate(try #require(held.dir))
         try backdate(try #require(leftover.dir))
-        WineServerProbe.sweepLeftovers()
+        WineServerProbe.sweepLeftovers(prefixes: [live, dead])
 
         // The dead one's directory is gone; the live one's is untouched — someone is still using it.
         #expect(!FileManager.default.fileExists(atPath: try #require(leftover.dir).path))
@@ -114,8 +114,37 @@ struct WineServerProbeTests {
         try FileManager.default.removeItem(at: dir.appendingPathComponent("lock"))
 
         try backdate(dir)
-        WineServerProbe.sweepLeftovers()
+        WineServerProbe.sweepLeftovers(prefixes: [prefix])
         #expect(!FileManager.default.fileExists(atPath: dir.path))
+    }
+
+    @Test("a leftover from a prefix that isn't ours is never touched")
+    func sweepIgnoresForeignDirectories() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        // Stands in for a CrossOver bottle: same shape, same /tmp, not in the list we pass.
+        let foreign = tmp.url.appendingPathComponent("SomeoneElsesBottle")
+        let stranger = try holdWineServerLock(for: foreign)
+        defer { stranger.release() }
+        stranger.unlock()
+        let dir = try #require(stranger.dir)
+        try backdate(dir)
+
+        // Old enough, lock free — it would go if ownership weren't checked first.
+        WineServerProbe.sweepLeftovers(prefixes: [tmp.url.appendingPathComponent("OurBottle")])
+        #expect(FileManager.default.fileExists(atPath: dir.path))
+    }
+
+    @Test("with no prefixes to match, nothing is removed")
+    func sweepWithoutPrefixesDoesNothing() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let prefix = tmp.url.appendingPathComponent("Bottle")
+        let leftover = try holdWineServerLock(for: prefix)
+        defer { leftover.release() }
+        leftover.unlock()
+        try backdate(try #require(leftover.dir))
+
+        #expect(WineServerProbe.sweepLeftovers(prefixes: []) == 0)
+        #expect(FileManager.default.fileExists(atPath: try #require(leftover.dir).path))
     }
 
     @Test("a directory made moments ago is spared even with nobody holding its lock")
@@ -126,7 +155,7 @@ struct WineServerProbeTests {
         defer { starting.release() }
         starting.unlock()          // the window between creating the dir and taking the lock
 
-        WineServerProbe.sweepLeftovers()      // no backdating: it's seconds old
+        WineServerProbe.sweepLeftovers(prefixes: [prefix])   // no backdating: it's seconds old
         #expect(FileManager.default.fileExists(atPath: try #require(starting.dir).path))
     }
 

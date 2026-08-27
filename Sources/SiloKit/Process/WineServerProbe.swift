@@ -81,15 +81,24 @@ public enum WineServerProbe {
     }
 
     /// The temp roots to probe for the wineserver socket, most-specific first, de-duplicated.
-    /// Remove the `server-*` directories no `wineserver` is holding, and report how many went.
+    /// Remove the `server-*` directories left by Silo's own bottles, and report how many went.
     ///
     /// A server that dies badly leaves its directory behind with the socket and lock still in it. Since
     /// `isLive` reads the lock rather than the files, those leftovers no longer block a launch — but they
     /// pile up, and anyone reading /tmp to work out what's running has to tell them from the real thing.
     ///
-    /// The test is the same one that answers "not live": if nobody holds the lock, there is nothing alive
-    /// in there to protect. A HELD lock is left alone even when it belongs to another prefix or to
-    /// CrossOver — not ours, and someone may be using it.
+    /// Two conditions, and the first is ownership. The directory name derives from a prefix's device and
+    /// inode, so which bottle a leftover belongs to is a calculation, not a guess: anything that doesn't
+    /// match one of `prefixes` is not ours and is never considered. That matters — measured on-device,
+    /// /tmp held seven `server-*` directories of which SIX were CrossOver bottles, and an earlier version
+    /// of this swept them all.
+    ///
+    /// The second is the one that answers "not live": if nobody holds the lock, there is nothing alive in
+    /// there to protect.
+    ///
+    /// - Note: the leftover of a bottle that has since been DELETED stays, because without the prefix its
+    ///   name can't be computed. That's the right trade — better one stale directory than reaching into
+    ///   someone else's.
     ///
     /// Call at startup, never at exit: Silo deliberately lets a game outlive it, and sweeping on the way
     /// out would pull the socket from under one still playing.
@@ -102,16 +111,19 @@ public enum WineServerProbe {
     ///   up. A leftover comes from an earlier session by definition, so waiting a minute costs it nothing
     ///   and closes that window.
     @discardableResult
-    public static func sweepLeftovers(fileManager: FileManager = .default,
+    public static func sweepLeftovers(prefixes: [URL],
+                                      fileManager: FileManager = .default,
                                       gracePeriod: TimeInterval = 60,
                                       now: Date = Date()) -> Int {
+        let ours = Set(prefixes.compactMap { serverDirName(for: $0) })
+        guard !ours.isEmpty else { return 0 }
         let uid = getuid()
         var removed = 0
         for root in candidateRoots() {
             let wineDir = root.appendingPathComponent(".wine-\(uid)", isDirectory: true)
             let entries = (try? fileManager.contentsOfDirectory(
                 at: wineDir, includingPropertiesForKeys: nil)) ?? []
-            for dir in entries where dir.lastPathComponent.hasPrefix("server-") {
+            for dir in entries where ours.contains(dir.lastPathComponent) {
                 let lock = dir.appendingPathComponent("lock").path
                 // No lock file at all is a leftover too — a live server always has one.
                 if fileManager.fileExists(atPath: lock), isLockHeld(at: lock) { continue }

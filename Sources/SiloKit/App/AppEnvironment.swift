@@ -165,11 +165,15 @@ public final class AppEnvironment {
     }
 
     /// Load persisted config and populate the UI. Idempotent.
-    /// Every bottle Silo knows about: the shared Steam one, plus each manual game's.
+    /// Every bottle Silo knows about: the shared Steam one, its Media Foundation twin, and each manual
+    /// game's.
+    ///
+    /// The MF bottle belongs here as much as the others — a game running in it is running in a bottle, and
+    /// leaving it out meant neither the menu command nor the quit prompt could see it.
     nonisolated func allBottlePrefixes() -> [URL] {
         let manual = (try? FileManager.default.contentsOfDirectory(
             at: paths.manualBottlesDir, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
-        return [paths.steamBottle] + manual
+        return [paths.steamBottle, paths.steamBottleMF] + manual
     }
 
     /// Whether anything is running in any bottle — the question the quit prompt turns on.
@@ -209,7 +213,8 @@ public final class AppEnvironment {
         // Before anything can launch: drop the `server-*` directories no wineserver is holding. They
         // outlive a crash or a force-quit and nothing else ever removes them. Off the main actor — it's
         // filesystem work — and best-effort, so a failure here never delays startup.
-        Task.detached { WineServerProbe.sweepLeftovers() }
+        let ourBottles = allBottlePrefixes()   // computed here: the sweep only touches these
+        Task.detached { WineServerProbe.sweepLeftovers(prefixes: ourBottles) }
         let state = await configStore.load()
         backendSettings.config = state.backend
         applyBackend(state.backend)
