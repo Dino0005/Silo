@@ -1,39 +1,31 @@
-# Silo 0.5.4
+# Silo 0.5.5
 
-Housekeeping for what gets left behind.
+A correction to 0.5.4, worth its own release.
 
-## Leftover wineservers are cleared at startup
+## The startup sweep stayed out of CrossOver's bottles
 
-A `wineserver` that dies badly — a crash, a force-quit, a shutdown that didn't finish — leaves its
-`server-*` directory in `/tmp` with the socket and lock still inside, and nothing ever removes it. Since
-0.5.1 those leftovers no longer block a launch, but they pile up, and anyone opening `/tmp` to work out
-what's actually running has to tell them from the real thing.
+0.5.4 began clearing the `server-*` directories a dead `wineserver` leaves in `/tmp`. It cleared too many:
+those directories belong to whichever prefix created them, and if you run CrossOver alongside Silo, its
+bottles leave them there too.
 
-Silo now clears them when it starts: a directory whose lock nobody holds has nothing alive in it to
-protect. One whose lock **is** held is left alone, even when it belongs to another prefix or to CrossOver.
+Measured on a machine with both installed — `/tmp` held seven, **six of them CrossOver's**, and opening
+Silo removed all seven. Nothing breaks (CrossOver recreates them on the next launch), but an app reaching
+into another app's files isn't something to leave shipped, and the code claimed not to: it said a
+CrossOver directory would be left alone, which held only while that bottle was running.
 
-Startup only, never on the way out — Silo deliberately lets a game outlive it, and sweeping at quit would
-pull the socket from under one still playing.
+Ownership is now worked out rather than assumed. A directory's name derives from its prefix's device and
+inode, so Silo computes the names its own bottles would produce — the Steam bottle, its Media Foundation
+twin, every manual game's — and never looks at anything else.
 
-There's a one-minute grace period, which the test suite made necessary by finding a real race: between a
-server creating its directory and taking its lock there's a moment where the lock reads as free, and
-sweeping then would delete the directory out from under a bottle that was starting up.
+One consequence worth stating: the leftover of a bottle you've since **deleted** now stays, because
+without the prefix its name can't be computed. Better one stale directory than reaching into someone
+else's.
 
-## Stopping what's running, on purpose
+## The Media Foundation bottle was missing from the list
 
-**Silo → Stop All Bottle Processes** ends everything running in Silo's bottles. It's there for after
-something goes wrong — a crash, a force-quit — when a stray process used to mean opening a terminal. No
-confirmation: it says what it does, and it's chosen deliberately.
-
-**Quitting with something still running** now asks. The default is **Quit and Leave Running**, because a
-game surviving Silo is a deliberate choice (quitting Silo to free memory mid-game is a real thing to want),
-and nobody should lose a session to a stray return key. If you're done, one click closes everything.
-
-The prompt only appears when something actually is running, so an ordinary quit is unchanged.
-
-Both use `wineserver -k` rather than killing processes: it's Wine's own mechanism, so the session ends the
-way it would on a normal shutdown. It doesn't clear `/tmp` — the startup sweep handles that on the next
-launch.
+The same list drives **Stop All Bottle Processes** and the quit prompt, so a game running in the Media
+Foundation bottle was invisible to both — it wouldn't be stopped, and quitting wouldn't mention it. It's
+in the list now.
 
 ---
 

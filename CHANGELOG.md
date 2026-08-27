@@ -7,6 +7,18 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.5.5
+
+### Fixed
+- **The startup sweep removed CrossOver's leftover directories too.** `server-*` directories belong to
+  whichever prefix made them, and 0.5.4's sweep judged them only by whether their lock was free. Measured
+  with both apps installed: seven in `/tmp`, six of them CrossOver's, all gone after opening Silo. Silo
+  now computes the names its own bottles would produce — from each prefix's device and inode — and
+  ignores everything else. The leftover of a deleted bottle now stays, since without the prefix its name
+  can't be derived.
+- **The Media Foundation bottle wasn't in the list of bottles.** A game running there was invisible to
+  both *Stop All Bottle Processes* and the quit prompt.
+
 ## 0.5.4
 
 ### Added
