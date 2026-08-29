@@ -356,6 +356,9 @@
 "Quitting Silo won't stop it. You can close everything first if you're done." = "Uscire da Silo non lo interrompe. Se hai finito, puoi chiudere tutto prima.";
 "Quit and Leave Running" = "Esci e lascia in esecuzione";
 "Close Everything and Quit" = "Chiudi tutto ed esci";
+
+/* Piede della sezione Prestazioni quando il selettore Metal non si applica (DXMT) */
+"MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer." = "MSync + Supporto AVX è la configurazione di base consigliata per Apple Silicon. L'HUD Prestazioni mostra FPS/frame time in tempo reale sul gioco. MetalFX aumenta gli FPS tramite upscaling; il ray tracing richiede un M3 o successivo.";
 "Media Foundation package imported." = "Pacchetto Media Foundation importato.";
 "Package removed. The Media Foundation bottle, if any, still works." = "Pacchetto rimosso. La bottiglia Media Foundation, se esiste, continua a funzionare.";
 "Couldn't remove: %@" = "Impossibile rimuovere: %@";

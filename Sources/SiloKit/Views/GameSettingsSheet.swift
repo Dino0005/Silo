@@ -78,7 +78,8 @@ struct GameSettingsSheet: View {
                 Picker("Graphics", selection: $vm.config.graphics) {
                     ForEach(GraphicsChoice.allCases) { Text(LocalizedStringKey($0.displayName)).tag($0) }
                 }
-                DXMTMismatchNote(choice: vm.config.graphics, needsD3D12: needsD3D12)
+                DXMTMismatchNote(choice: vm.config.graphics, needsD3D12: needsD3D12,
+                                 launchOptions: vm.config.launchOptionsString)
                 if let learned = vm.learnedBackend {
                     HStack {
                         Text("Automatic is using \(learned.displayName) — GPTK couldn't run this game.")
@@ -95,7 +96,7 @@ struct GameSettingsSheet: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            PerformanceFlagsSection(flags: $vm.config.envFlags)
+            PerformanceFlagsSection(flags: $vm.config.envFlags, graphics: vm.config.graphics)
 
             // Only offered once the Media Foundation bottle exists — otherwise there's nothing to switch
             // to, and a toggle that does nothing is worse than no toggle. Removing that bottle turns the

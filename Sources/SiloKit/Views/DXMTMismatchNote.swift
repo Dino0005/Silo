@@ -24,9 +24,16 @@ struct DXMTMismatchNote: View {
     /// parent one render later; that never produced a visible note, and there was no way to tell from the
     /// outside whether the check had run at all. A plain input can be tested.
     let needsD3D12: Bool
+    /// The game's launch options. `-d3d11` among them is the note's own advice already taken: the game
+    /// won't ask for D3D12, so there's no split to warn about. Seen on Fatal Fury, where that option is
+    /// needed anyway for its videos to play.
+    var launchOptions: String = ""
+    private var alreadyForcedToD3D11: Bool {
+        launchOptions.split(whereSeparator: \.isWhitespace).contains { $0.lowercased() == "-d3d11" }
+    }
 
     var body: some View {
-        if choice == .dxmt, needsD3D12 {
+        if choice == .dxmt, needsD3D12, !alreadyForcedToD3D11 {
             Label {
                 Text("This game uses Direct3D 12, which DXMT doesn't translate: the graphics still go through GPTK, with DXMT covering only part of the stack — a mix that can cause display problems. Switch to GPTK. If the game also offers a Direct3D 11 mode (Unreal titles take the launch option -d3d11), that avoids the split altogether and either backend will handle it.")
                     .font(.caption)

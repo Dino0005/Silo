@@ -160,14 +160,15 @@ struct ManualGameSettingsSheet: View {
                     }
                     Text(LocalizedStringKey(game.graphics.recommendedFor))
                         .font(.caption).foregroundStyle(.secondary)
-                    DXMTMismatchNote(choice: game.graphics, needsD3D12: needsD3D12)
+                    DXMTMismatchNote(choice: game.graphics, needsD3D12: needsD3D12,
+                                     launchOptions: game.launchOptionsString)
                 } header: {
                     Text("Graphics Backend")
                 } footer: {
                     Text("Automatic picks the backend per game — 32-bit games use DXMT, others use GPTK / D3DMetal. Using DXMT requires installing it in Settings → DXMT. Takes effect next launch.")
                 }
 
-                PerformanceFlagsSection(flags: $game.envFlags)
+                PerformanceFlagsSection(flags: $game.envFlags, graphics: game.graphics)
                 LaunchOptionsSection(text: $game.launchOptionsString)
             }
             .formStyle(.grouped)

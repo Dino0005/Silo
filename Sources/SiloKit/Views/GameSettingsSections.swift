@@ -4,6 +4,11 @@ import SwiftUI
 /// (`ManualGameSettingsSheet`) settings sheets — one place for the flag list and its guidance text.
 struct PerformanceFlagsSection: View {
     @Binding var flags: EnvFlags
+    /// The graphics choice, so the Metal-backend picker can stay out of the way under DXMT — it sets
+    /// `D3DM_MTL4`, a D3DMetal option, and does nothing there. `.auto` still shows it: it resolves to GPTK
+    /// for most games, and hiding it there would remove a choice that does apply.
+    var graphics: GraphicsChoice = .auto
+    private var metalBackendApplies: Bool { graphics != .dxmt }
 
     var body: some View {
         Section {
@@ -14,10 +19,13 @@ struct PerformanceFlagsSection: View {
             Toggle("Performance HUD (FPS / frame time)", isOn: $flags.metalHUD)
             Toggle("MetalFX upscaling", isOn: $flags.metalFX)
             Toggle("DirectX Raytracing (M3+)", isOn: $flags.dxr)
-            Picker("Metal backend", selection: $flags.metalBackend) {
-                // LocalizedStringKey, like every other picker here: `Text(someString)` takes the verbatim
-                // initialiser and never consults the strings table, so the labels stayed in English.
-                ForEach(MetalBackendChoice.allCases) { Text(LocalizedStringKey($0.displayName)).tag($0) }
+            if metalBackendApplies {
+                Picker("Metal backend", selection: $flags.metalBackend) {
+                    // LocalizedStringKey, like every other picker here: `Text(someString)` takes the
+                    // verbatim initialiser and never consults the strings table, so the labels stayed in
+                    // English.
+                    ForEach(MetalBackendChoice.allCases) { Text(LocalizedStringKey($0.displayName)).tag($0) }
+                }
             }
             // The "Media Foundation" toggle lived here and has been removed for now: it no longer does
             // anything on its own (see EnvFlags.mediaFoundationNative). It comes back once the MF bottle
@@ -26,7 +34,10 @@ struct PerformanceFlagsSection: View {
         } header: {
             Text("Performance")
         } footer: {
-            Text("MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer. Metal backend picks the renderer GPTK's DirectX 12 path translates through: Automatic follows Apple's default — Metal 3 on macOS 26, Metal 4 on macOS 27 and later. If a game regressed after a GPTK update, try Metal 3 first. GPTK only.")
+            // Two versions: the picker's explanation has no business here when the picker isn't.
+            Text(metalBackendApplies
+                 ? "MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer. Metal backend picks the renderer GPTK's DirectX 12 path translates through: Automatic follows Apple's default — Metal 3 on macOS 26, Metal 4 on macOS 27 and later. If a game regressed after a GPTK update, try Metal 3 first. GPTK only."
+                 : "MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
