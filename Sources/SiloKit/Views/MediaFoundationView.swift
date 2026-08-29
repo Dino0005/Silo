@@ -111,7 +111,8 @@ struct MediaFoundationView: View {
 
     private func pickPackage(_ vm: MediaFoundationViewModel) {
         guard let folder = chooseFolder(
-            message: "Choose the folder with system32, syswow64, mf.reg and wmf.reg.") else { return }
+            message: String(localized: "Choose the folder with system32, syswow64, mf.reg and wmf.reg."))
+        else { return }
         Task { await vm.importPackage(from: folder) }
     }
 }

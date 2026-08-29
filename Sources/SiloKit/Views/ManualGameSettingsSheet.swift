@@ -75,7 +75,7 @@ struct ManualGameSettingsSheet: View {
                         .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                     Button("Change .exe…") {
                         if let exe = chooseExecutable(
-                            message: "Choose the game's .exe.",
+                            message: String(localized: "Choose the game's .exe."),
                             directory: game.executablePath.deletingLastPathComponent()) {
                             game.executablePath = exe
                         }
@@ -138,9 +138,13 @@ struct ManualGameSettingsSheet: View {
                 }
 
                 Section {
-                    Button("Run Installer in this bottle…") {
+                    Button("Run a Program in this bottle…") {
+                        // `installer: true` isn't a label — it widens the panel's filter from `exe` to
+                        // `exe`+`msi`. The name of the button is what changes here, not what it accepts.
                         if let installer = chooseExecutable(
-                            message: "Choose a setup .exe or .msi to run in this game's bottle.",
+                            // String(localized:): `chooseExecutable` takes a plain String, and a plain
+                            // String never consults the strings table — the message stayed in English.
+                            message: String(localized: "Choose an .exe or .msi to run in this game's bottle — an installer, a configuration tool."),
                             installer: true) {
                             Task { await env.gameLibrary.runInstaller(installer, forBottle: game.bottleID) }
                         }

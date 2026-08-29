@@ -46,6 +46,15 @@ struct ManualGameTileView: View {
             openWindow(id: LogTarget.windowID,
                        value: LogTarget(title: "\(game.name) — Log", url: env.paths.manualLog(game.id)))
         }
+        Button("Run Program…") {
+            // Same action as the settings sheet's button, one click closer: a language selector or a
+            // configuration tool is something you reach for without wanting to open settings first.
+            if let program = chooseExecutable(
+                message: String(localized: "Choose an .exe or .msi to run in this game's bottle — an installer, a configuration tool."),
+                installer: true) {
+                Task { await env.gameLibrary.runInstaller(program, forBottle: game.bottleID) }
+            }
+        }
         Button("Wine Config…") { Task { await env.gameLibrary.openManualWinecfg(game) } }
         Button("Game Controllers…") {
             Task { await env.gameLibrary.openManualGameControllers(game) }

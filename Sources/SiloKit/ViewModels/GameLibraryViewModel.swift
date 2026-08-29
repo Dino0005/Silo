@@ -530,7 +530,9 @@ public final class GameLibraryViewModel {
             _ = try await orchestrator.runInstaller(
                 exe: installer, backend: backend, prefix: paths.manualBottle(id), logURL: paths.manualLog(id))
             // `runInstaller` blocks until the installer window closes, so we're here once setup is done.
-            setStatus("Installer finished.")
+            // "Run finished", not "Installer finished": the same call now runs configuration tools and
+            // language selectors, and it also reads right for the add-game flow where it IS an installer.
+            setStatus(String(localized: "Run finished."))
         } catch { setStatus(String(localized: "Couldn't run the installer: \(Self.resolveMessage(error))")) }
     }
 

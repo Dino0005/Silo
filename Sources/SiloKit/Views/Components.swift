@@ -16,7 +16,11 @@ func chooseDiskImage() -> URL? {
 /// Present an open panel for choosing a FOLDER. Used for the Media Foundation package, which is a
 /// directory (system32/, syswow64/, mf.reg, wmf.reg) rather than a single file. Returns nil if cancelled.
 @MainActor
-func chooseFolder(message: String, prompt: String = "Choose") -> URL? {
+func chooseFolder(message: String,
+                  // String(localized:): `prompt` is a plain String assigned to the panel, and a plain
+                  // String never consults the strings table — "Choose" showed next to macOS's own
+                  // translated "Cancel".
+                  prompt: String = String(localized: "Choose")) -> URL? {
     let panel = NSOpenPanel()
     panel.canChooseFiles = false
     panel.canChooseDirectories = true
@@ -37,7 +41,7 @@ func chooseExecutable(message: String, directory: URL? = nil, installer: Bool = 
     panel.canChooseDirectories = false
     panel.allowsMultipleSelection = false
     panel.message = message
-    panel.prompt = "Choose"
+    panel.prompt = String(localized: "Choose")
     let extensions = installer ? ["exe", "msi"] : ["exe"]
     let types = extensions.compactMap { UTType(filenameExtension: $0) }
     if !types.isEmpty { panel.allowedContentTypes = types }
@@ -56,7 +60,7 @@ func chooseDirectory(message: String) -> URL? {
     panel.canCreateDirectories = true
     panel.allowsMultipleSelection = false
     panel.message = message
-    panel.prompt = "Choose"
+    panel.prompt = String(localized: "Choose")
     return panel.runModal() == .OK ? panel.url : nil
 }
 

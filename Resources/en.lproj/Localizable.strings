@@ -83,7 +83,9 @@
 "Retry" = "Retry";
 "Reveal Bottle in Finder" = "Reveal Bottle in Finder";
 "Reveal in Finder" = "Reveal in Finder";
-"Run Installer in this bottle…" = "Run Installer in this bottle…";
+"Run a Program in this bottle…" = "Run a Program in this bottle…";
+"Run Program…" = "Run Program…";
+"Choose an .exe or .msi to run in this game's bottle — an installer, a configuration tool." = "Choose an .exe or .msi to run in this game's bottle — an installer, a configuration tool.";
 "Run Installer…" = "Run Installer…";
 "Save" = "Save";
 "Set default" = "Set default";
@@ -148,7 +150,12 @@
 "Silo is moving your bottles — try again shortly." = "Silo is moving your bottles — try again shortly.";
 "Installing an update — Silo will relaunch shortly." = "Installing an update — Silo will relaunch shortly.";
 "No Wine configured." = "No Wine configured.";
-"Installer finished." = "Installer finished.";
+"Run finished." = "Run finished.";
+"Choose" = "Choose";
+"Choose the game's .exe." = "Choose the game's .exe.";
+"Choose an installer (setup .exe or .msi) to run in this game's new bottle." = "Choose an installer (setup .exe or .msi) to run in this game's new bottle.";
+"Choose a folder for Silo's bottles." = "Choose a folder for Silo's bottles.";
+"Choose the folder with system32, syswow64, mf.reg and wmf.reg." = "Choose the folder with system32, syswow64, mf.reg and wmf.reg.";
 "Couldn't find your Desktop folder." = "Couldn't find your Desktop folder.";
 "Check the DXMT runtime in Settings → DXMT." = "Check the DXMT runtime in Settings → DXMT.";
 "Switch this game's graphics to DXMT in its settings." = "Switch this game's graphics to DXMT in its settings.";

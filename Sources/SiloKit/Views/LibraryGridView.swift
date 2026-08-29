@@ -244,7 +244,7 @@ struct AddGameSheet: View {
                         // After running an installer the game lands in this bottle's drive_c; otherwise
                         // (a portable game) start at the last-used location, near the extracted folder.
                         if let exe = chooseExecutable(
-                            message: "Choose the game's .exe.",
+                            message: String(localized: "Choose the game's .exe."),
                             directory: ranInstaller ? bottleDriveC : nil) {
                             chosenExe = exe
                             if name.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -281,7 +281,7 @@ struct AddGameSheet: View {
                 Section {
                     Button {
                         if let installer = chooseExecutable(
-                            message: "Choose an installer (setup .exe or .msi) to run in this game's new bottle.",
+                            message: String(localized: "Choose an installer (setup .exe or .msi) to run in this game's new bottle."),
                             installer: true) {
                             Task {
                                 installerRunning = true

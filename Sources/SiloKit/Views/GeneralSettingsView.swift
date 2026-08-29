@@ -67,7 +67,7 @@ struct GeneralSettingsView: View {
             } else {
                 HStack {
                     Button("Move…") {
-                        if let dir = chooseDirectory(message: "Choose a folder for Silo's bottles.") {
+                        if let dir = chooseDirectory(message: String(localized: "Choose a folder for Silo's bottles.")) {
                             Task { await env.bottles.moveBottles(to: dir) }
                         }
                     }
