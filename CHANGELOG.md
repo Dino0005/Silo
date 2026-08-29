@@ -7,6 +7,25 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.5.6
+
+### Changed
+- **"Run Installer in this bottle…" is now "Run a Program in this bottle…"**, and appears in the tile's
+  ••• menu as well. It always ran anything in the game's existing bottle — verified with a GOG language
+  selector: same prefix, same executable, nothing new created — but its name and the picker's wording
+  both suggested installers only. The completion status now reads "Run finished". The add-game screen's
+  *Run Installer* keeps its name; there it really does install.
+- **The Metal backend picker is hidden when the graphics choice is DXMT.** It sets `D3DM_MTL4`, a
+  D3DMetal option that does nothing there. Automatic still shows it, since it resolves to GPTK for most
+  games.
+
+### Fixed
+- **The DXMT/D3D12 warning no longer appears when `-d3d11` is already among the launch options** — it was
+  recommending a remedy the user had already applied.
+- **File-picker messages and the Choose button weren't translated.** `chooseExecutable` and
+  `chooseDirectory` take them as plain `String`s, which never reach the strings table. All five messages
+  and the button are localised; a search for every visible text passed that way confirms none is left.
+
 ## 0.5.5
 
 ### Fixed
