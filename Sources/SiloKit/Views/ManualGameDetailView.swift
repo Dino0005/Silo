@@ -50,6 +50,17 @@ struct ManualGameDetailView: View {
             .navigationTitle(game.name)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                // Where the Steam card puts Store — which a copy bought elsewhere has no use for, so the
+                // slot is free and the two cards stay symmetrical.
+                ToolbarItem {
+                    Button("Run Program…") {
+                        if let program = chooseExecutable(
+                            message: String(localized: "Choose an .exe or .msi to run in this game's bottle — an installer, a configuration tool."),
+                            installer: true) {
+                            Task { await env.gameLibrary.runInstaller(program, forBottle: game.bottleID) }
+                        }
+                    }
+                }
             }
         }
         .frame(width: 560, height: 620)
