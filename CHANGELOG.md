@@ -7,6 +7,19 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.5.7
+
+### Added
+- **Run Program…** on a non-Steam game's card, in the toolbar slot the Steam card uses for *Store*. It was
+  already in the settings sheet and the tile menu; the card is what a click on the tile opens.
+
+### Fixed
+- **`DYLD_LIBRARY_PATH` is stripped from the environment wine processes get.** Silo deliberately keeps
+  `/usr/local/lib` out of `DYLD_FALLBACK_LIBRARY_PATH` — Homebrew's gtk3 and gtk4 both loading once killed
+  `winegstreamer` with "Class … is implemented in both" — but dyld reads `DYLD_LIBRARY_PATH` ahead of the
+  system paths, so an inherited one overrode that protection entirely. Silo never sets it, so removing it
+  costs nothing. Unlikely from a Finder launch, possible from a terminal.
+
 ## 0.5.6
 
 ### Changed

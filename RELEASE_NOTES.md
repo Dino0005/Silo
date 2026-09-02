@@ -1,41 +1,31 @@
-# Silo 0.5.6
+# Silo 0.5.7
 
-Fixes for controls that described themselves badly, and the last of the untranslated text.
+Two small ones.
 
-## Running something in a game's bottle
+## Run a program from the game card
 
-A manual game's settings had **Run Installer in this bottle…**, and the file picker asked for "a setup .exe
-or .msi". It does more than that: it runs anything in the game's own bottle and waits for the window to
-close. A GOG language selector, a configuration tool, a redistributable — all of them work, and none of
-them is an installer.
+**Run Program…** now sits in the toolbar of a non-Steam game's card, where the Steam card keeps its Store
+button — which a copy bought elsewhere has no use for, so the slot was free.
 
-It's now **Run a Program in this bottle…**, the picker mentions configuration tools too, and the same
-action sits in the tile's ••• menu where you'd reach for it without opening settings first. The bottle is
-untouched: same prefix, same executable, nothing new created. The status line at the end says **Run
-finished** rather than claiming an installer completed.
+It was already in the settings sheet and the tile's ••• menu, but the card is what opens when you click
+the tile of a game you've associated with a Steam listing, so it's where you'd look. Same action as the
+other two: it runs an installer, a configuration tool or a language selector in that game's own bottle and
+waits for the window to close.
 
-The *other* Run Installer — the one on the add-game screen, which creates a bottle and then scans it for
-what got installed — keeps its name. There it really is installing.
+## `DYLD_LIBRARY_PATH` no longer reaches the wine child
 
-## Two controls that lied under DXMT
+Silo builds the library search path for its wine processes deliberately, leaving `/usr/local/lib` out:
+with Homebrew on that path, `winegstreamer` once loaded both gtk3 and gtk4 and the process died with
+*"Class … is implemented in both"*.
 
-**Metal backend** sets `D3DM_MTL4`, a D3DMetal option. Under DXMT it does nothing, and a visible control
-that does nothing offers a choice that isn't there. It now appears only when the graphics choice isn't
-DXMT — Automatic still shows it, since that resolves to GPTK for most games.
+That covers `DYLD_FALLBACK_LIBRARY_PATH` — the *fallback* list. `DYLD_LIBRARY_PATH`, without FALLBACK, is
+read by dyld ahead of the system paths, so it outranks the fallback entirely. Silo never sets it, but it
+was passing it through unchanged if the launching environment happened to have one.
 
-The **DXMT/Direct3D 12 warning** suggests the `-d3d11` launch option among its ways out, but stayed on
-screen for anyone who had already added it — recommending a remedy already taken. It now checks the launch
-options first.
-
-## Italian, the last of it
-
-The file-picker messages and the **Choose** button were still English, sitting next to the **Annulla**
-macOS supplies itself. `chooseExecutable` and `chooseDirectory` take those as plain `String`s, and a plain
-string never consults the strings table.
-
-Found by searching for every visible text passed that way rather than fixing the one that got reported —
-which is how the previous four rounds of this went. The onboarding steps and the runtime sections were
-already fine (they use `LocalizedStringKey`), and nothing else is left.
+Launched from Finder or the Dock, a GUI app doesn't inherit the shell's configuration, so this was
+unlikely to bite. From a terminal it could. The protection shouldn't depend on how Silo was
+opened, so the variable is now stripped along with the two loader-injection ones — Silo never sets it
+legitimately, so nothing is lost.
 
 ---
 
