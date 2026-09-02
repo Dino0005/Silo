@@ -73,7 +73,17 @@ public struct SystemProcessRunner: ProcessRunning {
     /// force a dylib into the wine child. We do NOT strip `DYLD_FALLBACK_LIBRARY_PATH`/
     /// `DYLD_FALLBACK_FRAMEWORK_PATH` — Silo sets those explicitly (they only add *fallback* search paths,
     /// not forced loads), and Silo never legitimately sets a denylisted key, so stripping it is loss-free.
-    static let injectionDenylist: Set<String> = ["DYLD_INSERT_LIBRARIES", "DYLD_FORCE_FLAT_NAMESPACE"]
+    ///
+    /// `DYLD_LIBRARY_PATH` is here for a subtler reason than the other two. It isn't an injection vector,
+    /// but dyld consults it BEFORE the system paths — ahead of the fallback list — so it silently defeats
+    /// `Silo.siloDyldFallback`, which deliberately keeps `/usr/local/lib` out to avoid the
+    /// "Class … is implemented in both" crash Homebrew's gtk3+gtk4 caused when `winegstreamer` loaded
+    /// both. Inheriting it (launching from a Terminal, or from Xcode) would carry that path straight into
+    /// the wine child. A Finder launch never would, but the protection shouldn't depend on how Silo was
+    /// opened.
+    static let injectionDenylist: Set<String> = [
+        "DYLD_INSERT_LIBRARIES", "DYLD_FORCE_FLAT_NAMESPACE", "DYLD_LIBRARY_PATH",
+    ]
 
     static func mergedEnvironment(_ overrides: [String: String]) -> [String: String] {
         var env = ProcessInfo.processInfo.environment

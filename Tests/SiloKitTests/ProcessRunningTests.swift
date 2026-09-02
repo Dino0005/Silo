@@ -50,7 +50,13 @@ struct SystemProcessRunnerTests {
         // Simulate a hostile ambient env carrying a dylib-injection var, then assert the child env.
         setenv("DYLD_INSERT_LIBRARIES", "/tmp/evil.dylib", 1)
         setenv("DYLD_FORCE_FLAT_NAMESPACE", "1", 1)
-        defer { unsetenv("DYLD_INSERT_LIBRARIES"); unsetenv("DYLD_FORCE_FLAT_NAMESPACE") }
+        // Not an injection vector, but dyld reads it before the system paths — so it would override the
+        // fallback list that deliberately excludes Homebrew's /usr/local/lib.
+        setenv("DYLD_LIBRARY_PATH", "/usr/local/lib", 1)
+        defer {
+            unsetenv("DYLD_INSERT_LIBRARIES"); unsetenv("DYLD_FORCE_FLAT_NAMESPACE")
+            unsetenv("DYLD_LIBRARY_PATH")
+        }
 
         let merged = SystemProcessRunner.mergedEnvironment([
             "DYLD_FALLBACK_LIBRARY_PATH": "/runtime/lib:/usr/lib",
@@ -60,6 +66,7 @@ struct SystemProcessRunnerTests {
         // The classic injection vectors are removed — from the inherited env AND from the overrides.
         #expect(merged["DYLD_INSERT_LIBRARIES"] == nil)
         #expect(merged["DYLD_FORCE_FLAT_NAMESPACE"] == nil)
+        #expect(merged["DYLD_LIBRARY_PATH"] == nil)
         // ...while Silo's explicit overrides (fallback path + prefix) survive on top.
         #expect(merged["DYLD_FALLBACK_LIBRARY_PATH"] == "/runtime/lib:/usr/lib")
         #expect(merged["WINEPREFIX"] == "/p/220")
