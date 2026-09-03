@@ -76,6 +76,71 @@ struct SteamClientSessionTests {
         #expect(clock.now - start < .seconds(5))    // far under the 10s failsafe → the watch resolved it
     }
 
+    @Test("readiness is noticed even when the file watch misses it — Wine replaces user.reg, it doesn't rewrite it")
+    func readinessSeenWithoutWatchEvent() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (session, paths) = make(tmp)
+        try setActivePid(paths, 0)
+        session.readinessTimeout = 5           // long: only noticing the pid can finish this quickly
+
+        // Replace the file the way Wine does — write a sibling, then rename over the original. A watch
+        // armed on the original vnode is left holding a file nothing points at any more.
+        let userReg = paths.steamBottle.appendingPathComponent("user.reg")
+        let flip = Task.detached {
+            try? await Task.sleep(for: .seconds(0.4))
+            let text = (try? String(contentsOf: userReg, encoding: .utf8)) ?? ""
+            let ready = text.replacingOccurrences(of: "\"pid\"=dword:0",
+                                                  with: "\"pid\"=dword:e0")
+            let temp = userReg.deletingLastPathComponent().appendingPathComponent("user.reg.tmp")
+            try? ready.write(to: temp, atomically: false, encoding: .utf8)
+            _ = try? FileManager.default.replaceItemAt(userReg, withItemAt: temp)
+        }
+
+        let clock = ContinuousClock()
+        let start = clock.now
+        let running = await session.ensureRunning()
+        let waited = clock.now - start
+        flip.cancel()
+
+        #expect(running)
+        #expect(waited < .seconds(3))      // well under the 5 s failsafe ⇒ the pid itself ended the wait
+    }
+
+    @Test("the failsafe's countdown restarts while Steam is visibly working")
+    func failsafeWaitsOutABusyClient() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (session, paths) = make(tmp)
+        try setActivePid(paths, 0)                  // never flipped: only the failsafe can end this
+        session.readinessTimeout = 0.5
+
+        // Keep touching the client folder for well over the timeout, the way a self-update would.
+        let steam = paths.steamBottle
+            .appendingPathComponent("drive_c/Program Files (x86)/Steam", isDirectory: true)
+        try FileManager.default.createDirectory(at: steam, withIntermediateDirectories: true)
+        // Rewriting ONE log file over and over — which is how a slow sign-in behaves, and the case a
+        // directory's mtime alone would miss entirely.
+        let logs = steam.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+        let log = logs.appendingPathComponent("cef_log.txt")
+        try Data("start".utf8).write(to: log)
+        let busy = Task.detached {
+            for i in 0..<20 {
+                try? await Task.sleep(for: .seconds(0.1))
+                try? Data("line \(i)".utf8).write(to: log)
+            }
+        }
+
+        let clock = ContinuousClock()
+        let start = clock.now
+        _ = await session.ensureRunning()
+        let waited = clock.now - start
+        busy.cancel()
+
+        // Elapsed would have ended it at 0.5s; idle time keeps it going while the writes continue (~2s),
+        // and only the quiet afterwards expires it.
+        #expect(waited > .seconds(1.5))
+    }
+
     @Test("the failsafe lets a slow-starting Steam through — it never refuses the launch")
     func failsafeFallback() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

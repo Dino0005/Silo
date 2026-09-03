@@ -25,9 +25,9 @@ public final class SteamClientSession {
     /// to. Since the wait ends the moment Steam registers, a higher number costs nothing in the normal case;
     /// it only decides how long a launch waits before giving up on a signal that will never arrive.
     ///
-    /// Trimmed to 25 s after a clean reinstall brought the same cold start down to ~15 s. Note this now
-    /// sits BELOW the 26 s once measured: if an install ever gets slow again the failsafe would expire
-    /// early, and the symptom would be a game launched against a client that isn't signed in yet.
+    /// Trimmed to 25 s after a clean reinstall brought the same cold start down to ~15 s. It is now
+    /// counted as IDLE time — see `awaitSteamReady` — so a slow start no longer expires it as long as
+    /// Steam keeps touching its own folder; what expires it is 25 s of a client doing nothing at all.
     var readinessTimeout: Double = 25
     /// The last launch failure message (for the UI), cleared on a successful launch.
     public private(set) var launchError: String?
@@ -278,9 +278,27 @@ public final class SteamClientSession {
             // so a pid written in the window between the pre-check above and arming here would be missed
             // and stall the launch on the failsafe. Re-checking once after arming closes that gap.
             if SteamReadiness.isReady(prefix: prefix) { gate.finish(); return }
-            // Failsafe only — guards against a never-arriving signal (or Steam dying mid-boot).
+            // Failsafe only — guards against a never-arriving signal (or Steam dying mid-boot). It counts
+            // IDLE time, not elapsed time: every time Steam touches its own folder the countdown restarts,
+            // so a client that's busy updating is waited out instead of being declared hung. Without this
+            // the launch went ahead at exactly 25 s with the update still running, and the game met a
+            // client that wasn't there — measured.
             gate.failsafe = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(timeout))
+                let tick = min(1.0, timeout / 5)      // scaled, so sub-second timeouts in tests stay quick
+                var seen = SteamReadiness.lastActivity(prefix: prefix)
+                var idle = 0.0
+                while idle < timeout {
+                    try? await Task.sleep(for: .seconds(tick))
+                    if Task.isCancelled { return }
+                    // Readiness is checked HERE too, not left to the watch alone. Wine doesn't rewrite
+                    // user.reg in place — it writes a temp file and replaces the original — so a kqueue
+                    // watch holding the old vnode never fires. Measured: pid present at 00:06:35, launch
+                    // at 00:07:10; the signal was there and only the failsafe ended the wait. The bug
+                    // predates the idle countdown, which merely stopped hiding it.
+                    if SteamReadiness.isReady(prefix: prefix) { gate.finish(); return }
+                    let now = SteamReadiness.lastActivity(prefix: prefix)
+                    if now != seen { seen = now; idle = 0 } else { idle += tick }
+                }
                 gate.finish()
             }
         }
