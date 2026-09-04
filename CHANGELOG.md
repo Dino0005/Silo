@@ -7,6 +7,25 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.5.8
+
+### Fixed
+- **A game could start before Steam was ready.** The readiness failsafe counted elapsed time, so an update
+  in progress ran past it and the launch went ahead against a client that wasn't there — measured at
+  exactly 25 s from the click. It now counts *idle* time: the countdown restarts whenever Steam touches
+  its own files, and only a genuinely quiet client expires it. Activity is read from `package/` (created
+  files, as a self-update produces) and from the log files (rewrites, as a slow sign-in produces) — the
+  first pass used directory timestamps alone and missed the second case entirely.
+- **The watch on `user.reg` never fired.** Wine replaces the registry file rather than rewriting it, so a
+  kqueue watch held a vnode the name no longer pointed at. Readiness was only ever ended by the failsafe —
+  measured: pid present at 00:06:35, launch at 00:07:10. Readiness is now also checked in the polling
+  loop, and the gap is down to a second or two.
+
+### Added
+- **An available update is announced at startup** — in the library's status line, plus a mark on the
+  Settings button that stays until you update. The check already ran; its result was only visible in
+  Settings.
+
 ## 0.5.7
 
 ### Added

@@ -1,31 +1,45 @@
-# Silo 0.5.7
+# Silo 0.5.8
 
-Two small ones.
+Games no longer start before Steam is ready.
 
-## Run a program from the game card
+## What was going wrong
 
-**Run Program…** now sits in the toolbar of a non-Steam game's card, where the Steam card keeps its Store
-button — which a copy bought elsewhere has no use for, so the slot was free.
+Silo waits for Steam's real signal — the `ActiveProcess` pid Steam writes into the bottle's registry, the
+same one `SteamAPI_Init` reads. The 25 seconds are a failsafe against a signal that never comes, not the
+normal wait.
 
-It was already in the settings sheet and the tile's ••• menu, but the card is what opens when you click
-the tile of a game you've associated with a Steam listing, so it's where you'd look. Same action as the
-other two: it runs an installer, a configuration tool or a language selector in that game's own bottle and
-waits for the window to close.
+Two things were wrong with that, and the second was hidden by the first.
 
-## `DYLD_LIBRARY_PATH` no longer reaches the wine child
+**The failsafe counted elapsed time.** With an update running, Steam isn't ready inside 25 seconds, so the
+failsafe expired and — by design it lets the launch through rather than refusing it — the game started
+against a client that wasn't there. Measured: exactly 25 seconds from the click, with Steam still
+updating.
 
-Silo builds the library search path for its wine processes deliberately, leaving `/usr/local/lib` out:
-with Homebrew on that path, `winegstreamer` once loaded both gtk3 and gtk4 and the process died with
-*"Class … is implemented in both"*.
+**The file watch never fired.** Wine doesn't rewrite `user.reg` in place; it writes a temporary file and
+replaces the original. A kqueue watch armed on the original is left holding a file the name no longer
+points at, so the signal arriving changed nothing. Measured: pid present at 00:06:35, game launched at
+00:07:10 — 35 seconds during which the answer was sitting in the file.
 
-That covers `DYLD_FALLBACK_LIBRARY_PATH` — the *fallback* list. `DYLD_LIBRARY_PATH`, without FALLBACK, is
-read by dyld ahead of the system paths, so it outranks the fallback entirely. Silo never sets it, but it
-was passing it through unchanged if the launching environment happened to have one.
+## What changed
 
-Launched from Finder or the Dock, a GUI app doesn't inherit the shell's configuration, so this was
-unlikely to bite. From a terminal it could. The protection shouldn't depend on how Silo was
-opened, so the variable is now stripped along with the two loader-injection ones — Silo never sets it
-legitimately, so nothing is lost.
+The failsafe now counts **idle** time: as long as Steam is doing something the countdown restarts, and
+only a client that has gone quiet for 25 seconds is declared stuck.
+
+Working out what "doing something" means took two passes. Directory timestamps move when a file is
+created, not when an existing one is rewritten — good enough for a self-update, which lands fresh archives
+in `package/`, and useless for a slow sign-in, which rewrites logs it already has. So Silo watches the log
+files as well: `logs/` is written continuously from the first moment to the last and goes quiet exactly
+when sign-in completes.
+
+And readiness is now checked directly, not left to the watch. The pid is noticed within a second of
+appearing, however Wine decides to write the file.
+
+## Updates announce themselves
+
+Silo already checked for a new version at startup, but only said so in **Settings → General**, which you'd
+have to open on purpose. Now the library's status line mentions it when the app opens, and a mark stays on
+the Settings button until you update — the line to notice, the mark to remember. No dialog: that would
+interrupt every launch until you gave in, which is the fastest way to make a notice invisible.
 
 ---
 
