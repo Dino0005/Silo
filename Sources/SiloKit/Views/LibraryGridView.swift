@@ -58,6 +58,11 @@ struct LibraryGridView: View {
                     .help("Finish setup and go to your library")
             }
             Button { openSettings() } label: { Label("Settings", systemImage: "gearshape") }
+                // Quiet on its own, which is why it comes with the status line — but unlike that line it
+                // doesn't go away, so it's still there next time the app is opened.
+                // "!" rather than a count: there's one thing to do, not a number of items to tally, and a
+                // "1" makes you look for what it's counting.
+                .badge(env.updates.updateCheck?.isNewer == true ? Text("!") : nil)
         }
         .sheet(isPresented: $showAddGame) { AddGameSheet() }
         .sheet(item: $settingsTarget) { GameSettingsSheet(game: $0) }

@@ -229,6 +229,14 @@ public final class AppEnvironment {
         // Library = games installed in the Steam bottle.
         await gameLibrary.load()
         await updates.checkForUpdate()   // best-effort; nil updateCheck on offline
+        // Say so in the library rather than only in Settings, which nobody opens by chance. The line
+        // clears itself after a few seconds like every other status; the dot on the Settings button is
+        // what remains.
+        if let check = updates.updateCheck, check.isNewer {
+            gameLibrary.setStatus(String(
+                format: String(localized: "Version %@ is available — see Settings to update."),
+                check.latestVersion))
+        }
         didBootstrap = true
         isBootstrapping = false
         // A shortcut may have cold-launched the app: route the link now that the library is loaded. Read +

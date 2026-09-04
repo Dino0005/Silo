@@ -156,6 +156,9 @@
 "Choose an installer (setup .exe or .msi) to run in this game's new bottle." = "Choose an installer (setup .exe or .msi) to run in this game's new bottle.";
 "Choose a folder for Silo's bottles." = "Choose a folder for Silo's bottles.";
 "Choose the folder with system32, syswow64, mf.reg and wmf.reg." = "Choose the folder with system32, syswow64, mf.reg and wmf.reg.";
+
+/* Update notice in the library's status line */
+"Version %@ is available — see Settings to update." = "Version %@ is available — see Settings to update.";
 "Couldn't find your Desktop folder." = "Couldn't find your Desktop folder.";
 "Check the DXMT runtime in Settings → DXMT." = "Check the DXMT runtime in Settings → DXMT.";
 "Switch this game's graphics to DXMT in its settings." = "Switch this game's graphics to DXMT in its settings.";
