@@ -47,7 +47,12 @@ func holdWineServerLock(for prefix: URL) throws -> HeldWineServer {
         fileURLWithPath: ProcessInfo.processInfo.environment["TMPDIR"] ?? "/tmp", isDirectory: true)
     let dir = root.appendingPathComponent(".wine-\(getuid())", isDirectory: true)
         .appendingPathComponent(dirName, isDirectory: true)
-    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    // 0700, the way Wine creates it. Without the attribute this lands at the default 0755, and since the
+    // path is the machine's REAL TMPDIR the directory is shared with CrossOver — which refuses to take its
+    // lock on a world-readable one and then dies: "The configuration file must be locked first". Running
+    // the tests once was enough to break it until the directory was deleted by hand.
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
+                                            attributes: [.posixPermissions: 0o700])
     FileManager.default.createFile(atPath: dir.appendingPathComponent("socket").path, contents: Data())
     let lockPath = dir.appendingPathComponent("lock").path
 
