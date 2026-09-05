@@ -47,6 +47,11 @@ func holdWineServerLock(for prefix: URL) throws -> HeldWineServer {
         fileURLWithPath: ProcessInfo.processInfo.environment["TMPDIR"] ?? "/tmp", isDirectory: true)
     let dir = root.appendingPathComponent(".wine-\(getuid())", isDirectory: true)
         .appendingPathComponent(dirName, isDirectory: true)
+    // Sharing this directory with CrossOver is safe for two separate reasons, both measured: its own files
+    // are named `bottle-…` while the sweep only ever looks at `server-…`, and the sweep removes only names
+    // matching a Silo prefix — the filter added after it was found clearing six CrossOver bottles. A full
+    // test run leaves the directory's CrossOver contents exactly as it found them.
+    //
     // 0700, the way Wine creates it. Without the attribute this lands at the default 0755, and since the
     // path is the machine's REAL TMPDIR the directory is shared with CrossOver — which refuses to take its
     // lock on a world-readable one and then dies: "The configuration file must be locked first". Running
