@@ -65,9 +65,13 @@ public enum PEIcon {
     /// Walk Type=`type` → Name/ID matching `id` (or the first, if nil) → first Language → the data entry,
     /// returning the image bytes' file offset + size.
     private static func leaf(_ b: [UInt8], _ s: Section, type: UInt32, id: UInt32? = nil) -> Leaf? {
-        guard let typeDir = subdirectory(b, base: s.base, dirOffset: 0, matchingID: type),
-              let nameDir = subdirectory(b, base: s.base, dirOffset: typeDir, matchingID: id),
-              let langDir = subdirectory(b, base: s.base, dirOffset: nameDir, matchingID: nil),
+        // TWO descents, not three. The tree is type → name → language, and the language directory's
+        // entries already point at the data — they are not directories themselves. Asking for a
+        // sub-directory of the language level therefore fails `isDir` and returns nil for every
+        // executable ever passed in, which is exactly what happened: measured on a 55 MB BatmanAK.exe
+        // that a step-by-step reimplementation parses fine, `icoData` returned nil.
+        guard let nameDir = subdirectory(b, base: s.base, dirOffset: 0, matchingID: type),
+              let langDir = subdirectory(b, base: s.base, dirOffset: nameDir, matchingID: id),
               let dataEntry = firstEntry(b, base: s.base, dirOffset: langDir), !dataEntry.isDirectory
         else { return nil }
         // dataEntry points to a DATA_ENTRY: first U32 is the data RVA, second its size.

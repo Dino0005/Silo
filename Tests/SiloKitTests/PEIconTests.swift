@@ -53,10 +53,11 @@ private enum SyntheticPE {
         let rootDir = alloc(16 + 2 * 8)
         let type3Dir = alloc(16 + n * 8)
         let type14Dir = alloc(16 + 8)
+        // Three directory levels, as a real PE has: type → name → language, whose entries point at the
+        // data. An earlier version of this fixture allocated a fourth, matching a bug in the parser it was
+        // meant to check — so both agreed and neither worked on a real executable.
         let iconNameDir = (0..<n).map { _ in alloc(16 + 8) }
         let groupNameDir = alloc(16 + 8)
-        let iconLangDir = (0..<n).map { _ in alloc(16 + 8) }
-        let groupLangDir = alloc(16 + 8)
         let iconData = (0..<n).map { _ in alloc(16) }
         let groupData = alloc(16)
         let grpiconDir = alloc(6 + n * 14)
@@ -88,13 +89,14 @@ private enum SyntheticPE {
         entry(type14Dir + 16, id: groupID, child: groupNameDir, isDir: true)
 
         for i in 0..<n {
-            dir(iconNameDir[i], idEntries: 1); entry(iconNameDir[i] + 16, id: lang, child: iconLangDir[i], isDir: true)
-            dir(iconLangDir[i], idEntries: 1); entry(iconLangDir[i] + 16, id: lang, child: iconData[i], isDir: false)
+            // The language level IS the last directory: its entry addresses the data, not another directory.
+            dir(iconNameDir[i], idEntries: 1)
+            entry(iconNameDir[i] + 16, id: lang, child: iconData[i], isDir: false)
             data(iconData[i], at: iconImage[i], size: icons[i].image.count)
             for (j, byte) in icons[i].image.enumerated() { sec[iconImage[i] + j] = byte }
         }
-        dir(groupNameDir, idEntries: 1); entry(groupNameDir + 16, id: lang, child: groupLangDir, isDir: true)
-        dir(groupLangDir, idEntries: 1); entry(groupLangDir + 16, id: lang, child: groupData, isDir: false)
+        dir(groupNameDir, idEntries: 1)
+        entry(groupNameDir + 16, id: lang, child: groupData, isDir: false)
         data(groupData, at: grpiconDir, size: 6 + n * 14)
 
         u16(grpiconDir + 2, 1); u16(grpiconDir + 4, UInt16(n))   // GRPICONDIR: type=1, count=n
