@@ -7,6 +7,29 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.5.9
+
+### Fixed
+- **`PEIcon` never extracted an icon.** A PE's resource tree is three directories deep (type → name →
+  language) and the parser walked four, asking for a sub-directory of entries that address data — nil for
+  every executable. Manual games without cover art showed the generic controller instead of their own
+  icon. The tests missed it because their synthetic executable carried the same extra level; a new test
+  runs against a real game `.exe` (`SILO_TEST_EXE`, skipped when unset).
+- **A controller was drawn under the game's icon.** `GameArtworkPlaceholder` draws that glyph itself, so
+  the tile showed both at once — invisible while icons never appeared.
+- **The biggest icon was chosen by byte size.** A PNG-stored 256×256 is lighter than an uncompressed
+  128×128 (25,714 vs 67,646 bytes on one game), so the heaviest entry was the smaller image. Now chosen by
+  pixels, with bytes breaking ties.
+- **The test suite broke CrossOver.** It created `.wine-<uid>` in the real `TMPDIR` with default
+  permissions; Wine requires 0700, and CrossOver — sharing that directory — then failed to lock and
+  aborted at launch.
+
+### Changed
+- **A Steam game's shortcut carries the game's icon** rather than the header art squashed into a square.
+  The executable comes from the launch log (which names the one that ran), then from the game folder, then
+  falls back to the cover — read from the `Artwork/` cache before the network, since the cover URL is
+  guessed from the app ID and 404s for some titles.
+
 ## 0.5.8
 
 ### Fixed
