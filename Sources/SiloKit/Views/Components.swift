@@ -67,10 +67,17 @@ func chooseDirectory(message: String) -> URL? {
 /// Gradient fallback shown while a game's cover art loads or is unavailable (tile + detail hero).
 struct GameArtworkPlaceholder: View {
     var iconFont: Font = .title2
+    /// Whether to draw the controller glyph. Off when something is going to be drawn on top that isn't a
+    /// full-bleed cover — an `.exe` icon is small and padded, so the glyph would show through underneath it.
+    var showsGlyph: Bool = true
     var body: some View {
         LinearGradient(colors: [.indigo.opacity(0.55), .cyan.opacity(0.45)],
                        startPoint: .topLeading, endPoint: .bottomTrailing)
-            .overlay(Image(systemName: "gamecontroller.fill").font(iconFont).foregroundStyle(.white.opacity(0.7)))
+            .overlay {
+                if showsGlyph {
+                    Image(systemName: "gamecontroller.fill").font(iconFont).foregroundStyle(.white.opacity(0.7))
+                }
+            }
     }
 }
 

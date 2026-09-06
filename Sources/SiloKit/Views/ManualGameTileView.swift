@@ -86,15 +86,16 @@ struct ManualGameArtwork: View {
     @State private var icon: NSImage?
 
     var body: some View {
+        // The gradient always; the controller only when there's nothing else. The placeholder draws that
+        // glyph itself, so leaving it on put a controller UNDER the game's own icon — both visible at once,
+        // since an icon is padded rather than full-bleed. Invisible until `PEIcon` started returning icons.
+        let hasArt = cover != nil || icon != nil
         ZStack {
-            GameArtworkPlaceholder()
+            GameArtworkPlaceholder(showsGlyph: !hasArt)
             if let cover, let art = NSImage(contentsOf: cover) {
                 Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
             } else if let icon {
                 Image(nsImage: icon).resizable().aspectRatio(contentMode: .fit).padding(14)
-            } else {
-                Image(systemName: "gamecontroller.fill")
-                    .font(.largeTitle).foregroundStyle(.white.opacity(0.85))
             }
         }
         .task(id: exe) { icon = await ManualIconCache.shared.icon(for: exe) }
