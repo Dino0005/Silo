@@ -125,12 +125,22 @@ public enum PEIcon {
         // Header: reserved(2), type(2), count(2). Then count × GRPICONDIRENTRY (14 bytes).
         guard size >= 6, let count = u16(b, offset + 4).map(Int.init), count > 0 else { return nil }
         var best: GroupEntry?
+        var bestPixels = 0
         var bestBytes: UInt32 = 0
         for i in 0..<count {
             let e = offset + 6 + i * 14
             guard e + 14 <= offset + size, e + 14 <= b.count,
                   let bytesInRes = u32(b, e + 8), let iconID = u16(b, e + 12) else { continue }
-            if best == nil || bytesInRes > bestBytes {
+            // Width and height are ONE byte each, and 0 means 256 — without that a 256×256 would count as
+            // zero pixels and lose to everything.
+            let w = Int(b[e]), h = Int(b[e + 1])
+            let pixels = (w == 0 ? 256 : w) * (h == 0 ? 256 : h)
+            // By pixels, not by weight. Measured on BatmanAK.exe: the 256×256 is PNG-compressed at 25,714
+            // bytes while the 128×128 is an uncompressed bitmap at 67,646 — picking the heaviest picked the
+            // smaller image, and the Dock got half the resolution available. Bytes only break a tie, where
+            // the heavier of two same-sized entries is usually the deeper colour.
+            if best == nil || pixels > bestPixels || (pixels == bestPixels && bytesInRes > bestBytes) {
+                bestPixels = pixels
                 bestBytes = bytesInRes
                 // ICONDIRENTRY shares its first 12 bytes (width…bytesInRes) with GRPICONDIRENTRY.
                 best = GroupEntry(entry12: Array(b[e..<e + 12]), iconID: iconID)

@@ -25,15 +25,27 @@ struct PEIconTests {
         #expect([UInt8](ico.suffix(40)) == image)
     }
 
-    @Test("picks the icon with the most image bytes when several are present")
+    @Test("picks the icon with the most PIXELS, even when a smaller one weighs more")
     func picksLargest() throws {
+        // The real shape of the problem: a 256×256 stored as PNG is far lighter than an uncompressed
+        // 128×128, so choosing by byte count picks the smaller image. Width/height 0 encodes 256.
         let exe = SyntheticPE.build([
-            .init(id: 1, image: [UInt8](repeating: 0xAA, count: 10), width: 16, height: 16, bitCount: 32),
-            .init(id: 2, image: [UInt8](repeating: 0xCC, count: 50), width: 48, height: 48, bitCount: 32),
+            .init(id: 1, image: [UInt8](repeating: 0xAA, count: 200), width: 128, height: 128, bitCount: 32),
+            .init(id: 2, image: [UInt8](repeating: 0xCC, count: 40), width: 0, height: 0, bitCount: 32),
         ])
         let ico = try #require(PEIcon.icoData(fromExecutable: exe))
-        #expect(ico.count == 6 + 16 + 50)                       // the 50-byte icon, not the 10-byte one
-        #expect([UInt8](ico.suffix(50)) == [UInt8](repeating: 0xCC, count: 50))
+        #expect(ico.count == 6 + 16 + 40)                       // the 256×256, though it's the lighter one
+        #expect([UInt8](ico.suffix(40)) == [UInt8](repeating: 0xCC, count: 40))
+    }
+
+    @Test("between two icons of the same size, the heavier (deeper colour) one wins")
+    func breaksTiesByBytes() throws {
+        let exe = SyntheticPE.build([
+            .init(id: 1, image: [UInt8](repeating: 0xAA, count: 20), width: 48, height: 48, bitCount: 8),
+            .init(id: 2, image: [UInt8](repeating: 0xCC, count: 60), width: 48, height: 48, bitCount: 32),
+        ])
+        let ico = try #require(PEIcon.icoData(fromExecutable: exe))
+        #expect([UInt8](ico.suffix(60)) == [UInt8](repeating: 0xCC, count: 60))
     }
 }
 
