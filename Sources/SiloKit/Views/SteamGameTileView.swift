@@ -90,9 +90,30 @@ struct SteamGameTileView: View {
         Button("Create Desktop Shortcut") {
             Task {
                 guard let app = await env.gameLibrary.makeShortcut(for: game) else { return }
-                // Best-effort: stamp the game's Steam header art on the shortcut (offline → generic icon).
-                let icon = await ShortcutFinalize.remoteIcon(game.headerArtURL)
-                ShortcutFinalize.apply(icon: icon, to: app)
+                // The game's own icon first — square, and sharp. The header art is the last resort because
+                // it's 460×215 and a square icon has to squash it. Each step is best-effort; falling all the
+                // way through just leaves the generic app icon, as before.
+                let exeIcon: NSImage?
+                if let logged = ShortcutFinalize.loggedExecutable(
+                    logFile: env.paths.log(forAppID: game.appID)) {
+                    exeIcon = await ShortcutFinalize.executableIcon(at: logged)
+                } else {
+                    exeIcon = await ShortcutFinalize.firstIconBearingExecutable(in: game.installURL)
+                }
+                // An `if`, not `??`: the right-hand side of `??` is an autoclosure, and that can't be
+                // async. The header art is still only reached when the executable gave nothing.
+                var final = exeIcon
+                if final == nil {
+                    // The CACHED artwork before the network. `headerArtURL` is guessed from the app ID and
+                    // 404s for some titles — 3764200 among them, which is why the tile cache exists at all —
+                    // so asking the network first left that game's shortcut with no icon whatsoever, even
+                    // though the right image was already sitting in Artwork/.
+                    if let cached = SteamArtworkStore(dir: env.paths.artworkDir).cached(appID: game.appID) {
+                        final = NSImage(contentsOf: cached)
+                    }
+                }
+                if final == nil { final = await ShortcutFinalize.remoteIcon(game.headerArtURL) }
+                ShortcutFinalize.apply(icon: final, to: app)
             }
         }
         Button("View in Finder") {
