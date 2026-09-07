@@ -42,8 +42,14 @@ Wine, imports Apple's Game Porting Toolkit from your `.dmg`, and self-updates fr
   **own isolated Wine prefix** with the same **Automatic** graphics backend as Steam games (or an
   explicit override), plus per-game env flags and launch options.
 - **Desktop shortcuts.** Right-click any game (Steam or non-Steam) → *Create Desktop Shortcut* for a
-  double-clickable launcher that plays it through Silo — same backend, same bottle, Steam client and all —
-  straight from the Desktop, Spotlight, or Launchpad.
+  double-clickable launcher that plays it through Silo — same backend, same bottle, Steam client and all.
+  The shortcut carries the game's own icon, read out of its executable and given macOS's rounded-square
+  shape; where an executable has no icon at all (copy protection sometimes strips the resource section),
+  a Steam title falls back to its store artwork. To use one of your own instead, drop a PNG in Silo's
+  `Covers/` folder named after the Steam app ID with `_icon.png` appended — `3764200_icon.png` — or, for a
+  non-Steam game, after that game's cover file with `_icon.png` appended: `538C9332-…_icon.png`. It's used
+  exactly as given, ahead of everything else, so leave the margin yourself: the artwork covers about 82% of
+  the canvas — 422×422 centred on 512×512, or 844×844 on 1024×1024 if you want the extra detail.
 - **Self-contained.** No Homebrew, no external dependencies: Wine comes from Silo's Releases
   (SHA-256 verified, fail-closed), GPTK from your Apple-downloaded `.dmg`, updates in-app.
 - **Native and event-driven.** SwiftUI + Swift 6 strict concurrency; zero polling — game exits,

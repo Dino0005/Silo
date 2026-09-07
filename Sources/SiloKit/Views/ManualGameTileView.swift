@@ -63,7 +63,14 @@ struct ManualGameTileView: View {
         Button("Create Desktop Shortcut") {
             Task {
                 guard let app = await env.gameLibrary.makeShortcut(for: game) else { return }
-                // Best-effort: stamp the game's own icon (parsed from its .exe) on the shortcut, then reveal it.
+                // A hand-supplied icon wins outright and keeps its own shape — the same escape hatch Steam
+                // titles have, and reached for more often here: there's no store artwork to fall back on.
+                if let mine = ShortcutFinalize.userIcon(id: game.id.uuidString,
+                                                        coversDir: env.paths.coversDir) {
+                    ShortcutFinalize.apply(icon: mine, to: app, shaped: false)
+                    return
+                }
+                // Otherwise the game's own icon, parsed from its .exe, in macOS's rounded-square shape.
                 let icon = await ManualIconCache.shared.icon(for: game.executablePath)
                 ShortcutFinalize.apply(icon: icon, to: app)
             }

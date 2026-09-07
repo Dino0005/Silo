@@ -24,8 +24,11 @@ enum ShortcutFinalize {
     /// In `Covers/`, not `Artwork/`: the latter is a cache Silo writes and may empty, so a hand-made file
     /// would eventually vanish from it. This one is used verbatim and ahead of everything else — including
     /// the executable's own icon — because someone who puts a file there has already made the choice.
-    static func userIcon(appID: Int, coversDir: URL) -> NSImage? {
-        let url = coversDir.appendingPathComponent("\(appID)_icon.png", isDirectory: false)
+    /// - Parameter id: the app ID for a Steam title, the game's UUID for a non-Steam one — whatever names
+    ///   its cover in `Covers/`, so the icon's name is the cover's with `_icon.png` in place of the
+    ///   extension. Nothing to look up anywhere else.
+    static func userIcon(id: String, coversDir: URL) -> NSImage? {
+        let url = coversDir.appendingPathComponent("\(id)_icon.png", isDirectory: false)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         return NSImage(contentsOf: url)
     }

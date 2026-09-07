@@ -47,14 +47,27 @@ struct ShortcutIconMaskTests {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let covers = tmp.url.appendingPathComponent("Covers", isDirectory: true)
         try FileManager.default.createDirectory(at: covers, withIntermediateDirectories: true)
-        #expect(ShortcutFinalize.userIcon(appID: 3764200, coversDir: covers) == nil)
+        #expect(ShortcutFinalize.userIcon(id: "3764200", coversDir: covers) == nil)
 
         let png = try #require(solid(64, 64, .systemGreen).tiffRepresentation
             .flatMap { NSBitmapImageRep(data: $0) }?.representation(using: .png, properties: [:]))
         try png.write(to: covers.appendingPathComponent("3764200_icon.png"))
-        #expect(ShortcutFinalize.userIcon(appID: 3764200, coversDir: covers) != nil)
-        // Per app ID: another game's shortcut must not pick up this one.
-        #expect(ShortcutFinalize.userIcon(appID: 1778820, coversDir: covers) == nil)
+        #expect(ShortcutFinalize.userIcon(id: "3764200", coversDir: covers) != nil)
+        // Per identifier: another game's shortcut must not pick up this one.
+        #expect(ShortcutFinalize.userIcon(id: "1778820", coversDir: covers) == nil)
+    }
+
+    @Test("a non-Steam game's icon is named by its UUID, the same one its cover carries")
+    func findsUserIconForManualGame() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let covers = tmp.url.appendingPathComponent("Covers", isDirectory: true)
+        try FileManager.default.createDirectory(at: covers, withIntermediateDirectories: true)
+        let uuid = "538C9332-8799-4259-8C93-7F8E43B4CBA7"
+
+        let png = try #require(solid(64, 64, .systemTeal).tiffRepresentation
+            .flatMap { NSBitmapImageRep(data: $0) }?.representation(using: .png, properties: [:]))
+        try png.write(to: covers.appendingPathComponent("\(uuid)_icon.png"))
+        #expect(ShortcutFinalize.userIcon(id: uuid, coversDir: covers) != nil)
     }
 
     @Test("a zero-sized image is returned untouched rather than crashing the draw")

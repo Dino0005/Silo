@@ -94,7 +94,8 @@ struct SteamGameTileView: View {
                 // it's 460×215 and a square icon has to squash it. Each step is best-effort; falling all the
                 // way through just leaves the generic app icon, as before.
                 // A hand-supplied icon wins outright, and keeps its own shape — see `userIcon`.
-                if let mine = ShortcutFinalize.userIcon(appID: game.appID, coversDir: env.paths.coversDir) {
+                if let mine = ShortcutFinalize.userIcon(id: String(game.appID),
+                                                        coversDir: env.paths.coversDir) {
                     ShortcutFinalize.apply(icon: mine, to: app, shaped: false)
                     return
                 }
