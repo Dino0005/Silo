@@ -1,52 +1,33 @@
-# Silo 0.5.9
+# Silo 0.6.0
 
-Games look like themselves now.
+Shortcuts that look like they belong.
 
-## The icon reader never read an icon
+## The macOS shape
 
-A non-Steam game's tile is supposed to show the icon out of its `.exe`. It never did — every game got the
-generic controller — and the reason turned out to be one line: a PE's resource tree is three directories
-deep (type → name → language) and the parser walked four, asking for a sub-directory of entries that point
-at data. That returns nothing, for every executable ever passed in.
+0.5.9 got the game's own icon onto its shortcut. It arrived as a full-bleed square, which is not what a
+macOS icon is: the system's own are rounded squares covering about 82% of their tile, and anything filling
+the whole thing reads as foreign in the Dock.
 
-It went unnoticed because a manual game usually gets cover art soon after being added, and the cover wins
-over the icon. The missing icon is, in fact, why associating a Steam app ID was worth adding at all.
+Every icon Silo derives now goes through that shape — from the executable, from the artwork cache, from
+the store. A rectangular source is **cropped to its centre** rather than squashed: header art is 460×215,
+and stretching it into a square distorted the artwork for no gain. The sides are usually background.
 
-**The tests didn't catch it because they shared the mistake.** The synthetic executable they build had the
-same extra level — written alongside the parser, from the same misunderstanding — so the two agreed with
-each other while no real file worked. There's now a test that runs against a real game executable, named
-by `SILO_TEST_EXE` and skipped when it isn't set. That's what made the bug visible: a file neither side
-had built.
+The proportions were checked against real images with a throwaway preview before being written down,
+rather than guessed at in the code.
 
-## And then, the things that had been hiding behind it
+## Bring your own
 
-**The placeholder was drawing a controller of its own,** so a tile showed the game's icon and a controller
-at once. Invisible until icons started appearing.
+Some executables carry no icon at all — copy protection strips the resource section — and the store
+artwork that stands in for them isn't always what you'd choose.
 
-**The largest icon was picked by weight, not by size.** A 256×256 stored as PNG is lighter than an
-uncompressed 128×128 — measured at 25,714 bytes against 67,646 — so the heaviest entry was the smaller
-picture, and the Dock got half the resolution on offer.
+Drop a PNG in Silo's `Covers/` folder and it wins outright, ahead of the executable's icon and everything
+else. Name it after the Steam app ID with `_icon.png` appended (`3764200_icon.png`), or after a non-Steam
+game's cover file the same way (`538C9332-…_icon.png`). It's used **exactly as given** — no crop, no mask,
+your transparency intact — so the margin is yours to leave: the artwork should cover about 82% of the
+canvas, 422×422 centred on 512×512, or 844×844 on 1024×1024.
 
-## Steam shortcuts too
-
-A Steam game's desktop shortcut used the header art: 460×215 squashed into a square, and it looked it. It
-now carries the game's own icon.
-
-Which executable that is can't be guessed — Resident Evil ships three, of which two are a crash reporter
-and an installer message; Tekken 8 ships one, a 196 KB launcher — but the launch log names the one that
-actually ran, and nobody makes a shortcut before playing. Failing that, the `.exe` files in the game's
-folder are tried in turn.
-
-And when none of them has an icon at all — `re9.exe` has no resource section whatsoever, its sections
-rewritten by copy protection — the cover art steps in, taken from the on-disk cache first. That last
-detail matters: the cover URL is guessed from the app ID and 404s for some titles, so going to the network
-first left exactly that game's shortcut blank while the right image sat in `Artwork/`.
-
-## Also
-
-The test suite created its Wine scratch directory in the machine's real `TMPDIR` with default permissions.
-Wine requires 0700 there, and CrossOver — which shares that directory — refused to take its lock and
-aborted on launch. One `swift test` run was enough to break it until the directory was deleted by hand.
+`Covers/` and not `Artwork/` on purpose: the latter is a cache Silo writes and may empty, where a
+hand-made file would eventually vanish.
 
 ---
 

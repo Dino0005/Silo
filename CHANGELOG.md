@@ -7,6 +7,20 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.6.0
+
+### Added
+- **A shortcut icon of your own.** A PNG at `Covers/<Steam app ID>_icon.png` — or, for a non-Steam game,
+  named after its cover file the same way — is used ahead of everything else, verbatim: no crop, no mask,
+  transparency intact. Leave the margin yourself (artwork over ~82% of the canvas). In `Covers/` rather
+  than `Artwork/`, which is a cache Silo may empty.
+
+### Changed
+- **Shortcut icons take macOS's rounded-square shape** instead of filling their tile, which read as
+  foreign next to the system's own. Rectangular sources are cropped to their centre rather than squashed —
+  header art is 460×215, and stretching it distorted the artwork. Applied in the one place every icon
+  passes through, so none escapes it.
+
 ## 0.5.9
 
 ### Fixed
