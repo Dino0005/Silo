@@ -10,9 +10,55 @@ enum ShortcutFinalize {
     /// in Finder. `setIcon` writes the custom-icon resource directly on the file, so it needs no prior
     /// LaunchServices registration.
     @MainActor
-    static func apply(icon: NSImage?, to app: URL) {
-        if let icon { NSWorkspace.shared.setIcon(icon, forFile: app.path, options: []) }
+    static func apply(icon: NSImage?, to app: URL, shaped: Bool = true) {
+        // Every icon we derive ourselves goes through the mask — this is the one place they all reach.
+        // A hand-supplied one doesn't: whoever made it already decided its shape and its transparency.
+        if let icon {
+            NSWorkspace.shared.setIcon(shaped ? macOSShaped(icon) : icon, forFile: app.path, options: [])
+        }
         NSWorkspace.shared.activateFileViewerSelecting([app])
+    }
+
+    /// An icon the user dropped in themselves, as `Covers/<appID>_icon.png`.
+    ///
+    /// In `Covers/`, not `Artwork/`: the latter is a cache Silo writes and may empty, so a hand-made file
+    /// would eventually vanish from it. This one is used verbatim and ahead of everything else — including
+    /// the executable's own icon — because someone who puts a file there has already made the choice.
+    static func userIcon(appID: Int, coversDir: URL) -> NSImage? {
+        let url = coversDir.appendingPathComponent("\(appID)_icon.png", isDirectory: false)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
+    /// Redraw an image as a macOS app icon: a rounded square that doesn't fill its own tile.
+    ///
+    /// The proportions are the system's — the body covers about 82% of the side, corners rounded at 22.5%
+    /// of the body — and they're what makes an icon sit right next to the others in the Dock rather than
+    /// looking oversized. A full-bleed square reads as foreign there.
+    ///
+    /// A rectangular source is CROPPED to its centre, not squashed: header art is 460×215, and stretching
+    /// it into a square distorted the game's own artwork. The sides usually carry background, so the crop
+    /// costs little.
+    static func macOSShaped(_ image: NSImage) -> NSImage {
+        let side: CGFloat = 512, bodyFraction: CGFloat = 0.824, radiusFraction: CGFloat = 0.225
+        let body = side * bodyFraction
+        let inset = (side - body) / 2
+        let frame = NSRect(x: inset, y: inset, width: body, height: body)
+
+        // The centre square of the source, in the source's own coordinates.
+        let s = image.size
+        guard s.width > 0, s.height > 0 else { return image }
+        let edge = min(s.width, s.height)
+        let from = NSRect(x: (s.width - edge) / 2, y: (s.height - edge) / 2, width: edge, height: edge)
+
+        let out = NSImage(size: NSSize(width: side, height: side))
+        out.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        NSBezierPath(roundedRect: frame, xRadius: body * radiusFraction,
+                     yRadius: body * radiusFraction).addClip()
+        image.draw(in: frame, from: from, operation: .sourceOver, fraction: 1)
+        out.unlockFocus()
+        return out
     }
 
     /// Best-effort fetch of a remote image (a Steam title's header art) as an icon. Returns nil offline or on

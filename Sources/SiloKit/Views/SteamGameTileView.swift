@@ -93,6 +93,11 @@ struct SteamGameTileView: View {
                 // The game's own icon first — square, and sharp. The header art is the last resort because
                 // it's 460×215 and a square icon has to squash it. Each step is best-effort; falling all the
                 // way through just leaves the generic app icon, as before.
+                // A hand-supplied icon wins outright, and keeps its own shape — see `userIcon`.
+                if let mine = ShortcutFinalize.userIcon(appID: game.appID, coversDir: env.paths.coversDir) {
+                    ShortcutFinalize.apply(icon: mine, to: app, shaped: false)
+                    return
+                }
                 let exeIcon: NSImage?
                 if let logged = ShortcutFinalize.loggedExecutable(
                     logFile: env.paths.log(forAppID: game.appID)) {
