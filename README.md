@@ -41,8 +41,10 @@ Wine, imports Apple's Game Porting Toolkit from your `.dmg`, and self-updates fr
 - **Non-Steam games too.** Add any `.exe` (or run its installer); each manual game lives in its
   **own isolated Wine prefix** with the same **Automatic** graphics backend as Steam games (or an
   explicit override), plus per-game env flags and launch options.
-- **Desktop shortcuts.** Right-click any game (Steam or non-Steam) → *Create Desktop Shortcut* for a
-  double-clickable launcher that plays it through Silo — same backend, same bottle, Steam client and all.
+- **Shortcuts.** Right-click any game (Steam or non-Steam) → *Create Shortcut* for a double-clickable
+  launcher that plays it through Silo — same backend, same bottle, Steam client and all. They land on the
+  Desktop by default; *Settings → General → Shortcuts* can send them to `~/Applications/Silo/` instead,
+  where macOS files them as games and lists them with your native ones.
   The shortcut carries the game's own icon, read out of its executable and given macOS's rounded-square
   shape; where an executable has no icon at all (copy protection sometimes strips the resource section),
   a Steam title falls back to its store artwork. To use one of your own instead, drop a PNG in Silo's

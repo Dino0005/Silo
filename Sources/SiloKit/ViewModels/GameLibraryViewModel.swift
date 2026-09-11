@@ -711,14 +711,32 @@ public final class GameLibraryViewModel {
     /// Shared writer: build the shortcut `.app` off the main actor (small FS I/O) and set a status. Creating a
     /// shortcut touches only the destination folder (never a bottle or Wine), so it's allowed anytime — even
     /// before setup; a click before setup just lands on onboarding, exactly as pressing Play would.
+    /// The folder *Create Shortcut* writes into, per the user's preference.
+    ///
+    /// `~/Applications/Silo/` is created on demand — it doesn't exist on a fresh account, and macOS won't
+    /// make it for us. If that fails we fall back to the Desktop rather than refusing: a shortcut somewhere
+    /// is better than no shortcut.
+    private func shortcutDestination() -> URL? {
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+        guard backend.shortcutsInApplications else { return desktop }
+        guard let apps = FileManager.default.urls(for: .applicationDirectory, in: .userDomainMask).first
+        else { return desktop }
+        let dir = apps.appendingPathComponent("Silo", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir
+        } catch {
+            return desktop
+        }
+    }
+
     private func writeShortcut(name: String, link: SiloDeepLink, into directory: URL?) async -> URL? {
-        guard let dir = directory
-            ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first else {
-            setStatus("Couldn't find your Desktop folder."); return nil
+        guard let dir = directory ?? shortcutDestination() else {
+            setStatus("Couldn't find a folder to put the shortcut in."); return nil
         }
         do {
             let app = try await Task.detached { try GameShortcut(name: name, link: link).write(into: dir) }.value
-            setStatus(String(localized: "Created a Desktop shortcut for \(name)."))
+            setStatus(String(localized: "Created a shortcut for \(name)."))
             return app
         } catch GameShortcut.ShortcutError.destinationOccupied(let filename) {
             // Something the user owns already has that name — never silently delete it.

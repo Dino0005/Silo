@@ -21,6 +21,12 @@ public struct BackendConfig: Codable, Sendable, Hashable {
     /// `HKCU\Software\Wine\Mac Driver\RetinaMode` (crisp native rendering) plus its DPI companion
     /// `HKCU\Control Panel\Desktop\LogPixels` (192 so the UI isn't tiny) — see `WineTools.setRetinaMode`.
     public var retinaMode: Bool
+    /// Where *Create Shortcut* writes: `~/Applications/Silo/` when true, the Desktop when false.
+    ///
+    /// In `~/Applications` macOS files a shortcut as a game and lists it alongside native ones, which is
+    /// why the option exists. The Desktop stays the default — that's where they landed until now, and
+    /// moving them under an existing user would be unwelcome.
+    public var shortcutsInApplications: Bool
 
     public init(
         wineBinaryPath: URL? = nil,
@@ -29,7 +35,8 @@ public struct BackendConfig: Codable, Sendable, Hashable {
         gptkRuntimeName: String? = nil,
         dxmtLibDirPath: URL? = nil,
         dxmtRuntimeName: String? = nil,
-        retinaMode: Bool = false
+        retinaMode: Bool = false,
+        shortcutsInApplications: Bool = false
     ) {
         self.wineBinaryPath = wineBinaryPath
         self.wineRuntimeName = wineRuntimeName
@@ -38,11 +45,12 @@ public struct BackendConfig: Codable, Sendable, Hashable {
         self.dxmtLibDirPath = dxmtLibDirPath
         self.dxmtRuntimeName = dxmtRuntimeName
         self.retinaMode = retinaMode
+        self.shortcutsInApplications = shortcutsInApplications
     }
 
     private enum CodingKeys: String, CodingKey {
         case wineBinaryPath, wineRuntimeName, gptkLibDirPath, gptkRuntimeName
-        case dxmtLibDirPath, dxmtRuntimeName, retinaMode
+        case dxmtLibDirPath, dxmtRuntimeName, retinaMode, shortcutsInApplications
     }
 
     /// Tolerant decode (mirrors `AppState`): every field defaults if absent, so adding one never makes an
@@ -56,6 +64,9 @@ public struct BackendConfig: Codable, Sendable, Hashable {
         dxmtLibDirPath = try c.decodeIfPresent(URL.self, forKey: .dxmtLibDirPath)
         dxmtRuntimeName = try c.decodeIfPresent(String.self, forKey: .dxmtRuntimeName)
         retinaMode = try c.decodeIfPresent(Bool.self, forKey: .retinaMode) ?? false
+        // Absent in anything written before this option existed — default, don't fail the whole document.
+        shortcutsInApplications =
+            try c.decodeIfPresent(Bool.self, forKey: .shortcutsInApplications) ?? false
     }
 
     /// Whether games can be launched (a wine binary is set).

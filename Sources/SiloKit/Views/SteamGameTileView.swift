@@ -87,7 +87,7 @@ struct SteamGameTileView: View {
             Task { await env.gameLibrary.openGameControllers(appID: game.appID) }
         }
             .disabled(!env.gameLibrary.canLaunch)
-        Button("Create Desktop Shortcut") {
+        Button("Create Shortcut") {
             Task {
                 guard let app = await env.gameLibrary.makeShortcut(for: game) else { return }
                 // The game's own icon first — square, and sharp. The header art is the last resort because

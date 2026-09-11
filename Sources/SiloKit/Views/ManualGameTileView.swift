@@ -60,7 +60,7 @@ struct ManualGameTileView: View {
             Task { await env.gameLibrary.openManualGameControllers(game) }
         }
             .disabled(!env.gameLibrary.canLaunch)
-        Button("Create Desktop Shortcut") {
+        Button("Create Shortcut") {
             Task {
                 guard let app = await env.gameLibrary.makeShortcut(for: game) else { return }
                 // A hand-supplied icon wins outright and keeps its own shape — the same escape hatch Steam

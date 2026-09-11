@@ -14,6 +14,7 @@ struct GeneralSettingsView: View {
             steamBottleSection
             bottleToolsSection
             bottlesSection
+            shortcutsSection
             updatesSection
         }
         .formStyle(.grouped)
@@ -35,6 +36,25 @@ struct GeneralSettingsView: View {
             }
         } header: {
             Text("Preferences")
+        }
+    }
+
+    /// Where *Create Shortcut* writes. Its own section, and deliberately not among the bottle preferences:
+    /// those are disabled until Wine is configured, while writing a shortcut touches no bottle at all and
+    /// the choice is meaningful from the first launch.
+    @ViewBuilder private var shortcutsSection: some View {
+        Section {
+            Picker("Create shortcuts in", selection: Binding(
+                get: { env.backendSettings.config.shortcutsInApplications },
+                set: { inApps in
+                    env.backendSettings.config.shortcutsInApplications = inApps
+                    Task { await env.backendSettings.save() }
+                })) {
+                Text("Desktop").tag(false)
+                Text("Applications").tag(true)
+            }
+        } header: {
+            Text("Shortcuts")
         }
     }
 

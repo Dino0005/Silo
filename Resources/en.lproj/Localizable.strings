@@ -22,7 +22,11 @@
 "Check Again" = "Check Again";
 "Check Now" = "Check Now";
 "Control Panel" = "Control Panel";
-"Create Desktop Shortcut" = "Create Desktop Shortcut";
+"Create Shortcut" = "Create Shortcut";
+"Shortcuts" = "Shortcuts";
+"Create shortcuts in" = "Create shortcuts in";
+"Desktop" = "Desktop";
+"Applications" = "Applications";
 "DXMT" = "DXMT";
 "DXMT isn't installed — optional, but needed for 32-bit and some older titles. Add it anytime in Settings → DXMT." = "DXMT isn't installed — optional, but needed for 32-bit and some older titles. Add it anytime in Settings → DXMT.";
 "DXMT runtime" = "DXMT runtime";
@@ -159,7 +163,7 @@
 
 /* Update notice in the library's status line */
 "Version %@ is available — see Settings to update." = "Version %@ is available — see Settings to update.";
-"Couldn't find your Desktop folder." = "Couldn't find your Desktop folder.";
+"Couldn't find a folder to put the shortcut in." = "Couldn't find a folder to put the shortcut in.";
 "Check the DXMT runtime in Settings → DXMT." = "Check the DXMT runtime in Settings → DXMT.";
 "Switch this game's graphics to DXMT in its settings." = "Switch this game's graphics to DXMT in its settings.";
 "Set up DXMT in Settings → DXMT first." = "Set up DXMT in Settings → DXMT first.";
@@ -334,7 +338,7 @@
 "Couldn't run the installer: %@" = "Couldn't run the installer: %@";
 "Couldn't add game: %@" = "Couldn't add game: %@";
 "Couldn't save: %@" = "Couldn't save: %@";
-"Created a Desktop shortcut for %@." = "Created a Desktop shortcut for %@.";
+"Created a shortcut for %@." = "Created a shortcut for %@.";
 "Couldn't create the shortcut — “%@” already exists there. Rename or remove it first." = "Couldn't create the shortcut — “%@” already exists there. Rename or remove it first.";
 "Couldn't create the shortcut: %@" = "Couldn't create the shortcut: %@";
 "%@: GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch." = "%@: GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch.";

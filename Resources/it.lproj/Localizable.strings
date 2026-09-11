@@ -22,7 +22,11 @@
 "Check Again" = "Controlla di nuovo";
 "Check Now" = "Controlla ora";
 "Control Panel" = "Pannello di controllo";
-"Create Desktop Shortcut" = "Crea collegamento sul desktop";
+"Create Shortcut" = "Crea collegamento";
+"Shortcuts" = "Collegamenti";
+"Create shortcuts in" = "Crea i collegamenti in";
+"Desktop" = "Scrivania";
+"Applications" = "Applicazioni";
 "DXMT" = "DXMT";
 "DXMT isn't installed — optional, but needed for 32-bit and some older titles. Add it anytime in Settings → DXMT." = "DXMT non è installato — è opzionale, ma serve per i titoli a 32 bit e alcuni giochi più datati. Puoi aggiungerlo in qualsiasi momento in Impostazioni → DXMT.";
 "DXMT runtime" = "Runtime DXMT";
@@ -159,7 +163,7 @@
 
 /* Avviso di aggiornamento nella barra di stato della libreria */
 "Version %@ is available — see Settings to update." = "La versione %@ è disponibile — aggiorna da Impostazioni.";
-"Couldn't find your Desktop folder." = "Impossibile trovare la cartella Desktop.";
+"Couldn't find a folder to put the shortcut in." = "Impossibile trovare una cartella in cui creare il collegamento.";
 "Check the DXMT runtime in Settings → DXMT." = "Controlla il runtime DXMT in Impostazioni → DXMT.";
 "Switch this game's graphics to DXMT in its settings." = "Cambia la grafica di questo gioco su DXMT nelle sue impostazioni.";
 "Set up DXMT in Settings → DXMT first." = "Configura prima DXMT in Impostazioni → DXMT.";
@@ -336,7 +340,7 @@
 "Couldn't run the installer: %@" = "Impossibile eseguire l'installer: %@";
 "Couldn't add game: %@" = "Impossibile aggiungere il gioco: %@";
 "Couldn't save: %@" = "Impossibile salvare: %@";
-"Created a Desktop shortcut for %@." = "Creato un collegamento sulla Scrivania per %@.";
+"Created a shortcut for %@." = "Collegamento creato per %@.";
 "Couldn't create the shortcut — “%@” already exists there. Rename or remove it first." = "Impossibile creare il collegamento — «%@» esiste già. Rinominalo o rimuovilo prima.";
 "Couldn't create the shortcut: %@" = "Impossibile creare il collegamento: %@";
 "%@: GPTK / D3DMetal couldn't run this game — Silo will use DXMT next launch." = "%@: GPTK / D3DMetal non è riuscito a eseguire questo gioco — Silo userà DXMT al prossimo avvio.";
