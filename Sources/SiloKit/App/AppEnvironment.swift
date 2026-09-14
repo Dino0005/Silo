@@ -215,6 +215,11 @@ public final class AppEnvironment {
         // filesystem work — and best-effort, so a failure here never delays startup.
         let ourBottles = allBottlePrefixes()   // computed here: the sweep only touches these
         Task.detached { WineServerProbe.sweepLeftovers(prefixes: ourBottles) }
+        // Said at startup, not at the first Play: without translation nothing can launch, and the failure
+        // surfaces as an error about Steam that names a CPU type and helps nobody.
+        if await !RosettaCheck.isAvailable(runner: runner) {
+            gameLibrary.setStatus(String(localized: "Rosetta isn't installed, and Silo's Wine is Intel software: no game can start until macOS can translate it. Install it from Terminal with `softwareupdate --install-rosetta`."), actionable: true)
+        }
         let state = await configStore.load()
         backendSettings.config = state.backend
         applyBackend(state.backend)

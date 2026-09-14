@@ -24,6 +24,9 @@
 "Control Panel" = "Control Panel";
 "Create Shortcut" = "Create Shortcut";
 "Shortcuts" = "Shortcuts";
+
+/* Startup notice when Rosetta is missing */
+"Rosetta isn't installed, and Silo's Wine is Intel software: no game can start until macOS can translate it. Install it from Terminal with `softwareupdate --install-rosetta`." = "Rosetta isn't installed, and Silo's Wine is Intel software: no game can start until macOS can translate it. Install it from Terminal with `softwareupdate --install-rosetta`.";
 "Create shortcuts in" = "Create shortcuts in";
 "Desktop" = "Desktop";
 "Applications" = "Applications";
