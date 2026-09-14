@@ -7,6 +7,20 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.6.1
+
+### Added
+- **A choice of where shortcuts are created** — Desktop as before, or `~/Applications/Silo/`, where macOS
+  files them as games and lists them with native ones. *Settings → General → Shortcuts*; the folder is
+  created on demand, and the menu item drops "Desktop" from its name since it no longer names the only
+  destination.
+- **A missing Rosetta is reported at startup.** Silo's Wine is Intel software, so without translation
+  nothing launches — and the failure surfaced as "requires Steam… Bad CPU type in executable", which
+  blames the wrong thing and suggests no remedy. The check is Rosetta's `oahd` daemon running; the files
+  under `/usr/libexec/rosetta/` are all present even when Rosetta isn't, so they prove nothing. Skipped on
+  Intel Macs. macOS's own install prompt can't be raised from an app — Apple's developer support says
+  there's no API — because it fires on a LaunchServices open, not on spawning a process.
+
 ## 0.6.0
 
 ### Added
