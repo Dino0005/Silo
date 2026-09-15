@@ -96,9 +96,13 @@ final class GraphicsFallbackMonitor {
         // If the fallback signature is already in the log, `check` fired + tore down — don't then arm a
         // watch we don't need (it would sit holding a live kqueue fd until the monitor is dropped).
         guard !fired else { return }
-        watch = FileWatch(url: url) {
+        // `[weak self]` belongs on THIS closure: without it the monitor is captured strongly and outlives
+        // the launch it was watching, which is exactly what the fd bound below tries to avoid. The inner
+        // `[weak self]` looked like it covered that and didn't — it only re-captured an already-strong
+        // reference.
+        watch = FileWatch(url: url) { [weak self] in
             let tail = url.tailString()                                  // read off the main actor
-            Task { @MainActor [weak self] in self?.check(tail) }
+            Task { @MainActor in self?.check(tail) }
         }
         // Bound the watch's lifetime: a healthy launch never fires, so without this the fd leaks until the
         // owning VM drops the monitor (i.e. never, within a session). Self-cancels on fire/stop.
