@@ -7,6 +7,30 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.6.2
+
+### Fixed
+- **The window was drawn as an old app.** Silo's toolbar came up as loose icons with no shared glass
+  background, next to a bordered search field — the appearance macOS gives an app built before Liquid
+  Glass. Nothing in the toolbar code was wrong: it was never consulted. The binary's `LC_BUILD_VERSION`
+  read `sdk 15.0`, because SwiftPM writes the deployment target into *both* of its fields, and that `sdk`
+  field is what AppKit reads to decide between the current design and the compatibility appearance. So an
+  app compiled against the macOS 27 SDK declared itself built against the 15. macOS 26 restyled old-SDK
+  apps regardless; 27 doesn't, which is why the look changed with no code change behind it. The link step
+  now records the real SDK, and the build **fails** if that field ever comes out wrong again — the symptom
+  is invisible in a diff.
+- **A shortcut could take the wrong game's icon.** The executable that actually ran is read from the launch
+  log's header, but the whole file was read as strict UTF-8 — and a game writes its own messages in a
+  Windows codepage, so a byte that isn't valid UTF-8 turns up in the output sooner or later. One of them
+  made the entire read return nothing, header included, and the icon fell back to guessing: the first
+  executable in the game's folder carrying one, which for Resident Evil is `CrashReport.exe`. Only the
+  header is read now, and a byte that isn't UTF-8 costs that byte.
+- **A game's cover was re-read from disk on every redraw.** It was loaded inside the view body, so the
+  grid re-read and re-decoded every visible cover on the main thread for anything the library published —
+  a keystroke in the search field included. The `.exe` icon had been cached for exactly this reason; the
+  cover, the larger file of the two, hadn't. Both are now loaded off the main thread and cached, keyed so
+  that replacing a cover still reloads it.
+
 ## 0.6.1
 
 ### Added
