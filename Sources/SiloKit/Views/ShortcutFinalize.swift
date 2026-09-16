@@ -95,9 +95,15 @@ enum ShortcutFinalize {
     /// `CrashReport.exe` and `InstallerMessage.exe` — while TEKKEN 8 ships one, a 196 KB launcher; "the
     /// biggest" would pick right in the first case and wrong in the second. A shortcut is never made before
     /// the first launch, so the log is there.
+    ///
+    /// Read from the HEAD of the file, and leniently. The header is the first three lines — Silo truncates
+    /// the log and writes it there before the process output — so everything the game itself printed
+    /// afterwards is beside the point, and it's the part that can be megabytes and hold bytes that aren't
+    /// UTF-8. A strict whole-file read gave up over one of those and left the fallback below to guess, which
+    /// for Resident Evil means `CrashReport.exe`: first in the alphabet, wrong game.
     static func loggedExecutable(logFile: URL) -> URL? {
-        guard let text = try? String(contentsOf: logFile, encoding: .utf8) else { return nil }
-        for line in text.split(separator: "\n", maxSplits: 8, omittingEmptySubsequences: false)
+        for line in logFile.headString().split(separator: "\n", maxSplits: 8,
+                                               omittingEmptySubsequences: false)
         where line.hasPrefix("args  : ") {
             let path = String(line.dropFirst("args  : ".count))
             // Just the executable: anything after it is the game's own arguments.
