@@ -20,8 +20,10 @@
   - Not a macOS 27 regression in SwiftUI: macOS 26 restyled old-SDK apps anyway, 27 doesn't. The
     `ToolbarItem` + `ToolbarSpacer` shape from commit `49cc23f` is the documented one and is now confirmed
     correct on screen; only its causal note was wrong and has been corrected.
-  - **Still open:** the hairline under the toolbar. It's absent in the new design (which uses the scroll
-    edge effect instead) — needs a decision on whether that's wanted back, not a fix.
+  - **The hairline under the toolbar is NOT coming back (user, 2026-09-16).** The new design replaces it
+    with the scroll edge effect — the toolbar's glass floats over the content that scrolls under it —
+    and that's the accepted look. So no `toolbarBackgroundVisibility(.visible, for: .windowToolbar)`:
+    forcing a permanent bar background would fight the system for a line nobody's missing.
 
 - **🎮 Game-controller support: re-enable SDL in the Wine build (integrated from upstream `mikaelhug/Silo`
   commit `888c16e`; also picked up upstream's fresh `wine-cx-26.3.0` / `dxmt-v0.72-cx26.3.0` CI releases).**
