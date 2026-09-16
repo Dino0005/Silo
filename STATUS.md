@@ -3,6 +3,26 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🪟 The app declared the wrong SDK, so macOS drew it in the compatibility appearance (2026-09-16,
+  `main`; 589 tests green).** Silo's window came up in the pre-Liquid-Glass style on macOS 26/27 — toolbar
+  buttons as loose icons with no shared glass capsule, a bordered search field — and the toolbar code was
+  blameless: `LC_BUILD_VERSION` read `minos 15.0 / sdk 15.0`, because **SwiftPM writes the deployment target
+  into BOTH fields**, and that `sdk` field is what AppKit reads to decide whether an app gets the current
+  design. Confirmed on device: `vtool -set-build-version macos 15.0 27.0` on the built binary + a re-sign
+  brought the capsule back immediately, with no code change.
+  - Fix: new `Scripts/platform-version.sh` (sourced by `build-app.sh` **and** `dev.sh`) passes
+    `-Xlinker -platform_version macos <deployment> <SDK>`, with the deployment target read out of
+    `Package.swift` so it can't drift and the SDK from `xcrun --show-sdk-version`. `build-app.sh` then
+    **verifies** the recorded `sdk` matches, and fails the build otherwise — the symptom is invisible in a
+    diff, so a toolchain that stopped honouring the flags would otherwise ship it again.
+  - `dev.sh` gets the same flags: it exists for looking at the UI, so the compatibility appearance there is
+    worse than useless.
+  - Not a macOS 27 regression in SwiftUI: macOS 26 restyled old-SDK apps anyway, 27 doesn't. The
+    `ToolbarItem` + `ToolbarSpacer` shape from commit `49cc23f` is the documented one and is now confirmed
+    correct on screen; only its causal note was wrong and has been corrected.
+  - **Still open:** the hairline under the toolbar. It's absent in the new design (which uses the scroll
+    edge effect instead) — needs a decision on whether that's wanted back, not a fix.
+
 - **🎮 Game-controller support: re-enable SDL in the Wine build (integrated from upstream `mikaelhug/Silo`
   commit `888c16e`; also picked up upstream's fresh `wine-cx-26.3.0` / `dxmt-v0.72-cx26.3.0` CI releases).**
   Controllers didn't work because Wine was built `--without-sdl` and `libSDL2` was stripped on install

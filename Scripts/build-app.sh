@@ -20,9 +20,22 @@ BUILD=$(date +%Y%m%d%H%M)
 # while developing. GitHub Actions sets $CI, so the shipped app is automatically silent.
 QUIET=""
 if [ -n "${CI:-}" ]; then QUIET="-Xswiftc -DSILO_QUIET_WINE"; echo "==> CI build: wine logging OFF"; fi
-echo "==> swift build -c $CONFIG $QUIET"
-swift build -c "$CONFIG" $QUIET
+
+# The app must declare the SDK it was built against, or macOS draws it in the compatibility appearance.
+. ./Scripts/platform-version.sh
+
+echo "==> swift build -c $CONFIG $QUIET (deployment $MIN_OS, SDK $SDK_VERSION)"
+swift build -c "$CONFIG" $QUIET "${PLATFORM_VERSION[@]}"
 BIN_PATH=".build/$CONFIG/$BIN_NAME"
+
+# Guard, because the flags above are the whole reason the window looks like a macOS app: a toolchain that
+# stopped honouring them would ship the compatibility appearance again, and nothing in a diff would say so.
+RECORDED_SDK=$(vtool -show-build-version "$BIN_PATH" | awk '/^ *sdk /{print $2; exit}')
+if [ "$RECORDED_SDK" != "$SDK_VERSION" ]; then
+    echo "!! the binary records SDK $RECORDED_SDK, not $SDK_VERSION — macOS would draw Silo in the" >&2
+    echo "   compatibility appearance (see Scripts/platform-version.sh)" >&2
+    exit 1
+fi
 
 echo "==> assembling $APP (v$VERSION build $BUILD)"
 rm -rf "$APP"

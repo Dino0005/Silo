@@ -34,9 +34,12 @@ struct LibraryGridView: View {
         }
         .navigationTitle("Library")
         // Each control is a ToolbarItem rather than a bare view. The shared glass background — the capsule
-        // these used to sit in — is given to ITEMS in the same logical grouping, and what separates one
-        // grouping from the next is a ToolbarSpacer. Handing `.toolbar` plain views instead got adopted
-        // anyway on macOS 26; rebuilt against the macOS 27 SDK the same code came out as loose icons.
+        // these sit in — is given to ITEMS in the same logical grouping, and what separates one grouping
+        // from the next is a ToolbarSpacer.
+        //
+        // The capsule going missing was NOT this code, though: the binary declared the wrong SDK, so
+        // macOS drew the whole window in the compatibility appearance and never consulted any of it. See
+        // `Scripts/platform-version.sh`. This form is the documented one and stays.
         .toolbar {
             if showLibrary {
                 ToolbarItem {
