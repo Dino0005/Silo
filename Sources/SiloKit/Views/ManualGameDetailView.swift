@@ -18,6 +18,7 @@ struct ManualGameDetailView: View {
     let game: ManualGame
     let onSettings: () -> Void
     @State private var details: SteamStoreDetails?
+    @State private var coverArt: NSImage?
     @State private var loading = true
     @State private var showRequirements = false
     @State private var confirmingRemove = false
@@ -65,6 +66,11 @@ struct ManualGameDetailView: View {
         }
         .frame(width: 560, height: 620)
         .task {
+            if let cover = CoverArtStore(coversDir: env.paths.coversDir)
+                .url(named: game.coverArtFileName) {
+                coverArt = await ManualIconCache.shared.cover(
+                    at: cover, stamp: ManualIconCache.coverStamp(cover))
+            }
             guard let appID = game.steamAppID else { loading = false; return }
             details = await env.steamStore.details(appID: appID)
             loading = false
@@ -73,9 +79,11 @@ struct ManualGameDetailView: View {
 
     /// The stored cover wins over the store's header: it's the image the user chose (or the one the
     /// association downloaded), it lives on disk, and it draws with no network.
+    ///
+    /// Read in the sheet's `.task`, not here: `body` runs again on every change the library publishes, and
+    /// a cover read inline was decoded from disk each time.
     @ViewBuilder private var hero: some View {
-        let cover = CoverArtStore(coversDir: env.paths.coversDir).url(named: game.coverArtFileName)
-        if let cover, let art = NSImage(contentsOf: cover) {
+        if let art = coverArt {
             Image(nsImage: art).resizable().aspectRatio(contentMode: .fit)
                 .frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: 12))
         } else {
