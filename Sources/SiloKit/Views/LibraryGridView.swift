@@ -33,36 +33,60 @@ struct LibraryGridView: View {
             }
         }
         .navigationTitle("Library")
+        // Each control is a ToolbarItem rather than a bare view. The shared glass background — the capsule
+        // these used to sit in — is given to ITEMS in the same logical grouping, and what separates one
+        // grouping from the next is a ToolbarSpacer. Handing `.toolbar` plain views instead got adopted
+        // anyway on macOS 26; rebuilt against the macOS 27 SDK the same code came out as loose icons.
         .toolbar {
             if showLibrary {
-                openSteamControl(lib) {
-                    Label {
-                        Text("Open Steam")
-                    } icon: {
-                        steamIcon
-                            .resizable()
-                            .interpolation(.high)
-                            .antialiased(true)
-                            .scaledToFit()
-                            .frame(width: 16, height: 16)
+                ToolbarItem {
+                    openSteamControl(lib) {
+                        Label {
+                            Text("Open Steam")
+                        } icon: {
+                            steamIcon
+                                .resizable()
+                                .interpolation(.high)
+                                .antialiased(true)
+                                .scaledToFit()
+                                .frame(width: 16, height: 16)
+                        }
+                    }
+                        .help("Open a Steam bottle to browse and install games")
+                }
+                ToolbarItem {
+                    Button { showAddGame = true } label: { Label("Add Game", systemImage: "plus") }
+                        .help("Add a non-Steam .exe game")
+                }
+                ToolbarItem {
+                    Button { Task { await lib.refresh() } } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
                     }
                 }
-                    .help("Open a Steam bottle to browse and install games")
-                Button { showAddGame = true } label: { Label("Add Game", systemImage: "plus") }
-                    .help("Add a non-Steam .exe game")
-                Button { Task { await lib.refresh() } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
             } else if env.setupComplete {
                 // Required steps done — let the user finish on their terms.
-                Button { onboardingDone = true } label: { Label("Done", systemImage: "checkmark.circle.fill") }
-                    .buttonStyle(.borderedProminent).tint(.green)
-                    .help("Finish setup and go to your library")
+                ToolbarItem {
+                    Button { onboardingDone = true } label: {
+                        Label("Done", systemImage: "checkmark.circle.fill")
+                    }
+                        .buttonStyle(.borderedProminent).tint(.green)
+                        .help("Finish setup and go to your library")
+                }
             }
-            Button { openSettings() } label: { Label("Settings", systemImage: "gearshape") }
-                // Quiet on its own, which is why it comes with the status line — but unlike that line it
-                // doesn't go away, so it's still there next time the app is opened.
-                // "!" rather than a count: there's one thing to do, not a number of items to tally, and a
-                // "1" makes you look for what it's counting.
-                .badge(env.updates.updateCheck?.isNewer == true ? Text("!") : nil)
+            ToolbarItem {
+                Button { openSettings() } label: { Label("Settings", systemImage: "gearshape") }
+                    // Quiet on its own, which is why it comes with the status line — but unlike that line
+                    // it doesn't go away, so it's still there next time the app is opened.
+                    // "!" rather than a count: there's one thing to do, not a number of items to tally,
+                    // and a "1" makes you look for what it's counting.
+                    .badge(env.updates.updateCheck?.isNewer == true ? Text("!") : nil)
+            }
+            // Ends the group here, so the search field sits in its own section instead of joining this one.
+            // Gated: the spacer arrived with macOS 26, and Silo still runs on 15, where there is no shared
+            // background for it to delimit anyway.
+            if #available(macOS 26, *) {
+                ToolbarSpacer(.fixed)
+            }
         }
         .sheet(isPresented: $showAddGame) { AddGameSheet() }
         .sheet(item: $settingsTarget) { GameSettingsSheet(game: $0) }
