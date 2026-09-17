@@ -3,6 +3,57 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🖼️ Wine windows show a generic icon in Mission Control / Stage Manager on macOS 27 — diagnosed on
+  device, and the `.app`-wrapper fix is CLOSED as structurally impossible (2026-09-17, `main`; investigation
+  only, no code changed).** User report: on macOS 26 a Silo-launched Steam/game window carried its icon in
+  the Dock *and* in Stage Manager/Mission Control; on 27 the Dock is still right but those two surfaces draw
+  a blank/generic icon. Measured, not inferred — throwaway probes under
+  `~/Library/Application Support/Silo/_IconTest`, since removed (real runtime, bottle and repo untouched).
+  - **Mechanism (confirmed).** The Dock tile icon is set at **runtime** by `winemac.drv`, which converts the
+    window's `HICON` and calls `-[NSApp setApplicationIconImage:]` (verified: `setApplicationIconImage:`,
+    `applicationIconImage`, `dockTile`, `_NSImageNameApplicationIcon` in `lib/wine/x86_64-unix/winemac.so`).
+    That icon lives only in the process — the runtime tree contains **no `Info.plist` at all**, so Wine
+    processes have no bundle and no LaunchServices identity. macOS 27 resolves the Mission Control /
+    Stage Manager badge from the **bundle** icon instead of that runtime image; macOS 26 still honoured the
+    runtime image. Silo's own launch measures exactly the bug: `bundleIdentifier = nil`, icon `==` the
+    generic "exec" icon.
+  - **Proof by paired control processes.** Two minimal AppKit binaries launched side by side: (A) no bundle +
+    `setApplicationIconImage` (red icon) → Dock tile **red**, Mission Control **generic**; (B) inside a
+    `.app` with an `.icns`, no runtime icon → correct icon in **both**. User confirmed both on screen.
+  - **Reusable oracle:** `NSRunningApplication(processIdentifier:).icon` tracks what Mission Control draws
+    (generic for A, real for B). Future checks of this need no human looking at the screen.
+  - **Why the wrapper cannot work (the real reason `DockAppBundle` failed; the 2026-07-13 note was
+    misattributed).** Silo spawns `bin/wine64` (symlink → `bin/wineloader`), but the process that owns the
+    window is a **third file wine chooses itself**: `<root>/lib/wine/x86_64-unix/wine`. `WINELOADER` — which
+    `ntdll.so` does read — is **ignored** there (measured: the process stays on the canonical path). Moving
+    that file or its directory into a bundle breaks wine in cascade, because the loader `realpath`s itself
+    and derives everything relative to the resolved path. Four failures, each measured in turn:
+    `dlopen(<loaderdir>/ntdll.so)` → "no such file"; the Windows module dir derived from its own dir's
+    **name** (`x86_64-unix` → `x86_64-windows`), so a dir renamed `MacOS` yields
+    `failed to load <MacOS>/ntdll.dll  c0000135`; three fatal `read_nls_file failed` for
+    `<loaderdir>/../../share/wine/nls`; and `could not exec wineserver`. `Contents/MacOS` can't be named
+    `x86_64-unix`, so symlinks can't paper over it. **Do not re-propose this.**
+  - **Not a Silo regression.** CrossOver has the same limitation on 27: its process-naming trick is a
+    directory of hardlinks (`<root>/CrossOver-Hosted Application/`, same inodes as `bin/*` — confirmed on
+    disk), not a bundle.
+  - **Side finding, NOT adopted (user decision, 2026-09-17: "non toccare `WINEDLLPATH` adesso").** Setting
+    `WINEDLLPATH=<root>/lib` makes wine hardlink its loader into
+    `$TMPDIR/winetemp-<inode>-<size>-<mtime>-0/<exe name>` and exec that, so the process is named
+    **`notepad.exe`** instead of `wine` — CrossOver's own mechanism (its leftover `winetemp-…` dir on this
+    box holds `explorer.exe`/`services.exe`/… as hardlinks to one inode). Being per-exec it would also cover
+    Steam's window-owning children (`explorer` + `steamwebhelper`) — the exact thing `DockAppBundle` couldn't
+    reach. **But it does NOT fix the icon** (measured on the real runtime: still the generic "exec" icon),
+    and it changes module search on the GPTK/DXMT-critical path, which `makePlan` deliberately keeps free of
+    `WINEDLLPATH`. Parked as a name-only lead needing its own validation. (`WINEPRELOADERAPPNAME` exists in
+    `ntdll.so` but had no measurable effect.)
+  - **Only remaining path for the icon:** patch the loader in our own from-source CrossOver-FOSS Wine build
+    (constraint #8 puts that build in our hands) so it honours an external `WINELOADER` for child execs —
+    then a per-game `.app` wrapper becomes viable. That is Wine-build work, not Silo work; not scheduled.
+  - Corrected along the way: `bin/wine` in this runtime is a **Perl** script (CrossOver's, with a
+    documented `[Wine] BinPath` knob and a per-bottle `$WINEPREFIX/cxbottle.conf`), but Silo bypasses it —
+    `backend.wineBinaryPath` is `bin/wine64`. Also: the dev box **has** had CrossOver installed (a leftover
+    `winetemp-` dir points into `/Applications/CrossOver.app`), so CLAUDE.md's "CrossOver absent" is stale.
+
 - **🪟 The app declared the wrong SDK, so macOS drew it in the compatibility appearance (2026-09-16,
   `main`; 589 tests green).** Silo's window came up in the pre-Liquid-Glass style on macOS 26/27 — toolbar
   buttons as loose icons with no shared glass capsule, a bordered search field — and the toolbar code was

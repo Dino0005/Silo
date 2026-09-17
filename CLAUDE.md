@@ -21,12 +21,19 @@ to DXMT when GPTK can't drive an `.auto` game) → **Graphics Linker** (overlay 
 runtime, wined3d fallback) → **Launch Orchestrator** (detached; `BottleResolver` is the one map from
 game → `{prefix, wineBinary, graphics}`).
 
-**Dock tiles:** Silo-launched Wine processes show a Dock tile named "wine" (macOS names it after the
-resolved loader binary). A `DockAppBundle` `.app`-wrapper attempt to rename it was **removed 2026-07-13** —
-it couldn't reach Steam's window-owning child processes (the `explorer` desktop + CEF `steamwebhelper`, which
-wine spawns via `WINELOADER`), and a co-located named-loader retry didn't work either (wine resolves the
-loader symlink back to "wine"). Deemed not worth the complexity for a cosmetic tile name. Launches now spawn
-the wine loader directly.
+**Dock tiles + window-manager icons:** Silo-launched Wine processes show a Dock tile named "wine" and, on
+macOS 27, a **generic icon in Mission Control / Stage Manager**. A `DockAppBundle` `.app`-wrapper attempt to
+fix the name was **removed 2026-07-13**; the on-device measurement of **2026-09-17** explains why it could
+never have worked and closes the whole approach — see STATUS. In short: Silo spawns `bin/wine64`, but the
+**window-owning process is a third file that wine picks itself**, `<root>/lib/wine/x86_64-unix/wine`.
+`WINELOADER` is *ignored* on that path (measured), and the loader `realpath`s itself and derives
+`ntdll.so`, the Windows module dir (from its own dir's **name**: `x86_64-unix` → `x86_64-windows`),
+`../../share/wine/nls` and `bin/wineserver` relative to the resolved path — so that file cannot be moved
+into a `Foo.app/Contents/MacOS/`. **Do NOT re-propose an `.app` wrapper, a named loader, or a loader
+symlink for the tile name or the Mission Control icon**: all four dependencies were measured failing. The
+tile *name* is separately fixable via `WINEDLLPATH` (see STATUS) but that is **deliberately not adopted** —
+it changes module search on the GPTK/DXMT-critical path, and `makePlan` documents "no `WINEDLLPATH`" for
+that reason. Launches spawn the wine loader directly.
 
 **Process lifecycle (Phase 4):** Silo launches games + the Steam client **detached** and never owns their
 lifecycle — quitting Silo leaves them running (like CrossOver); there is NO per-game Stop button, PID
@@ -223,5 +230,7 @@ Swift 6.3.2 (`arm64-apple-macosx26.0`); macOS 26.5.1, Apple Silicon; `xcodebuild
 `~/Library/Application Support/Silo` (`Runtimes/`: `GPTK-4.0_beta_1`, `dxmt-v0.72-cx26.2.0`, `wine-cx-26.2.0`;
 a set-up `SteamBottle`), so on-device launch/log capture is possible here. This does NOT relax constraint #4:
 the build **and** `swift test` must still pass on a machine with ZERO runtimes (everything runtime-dependent
-stays behind a resolver → `.notConfigured`). Whisky/CrossOver/DXVK absent; no game installed in the bottle yet
+stays behind a resolver → `.notConfigured`). Whisky/DXVK absent; **CrossOver has been installed here at some
+point** (a leftover `winetemp-` dir points into `/Applications/CrossOver.app` — found 2026-09-17), so an
+earlier "CrossOver absent" claim is stale; no game installed in the bottle yet
 (only `Logs/steam-bottle.log` exists — no per-game log until a game is launched through Silo).
