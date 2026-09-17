@@ -55,7 +55,10 @@ struct SteamClientSessionTests {
         let running = await session.ensureRunning()
 
         #expect(running)
-        #expect(clock.now - start < .seconds(1))    // resolved via the pre-check, not the 10s failsafe
+        // What's being asserted is the PATH, not the speed: the failsafe counts its timeout in ticks and
+        // cannot finish before 10 s, so anything comfortably under that says the pre-check resolved it.
+        // A tighter number measures the machine instead — and on a saturated CI runner the machine loses.
+        #expect(clock.now - start < .seconds(6))
     }
 
     @Test("resolves promptly when Steam writes its pid AFTER the wait begins (kqueue watch fires)")
@@ -73,7 +76,7 @@ struct SteamClientSessionTests {
         let running = await task.value
 
         #expect(running)
-        #expect(clock.now - start < .seconds(5))    // far under the 10s failsafe → the watch resolved it
+        #expect(clock.now - start < .seconds(6))    // under the 10 s failsafe ⇒ the watch resolved it
     }
 
     @Test("readiness is noticed even when the file watch misses it — Wine replaces user.reg, it doesn't rewrite it")
@@ -81,7 +84,10 @@ struct SteamClientSessionTests {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let (session, paths) = make(tmp)
         try setActivePid(paths, 0)
-        session.readinessTimeout = 5           // long: only noticing the pid can finish this quickly
+        // Long on purpose. The failsafe counts idle time in ticks of `min(1, timeout/5)`, so with 20 it
+        // cannot possibly end this wait before 20 s, while the poll notices the pid on its first tick —
+        // about a second. The assertion below only has to tell those two apart.
+        session.readinessTimeout = 20
 
         // Replace the file the way Wine does — write a sibling, then rename over the original. A watch
         // armed on the original vnode is left holding a file nothing points at any more.
@@ -103,7 +109,11 @@ struct SteamClientSessionTests {
         flip.cancel()
 
         #expect(running)
-        #expect(waited < .seconds(3))      // well under the 5 s failsafe ⇒ the pid itself ended the wait
+        // Not a performance claim — the only question is WHICH path ended the wait, and anything under
+        // the failsafe's own floor answers it. The ceiling is deliberately far above what the poll needs:
+        // CI runs the whole suite in parallel on a saturated machine, where this sleep-driven poll took
+        // 3.1 s against a 3 s ceiling and failed a release over 0.1 s (`v0.6.2`, macos-26 runner).
+        #expect(waited < .seconds(10))
     }
 
     @Test("the failsafe's countdown restarts while Steam is visibly working")
