@@ -4,11 +4,16 @@
 
 ## Now
 - **🖼️ Wine windows show a generic icon in Mission Control / Stage Manager on macOS 27 — diagnosed on
-  device, and the `.app`-wrapper fix is CLOSED as structurally impossible (2026-09-17, `main`; investigation
-  only, no code changed).** User report: on macOS 26 a Silo-launched Steam/game window carried its icon in
-  the Dock *and* in Stage Manager/Mission Control; on 27 the Dock is still right but those two surfaces draw
-  a blank/generic icon. Measured, not inferred — throwaway probes under
-  `~/Library/Application Support/Silo/_IconTest`, since removed (real runtime, bottle and repo untouched).
+  device, and the route CrossOver uses is now identified: an `--enable-alt-loader` bundled host app that
+  OWNS the macOS window (2026-09-17/18, `main`; investigation only, no code changed).** User report: on
+  macOS 26 a Silo-launched Steam/game window carried its icon in the Dock *and* in Stage Manager/Mission
+  Control; on 27 the Dock is still right but those two surfaces draw a blank/generic icon. Measured, not
+  inferred — throwaway probes under `~/Library/Application Support/Silo/_IconTest` and `/tmp/siloprobe`,
+  both since removed (real runtime, bottle and repo untouched).
+  - ⚠️ **This entry supersedes the first version of itself (commit `fb0e0b6`), which called the `.app`
+    wrapper "structurally impossible". That was too strong and is retracted** — see "How CrossOver does it"
+    below. What IS closed is putting the *wine loader* inside a bundle; the window-owning process never has
+    to be the loader at all.
   - **Mechanism (confirmed).** The Dock tile icon is set at **runtime** by `winemac.drv`, which converts the
     window's `HICON` and calls `-[NSApp setApplicationIconImage:]` (verified: `setApplicationIconImage:`,
     `applicationIconImage`, `dockTile`, `_NSImageNameApplicationIcon` in `lib/wine/x86_64-unix/winemac.so`).
@@ -22,8 +27,9 @@
     `.app` with an `.icns`, no runtime icon → correct icon in **both**. User confirmed both on screen.
   - **Reusable oracle:** `NSRunningApplication(processIdentifier:).icon` tracks what Mission Control draws
     (generic for A, real for B). Future checks of this need no human looking at the screen.
-  - **Why the wrapper cannot work (the real reason `DockAppBundle` failed; the 2026-07-13 note was
-    misattributed).** Silo spawns `bin/wine64` (symlink → `bin/wineloader`), but the process that owns the
+  - **Why putting the LOADER in a bundle cannot work (the real reason `DockAppBundle` failed; the
+    2026-07-13 note was misattributed).** Silo spawns `bin/wine64` (symlink → `bin/wineloader`), but the
+    process that owns the
     window is a **third file wine chooses itself**: `<root>/lib/wine/x86_64-unix/wine`. `WINELOADER` — which
     `ntdll.so` does read — is **ignored** there (measured: the process stays on the canonical path). Moving
     that file or its directory into a bundle breaks wine in cascade, because the loader `realpath`s itself
@@ -33,9 +39,45 @@
     `failed to load <MacOS>/ntdll.dll  c0000135`; three fatal `read_nls_file failed` for
     `<loaderdir>/../../share/wine/nls`; and `could not exec wineserver`. `Contents/MacOS` can't be named
     `x86_64-unix`, so symlinks can't paper over it. **Do not re-propose this.**
-  - **Not a Silo regression.** CrossOver has the same limitation on 27: its process-naming trick is a
-    directory of hardlinks (`<root>/CrossOver-Hosted Application/`, same inodes as `bin/*` — confirmed on
-    disk), not a bundle.
+  - **Two ways to give a bundle-less process a full bundle identity — both measured working, neither
+    reaches Wine.** (1) `exec` in-place from a LaunchServices-launched `.app`: the PID keeps
+    `bundleIdentifier` + icon even after its image is replaced by a bundle-less binary (works with a
+    shell-script stub too). (2) The **`CFProcessPath`** env var: a bundle-less binary spawned completely
+    normally reports the `bundleIdentifier`/`bundleURL`/icon of the `.app` it points at, with no
+    LaunchServices involvement. Against real Wine both fail, and the reason is the fork: Wine's
+    window-owning process is a fresh child (`PPID 1`, reparented), and LS identity does **not** cross
+    `fork+exec` (verified: a bundled host that spawns a child → child `bundleIdentifier = nil`). With
+    `CFProcessPath` (and `__CFBundleIdentifier`) in the launch env the notepad window process still reports
+    `nil`, even though `CFProcessPath` **is** propagated into the Windows environment (proved with
+    `wine cmd /c set`) — so it survives the Wine boundary but CoreFoundation in that process doesn't act on
+    it. Root cause still open; that process's unix env is unreadable on macOS (`ps eww` empty,
+    `start /unix` absent from this build). `WINELOADERNOEXEC=1`, to suppress the re-exec, stops Wine
+    starting at all.
+  - **How CrossOver does it — measured live on its running Steam (the user's macOS-27 screenshot showed
+    Steam WITH its icon in Stage Manager and only the game without).** `cxmenu` generates a **resident
+    Cocoa `.app` per bottle application** — `~/Applications/CrossOver/Steam/Steam (<bottle>).app`, executable
+    `Menu Helper`, `LSBackgroundOnly = false`, a MainMenu nib, and `CrossOverHelper.icns` holding the
+    **extracted Windows icon** (confirmed: that file *is* the Steam logo, matching the badge in the
+    screenshot). It links only Cocoa/Foundation/AppKit/CoreFoundation/CoreServices — no Wine. Live process
+    tree: `Menu Helper` (pid 99108) stays alive with child
+    `winewrapper.exe **--enable-alt-loader** …`, while `steam.exe`/`explorer.exe`/`steamwebhelper.exe` are
+    ordinary bundle-less Wine processes measuring `bundleIdentifier = nil` + generic icon **exactly like
+    Silo's**. The decisive measurement is `CGWindowListCopyWindowInfo`: the on-screen window titled "Steam"
+    is owned by **pid 99108, the bundled `Menu Helper`** — and *no* on-screen window belongs to any Wine pid
+    (`steam.exe` does hold 5 windows, all untitled and none on screen). So CrossOver's icon is right
+    because **a properly bundled app owns the macOS window**, not because its Wine processes have an
+    identity. Corollary: this also explains CrossOver's correct Dock tile name and its native menu bar. And
+    the earlier "CrossOver has the same limitation on 27" claim in this entry was **wrong** — it only looks
+    that way for an app with no `cxmenu` launcher (the game, started from inside Steam).
+  - **The route is reproducible in principle: both halves of the Wine-side machinery are already in our
+    runtime.** `lib/wine/x86_64-unix/ntdll.so` carries `CX_ALT_LOADER_SOCKET`, `send_to_cx_loader` and
+    "CX_ALT_LOADER_SOCKET is not set; nothing to do"; `lib/wine/x86_64-windows/winewrapper.exe` (204 KB)
+    carries `--enable-alt-loader`, `winelib_alt_loader_setup`, `winelib_alt_loader_cleanup`. The missing
+    piece is the **Mac-side host app** (CrossOver's `Menu Helper` is closed-source), but the socket protocol
+    is readable off the Wine side in the `crossover-sources` tarball `build-wine.sh` already builds from.
+    Silo already extracts a game's PE icon (`PE/PEIcon.swift`) for covers, so the per-game `.icns` is free.
+    Substantial, well-defined work; would fix the Mission Control/Stage Manager icon, the "wine" tile name
+    and probably the menu bar in one go. **Not scheduled — needs its own task and a decision.**
   - **Side finding, NOT adopted (user decision, 2026-09-17: "non toccare `WINEDLLPATH` adesso").** Setting
     `WINEDLLPATH=<root>/lib` makes wine hardlink its loader into
     `$TMPDIR/winetemp-<inode>-<size>-<mtime>-0/<exe name>` and exec that, so the process is named
@@ -46,9 +88,10 @@
     and it changes module search on the GPTK/DXMT-critical path, which `makePlan` deliberately keeps free of
     `WINEDLLPATH`. Parked as a name-only lead needing its own validation. (`WINEPRELOADERAPPNAME` exists in
     `ntdll.so` but had no measurable effect.)
-  - **Only remaining path for the icon:** patch the loader in our own from-source CrossOver-FOSS Wine build
-    (constraint #8 puts that build in our hands) so it honours an external `WINELOADER` for child execs —
-    then a per-game `.app` wrapper becomes viable. That is Wine-build work, not Silo work; not scheduled.
+  - **Fallback idea if the alt-loader route is ever rejected:** patch the loader in our own from-source
+    CrossOver-FOSS Wine build (constraint #8 puts that build in our hands) so it honours an external
+    `WINELOADER` for child execs. Strictly worse than the alt-loader path (which needs no Wine patch at
+    all), so it is the second choice, not the first.
   - Corrected along the way: `bin/wine` in this runtime is a **Perl** script (CrossOver's, with a
     documented `[Wine] BinPath` knob and a per-bottle `$WINEPREFIX/cxbottle.conf`), but Silo bypasses it —
     `backend.wineBinaryPath` is `bin/wine64`. Also: the dev box **has** had CrossOver installed (a leftover

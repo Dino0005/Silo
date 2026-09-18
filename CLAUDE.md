@@ -29,11 +29,18 @@ never have worked and closes the whole approach — see STATUS. In short: Silo s
 `WINELOADER` is *ignored* on that path (measured), and the loader `realpath`s itself and derives
 `ntdll.so`, the Windows module dir (from its own dir's **name**: `x86_64-unix` → `x86_64-windows`),
 `../../share/wine/nls` and `bin/wineserver` relative to the resolved path — so that file cannot be moved
-into a `Foo.app/Contents/MacOS/`. **Do NOT re-propose an `.app` wrapper, a named loader, or a loader
-symlink for the tile name or the Mission Control icon**: all four dependencies were measured failing. The
-tile *name* is separately fixable via `WINEDLLPATH` (see STATUS) but that is **deliberately not adopted** —
-it changes module search on the GPTK/DXMT-critical path, and `makePlan` documents "no `WINEDLLPATH`" for
-that reason. Launches spawn the wine loader directly.
+into a `Foo.app/Contents/MacOS/`. **Do NOT re-propose wrapping the LOADER** — an `.app` around it, a named
+loader, or a loader symlink: all four dependencies were measured failing.
+**The window-owning process does not have to be the loader, though.** Measured live on CrossOver
+(2026-09-18): its icon is right because a **resident bundled Cocoa app owns the macOS window** — `cxmenu`
+generates one `.app` per bottle application (`Menu Helper`, carrying the extracted Windows icon) and Wine is
+directed into it via `winewrapper.exe --enable-alt-loader` / `CX_ALT_LOADER_SOCKET`; CrossOver's own
+`steam.exe`/`explorer.exe` measure `bundleIdentifier = nil` + generic icon exactly like Silo's, and own no
+on-screen window. Both halves of that Wine-side machinery are already in our runtime; the Mac-side host app
+is not. **That is the identified route for the icon (and the tile name) — see STATUS; not scheduled.**
+The tile *name* alone is separately fixable via `WINEDLLPATH` but that is **deliberately not adopted**
+(user, 2026-09-17) — it changes module search on the GPTK/DXMT-critical path, and `makePlan` documents
+"no `WINEDLLPATH`" for that reason. Launches spawn the wine loader directly.
 
 **Process lifecycle (Phase 4):** Silo launches games + the Steam client **detached** and never owns their
 lifecycle — quitting Silo leaves them running (like CrossOver); there is NO per-game Stop button, PID
