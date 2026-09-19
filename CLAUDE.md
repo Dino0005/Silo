@@ -36,12 +36,18 @@ loader, or a loader symlink: all four dependencies were measured failing.
 generates one `.app` per bottle application (`Menu Helper`, carrying the extracted Windows icon) and Wine is
 directed into it via `winewrapper.exe --enable-alt-loader` / `CX_ALT_LOADER_SOCKET`; CrossOver's own
 `steam.exe`/`explorer.exe` measure `bundleIdentifier = nil` + generic icon exactly like Silo's, and own no
-on-screen window. **That alt-loader route is CLOSED to us:** `CX_ALT_LOADER_SOCKET`, `send_to_cx_loader` and
-`winewrapper` are **absent from the CrossOver FOSS source drop** (verified in `crossover-sources-26.3.0`) —
-they exist only in CodeWeavers' shipped product, which constraint #8 forbids depending on. (Strings for them
-DO appear in this box's `wine-crossover-26.3` runtime only because `install-local-crossover-wine.sh` copies
-that product for local testing.)
-**What IS ours: `Scripts/patches/0001-loader-bundle-link-dir.patch`** (2026-09-19, NOT yet built/verified).
+on-screen window. `CX_ALT_LOADER_SOCKET`, `send_to_cx_loader` and `winewrapper` are **absent from the
+CrossOver FOSS source drop** (verified in `crossover-sources-26.3.0`) — so a runtime built by
+`build-wine.sh` does NOT have them. They ARE present in a **CrossOver-imported** runtime, which is a
+first-class shipped feature, not a dev hack (`CrossOverWineImporter`, Settings → Wine → "Import Wine from
+CrossOver <ver>", offered whenever CrossOver is installed; `install-local-crossover-wine.sh` is its dev-side
+twin). So for that runtime the route is open in principle; what's missing is the **Mac-side host app** —
+CrossOver's `Menu Helper` is closed-source, and the socket protocol is undocumented binary IPC with fd
+passing (`sockaddr_un` + `sendmsg`/`recvmsg`/`socketpair` in `ntdll.so`), i.e. real reverse-engineering.
+**Not attempted; needs a decision, not a guess.**
+**What IS ours: `Scripts/patches/0001-loader-bundle-link-dir.patch`** (2026-09-19, NOT yet built/verified;
+and note it only lands in a **from-source** runtime — a CrossOver-imported one is prebuilt, so it ignores
+`SILO_LOADER_LINK_DIR` entirely. The two runtime kinds therefore need two different answers).
 The FOSS `loader.c` already hard-links its loader under the running exe's name into a directory of its own
 choosing and symlinks `ntdll.so` beside it (`init_paths` `realpath`s that symlink back to the real
 `dll_dir`/`bin_dir`/`data_dir` — the one line that makes all four dependencies above resolve). The patch only
@@ -95,7 +101,12 @@ went stale, needed DXMT prefix-seeding, showed a "wine" Dock tile, and couldn't 
 8. **The Wine runtime is built ONLY from CrossOver's FOSS source** (`crossover-sources-<ver>.tar.gz` via
    `Scripts/build-wine.sh` / `build-wine.yml`). This is the ONE accepted base. **Do NOT propose, switch to,
    or suggest** Gcenx/`macOS_Wine_builds` (stale, unverifiable source provenance), Whisky, mainline/staging
-   prebuilts, or using an installed CrossOver/CodeWeavers product. Every black-window / login / graphics
+   prebuilts, or a CrossOver/CodeWeavers *product* as the BUILD BASE. (This does **not** touch
+   `CrossOverWineImporter` — importing the Wine from a **user's own licensed** CrossOver install is a
+   deliberate, shipped Settings feature, and the better runtime in practice: CrossOver's tree carries
+   GStreamer with its plugin dir, which `bundle-wine-dylibs.sh` deliberately can't, plus
+   `lib64/apple_gptk`. The from-source build has real defects and limitations by comparison — user,
+   2026-09-19. #8 governs what WE compile and ship, not what the user may import.) Every black-window / login / graphics
    problem is to be **fixed on this from-source CrossOver-FOSS Wine** — debug the build flags, Wine
    registry, env, and Silo's launch code; never answer "use a different runtime." Decided 2026-06-28.
    **Our own patches on top of that source live in `Scripts/patches/*.patch`** and are applied by both

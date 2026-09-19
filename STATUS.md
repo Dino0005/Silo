@@ -69,17 +69,30 @@
     identity. Corollary: this also explains CrossOver's correct Dock tile name and its native menu bar. And
     the earlier "CrossOver has the same limitation on 27" claim in this entry was **wrong** — it only looks
     that way for an app with no `cxmenu` launcher (the game, started from inside Steam).
-  - ⚠️ **RETRACTED (2026-09-19): "both halves of the Wine-side machinery are already in our runtime" was
-    WRONG.** Those strings (`CX_ALT_LOADER_SOCKET`, `send_to_cx_loader`, `winewrapper.exe`
-    `--enable-alt-loader`) live in this box's `wine-crossover-26.3` **only because
-    `Scripts/install-local-crossover-wine.sh` copies CrossOver's shipped product** (`cp -R
-    /Applications/CrossOver.app/Contents/SharedSupport/CrossOver/.`, a script whose own header says "for
-    LOCAL"). Downloaded and checked `crossover-sources-26.3.0.tar.gz` — the FOSS drop that `build-wine.sh`
-    actually compiles: **zero** occurrences of `CX_ALT_LOADER_SOCKET`/`send_to_cx_loader` in
-    `dlls/ntdll/unix/loader.c`, no `winewrapper` among its 50,394 files, and exactly ONE CrossOver hook in
-    that file (`CX_APPLEGPTK_LIBD3DSHARED_PATH`). So the alt-loader route would need reverse-engineering a
-    proprietary protocol AND depending on CodeWeavers' binaries — constraint #8 forbids it. **Do not
-    re-propose building the Mac-side host app.**
+  - **Correction ×2 (2026-09-19). The alt-loader machinery is NOT in the FOSS source — but it IS in a
+    CrossOver-imported runtime, and that import is a supported feature, not a dev hack.**
+    - Downloaded and checked `crossover-sources-26.3.0.tar.gz`, the drop `build-wine.sh` compiles:
+      **zero** `CX_ALT_LOADER_SOCKET`/`send_to_cx_loader` in `dlls/ntdll/unix/loader.c`, no `winewrapper`
+      among its 50,394 files, exactly ONE CrossOver hook in that file (`CX_APPLEGPTK_LIBD3DSHARED_PATH`).
+      So this entry's earlier "both halves are already in our runtime" was wrong **for a from-source
+      runtime** — retracted.
+    - But it was ALSO wrong to call the CrossOver-derived runtime a local-testing artefact (user,
+      2026-09-19): `CrossOverWineImporter` is a shipped feature — Settings → Wine → "Import Wine from
+      CrossOver <ver>", offered whenever CrossOver is installed, the Swift port of
+      `install-local-crossover-wine.sh` precisely "so it works from the shipped app". It exists because
+      **CrossOver's Wine is better in practice** (GStreamer with its plugin dir, which
+      `bundle-wine-dylibs.sh` deliberately can't bundle; plus `lib64/apple_gptk`), and the user — who holds
+      a CrossOver licence — reports the from-source build has real defects and limitations. Constraint #8
+      governs the build base, not what the user imports; CLAUDE.md now says so explicitly.
+    - **Consequence: the two runtime kinds need two different answers, and today's patch serves the one the
+      user does NOT run.** A CrossOver-imported runtime is prebuilt, so it ignores `SILO_LOADER_LINK_DIR`.
+      For it, the route is the alt loader it already carries — cost is reverse-engineering undocumented
+      binary IPC with fd passing (`sockaddr_un`, `sendmsg`/`recvmsg`/`socketpair`, `send_to_cx_loader` in
+      `ntdll.so`; `winewrapper.exe --enable-alt-loader` reads `CX_BOTTLE`/`CX_ROOT`). A cheaper untested
+      alternative: generate a bundle carrying a copy of the user's own licensed `Menu Helper` plus the
+      plist keys it reads (`CrossOverHelperCommand`, `CXHelperAppBottleName`, `CXHelperAppBottleTag`) —
+      risk being that it expects a real CrossOver bottle, which Silo's prefixes are not.
+      **Both need a decision before any code.**
   - **✅ What the FOSS source DOES give us, and what was built on it (2026-09-19; `swift build` clean, 610
     tests green; the Wine half is NOT built or verified yet).** `winemac.drv` is in the source (42 files),
     and so is the whole naming mechanism, marked `CW HACK 22144 ... which will show up as the icon name in
