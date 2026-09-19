@@ -43,6 +43,13 @@ public struct AppPaths: Sendable, Hashable {
     /// start the moment "Set up" is pressed, BEFORE the bottle prefix / its `drive_c` exists. NOT a cache: it's
     /// wiped at the start of every run and removed when setup finishes, so a stale installer is never reused.
     public var setupDownloadsTmp: URL { supportDir.appendingPathComponent("SetupDownloads", isDirectory: true) }
+    /// Per-game host `.app` bundles (`GameHostBundle`). Each is an icon + identity carrier, NOT something
+    /// the user launches: Wine hard-links its loader into the bundle's `Contents/MacOS` under the running
+    /// exe's name (see `Scripts/patches/0001-loader-bundle-link-dir.patch`), so the window-owning process
+    /// runs from inside a real bundle and macOS 27 can draw a proper icon in Mission Control / Stage
+    /// Manager. Under `supportDir`, never the bottles drive — it must stay reachable when that is unplugged.
+    /// Disposable: deleting it costs one re-create at next launch.
+    public var hostAppsDir: URL { supportDir.appendingPathComponent("HostApps", isDirectory: true) }
 
     // MARK: - Bottles location
 

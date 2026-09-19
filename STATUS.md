@@ -69,15 +69,56 @@
     identity. Corollary: this also explains CrossOver's correct Dock tile name and its native menu bar. And
     the earlier "CrossOver has the same limitation on 27" claim in this entry was **wrong** — it only looks
     that way for an app with no `cxmenu` launcher (the game, started from inside Steam).
-  - **The route is reproducible in principle: both halves of the Wine-side machinery are already in our
-    runtime.** `lib/wine/x86_64-unix/ntdll.so` carries `CX_ALT_LOADER_SOCKET`, `send_to_cx_loader` and
-    "CX_ALT_LOADER_SOCKET is not set; nothing to do"; `lib/wine/x86_64-windows/winewrapper.exe` (204 KB)
-    carries `--enable-alt-loader`, `winelib_alt_loader_setup`, `winelib_alt_loader_cleanup`. The missing
-    piece is the **Mac-side host app** (CrossOver's `Menu Helper` is closed-source), but the socket protocol
-    is readable off the Wine side in the `crossover-sources` tarball `build-wine.sh` already builds from.
-    Silo already extracts a game's PE icon (`PE/PEIcon.swift`) for covers, so the per-game `.icns` is free.
-    Substantial, well-defined work; would fix the Mission Control/Stage Manager icon, the "wine" tile name
-    and probably the menu bar in one go. **Not scheduled — needs its own task and a decision.**
+  - ⚠️ **RETRACTED (2026-09-19): "both halves of the Wine-side machinery are already in our runtime" was
+    WRONG.** Those strings (`CX_ALT_LOADER_SOCKET`, `send_to_cx_loader`, `winewrapper.exe`
+    `--enable-alt-loader`) live in this box's `wine-crossover-26.3` **only because
+    `Scripts/install-local-crossover-wine.sh` copies CrossOver's shipped product** (`cp -R
+    /Applications/CrossOver.app/Contents/SharedSupport/CrossOver/.`, a script whose own header says "for
+    LOCAL"). Downloaded and checked `crossover-sources-26.3.0.tar.gz` — the FOSS drop that `build-wine.sh`
+    actually compiles: **zero** occurrences of `CX_ALT_LOADER_SOCKET`/`send_to_cx_loader` in
+    `dlls/ntdll/unix/loader.c`, no `winewrapper` among its 50,394 files, and exactly ONE CrossOver hook in
+    that file (`CX_APPLEGPTK_LIBD3DSHARED_PATH`). So the alt-loader route would need reverse-engineering a
+    proprietary protocol AND depending on CodeWeavers' binaries — constraint #8 forbids it. **Do not
+    re-propose building the Mac-side host app.**
+  - **✅ What the FOSS source DOES give us, and what was built on it (2026-09-19; `swift build` clean, 610
+    tests green; the Wine half is NOT built or verified yet).** `winemac.drv` is in the source (42 files),
+    and so is the whole naming mechanism, marked `CW HACK 22144 ... which will show up as the icon name in
+    the Dock`: `create_tempdir()` picks `$TMPDIR/winetemp-<ino>-<size>-<mtime_s>-<mtime_ns>/`, mkdirs it and
+    **symlinks `ntdll.so` into it**; `create_preloader_link()` hard-links the loader there under the exe's
+    name; `replace_wineloader_path_with_link()` execs that path — gated on literally `if
+    (getenv("WINEDLLPATH"))`, which is exactly the trigger measured empirically the day before. That
+    `ntdll.so` symlink is the key insight: `init_paths()` `realpath`s it, recovering the true
+    `dll_dir`/`bin_dir`/`data_dir`, which is why all four relative-path dependencies that broke the
+    hand-made attempts resolve fine here.
+    - **`Scripts/patches/0001-loader-bundle-link-dir.patch`** — lets the caller choose that directory via
+      `SILO_LOADER_LINK_DIR`, and fires the mechanism on that var as well as `WINEDLLPATH` (so Silo never
+      sets `WINEDLLPATH`, per the 2026-09-17 decision). Unset = byte-identical upstream; an unwritable
+      directory makes `create_preloader_link` return NULL and the loader path is left alone, so it degrades
+      to upstream rather than failing a launch. Verified to apply cleanly to `26.3.0` and to leave the
+      function brace-balanced; applied by **both** `build-wine.sh` and `build-wine.yml` (required to apply).
+    - **`GameHostBundle`** (`Launch/GameHostBundle.swift`) — the per-game host `.app`: pure `infoPlist()`,
+      path shaping that can't escape its directory, ICO→ICNS conversion via ImageIO (largest `.ico`
+      representation redrawn letterboxed into 16…512 squares, since `.icns` only takes squares), and a
+      `write` that refreshes **in place** (a relaunch must not yank loader hard links out from under a
+      running process) and refuses a destination that isn't ours. `AppPaths.hostAppsDir` (`HostApps/`, under
+      `supportDir` so it survives an unplugged bottles drive). Icon comes from the existing `PEIcon`.
+    - **Wiring:** `makePlan` gains `loaderLinkDir` → `SILO_LOADER_LINK_DIR` (default nil = no change);
+      `launchInBottle`/`launchManualGame` pass it through; `GameLibraryViewModel.hostLoaderLinkDir` builds
+      the bundle off the main actor, **best-effort** — any failure returns nil and the launch proceeds
+      exactly as before, because a cosmetic icon must never block a game.
+    - **Key measurement that makes one bundle enough:** an executable inside a bundle reports that bundle's
+      `bundleIdentifier`, icon and `CFBundleName` **even when its file name ≠ `CFBundleExecutable`**. So the
+      game exe, `explorer.exe` and `steamwebhelper.exe` all read as the game. (That is also why the
+      bundle's `CFBundleExecutable` names a file that is never written.)
+  - **NEXT — the open question, answerable only by a build:** does the renamed loader find `ntdll.so` with
+    no `WINEDLLPATH` set? The upstream comment claims `WINEDLLPATH` is needed for exactly that, but
+    `create_tempdir` itself plants the `ntdll.so` symlink the loader searches as `<its own dir>/ntdll.so`,
+    so the precondition looks stale. If it turns out not to be, the follow-up is one line: `setenv`
+    `WINEDLLPATH` from `dll_dir` *inside* `create_tempdir`, keeping Silo's launch env clean either way.
+    This box has Command Line Tools only, so the build is CI (`build-wine.yml`) → install the runtime →
+    probe with `NSRunningApplication` (the oracle above) → confirm in Mission Control.
+  - **Also pending:** constraint #8 now has a documented `Scripts/patches/` carve-out, flagged in CLAUDE.md
+    as **not yet ratified** by the user. Don't add a second patch before that decision.
   - **Side finding, NOT adopted (user decision, 2026-09-17: "non toccare `WINEDLLPATH` adesso").** Setting
     `WINEDLLPATH=<root>/lib` makes wine hardlink its loader into
     `$TMPDIR/winetemp-<inode>-<size>-<mtime>-0/<exe name>` and exec that, so the process is named

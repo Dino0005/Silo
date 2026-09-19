@@ -32,6 +32,17 @@ rm -rf src && mkdir src && tar -xzf sources.tar.gz -C src
 WINE_SRC="$(find src -maxdepth 3 -type d -name wine | head -1)"
 [ -n "$WINE_SRC" ] || { echo "ERROR: wine source dir not found in tarball"; exit 1; }
 
+# Silo's own patches on top of the CrossOver FOSS source (constraint #8 still holds: this IS that
+# source, plus changes we keep in-tree and reviewable — nothing from a CrossOver *product*). Each
+# one carries its rationale in its own header. Applied in filename order and REQUIRED to apply:
+# a silently-skipped patch would ship a runtime that looks patched but isn't.
+for p in "$ROOT"/Scripts/patches/*.patch; do
+  [ -e "$p" ] || break
+  echo "==> Apply $(basename "$p")"
+  ( cd "$WINE_SRC" && patch -p1 --forward < "$p" ) \
+    || { echo "ERROR: $(basename "$p") did not apply to CrossOver source $VER — rebase it"; exit 1; }
+done
+
 echo "==> Build pinned SDL $SDL_VERSION (x86_64) — winebus's game-controller backend dlopens libSDL2"
 # Build the EXACT SDL CrossOver ships (versions.env) from libsdl-org source, x86_64 to match Wine. This
 # gives Wine's configure the SDL2 headers (so winebus compiles its SDL backend) AND the runtime dylib we

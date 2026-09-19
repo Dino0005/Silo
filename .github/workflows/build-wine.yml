@@ -105,6 +105,20 @@ jobs:
           test -n "$WINE_SRC"
           echo "WINE_SRC=$WINE_SRC" >> "$GITHUB_ENV"
 
+      - name: Apply Silo patches to the CrossOver source
+        run: |
+          set -eo pipefail
+          # Mirror of the same loop in Scripts/build-wine.sh — keep the two in step. Each patch must
+          # apply; a silently-skipped one would publish a runtime that looks patched but isn't.
+          for p in Scripts/patches/*.patch; do
+            [ -e "$p" ] || break
+            echo "==> Apply $(basename "$p")"
+            ( cd "$WINE_SRC" && patch -p1 --forward < "$GITHUB_WORKSPACE/$p" ) || {
+              echo "ERROR: $(basename "$p") did not apply to CrossOver source ${{ inputs.crossover_version }} — rebase it"
+              exit 1
+            }
+          done
+
       - name: Build pinned SDL (winebus game-controller backend)
         run: |
           set -eo pipefail

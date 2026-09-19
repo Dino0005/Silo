@@ -36,8 +36,19 @@ loader, or a loader symlink: all four dependencies were measured failing.
 generates one `.app` per bottle application (`Menu Helper`, carrying the extracted Windows icon) and Wine is
 directed into it via `winewrapper.exe --enable-alt-loader` / `CX_ALT_LOADER_SOCKET`; CrossOver's own
 `steam.exe`/`explorer.exe` measure `bundleIdentifier = nil` + generic icon exactly like Silo's, and own no
-on-screen window. Both halves of that Wine-side machinery are already in our runtime; the Mac-side host app
-is not. **That is the identified route for the icon (and the tile name) — see STATUS; not scheduled.**
+on-screen window. **That alt-loader route is CLOSED to us:** `CX_ALT_LOADER_SOCKET`, `send_to_cx_loader` and
+`winewrapper` are **absent from the CrossOver FOSS source drop** (verified in `crossover-sources-26.3.0`) —
+they exist only in CodeWeavers' shipped product, which constraint #8 forbids depending on. (Strings for them
+DO appear in this box's `wine-crossover-26.3` runtime only because `install-local-crossover-wine.sh` copies
+that product for local testing.)
+**What IS ours: `Scripts/patches/0001-loader-bundle-link-dir.patch`** (2026-09-19, NOT yet built/verified).
+The FOSS `loader.c` already hard-links its loader under the running exe's name into a directory of its own
+choosing and symlinks `ntdll.so` beside it (`init_paths` `realpath`s that symlink back to the real
+`dll_dir`/`bin_dir`/`data_dir` — the one line that makes all four dependencies above resolve). The patch only
+lets the caller pick that directory, via `SILO_LOADER_LINK_DIR`; Silo points it at a per-game
+`GameHostBundle` `.app`, so the window-owning process runs from inside a real bundle. Measured: an executable
+in a bundle inherits its identity/icon/name even when its file name ≠ `CFBundleExecutable`, so ONE bundle
+covers every process a launch spawns. Unset = byte-identical upstream; a failed link degrades to upstream.
 The tile *name* alone is separately fixable via `WINEDLLPATH` but that is **deliberately not adopted**
 (user, 2026-09-17) — it changes module search on the GPTK/DXMT-critical path, and `makePlan` documents
 "no `WINEDLLPATH`" for that reason. Launches spawn the wine loader directly.
@@ -87,6 +98,12 @@ went stale, needed DXMT prefix-seeding, showed a "wine" Dock tile, and couldn't 
    prebuilts, or using an installed CrossOver/CodeWeavers product. Every black-window / login / graphics
    problem is to be **fixed on this from-source CrossOver-FOSS Wine** — debug the build flags, Wine
    registry, env, and Silo's launch code; never answer "use a different runtime." Decided 2026-06-28.
+   **Our own patches on top of that source live in `Scripts/patches/*.patch`** and are applied by both
+   `build-wine.sh` and `build-wine.yml` (required to apply — a skipped patch would ship a runtime that looks
+   patched but isn't). Each carries its rationale in its own header; keep them minimal, since every one has
+   to be rebased onto each new CrossOver source release. The base is still exclusively the FOSS tarball —
+   nothing is ever taken from a CrossOver *product*. ⚠️ **PENDING REVIEW (user, 2026-09-19):** the first such
+   patch exists but this widening of #8 is not yet ratified; don't add a second one before it is.
 
 ## Graphics backends (GPTK + DXMT — decided 2026-06-30, reverses the GPTK-only stance)
 Two Metal translation layers, selectable **per game**: **GPTK / D3DMetal** (Apple's, D3D10/11/12 → Metal,

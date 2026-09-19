@@ -443,7 +443,9 @@ public final class GameLibraryViewModel {
                 app: game, config: config, backend: backend, graphics: chosen,
                 wine: context.wineBinary, prefix: context.prefix,
                 logURL: paths.log(forAppID: game.appID),
-                gameExe: exe)
+                gameExe: exe,
+                loaderLinkDir: await hostLoaderLinkDir(
+                    name: game.name, id: String(game.appID), exe: exe))
             // NOTE (2026-07-25): `desktopGeometry: ScreenGeometry.nativeResolution()` was here as an
             // attempted fix for GPTK games not covering the real screen (menu bar/Dock visible around
             // them). REVERTED — on-device testing showed `explorer /desktop=` produces a bordered,
@@ -494,6 +496,30 @@ public final class GameLibraryViewModel {
         }
         await orchestrator.runWineTool(tool, arguments: arguments,
                                        prefix: ctx.prefix, wine: ctx.wineBinary)
+    }
+
+    // MARK: - Host `.app` (window icon identity)
+
+    /// Create/refresh this game's host `.app` and return the `Contents/MacOS` to pass as
+    /// `SILO_LOADER_LINK_DIR`, so the window-owning Wine process runs from inside a real bundle and gets a
+    /// proper icon + name in Mission Control / Stage Manager (see `GameHostBundle`).
+    ///
+    /// **Best-effort by design:** any failure — unreadable exe, no icon in the PE, an unwritable
+    /// `HostApps` dir, a name collision with something that isn't ours — returns `nil`, and the launch then
+    /// proceeds byte-identically to before. A cosmetic icon must never be able to stop a game from
+    /// starting. Likewise an UNPATCHED Wine runtime just ignores the variable, so this is inert until a
+    /// runtime built with `Scripts/patches/0001-loader-bundle-link-dir.patch` is installed.
+    /// The exe read + PE parse + bundle write all happen off the main actor. A nil `exe` (the caller hasn't
+    /// resolved one yet) still gets a bundle — just without an icon, which leaves the process correctly
+    /// *named* after the game.
+    private func hostLoaderLinkDir(name: String, id: String, exe: URL?) async -> URL? {
+        let bundle = GameHostBundle(name: name, id: id)
+        let directory = paths.hostAppsDir
+        return await Task.detached(priority: .utility) {
+            let ico = exe.flatMap { try? Data(contentsOf: $0, options: .mappedIfSafe) }
+                .flatMap(PEIcon.icoData(fromExecutable:))
+            return try? bundle.write(into: directory, iconICO: ico)
+        }.value
     }
 
     // MARK: - Manual (non-Steam) games — each in its OWN isolated bottle (paths.manualBottle(id))
@@ -643,7 +669,9 @@ public final class GameLibraryViewModel {
             // The resolved runtime is the chosen backend's variant; feed it to the orchestrator as the launch wine.
             try await orchestrator.launchManualGame(
                 game, backend: backend, graphics: context.graphics,
-                wine: context.wineBinary, prefix: context.prefix, logURL: paths.manualLog(game.id))
+                wine: context.wineBinary, prefix: context.prefix, logURL: paths.manualLog(game.id),
+                loaderLinkDir: await hostLoaderLinkDir(
+                    name: game.name, id: game.id.uuidString, exe: game.executablePath))
             // See the matching NOTE in play(above) — reverted for the same reason.
             do {
                 _ = try await configStore.updateManualGame(id: game.id) { $0.lastPlayed = Date() }

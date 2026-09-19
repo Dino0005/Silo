@@ -44,6 +44,35 @@ struct MakePlanTests {
         #expect(plan.environment["WINESERVER"] == nil)
     }
 
+    /// The host-`.app` hook (`GameHostBundle`): Wine hard-links its loader into this directory and execs
+    /// it from there, so the window-owning process runs inside a real bundle and macOS 27 can draw its icon
+    /// in Mission Control / Stage Manager. Honoured by Scripts/patches/0001-loader-bundle-link-dir.patch.
+    @Test("loaderLinkDir sets SILO_LOADER_LINK_DIR, and is absent when not asked for")
+    func loaderLinkDirEnv() throws {
+        let plain = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
+            prefix: prefix, logURL: log)
+        #expect(plain.environment["SILO_LOADER_LINK_DIR"] == nil)
+
+        let hosted = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
+            prefix: prefix, logURL: log,
+            loaderLinkDir: URL(fileURLWithPath: "/s/HostApps/Half-Life 2 (220).app/Contents/MacOS"))
+        #expect(hosted.environment["SILO_LOADER_LINK_DIR"]
+                == "/s/HostApps/Half-Life 2 (220).app/Contents/MacOS")
+    }
+
+    /// The patch fires on SILO_LOADER_LINK_DIR alone, precisely so Silo never has to set WINEDLLPATH —
+    /// that would change module search on the GPTK/DXMT-critical path. Guards the pairing from creeping in.
+    @Test("The host-app hook does NOT drag WINEDLLPATH in with it")
+    func loaderLinkDirDoesNotSetWineDLLPath() throws {
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
+            prefix: prefix, logURL: log,
+            loaderLinkDir: URL(fileURLWithPath: "/s/HostApps/G (220).app/Contents/MacOS"))
+        #expect(plan.environment["WINEDLLPATH"] == nil)
+    }
+
     @Test("An .msi target runs via builtin msiexec /i, addressed through the Z: (unix-root) drive")
     func msiRunsViaMsiexec() throws {
         let msi = URL(fileURLWithPath: "/Users/me/Downloads/GravityMark 1.89.msi")

@@ -1,0 +1,112 @@
+Silo patch 0001 — let the caller choose where the named loader link goes
+=======================================================================
+
+WHAT UPSTREAM ALREADY DOES (all of this is CrossOver FOSS, dlls/ntdll/unix/loader.c,
+marked "CW HACK 22144 ... which will show up as the icon name in the Dock"):
+  * create_tempdir()                  -> $TMPDIR/winetemp-<ino>-<size>-<mtime_s>-<mtime_ns>/
+                                         mkdir it, and symlink ntdll.so into it
+  * create_preloader_link()           -> hard link the loader into that dir under the exe's name
+  * replace_wineloader_path_with_link -> exec THAT path, so the process is named after the exe
+  * gated on `if (getenv("WINEDLLPATH"))`
+
+WHY WE PATCH IT
+  On macOS 27 the Dock still honours the icon winemac.drv sets at runtime
+  (setApplicationIconImage), but Mission Control and Stage Manager read the icon of the
+  process's *bundle* — and a Wine process has none, so they draw the generic "exec" icon.
+  Measured on device; CrossOver's own steam.exe measures identical (bundleIdentifier = nil,
+  generic icon) and only looks right because a separate bundled app owns its window, via the
+  --enable-alt-loader machinery that is NOT part of the FOSS source drop.
+  The fix needs the exec'd path to be inside a real .app. Upstream already puts the loader link
+  in a directory of its choosing and already solves the hard part (the ntdll.so symlink, which
+  init_paths() realpath()s to recover the runtime's true dll_dir/bin_dir/data_dir). So all we
+  need is to let the caller pick that directory.
+
+WHAT THIS PATCH ADDS
+  SILO_LOADER_LINK_DIR — when set and non-empty, used verbatim as the link directory, and the
+  mechanism fires on it as well as on WINEDLLPATH. Silo points it at a per-game
+  <Name>.app/Contents/MacOS. Measured (without Wine, on plain GUI binaries): an executable inside
+  a bundle reports that bundle's identity, icon and CFBundleName even when its filename does NOT
+  match CFBundleExecutable — so ONE bundle per game covers every Wine process it spawns
+  (the game exe, explorer.exe, steamwebhelper.exe ...).
+
+SAFETY
+  Unset (the default, and every non-Silo build) = byte-identical upstream behaviour. If the
+  directory is missing or unwritable, link()/symlink() fail, create_preloader_link() returns NULL
+  and the loader path is left untouched — it degrades to upstream, it does not fail the launch.
+  We deliberately do NOT set WINEDLLPATH: that would change module search on the GPTK/DXMT
+  critical path (LaunchOrchestrator.makePlan documents "no WINEDLLPATH").
+
+NOTE ON STYLE
+  The moved block inside the new `else` is left at its original indentation on purpose, to keep
+  this diff as small as possible — it has to be re-applied to every new CrossOver source release.
+
+NOT YET VERIFIED ON DEVICE: needs a Wine build (this box has Command Line Tools only, so CI).
+The open question is whether the renamed loader finds ntdll.so with no WINEDLLPATH set; if it
+does not, the one-line follow-up is to setenv WINEDLLPATH from dll_dir inside create_tempdir.
+
+--- a/dlls/ntdll/unix/loader.c	2026-09-19 14:15:39
++++ b/dlls/ntdll/unix/loader.c	2026-09-19 14:15:39
+@@ -565,13 +565,37 @@
+ /* Returns a path to $TMPDIR/winetemp-<wineloader_inode>-<wineloader_size_in_bytes>-<wineloader_mtime_sec>-<-wineloader_mtime_nsec>
+  * The intention is that all links to the same wineloader will go in the same directory, and a different directory
+  * will be used if wineloader is updated or modified.
++ *
++ * SILO PATCH: when SILO_LOADER_LINK_DIR is set and non-empty, that directory is used verbatim
++ * instead of the $TMPDIR one. Silo points it at a per-game <Name>.app/Contents/MacOS, so the link
++ * this function is about to be given is exec'd from inside a real application bundle and macOS
++ * attributes the window to it — which is what makes the icon and the name correct in the Dock AND
++ * in Mission Control / Stage Manager (measured on macOS 27: those two surfaces read the bundle
++ * icon and ignore the one winemac.drv sets at runtime via setApplicationIconImage).
++ * The ntdll.so symlink created below is what keeps this correct wherever the directory is: the
++ * loader finds ntdll.so as "<its own dir>/ntdll.so", and init_paths() then realpath()s that
++ * symlink to recover the true dll_dir / bin_dir / data_dir of the runtime.
++ * Unset (the default) means byte-identical upstream behaviour.
+  */
+ static char *create_tempdir(const char *wineloader_path)
+ {
+     char *str, *ntdll, *p, *tempdir = malloc(MAX_PATH);
++    const char *link_dir = getenv("SILO_LOADER_LINK_DIR");
+     struct stat st;
+     size_t n;
+ 
++    if (link_dir && *link_dir)
++    {
++        if (strlcpy(tempdir, link_dir, MAX_PATH) >= MAX_PATH)
++            goto fail;
++
++        /* the code below appends the exe name straight onto this, so keep a trailing slash */
++        n = strlen(tempdir);
++        if (n && tempdir[n - 1] != '/' && strlcat(tempdir, "/", MAX_PATH) >= MAX_PATH)
++            goto fail;
++    }
++    else
++    {
+     if (!confstr(_CS_DARWIN_USER_TEMP_DIR, tempdir, MAX_PATH))
+         goto fail;
+ 
+@@ -585,6 +609,7 @@
+     free(str);
+     if (n >= MAX_PATH)
+         goto fail;
++    }
+ 
+     /* mkdir may fail if the directory already exists but that's ok */
+     mkdir(tempdir, 0700);
+@@ -678,8 +703,16 @@
+      * which will show up as the icon name in the Dock.
+      * When the preloader is not being used, WINEDLLPATH needs to be set correctly for
+      * the loader to find ntdll.so, so don't even attempt this unless WINEDLLPATH is set.
++     *
++     * SILO PATCH: also fire when SILO_LOADER_LINK_DIR is set. The WINEDLLPATH precondition
++     * above is about finding ntdll.so, and create_tempdir() puts an ntdll.so symlink right
++     * next to the link it makes, which is one of the paths the loader searches. Silo therefore
++     * does NOT have to set WINEDLLPATH — deliberately, because that would change module search
++     * on the GPTK/DXMT-critical path (see LaunchOrchestrator.makePlan, "no WINEDLLPATH").
++     * If the link cannot be made, create_preloader_link() returns NULL and the loader path is
++     * left untouched, so a missing/unwritable directory degrades to upstream behaviour.
+      */
+-    if (getenv("WINEDLLPATH"))
++    if (getenv("WINEDLLPATH") || getenv("SILO_LOADER_LINK_DIR"))
+         replace_wineloader_path_with_link( &(argv[1]), image_path );
+ #endif
+ 
