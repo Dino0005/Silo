@@ -98,23 +98,37 @@ went stale, needed DXMT prefix-seeding, showed a "wine" Dock tile, and couldn't 
 7. **Never bundle or auto-download Wine, GPTK, or any Steam-API emulator (Goldberg).** The runtime is
    fetched only from a URL the user can see/override; the emulator stub is **user-provided only**,
    with a prominent legal/ToS caveat, original DLL backed up.
+   **This covers CodeWeavers' own binaries too (user, 2026-09-19).** CrossOver's `Menu Helper` — and any
+   other proprietary CrossOver product binary — must never be shipped by Silo, nor copied by Silo into a
+   generated bundle for a user. Importing Wine from a user's OWN licensed CrossOver install
+   (`CrossOverWineImporter`) is the ONE sanctioned case, because it reads *their* licence on *their*
+   machine. Copying `Menu Helper` by hand on a licensed dev box is fine **as an experiment**; the moment it
+   would become a feature, the only shippable form is **an equivalent host written by us** speaking the
+   same protocol — or nothing. Keep that line explicit whenever the alt-loader route comes up.
 8. **The Wine runtime is built ONLY from CrossOver's FOSS source** (`crossover-sources-<ver>.tar.gz` via
    `Scripts/build-wine.sh` / `build-wine.yml`). This is the ONE accepted base. **Do NOT propose, switch to,
    or suggest** Gcenx/`macOS_Wine_builds` (stale, unverifiable source provenance), Whisky, mainline/staging
-   prebuilts, or a CrossOver/CodeWeavers *product* as the BUILD BASE. (This does **not** touch
-   `CrossOverWineImporter` — importing the Wine from a **user's own licensed** CrossOver install is a
-   deliberate, shipped Settings feature, and the better runtime in practice: CrossOver's tree carries
-   GStreamer with its plugin dir, which `bundle-wine-dylibs.sh` deliberately can't, plus
-   `lib64/apple_gptk`. The from-source build has real defects and limitations by comparison — user,
-   2026-09-19. #8 governs what WE compile and ship, not what the user may import.) Every black-window / login / graphics
+   prebuilts, or a CrossOver/CodeWeavers *product* as the BUILD BASE.
+   ⚠️ **READ THIS BEFORE APPLYING #8 (user, 2026-09-19).** This repo is a **fork** (`origin` =
+   `Dino0005/Silo`, `upstream` = `mikaelhug/Silo`); #8 as written above is **upstream's** stance. Here the
+   user deliberately evaluates the alternatives and, **holding a paid CrossOver licence, CrossOver's own
+   Wine is the FIRST alternative to consider** — not a fallback and certainly not forbidden. It is also the
+   runtime they actually run, via the shipped `CrossOverWineImporter` (Settings → Wine → "Import Wine from
+   CrossOver <ver>"), because that tree is better in practice: GStreamer with its plugin dir, which
+   `bundle-wine-dylibs.sh` deliberately can't bundle, plus `lib64/apple_gptk`. The from-source build has
+   real defects and limitations by comparison; bringing it to parity (**the GStreamer limitation in
+   particular**) is acknowledged future work, not the current path. So: **#8 governs what Silo compiles and
+   ships, never what the user may import from their own licence**, and a fix that only lands in a
+   from-source runtime is completeness work, not a priority. Every black-window / login / graphics
    problem is to be **fixed on this from-source CrossOver-FOSS Wine** — debug the build flags, Wine
    registry, env, and Silo's launch code; never answer "use a different runtime." Decided 2026-06-28.
    **Our own patches on top of that source live in `Scripts/patches/*.patch`** and are applied by both
    `build-wine.sh` and `build-wine.yml` (required to apply — a skipped patch would ship a runtime that looks
    patched but isn't). Each carries its rationale in its own header; keep them minimal, since every one has
    to be rebased onto each new CrossOver source release. The base is still exclusively the FOSS tarball —
-   nothing is ever taken from a CrossOver *product*. ⚠️ **PENDING REVIEW (user, 2026-09-19):** the first such
-   patch exists but this widening of #8 is not yet ratified; don't add a second one before it is.
+   nothing is ever taken from a CrossOver *product*. **Ratified with a caveat (user, 2026-09-19):** the
+   carve-out stands, but since from-source isn't the current path, `0001-loader-bundle-link-dir.patch` is
+   kept **for completeness** and its CI build is explicitly NOT needed for now.
 
 ## Graphics backends (GPTK + DXMT — decided 2026-06-30, reverses the GPTK-only stance)
 Two Metal translation layers, selectable **per game**: **GPTK / D3DMetal** (Apple's, D3D10/11/12 → Metal,

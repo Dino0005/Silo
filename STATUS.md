@@ -92,7 +92,74 @@
       alternative: generate a bundle carrying a copy of the user's own licensed `Menu Helper` plus the
       plist keys it reads (`CrossOverHelperCommand`, `CXHelperAppBottleName`, `CXHelperAppBottleTag`) —
       risk being that it expects a real CrossOver bottle, which Silo's prefixes are not.
-      **Both need a decision before any code.**
+  - **▶️ DECIDED (user, 2026-09-19) — pick this up here.**
+    1. **NEXT TASK: run the `Menu Helper` experiment on the CrossOver-imported runtime.** Generate a bundle
+       carrying a copy of the user's own licensed `Menu Helper` + the plist keys it reads
+       (`CrossOverHelperCommand`, `CXHelperAppBottleName`, `CXHelperAppBottleTag`), launch a Wine target
+       through it, and check with `CGWindowListCopyWindowInfo` whether the on-screen window ends up owned by
+       that bundle (as it does for CrossOver's own Steam) instead of by the Wine process. The oracle for the
+       icon is `NSRunningApplication(processIdentifier:).icon` — no need to look at the screen. Do NOT build
+       Wine for this; it is explicitly not needed.
+       - **RUN 2026-09-19 — ✅ MECHANISM PROVEN with OUR OWN bundle; ❌ not yet against a Silo prefix.**
+         - **✅ The decisive result.** A **copy** of `Steam (Resident Evil Requiem).app` (as `ZZControl.app`,
+           kept beside the originals, otherwise untouched), launched with `open -a`, started Steam — and
+           `CGWindowListCopyWindowInfo` put the on-screen window *"Accedi a Steam"* on **pid 18726, the
+           `Menu Helper` of OUR copied bundle**, while `steam.exe` ran separately as pid 18750. So a bundle
+           **we** generate really can own the macOS window of a Wine app. That is the mechanism the whole
+           route depends on, and it is no longer a hypothesis.
+         - **The launch method is load-bearing, and it wasted two earlier attempts.** Running
+           `Contents/MacOS/Menu Helper` **directly** launches nothing (the helper process starts and sits
+           there). It must go through **LaunchServices** (`open -a`) — the bundle declares
+           `CFBundleDocumentTypes` + `NSMainNibFile`, so it expects to be opened as an app. Every failure
+           before this was that, not the prefix.
+         - **❌ Against a Silo prefix it does not launch, and CrossOver says why.** With
+           `CXHelperAppBottleName` pointed at Silo's SteamBottle (exposed as a symlink
+           `…/CrossOver/Bottles/SiloSteamBottle`), nothing starts. Asking the underlying tool directly —
+           `cxstart --bottle SiloSteamBottle <Steam.lnk>` — prints the cause:
+           **`'cxbottle.conf' is not readable`**. Exactly the risk this entry predicted: the route wants a
+           real CrossOver bottle, and Silo's prefixes are not.
+         - **Partial progress on that.** Copying a real bottle's `cxbottle.conf` into an **APFS clone** of
+           Silo's bottle cleared that specific error (`cxstart` stopped failing fast and ran until killed),
+           but still nothing launched and no window appeared. Cause beyond that point unknown — **this is
+           where the next session starts.**
+         - **Note for the next run:** the answer may not be worth much even if it works, because of the
+           licence boundary below — a Silo prefix would have to become, in effect, a CrossOver bottle
+           (`cxbottle.conf` and all), which is a deep coupling to a product we cannot ship against.
+           Weigh that before spending more on it; the *mechanism* question is already answered.
+         - Cleanup verified: both probe bundles removed and unregistered, symlink gone from
+           `CrossOver/Bottles`, clone deleted, and Silo's real SteamBottle never touched (no
+           `cxbottle.conf` in it, no top-level file changed).
+       - 🚧 **LICENCE BOUNDARY — write this down before the experiment succeeds, not after (user,
+         2026-09-19).** Copying `Menu Helper` is legitimate *for the user, on the user's machine, under
+         the user's licence*. It can **never become a shipped feature**: it is CodeWeavers' proprietary
+         binary, and Silo may neither ship it nor generate bundles containing it for other users (see
+         constraint #7, now explicit about this). So the experiment is valid **only as proof of the
+         mechanism**. If it succeeds, the release path is a **host written by us speaking the same
+         protocol — or nothing**. Do not let a successful experiment quietly turn into a feature.
+       - **What a successful experiment would still have to answer — supervision (user, 2026-09-19).**
+         Through `Menu Helper` the game/Steam process is no longer born of Silo, and four things depend on
+         how it is born. Checked against the code:
+         - `SteamReadiness` — reads the `ActiveProcess` pid out of the prefix's `user.reg` (+ a kqueue
+           watch on that file). Registry-based, parentage-independent → **should hold**.
+         - `WineServerProbe` — looks for `socket` **and** `lock` in the per-user temp dir keyed by the
+           prefix's `(st_dev, st_ino)`. Prefix-identity-based → **should hold**.
+         - `stopBottleProcesses` + the startup `sweepLeftovers` — these are **prefix-driven, not
+           parentage-driven** (`allBottlePrefixes()` → `wineserver -k` with that `WINEPREFIX`), so a
+           different parent is harmless. What WOULD break them is the game landing in a prefix Silo
+           doesn't know: `Menu Helper` reads `CX_BOTTLE`/`CX_ROOT`, and if it insists on a real CrossOver
+           bottle (`cxbottle.conf`), Silo's prefixes are not one. **That, precisely, is the risk to test.**
+         - **The launch log** — `spawnDetached` captures the child's stdout/stderr, and an intermediary
+           could send it elsewhere. Two consumers, and they do NOT fare the same: `GraphicsFallback`
+           parses the **child's output**, so it would go blind (losing the silent-wined3d guardrail);
+           `ShortcutFinalize.loggedExecutable` parses the `args  :` line of the **header Silo itself
+           writes** before spawning, so the shortcut icon survives regardless.
+    2. **The from-source runtime is NOT the current path.** `0001-loader-bundle-link-dir.patch` stays, kept
+       **for completeness**, and its CI build is not scheduled. Making from-source equivalent to CrossOver's
+       Wine — fixing its defects and limitations, **the GStreamer one in particular** — is acknowledged
+       future work that needs its own effort.
+    3. **Constraint #8 is upstream's, and this repo is a fork.** The user evaluates the alternatives and,
+       holding a paid CrossOver licence, treats CrossOver's Wine as the FIRST alternative to consider.
+       CLAUDE.md #8 now carries that framing; read it before invoking #8 against anything.
   - **✅ What the FOSS source DOES give us, and what was built on it (2026-09-19; `swift build` clean, 610
     tests green; the Wine half is NOT built or verified yet).** `winemac.drv` is in the source (42 files),
     and so is the whole naming mechanism, marked `CW HACK 22144 ... which will show up as the icon name in
