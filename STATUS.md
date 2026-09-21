@@ -150,6 +150,20 @@
     - **New loose end (user, same run):** the Dock showed *Steam's* icon under the name **"wine"**, i.e. a
       SECOND tile belonging to the Wine process itself, alongside our host app's. CrossOver evidently
       suppresses one of the two; how, is unknown. Cosmetic, but it needs answering before this ships.
+    - **▶️ START HERE NEXT: how does the receiver BECOME the Wine process?** It is the one unknown the
+      host, the double tile and the supervision checks all sit downstream of — and it is the part the
+      FOSS source cannot tell us, because only the *sender* is in the drop.
+      - Already known, and it rules out the obvious guess: when `Menu Helper` owned the Steam window its
+        `executableURL` was **still `…/Menu Helper`**, not a Wine loader. So it does **not** `execv` into
+        Wine (an earlier guess of mine, retracted) — it loads Wine **in-process**, which also explains why
+        that binary links only Cocoa/Foundation/AppKit/CoreFoundation/CoreServices and pulls Wine in at
+        runtime.
+      - **First move, cheap and observational:** run Steam from CrossOver, then `lsof -p <MenuHelper pid>`
+        / `vmmap` while it owns the window, and list which Wine libraries it has mapped. That set is the
+        entry point our host has to reproduce, and it tells us whether a targeted `dlopen` is enough.
+      - Only after that: write the host, then the double Dock tile, then re-check
+        `SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` / the launch log (the log matters
+        most — `GraphicsFallback` reads the child's output, and the host would own those fds).
   - **⚠️ Superseded — kept for the reasoning trail. OWNERSHIP ≠ ICON (2026-09-20).** The user reported
     that during the `Menu Helper` control run Stage Manager still showed the generic icon, not the one in
     the Dock. They were right and the write-up above over-claimed: that run measured **window ownership
