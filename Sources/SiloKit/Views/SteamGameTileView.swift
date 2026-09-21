@@ -30,7 +30,7 @@ struct SteamHeaderArt: View {
         if let cached = store.cached(appID: appID), let image = NSImage(contentsOf: cached) {
             artwork = image
         }
-        guard store.isStale(appID: appID) else { return }   // fresh enough — don't spend a request
+        guard store.isMissing(appID: appID) else { return }   // already on disk — nothing to fetch
         let steamStore = env.steamStore
         let guessed = game.headerArtURL
         let refreshed = await Task.detached { () -> URL? in

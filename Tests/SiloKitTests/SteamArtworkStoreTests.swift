@@ -30,16 +30,18 @@ struct SteamArtworkStoreTests {
         #expect(store.cached(appID: 1) == nil)
     }
 
-    @Test("staleness is by age; a missing file is always stale")
-    func stalenessByAge() throws {
+    @Test("a copy is fetched only when missing — age alone never triggers a download")
+    func fetchedOnlyWhenMissing() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let dir = tmp.url.appendingPathComponent("Artwork")
-        let store = SteamArtworkStore(dir: dir, maxAge: 60)
-        #expect(store.isStale(appID: 7))                     // nothing saved yet
+        let store = SteamArtworkStore(dir: dir)
+        #expect(store.isMissing(appID: 7))                   // nothing saved yet
 
         store.save(Data("JPEG".utf8), appID: 7)
-        #expect(!store.isStale(appID: 7))                    // just written
-        // An hour later, with a one-minute budget, it's worth asking the network again.
-        #expect(store.isStale(appID: 7, now: Date().addingTimeInterval(3600)))
+        #expect(!store.isMissing(appID: 7))                  // on disk now, and stays that way
+
+        // Deleting the file is how a user forces a fresh copy: it reads as missing again.
+        try FileManager.default.removeItem(at: try #require(store.cached(appID: 7)))
+        #expect(store.isMissing(appID: 7))
     }
 }

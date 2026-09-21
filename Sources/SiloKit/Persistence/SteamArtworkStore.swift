@@ -8,9 +8,16 @@ import Foundation
 /// fine, because the page uses the `header_image` the API returns), and with no network the tiles come up
 /// blank, since they depend on URLSession's cache and images are evicted long before JSON is.
 ///
-/// A file on disk fixes both. It also has to stay CURRENT: Steam rotates seasonal art, so downloading once
-/// and stopping would freeze a game's cover forever — hence the refresh, bounded by `maxAge` so a library
-/// opened repeatedly doesn't re-fetch everything each time.
+/// A file on disk fixes both, and it is fetched once: only when it isn't there.
+///
+/// An earlier version refreshed it every 24 hours on the grounds that "Steam rotates seasonal art". That
+/// was true of the wrong image. The tile asks for the GUESSED `…/apps/<id>/header.jpg` first — the base
+/// art, which doesn't rotate — and reaches for the API's `header_image` only on a 404. The seasonal one is
+/// the API's, and that's what the game's detail page shows, straight from the API. So the tile was
+/// re-downloading an identical file daily.
+///
+/// To force a new copy — the developer redid the base art, say — delete the file: absence is the one
+/// condition that triggers a download.
 ///
 /// Separate from `Covers/` on purpose: that holds images the user picked, this is a cache the app may
 /// empty without losing anything.
@@ -18,13 +25,9 @@ public struct SteamArtworkStore: Sendable {
     // Computed (not stored): FileManager isn't Sendable, but the shared instance is fine to use.
     private var fileManager: FileManager { .default }
     private let dir: URL
-    /// How long a stored image is trusted before the network is asked again. A day keeps rotating art
-    /// reasonably fresh while making a second library open in the same session cost nothing.
-    private let maxAge: TimeInterval
 
-    public init(dir: URL, maxAge: TimeInterval = 24 * 60 * 60) {
+    public init(dir: URL) {
         self.dir = dir
-        self.maxAge = maxAge
     }
 
     private func file(for appID: Int) -> URL {
@@ -37,11 +40,10 @@ public struct SteamArtworkStore: Sendable {
         return fileManager.fileExists(atPath: url.path) ? url : nil
     }
 
-    /// Whether the stored copy is old enough to be worth re-fetching. No file at all counts as stale.
-    public func isStale(appID: Int, now: Date = Date()) -> Bool {
-        guard let modified = try? fileManager.attributesOfItem(atPath: file(for: appID).path)[.modificationDate]
-                as? Date else { return true }
-        return now.timeIntervalSince(modified) > maxAge
+    /// Whether there's no stored copy — the only case in which the network is asked. See the type's note:
+    /// the image kept here is the base art, which doesn't change on a schedule, so age is no reason to refetch.
+    public func isMissing(appID: Int) -> Bool {
+        !fileManager.fileExists(atPath: file(for: appID).path)
     }
 
     @discardableResult
