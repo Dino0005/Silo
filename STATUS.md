@@ -150,20 +150,31 @@
     - **New loose end (user, same run):** the Dock showed *Steam's* icon under the name **"wine"**, i.e. a
       SECOND tile belonging to the Wine process itself, alongside our host app's. CrossOver evidently
       suppresses one of the two; how, is unknown. Cosmetic, but it needs answering before this ships.
-    - **▶️ START HERE NEXT: how does the receiver BECOME the Wine process?** It is the one unknown the
-      host, the double tile and the supervision checks all sit downstream of — and it is the part the
-      FOSS source cannot tell us, because only the *sender* is in the drop.
-      - Already known, and it rules out the obvious guess: when `Menu Helper` owned the Steam window its
-        `executableURL` was **still `…/Menu Helper`**, not a Wine loader. So it does **not** `execv` into
-        Wine (an earlier guess of mine, retracted) — it loads Wine **in-process**, which also explains why
-        that binary links only Cocoa/Foundation/AppKit/CoreFoundation/CoreServices and pulls Wine in at
-        runtime.
-      - **First move, cheap and observational:** run Steam from CrossOver, then `lsof -p <MenuHelper pid>`
-        / `vmmap` while it owns the window, and list which Wine libraries it has mapped. That set is the
-        entry point our host has to reproduce, and it tells us whether a targeted `dlopen` is enough.
-      - Only after that: write the host, then the double Dock tile, then re-check
-        `SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` / the launch log (the log matters
-        most — `GraphicsFallback` reads the child's output, and the host would own those fds).
+    - **✅ ANSWERED (2026-09-21): the receiver doesn't *host* the Wine process — it BECOMES it, in
+      process, via `dlopen`.** Measured with `lsof` on a live `Menu Helper` (pid 9918) while it owned
+      Steam's window: it has mapped `lib/wine/x86_64-unix/`**`ntdll.so`**, **`winemac.so`** (hence the
+      window is its own), `win32u.so`, `winecoreaudio.so`, `bcrypt/crypt32/secur32/ws2_32/…`, the
+      `x86_64-windows/*.dll` set, an `ntdll.so.aot` (Rosetta AOT cache) and **137** handles under the
+      wineserver's `/tmp/.wine-501/server-…` directory. That is a Wine process in every respect, inside a
+      Cocoa app bundle. It never `exec`s — which is exactly why its `executableURL` stays `Menu Helper`
+      and why the bundle's identity and icon survive.
+      - **So the contract our host must fulfil**, and it is just *the wine loader's job done inside an
+        app bundle*: be LaunchServices-launched (for the identity) → listen on `CX_ALT_LOADER_SOCKET` →
+        on `REQUEST_LOAD_WINE` apply the received cwd/env/argv and put the 4 received fds in place →
+        `dlopen` the runtime's `lib/wine/<arch>-unix/ntdll.so` → resolve and call **`__wine_main`**
+        (confirmed exported: `nm -gU` shows `T ___wine_main`). `bin/wineloader`'s own strings show the
+        stock loader doing precisely this (`__wine_main`, "wine: __wine_main function not found in
+        ntdll.so"), and **its source IS in the FOSS drop** (`loader/main.c`) — so the call convention can
+        be read, not guessed.
+      - ⚠️ **Hard constraint discovered: the host must be x86_64.** `Menu Helper` is
+        `Mach-O 64-bit executable x86_64`, same as `bin/wineloader`, because it has to `dlopen` x86_64
+        `.so` modules. A plain arm64 Swift app cannot do this — Silo's host has to be built for x86_64
+        (running under Rosetta) or shipped fat with an x86_64 slice. This also means it cannot simply be
+        part of the existing arm64 app target.
+      - **▶️ NEXT:** read `loader/main.c` in the FOSS source for the exact `__wine_main` setup (argv/envp
+        marshalling, what it does before the call), then write the host. After that: the double Dock
+        tile, then re-check `SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` / the launch log
+        (the log first — `GraphicsFallback` reads the child's output and the host would own those fds).
   - **⚠️ Superseded — kept for the reasoning trail. OWNERSHIP ≠ ICON (2026-09-20).** The user reported
     that during the `Menu Helper` control run Stage Manager still showed the generic icon, not the one in
     the Dock. They were right and the write-up above over-claimed: that run measured **window ownership
