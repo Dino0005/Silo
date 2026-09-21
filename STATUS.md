@@ -166,11 +166,30 @@
         stock loader doing precisely this (`__wine_main`, "wine: __wine_main function not found in
         ntdll.so"), and **its source IS in the FOSS drop** (`loader/main.c`) — so the call convention can
         be read, not guessed.
-      - ⚠️ **Hard constraint discovered: the host must be x86_64.** `Menu Helper` is
-        `Mach-O 64-bit executable x86_64`, same as `bin/wineloader`, because it has to `dlopen` x86_64
-        `.so` modules. A plain arm64 Swift app cannot do this — Silo's host has to be built for x86_64
-        (running under Rosetta) or shipped fat with an x86_64 slice. This also means it cannot simply be
-        part of the existing arm64 app target.
+      - ⚠️ **Constraint: the host's architecture must match the RUNTIME's, which today is x86_64.**
+        `Menu Helper` is `Mach-O 64-bit executable x86_64`, same as `bin/wineloader`, because it has to
+        `dlopen` x86_64 `.so` modules. A plain arm64 Swift app cannot, so today the host can't simply be
+        a target inside Silo's arm64 app.
+      - **Rosetta horizon — this constraint is temporary and NOT a new dependency (user, 2026-09-21).**
+        Apple keeps Rosetta as a general Intel-app facility through macOS 27 and largely retires it in
+        **macOS 28 (autumn 2027, ~1 year out)**, keeping a subset aimed at old unmaintained games on
+        Intel frameworks. Whether Wine falls inside that exception is **not clear**, and the wording
+        promises nothing. The sharp distinction: what Apple stops maintaining is the whole macOS
+        **x86_64 user space**, while the low-level translator might survive — and Wine needs exactly
+        that user space. **Verified here:** `lib/wine/x86_64-unix/winemac.so` is x86_64 and links
+        AppKit, Carbon, CoreVideo, Foundation, IOKit, Metal, OpenGL, QuartzCore. So it is not the
+        translator alone that matters.
+        - Consequence: **the mechanism survives, the x86_64 constraint does not — and it dies together
+          with everything else, not on its own.** All of Silo's Wine is x86_64 today, so the host adds
+          **no new Rosetta dependency**: it shares the one already there.
+        - When Wine goes ARM64 (announced for CrossOver 27) the host follows, and it gets *simpler*: the
+          very constraint that keeps it out of Silo's arm64 target disappears, and it could live inside
+          the app itself.
+        - **None of the work is wasted:** `dlopen` of `ntdll.so` + the `__wine_main` call hold for any
+          architecture. Only the compilation target changes.
+        - **Design consequence for when it gets built:** author it for **both architectures from the
+          start** (fat, or two slices), and pick the slice that matches the **runtime in use**, not the
+          host OS — rather than an x86_64-only binary that has to be rewritten within a year.
       - **▶️ NEXT:** read `loader/main.c` in the FOSS source for the exact `__wine_main` setup (argv/envp
         marshalling, what it does before the call), then write the host. After that: the double Dock
         tile, then re-check `SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` / the launch log
