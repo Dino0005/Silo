@@ -74,8 +74,16 @@
     - Downloaded and checked `crossover-sources-26.3.0.tar.gz`, the drop `build-wine.sh` compiles:
       **zero** `CX_ALT_LOADER_SOCKET`/`send_to_cx_loader` in `dlls/ntdll/unix/loader.c`, no `winewrapper`
       among its 50,394 files, exactly ONE CrossOver hook in that file (`CX_APPLEGPTK_LIBD3DSHARED_PATH`).
-      So this entry's earlier "both halves are already in our runtime" was wrong **for a from-source
-      runtime** — retracted.
+      ⚠️ **But the conclusion drawn from that was WRONG (corrected 2026-09-20).** Only `loader.c` had been
+      grepped. Searching the **whole** tarball finds the alt loader alive and well in
+      `dlls/ntdll/unix/process.c`: `send_to_cx_loader()` (line ~296) reads `CX_ALT_LOADER_SOCKET`, connects
+      to that `sockaddr_un`, hands over the process params **and file descriptors** (wineserver socket,
+      stdin, stdout) via `sendmsg`/`SCM_RIGHTS`, reads back a `uint32_t`, and is gated per-exe by
+      `HKCU\Software\CrossOver\SuppressAltLoader` plus a whitelist key. Consequences, all in our favour:
+      the protocol is **open, readable C — not reverse-engineering**; it is compiled into BOTH runtime
+      kinds; and a host **we** write needs no CodeWeavers binary, so unlike the `Menu Helper` route it is
+      actually shippable. Only `winewrapper` is missing from the source, and the ntdll path above does not
+      appear to need it (it is called straight from process creation, line ~862).
     - But it was ALSO wrong to call the CrossOver-derived runtime a local-testing artefact (user,
       2026-09-19): `CrossOverWineImporter` is a shipped feature — Settings → Wine → "Import Wine from
       CrossOver <ver>", offered whenever CrossOver is installed, the Swift port of
@@ -92,6 +100,78 @@
       alternative: generate a bundle carrying a copy of the user's own licensed `Menu Helper` plus the
       plist keys it reads (`CrossOverHelperCommand`, `CXHelperAppBottleName`, `CXHelperAppBottleTag`) —
       risk being that it expects a real CrossOver bottle, which Silo's prefixes are not.
+  - **✅ HANDSHAKE PROVEN WITH OUR OWN HOST (2026-09-20) — this is now the main route.** Wrote a ~60-line
+    C receiver straight from the FOSS source (no CodeWeavers binary anywhere), pointed
+    `CX_ALT_LOADER_SOCKET` at it, and launched the CrossOver-imported runtime normally. It received:
+    `request_type = 0x52c17355` (**exactly** `REQUEST_LOAD_WINE`), **1878 bytes** of payload, **4 file
+    descriptors**, and Wine accepted our `uint32_t` reply. So Silo can talk this protocol itself.
+    - **The wire format**, read off `dlls/ntdll/unix/process.c` (`send_to_cx_loader`, ~line 296) — client
+      is Wine, server is us, `AF_UNIX`/`SOCK_STREAM`:
+      1. `uint32_t` request type = `REQUEST_LOAD_WINE` = `0x52c17355` (enum at line 93)
+      2. length-prefixed working directory (`write_length_prefixed_buffer`)
+      3. the environment (`write_env`, line 236 — takes the PE env + `winedebug`)
+      4. `uint64_t` total length of `argv[1..]`, then each argument NUL-terminated
+      5. `sendmsg` of a 1-byte payload carrying **SCM_RIGHTS**: stdin, stdout, stderr, the **wineserver
+         socket**, and optionally `WINE_WAIT_CHILD_PIPE` (4 fds measured, 5 when that env var is set)
+      6. `shutdown(SHUT_WR)`, then the client blocks reading a `uint32_t` response
+    - **Gates, and why nothing had to be configured:** `HKCU\Software\CrossOver\UseAltLoader` (whitelist by
+      exe base name) and `…\SuppressAltLoader` (blacklist). When neither key exists — as in a Silo prefix —
+      `has_key_value` reports "no key" and the send proceeds. There is also a hardcoded skip for Rockstar's
+      `Launcher.exe`. `CX_ALT_LOADER_SOCKET` is `unsetenv`'d after being read, so it does not leak to
+      children.
+    - **What is proven vs. what is not.** Proven: the connection, the request type, the payload and the fd
+      passing, with a host of ours. **Not yet:** actually *hosting* the process — the receiver must load
+      Wine in-process and run the program on those descriptors, and the meaning of the `uint32_t` reply is
+      still unread. That is the real work, and it is ordinary implementation against readable source.
+    - **Why this looked like it supersedes the other routes:** it needs no Wine patch (so it serves the
+      **CrossOver-imported** runtime the user actually runs), no `Menu Helper` (so it clears the licence
+      boundary and could ship), and no turning Silo prefixes into CrossOver bottles. **But see the next
+      bullet before relying on that: owning the window is not, by itself, enough.**
+  - **✅✅ RESOLVED (2026-09-20, user-confirmed on screen): a bundle of OURS owns the window AND supplies
+    the Stage Manager icon.** The blank sheet below was an artefact — `cxmenu` **deletes** foreign bundles
+    from `~/Applications/CrossOver/Steam/`, and ours had been removed mid-test, so LaunchServices had no
+    icon left to read. Repeating the test with the bundle at `~/Applications/SiloIconTest.app` (outside
+    CrossOver's managed folder), unique `CFBundleIdentifier`, Silo's `.icns` in place of
+    `CrossOverHelper.icns`: the bundle survives the run, the on-screen "Steam" window is owned by
+    **pid 6729 / `SiloIconTest` / `com.mikael.silo.icontest2`**, and its icon dumps as **Silo's own icon**.
+    The user then confirmed by eye: *"in Stage Manager c'è Steam con l'icona di Silo"*.
+    - **So the full chain is proven end to end**: our bundle → owns the Wine app's macOS window → carries
+      our icon into Stage Manager / Mission Control. Combined with the alt-loader handshake above (also
+      ours, no CodeWeavers binary), the route is viable for the **CrossOver-imported runtime**, with no
+      Wine patch and no Silo prefix turning into a CrossOver bottle.
+    - **Three lessons to keep:** (1) never place a generated bundle under `~/Applications/CrossOver/` — it
+      gets deleted; (2) the icon probe must compare against the **document** generic too, not only
+      `.unixExecutable` — the first version reported "SPECIFICA" for what was plainly a blank sheet;
+      (3) **tear down in order: terminate → VERIFY the processes are gone → only then delete the bundle
+      and its LaunchServices registration.** Doing it the other way round left `SiloIconTest` showing as
+      "in esecuzione in background" in the Dock with its bundle already deleted (a ghost tile, cleared by
+      `killall Dock`), and the "cleanup verified" claim that accompanied it was worthless: the `pkill` and
+      the `pgrep` check ran in the same command, so nothing had actually been confirmed.
+    - **New loose end (user, same run):** the Dock showed *Steam's* icon under the name **"wine"**, i.e. a
+      SECOND tile belonging to the Wine process itself, alongside our host app's. CrossOver evidently
+      suppresses one of the two; how, is unknown. Cosmetic, but it needs answering before this ships.
+  - **⚠️ Superseded — kept for the reasoning trail. OWNERSHIP ≠ ICON (2026-09-20).** The user reported
+    that during the `Menu Helper` control run Stage Manager still showed the generic icon, not the one in
+    the Dock. They were right and the write-up above over-claimed: that run measured **window ownership
+    only** (`CGWindowListCopyWindowInfo`); the icon of the owning process was never probed, and
+    "ownership ⇒ correct icon" was an inference, not a measurement.
+    - Re-run properly: a copied launcher with a **unique `CFBundleIdentifier`** and Silo's own `.icns`
+      swapped in for `CrossOverHelper.icns`, re-registered with `lsregister -f`, launched via `open -a`.
+      Result: the on-screen "Steam" window IS owned by our bundle (`pid 6248`, `SiloIconTest`, our bundle
+      id) — **and its icon is the generic blank document**, not the icns we planted.
+    - So **a bundle we control can own the window and still show the blank sheet.** Some further
+      condition governs the icon, and it is not isolated yet.
+    - **Code signing is NOT the discriminator** (the obvious first guess, checked and discarded): the
+      ORIGINAL CrossOver launcher fails `codesign -v` too (`code has no resources but signature indicates
+      they must be present`) and yet shows the Steam icon correctly in Stage Manager.
+    - Still unexplained, and the first thing to chase next: why the freshly-built `BUNDLE-ICON` probe of
+      2026-09-17 DID show its icns in Mission Control (user-confirmed) while this copied launcher does
+      not. Candidates: the LaunchServices icon cache for a brand-new bundle id, the `.icns` not being
+      resolvable under the name `CrossOverHelper`, or something CrossOver's menu machinery does — it
+      **deleted our copied bundle** mid-test, which is itself a clue that it manages that folder.
+    - **Consequence for the plan:** the alt-loader host would give us ownership, which is necessary but
+      now demonstrably **not sufficient**. Do not treat the icon as solved by that route until this is
+      pinned down.
   - **▶️ DECIDED (user, 2026-09-19) — pick this up here.**
     1. **NEXT TASK: run the `Menu Helper` experiment on the CrossOver-imported runtime.** Generate a bundle
        carrying a copy of the user's own licensed `Menu Helper` + the plist keys it reads

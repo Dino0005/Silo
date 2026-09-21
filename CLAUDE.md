@@ -36,15 +36,16 @@ loader, or a loader symlink: all four dependencies were measured failing.
 generates one `.app` per bottle application (`Menu Helper`, carrying the extracted Windows icon) and Wine is
 directed into it via `winewrapper.exe --enable-alt-loader` / `CX_ALT_LOADER_SOCKET`; CrossOver's own
 `steam.exe`/`explorer.exe` measure `bundleIdentifier = nil` + generic icon exactly like Silo's, and own no
-on-screen window. `CX_ALT_LOADER_SOCKET`, `send_to_cx_loader` and `winewrapper` are **absent from the
-CrossOver FOSS source drop** (verified in `crossover-sources-26.3.0`) — so a runtime built by
-`build-wine.sh` does NOT have them. They ARE present in a **CrossOver-imported** runtime, which is a
-first-class shipped feature, not a dev hack (`CrossOverWineImporter`, Settings → Wine → "Import Wine from
-CrossOver <ver>", offered whenever CrossOver is installed; `install-local-crossover-wine.sh` is its dev-side
-twin). So for that runtime the route is open in principle; what's missing is the **Mac-side host app** —
-CrossOver's `Menu Helper` is closed-source, and the socket protocol is undocumented binary IPC with fd
-passing (`sockaddr_un` + `sendmsg`/`recvmsg`/`socketpair` in `ntdll.so`), i.e. real reverse-engineering.
-**Not attempted; needs a decision, not a guess.**
+on-screen window. **The Wine side of the alt loader IS in the FOSS source** (corrected 2026-09-20; an
+earlier note here said "absent", which was wrong — it had only been grepped in `loader.c`). It lives in
+`dlls/ntdll/unix/process.c`: `send_to_cx_loader()` reads `CX_ALT_LOADER_SOCKET`, connects to that
+`sockaddr_un`, passes the process params **plus file descriptors** (wineserver socket, stdin, stdout) by
+`sendmsg`/`SCM_RIGHTS`, and reads back a `uint32_t`; per-exe control comes from
+`HKCU\Software\CrossOver\SuppressAltLoader` + a whitelist key. So the wire format is **readable code, not
+reverse-engineering**, it is compiled into BOTH runtime kinds (the imported one measurably has it), and a
+host we write ourselves needs no CodeWeavers binary — i.e. it could actually ship. Only `winewrapper`
+(CrossOver's way of starting the first process) is missing from the source, and the ntdll path above does
+not appear to need it. **Not attempted; the cost is now "implement a documented receiver", not RE.**
 **What IS ours: `Scripts/patches/0001-loader-bundle-link-dir.patch`** (2026-09-19, NOT yet built/verified;
 and note it only lands in a **from-source** runtime — a CrossOver-imported one is prebuilt, so it ignores
 `SILO_LOADER_LINK_DIR` entirely. The two runtime kinds therefore need two different answers).
