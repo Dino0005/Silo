@@ -261,10 +261,31 @@
           `notepad.exe` pid is a different, LaunchServices-unregistered child with 0 windows). So handing
           over the server socket via that env var is **not sufficient** to adopt an already-created
           process slot.
-        - **▶️ NEXT:** read how ntdll expects an adopted process to come up — `server_init_process` in
-          `dlls/ntdll/unix/server.c` — for what else the handover requires: whether the fd must sit at a
-          fixed descriptor number, what the `uint32_t` reply value is supposed to be, and whether
-          `WINE_WAIT_CHILD_PIPE` is mandatory rather than optional.
+        - **`server_init_process` read (2026-09-23) — two of the three open questions close, and
+          `WINESERVERSOCKET` turns out to be exactly right.** In `dlls/ntdll/unix/server.c`:
+          `fd_socket = atoi(getenv("WINESERVERSOCKET"))`, then `fcntl(F_SETFD, FD_CLOEXEC)`, then
+          `unsetenv`. So:
+          1. **No fixed descriptor number** — any fd works, our approach was correct.
+          2. **`WINE_WAIT_CHILD_PIPE` is NOT mandatory** — it's consulted only `if (child_pipe)` and is a
+             CrossOver hack (bug 3853) for `explorer.exe`; absent, nothing happens.
+          3. The meaning of the `uint32_t` reply is still unread (it's a few lines past where the sender
+             was read).
+          Right after taking the socket, ntdll does `data->request_fd = wine_server_receive_fd(&version)`
+          — it expects the **first thread request fd** to arrive on that socket — and on Apple it also
+          calls `send_server_task_port()`. A bad socket is reported via
+          `fatal_perror("Bad server socket %d")`.
+        - 🔍 **Why the failure looked silent — a diagnostic mistake of mine, not a property of the
+          mechanism.** The host `dup2`s the received fd\[2\] onto its own stderr **before** calling
+          `__wine_main`, so anything Wine printed (including that `fatal_perror`) went to the **launcher's**
+          log, not the host's. And I grepped that launcher log only for `err:|fail|could not`, which
+          `wine: Bad server socket N: …` does not match. **So the run may well have told us exactly what
+          was wrong and I filtered it out.**
+        - **▶️ NEXT, in this order:** (1) rebuild the host and re-run the whitelisted notepad case, this
+          time reading **both** logs in full, with no grep; (2) if it is the socket, follow
+          `wine_server_receive_fd`; (3) read the sender's handling of the `uint32_t` reply.
+        - ⚠️ **Process note: the prototype lived in `/tmp` and was deleted in teardown, so it has to be
+          rewritten.** Next time keep it in-tree (e.g. `Scripts/altloader-host/`, excluded from the app
+          build) so a session can pick it up instead of retyping it.
         - Reusable knowledge from the session: the link flags (above), and that **the test needs a warm
           prefix plus the whitelist**, or the host silently adopts `wineboot` and the run tells you
           nothing.
