@@ -219,10 +219,33 @@
         - **Note for the dual-arch plan:** the reservation block is guarded by `__x86_64__`. ARM64 Wine
           will reserve differently (or use the preloader), so that part does NOT port verbatim — it is
           the one piece of the host that is genuinely architecture-specific.
-      - **▶️ NEXT:** write the host against the spec above (fat/dual-arch per the Rosetta note), then the
-        double Dock tile, then re-check `SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` /
-        the launch log (the log first — `GraphicsFallback` reads the child's output and the host would
-        own those fds).
+      - **MINIMAL HOST BUILT AND RUN (2026-09-21). It runs Wine; it does NOT own the window — and that
+        failure pins down what the socket is actually for.** A ~50-line C host, in an `.app` with Silo's
+        icns, reserving the areas and calling `dlopen`+`__wine_main` directly (socket skipped on purpose,
+        the handshake being already proven): **Notepad's window did open**, so the
+        `dlopen`/`__wine_main` half of the spec is real. But the window belongs to a **child**
+        (`notepad.exe`, exe `wine`, `bundleIdentifier = nil`) while our host stays alive owning nothing.
+        Same when launched through LaunchServices, so it is not an identity-inheritance problem.
+        - **Why:** `__wine_main` in a *fresh* process stands up a new Wine process tree and spawns the
+          exe as a separate process. Calling it plainly can therefore never make the caller *be* the
+          Windows process.
+        - **So the socket is load-bearing after all, and now we know for what:** the message carries the
+          **wineserver socket fd**, i.e. a process slot the wineserver has *already* created. The host
+          must adopt it — almost certainly by placing that fd and exporting **`WINESERVERSOCKET`**
+          (present in `ntdll.so` as `WINESERVERSOCKET=%u`) plus the received cwd/env/argv — and only then
+          call `__wine_main`. That is what makes it *become* the process instead of parenting one.
+        - **Link flags, discovered the hard way** (three failed links, worth keeping): the zerofill
+          sections alone are not enough — the linker puts them wherever it likes. Needed:
+          `-Wl,-no_pie -Wl,-pagezero_size,0x1000 -Wl,-image_base,0x200000000`
+          `-Wl,-segaddr,WINE_RESERVE,0x1000 -Wl,-segaddr,WINE_TOP_DOWN,0x7ff000000000`.
+          `__TEXT` must sit at `0x200000000`, immediately above the 8 GB reserve — copied from
+          `Menu Helper`'s own layout. Getting it wrong fails loudly and usefully:
+          `err:virtual:virtual_alloc_first_teb wine: failed to map the shared user data: c0000017`.
+      - **▶️ NEXT:** extend the host to the real flow — accept on `CX_ALT_LOADER_SOCKET`, parse the
+        payload (the one piece still unread is `write_env`'s format, `process.c` line ~236), adopt the 4
+        fds via `WINESERVERSOCKET`, then `__wine_main`. After that: the double Dock tile, then re-check
+        `SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` / the launch log (the log first —
+        `GraphicsFallback` reads the child's output and the host would own those fds).
   - **⚠️ Superseded — kept for the reasoning trail. OWNERSHIP ≠ ICON (2026-09-20).** The user reported
     that during the `Menu Helper` control run Stage Manager still showed the generic icon, not the one in
     the Dock. They were right and the write-up above over-claimed: that run measured **window ownership
