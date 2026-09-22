@@ -241,11 +241,38 @@
           `__TEXT` must sit at `0x200000000`, immediately above the 8 GB reserve — copied from
           `Menu Helper`'s own layout. Getting it wrong fails loudly and usefully:
           `err:virtual:virtual_alloc_first_teb wine: failed to map the shared user data: c0000017`.
-      - **▶️ NEXT:** extend the host to the real flow — accept on `CX_ALT_LOADER_SOCKET`, parse the
-        payload (the one piece still unread is `write_env`'s format, `process.c` line ~236), adopt the 4
-        fds via `WINESERVERSOCKET`, then `__wine_main`. After that: the double Dock tile, then re-check
-        `SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` / the launch log (the log first —
-        `GraphicsFallback` reads the child's output and the host would own those fds).
+      - **FULL HOST WRITTEN AND RUN (2026-09-23). It receives the RIGHT process and reaches
+        `__wine_main` — then dies. The adoption needs more than `WINESERVERSOCKET`.**
+        - **The wire format is now fully known and implemented.** Last unread piece read from
+          `process.c`: every length prefix is a **`uint64`**; `write_env` (line ~236) sends one blob of
+          NUL-terminated `KEY=VALUE` strings, in order **`environ` → PE promotions → explicit
+          `WINEDEBUG`**, later definitions winning; argv is the same shape (`argv[1..]`). Our host parses
+          all of it correctly — measured `cwd=0 env=1844 argv=40` bytes and 4 fds on a real launch.
+        - **The whitelist gate works, and it is how you target the right process.**
+          `CX_ALT_LOADER_SOCKET` is consumed by the **first** process creation, which on a cold prefix is
+          `wineboot.exe --init` — so the first runs adopted wineboot instead of the app. Writing
+          `HKCU\Software\CrossOver\UseAltLoader` with a value **named after the exe's base name**
+          (`"notepad"="1"`) fixed it: the next run delivered `argv[1] = C:\windows\system32\notepad.exe`.
+          (The hardcoded SID in the source, `S-1-5-21-0-0-0-1000`, **does** match a Silo prefix — checked
+          in `user.reg`, so that is not an obstacle.)
+        - **Where it stops:** with the right process in hand the host applies cwd/env, `dup2`s
+          stdin/out/err, exports `WINESERVERSOCKET=<fd>` and calls `__wine_main` — and the process then
+          **dies without ever owning a window** (log ends at the call, no "returned" line; the surviving
+          `notepad.exe` pid is a different, LaunchServices-unregistered child with 0 windows). So handing
+          over the server socket via that env var is **not sufficient** to adopt an already-created
+          process slot.
+        - **▶️ NEXT:** read how ntdll expects an adopted process to come up — `server_init_process` in
+          `dlls/ntdll/unix/server.c` — for what else the handover requires: whether the fd must sit at a
+          fixed descriptor number, what the `uint32_t` reply value is supposed to be, and whether
+          `WINE_WAIT_CHILD_PIPE` is mandatory rather than optional.
+        - Reusable knowledge from the session: the link flags (above), and that **the test needs a warm
+          prefix plus the whitelist**, or the host silently adopts `wineboot` and the run tells you
+          nothing.
+        - Teardown done in the right order this time (terminate → verify → remove), including deleting
+          the `UseAltLoader` key from the user's prefix — verified `0` occurrences left in `user.reg`.
+      - After the adoption works: the double Dock tile, then re-check `SteamReadiness` /
+        `WineServerProbe` / `stopBottleProcesses` / the launch log (the log first — `GraphicsFallback`
+        reads the child's output and the host would own those fds).
   - **⚠️ Superseded — kept for the reasoning trail. OWNERSHIP ≠ ICON (2026-09-20).** The user reported
     that during the `Menu Helper` control run Stage Manager still showed the generic icon, not the one in
     the Dock. They were right and the write-up above over-claimed: that run measured **window ownership
