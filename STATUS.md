@@ -190,10 +190,39 @@
         - **Design consequence for when it gets built:** author it for **both architectures from the
           start** (fat, or two slices), and pick the slice that matches the **runtime in use**, not the
           host OS — rather than an x86_64-only binary that has to be rewritten within a year.
-      - **▶️ NEXT:** read `loader/main.c` in the FOSS source for the exact `__wine_main` setup (argv/envp
-        marshalling, what it does before the call), then write the host. After that: the double Dock
-        tile, then re-check `SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` / the launch log
-        (the log first — `GraphicsFallback` reads the child's output and the host would own those fds).
+      - **✅ FULL HOST SPEC (2026-09-21) — `loader/main.c` read; every piece verified. The hard part is
+        NOT the socket, it's the address-space reservation.** The stock loader's `main()` is only this:
+        `init_reserved_areas()` → `apple_override_bundle_name()` → `dlopen` ntdll.so → `dlsym` →
+        `__wine_main(argc, argv)` (never returns). So the host is:
+        1. **Linked with two zerofill segments — mandatory, and impossible to do at runtime.** On
+           `__APPLE__ && __x86_64__ && !HAVE_WINE_PRELOADER` the loader declares
+           `WINE_RESERVE` (vmaddr `0x1000`, vmsize `0x1fffff000` ≈ 8 GB) and `WINE_TOP_DOWN`
+           (vmaddr `0x7ff000000000`, vmsize `0x1ff0000`) via `.zerofill` sections, because — quoting the
+           source — that is *"the only way to prevent system frameworks from using them, including
+           allocations before main() runs"*. **Verified that this is achievable in a Cocoa app:**
+           `Menu Helper` carries both segments at byte-identical addresses and sizes to Wine's own child
+           loader. That, not the IPC, is why the host can't just be an ordinary app.
+        2. An app bundle, LaunchServices-launched (that's what supplies identity + icon).
+        3. `init_reserved_areas()`: `mmap(PROT_NONE, MAP_FIXED|MAP_NORESERVE|MAP_PRIVATE|MAP_ANON)` over
+           those two ranges.
+        4. Listen on `CX_ALT_LOADER_SOCKET`; on `REQUEST_LOAD_WINE` take cwd/env/argv + the 4 fds.
+        5. `dlopen("<runtime>/lib/wine/<arch>-unix/ntdll.so", RTLD_NOW)`, `dlsym("__wine_main")`, call it
+           as `void (*)(int, char **)`. We can pass an absolute path — `try_dlopen`'s self-relative
+           derivation is only for the stock loader's own layout.
+        - **Bonus, and it closes an old loose end:** `apple_override_bundle_name` ("CrossOver Hack 13438")
+          rewrites `CFBundleName` **inside the `__TEXT,__info_plist` section embedded in the loader
+          binary**, taking the new value from **`WINEPRELOADERAPPNAME`** (then `unsetenv`s it). Verified:
+          `lib/wine/x86_64-unix/wine` HAS such an embedded plist, `bin/wineloader` does NOT. Per the
+          source comment this controls *"the title of the application menu"* — the menu bar — **not** the
+          Dock tile and **not** the icon. So it explains why setting `WINEPRELOADERAPPNAME` by hand did
+          nothing visible in the 2026-09-19 tests, and it is not the icon lever.
+        - **Note for the dual-arch plan:** the reservation block is guarded by `__x86_64__`. ARM64 Wine
+          will reserve differently (or use the preloader), so that part does NOT port verbatim — it is
+          the one piece of the host that is genuinely architecture-specific.
+      - **▶️ NEXT:** write the host against the spec above (fat/dual-arch per the Rosetta note), then the
+        double Dock tile, then re-check `SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` /
+        the launch log (the log first — `GraphicsFallback` reads the child's output and the host would
+        own those fds).
   - **⚠️ Superseded — kept for the reasoning trail. OWNERSHIP ≠ ICON (2026-09-20).** The user reported
     that during the `Menu Helper` control run Stage Manager still showed the generic icon, not the one in
     the Dock. They were right and the write-up above over-claimed: that run measured **window ownership
