@@ -113,6 +113,10 @@ int main(int argc, char **argv) {
 
     char num[32]; snprintf(num, sizeof num, "%d", fds[3]);
     setenv("WINESERVERSOCKET", num, 1);
+    /* exec_wineloader() (loader.c) esporta SEMPRE questa coppia, non solo il socket.
+       Non avendo pe_info nel messaggio, chiediamo riserva nulla: e' il caso che
+       exec_wineloader usa per le fakedll (res_start = res_end = 0). */
+    if (!getenv("WINEPRELOADRESERVE")) setenv("WINEPRELOADRESERVE", "0-0", 1);
     if (nfds >= 5) { snprintf(num, sizeof num, "%d", fds[4]); setenv("WINE_WAIT_CHILD_PIPE", num, 1); }
     L("WINESERVERSOCKET=%d\n", fds[3]);
 
@@ -131,6 +135,17 @@ int main(int argc, char **argv) {
     if (!h) { L("dlopen: %s\n", dlerror()); return 1; }
     void (*wine_main)(int, char **) = dlsym(h, "__wine_main");
     if (!wine_main) { L("__wine_main assente\n"); return 1; }
+    /* DIAGNOSI (non bloccante: al momento della consegna il socket e' VUOTO, misurato:
+       con MSG_PEEK bloccante l'host si piantava qui).
+       ntdll legge 4 byte come versione + un fd via SCM_RIGHTS. */
+    { uint32_t peek = 0xdeadbeef; char cb[256]; int gotfd = -1;
+      struct iovec v = { &peek, sizeof peek }; struct msghdr m; memset(&m, 0, sizeof m);
+      m.msg_iov = &v; m.msg_iovlen = 1; m.msg_control = cb; m.msg_controllen = sizeof cb;
+      ssize_t r = recvmsg(fds[3], &m, MSG_PEEK | MSG_DONTWAIT);
+      for (struct cmsghdr *cm = CMSG_FIRSTHDR(&m); cm; cm = CMSG_NXTHDR(&m, cm))
+        if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SCM_RIGHTS) gotfd = *(int *)CMSG_DATA(cm);
+      L("PEEK su fd %d: r=%zd primi4=%u (0x%08x) fd_allegato=%d errno=%d\n",
+        fds[3], r, peek, peek, gotfd, r < 0 ? errno : 0); }
     L("--- chiamo __wine_main (da qui sotto parla Wine) ---\n");
     wine_main(n, wargv);
     L("--- __wine_main E' RITORNATO ---\n");

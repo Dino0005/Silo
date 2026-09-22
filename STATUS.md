@@ -295,11 +295,30 @@
           (`…/Runtimes/wine-crossover-26.3/…`), and Silo's `ntdll.so` and CrossOver.app's are the same
           build (both 608032 bytes). So it is not a stale or foreign server: the bytes read off the
           adopted socket are simply **not the handshake** `server_init_process` expects there.
-        - **▶️ NEXT:** read `wine_server_receive_fd` (it's the very first thing done with the socket) and
-          the sender's setup of `socketfd` around `process.c` line ~860, to learn what state that socket
-          is supposed to be in when handed over — whether some bytes are meant to have been consumed
-          already, or whether the receiving side is expected to do something before `__wine_main`.
-          Then the `uint32_t` reply semantics.
+        - **Both reads done (2026-09-23), plus two more measurements. The mismatch is NOT explained yet,
+          but the search space is much smaller.**
+          - `wine_server_receive_fd` (server.c:988) is a plain `recvmsg` on `fd_socket` reading
+            **4 bytes** into `handle` — at init that is the protocol version — plus one fd via
+            `SCM_RIGHTS`. So `44` is literally the first 4 bytes that arrived there.
+          - The sender's `socketfd` IS the right socket: `spawn_process(params, socketfd, …)` passes the
+            same descriptor to `send_to_cx_loader` that the forked child would have inherited.
+          - **Found a genuinely missing piece of the handover:** `exec_wineloader` (loader.c:709) exports
+            **two** variables, not one — `WINESERVERSOCKET=%u` *and*
+            `WINEPRELOADRESERVE=<start>-<end>` (from `pe_info->base`/`map_size`). Added it to the host
+            (`0-0`, the value `exec_wineloader` itself uses for fakedlls, since `pe_info` is not in the
+            alt-loader message). **Re-tested: the mismatch is unchanged** — so it was a real gap in the
+            handover but not the cause. Note `pe_info` is passed *to* `send_to_cx_loader` yet does not
+            appear in the bytes it writes; worth re-checking whether it is sent somewhere we skipped.
+          - **New measurement, and the most useful one:** a `MSG_PEEK` on the wineserver fd just before
+            `__wine_main` **blocks** — so at handover time the socket is **empty**, nothing queued. The
+            `44` therefore arrives *later*, from the server, rather than being stale garbage left in the
+            buffer. (The probe is now `MSG_PEEK|MSG_DONTWAIT` in-tree so it cannot hang a future run —
+            the blocking version wedged the host and that run produced no verdict.)
+        - **▶️ NEXT:** find out what the server sends first to a client it did not fork. Cheap next probes:
+          non-blocking peek in a short loop to capture those 4 bytes and any attached fd; and check
+          whether the server expects `send_server_task_port()`-style setup (Apple-only, called right
+          after in `server_init_process`) before it will talk protocol. Then the `uint32_t` reply
+          semantics, still unread.
         - **The prototype now lives in-tree at `Scripts/altloader-host/`** (`host.c` + `build.sh`, with
           the wire format and the mandatory link flags documented in the header) so it survives teardown
           — the previous one was lost in `/tmp` and had to be retyped. Not part of the app build; the
