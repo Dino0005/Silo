@@ -280,12 +280,30 @@
           log, not the host's. And I grepped that launcher log only for `err:|fail|could not`, which
           `wine: Bad server socket N: …` does not match. **So the run may well have told us exactly what
           was wrong and I filtered it out.**
-        - **▶️ NEXT, in this order:** (1) rebuild the host and re-run the whitelisted notepad case, this
-          time reading **both** logs in full, with no grep; (2) if it is the socket, follow
-          `wine_server_receive_fd`; (3) read the sender's handling of the `uint32_t` reply.
-        - ⚠️ **Process note: the prototype lived in `/tmp` and was deleted in teardown, so it has to be
-          rewritten.** Next time keep it in-tree (e.g. `Scripts/altloader-host/`, excluded from the app
-          build) so a session can pick it up instead of retyping it.
+        - **✅ THE ERROR IS NOW CAPTURED (2026-09-23), and fixing the diagnostics was all it took.** Host
+          rebuilt with stderr kept on **our own** log instead of the adopted fd, then the whitelisted
+          notepad case re-run. The host does everything right — `LOAD_WINE`, `cwd=0 env=1926 argv=32`,
+          `fd ricevuti: 4 -> 6 7 8 9`, `WINESERVERSOCKET=9`,
+          `argv[1]=C:\windows\system32\notepad.exe` — and then Wine says:
+          ```
+          wine client error:0: version mismatch 44/1809.
+          Your wineserver binary was not upgraded correctly, …
+          Or maybe the wrong wineserver is still running?
+          ```
+          `1809` is `SERVER_PROTOCOL_VERSION`; `44` is what got read as the version.
+        - **The message's own hint is ruled out by measurement.** The running wineserver *is* Silo's
+          (`…/Runtimes/wine-crossover-26.3/…`), and Silo's `ntdll.so` and CrossOver.app's are the same
+          build (both 608032 bytes). So it is not a stale or foreign server: the bytes read off the
+          adopted socket are simply **not the handshake** `server_init_process` expects there.
+        - **▶️ NEXT:** read `wine_server_receive_fd` (it's the very first thing done with the socket) and
+          the sender's setup of `socketfd` around `process.c` line ~860, to learn what state that socket
+          is supposed to be in when handed over — whether some bytes are meant to have been consumed
+          already, or whether the receiving side is expected to do something before `__wine_main`.
+          Then the `uint32_t` reply semantics.
+        - **The prototype now lives in-tree at `Scripts/altloader-host/`** (`host.c` + `build.sh`, with
+          the wire format and the mandatory link flags documented in the header) so it survives teardown
+          — the previous one was lost in `/tmp` and had to be retyped. Not part of the app build; the
+          compiled `host` is gitignored.
         - Reusable knowledge from the session: the link flags (above), and that **the test needs a warm
           prefix plus the whitelist**, or the host silently adopts `wineboot` and the run tells you
           nothing.
