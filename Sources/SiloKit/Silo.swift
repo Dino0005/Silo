@@ -222,3 +222,36 @@ extension URL {
         WineRuntimeLayout(wineBinary: self).externalDir
     }
 }
+
+/// Locating the **alt-loader host** — the helper `Scripts/altloader-host` builds, which
+/// `Scripts/build-app.sh` drops into `Silo.app/Contents/Helpers/SiloWineHost`.
+///
+/// `GameHostBundle` copies it into each per-game `.app`, where LaunchServices launches it and it adopts
+/// the Wine process handed over on `CX_ALT_LOADER_SOCKET` — the whole reason a game's window can carry
+/// its own icon in Mission Control and Stage Manager.
+public enum AltLoaderHost: Sendable {
+    /// Path inside an assembled `.app`, relative to the bundle root.
+    static let relativePath = "Contents/Helpers/SiloWineHost"
+
+    /// The host inside `appBundle`, or `nil` when it isn't there. Pure apart from one existence check,
+    /// so it unit-tests without an app bundle.
+    public static func url(inAppBundle appBundle: URL, fileManager: FileManager = .default) -> URL? {
+        let host = appBundle.appendingPathComponent(relativePath)
+        return fileManager.isExecutableFile(atPath: host.path) ? host : nil
+    }
+
+    /// The host for the running app, or `nil` — which is the normal case for a `swift run` dev build,
+    /// where no `.app` has been assembled. Callers must treat `nil` as "launch the old way": the icon
+    /// is cosmetic and must never block a game.
+    ///
+    /// `SILO_ALTLOADER_HOST` overrides the lookup, so a locally built host can be tested without
+    /// re-assembling the bundle.
+    public static func resolved(environment: [String: String] = ProcessInfo.processInfo.environment,
+                                fileManager: FileManager = .default) -> URL? {
+        if let override = environment["SILO_ALTLOADER_HOST"], !override.isEmpty {
+            let url = URL(fileURLWithPath: override)
+            return fileManager.isExecutableFile(atPath: url.path) ? url : nil
+        }
+        return url(inAppBundle: Bundle.main.bundleURL, fileManager: fileManager)
+    }
+}

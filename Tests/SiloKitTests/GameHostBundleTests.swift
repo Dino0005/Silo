@@ -205,6 +205,51 @@ struct GameHostBundleTests {
         #expect(!GameHostBundle.isHostBundle(at: file))
     }
 
+    // MARK: - The alt-loader host binary
+
+    /// The host is what LaunchServices launches, so it must land at `Contents/MacOS/SiloGameHost`
+    /// (the name `CFBundleExecutable` declares) and be executable.
+    @Test func writeInstallsTheHostBinaryAsTheBundleExecutable() throws {
+        let root = try Self.tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fake = root.appendingPathComponent("prebuilt-host")
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: fake)
+        let bundle = GameHostBundle(name: "Doom", id: "42")
+
+        let macOS = try bundle.write(into: root, hostBinary: fake)
+
+        let installed = macOS.appendingPathComponent("SiloGameHost")
+        #expect(FileManager.default.fileExists(atPath: installed.path))
+        #expect(FileManager.default.isExecutableFile(atPath: installed.path))
+        #expect(bundle.infoPlist().contains("<key>CFBundleExecutable</key><string>SiloGameHost</string>"))
+    }
+
+    /// A relaunch must refresh the host in place — the previous run may still be executing from the old
+    /// copy, which is safe because it keeps its own inode.
+    @Test func writeReplacesAnOlderHostBinary() throws {
+        let root = try Self.tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let old = root.appendingPathComponent("v1"), new = root.appendingPathComponent("v2")
+        try Data("old".utf8).write(to: old)
+        try Data("a-much-newer-build".utf8).write(to: new)
+        let bundle = GameHostBundle(name: "Doom", id: "42")
+
+        try bundle.write(into: root, hostBinary: old)
+        let macOS = try bundle.write(into: root, hostBinary: new)
+
+        let installed = macOS.appendingPathComponent("SiloGameHost")
+        #expect(try Data(contentsOf: installed) == Data("a-much-newer-build".utf8))
+    }
+
+    /// Without a host binary the directory stays empty — that is the `SILO_LOADER_LINK_DIR` route, where
+    /// Wine hard-links its own loader in here instead.
+    @Test func writeWithoutAHostBinaryLeavesTheDirectoryEmpty() throws {
+        let root = try Self.tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let macOS = try GameHostBundle(name: "Doom", id: "42").write(into: root)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: macOS.path).isEmpty)
+    }
+
     // MARK: - Helpers
 
     private static func tempDir() throws -> URL {

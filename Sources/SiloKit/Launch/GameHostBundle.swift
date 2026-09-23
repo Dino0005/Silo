@@ -71,9 +71,13 @@ public struct GameHostBundle: Sendable {
         """
     }
 
-    /// Named in `CFBundleExecutable`. No such file is written: Wine creates the real executables here
-    /// (one hard link per Windows exe it runs), and macOS resolves the bundle from the *running* path, not
-    /// from this key — verified on device.
+    /// Named in `CFBundleExecutable`, and — since the alt-loader route was proven (2026-09-23) — the
+    /// **actual host** copied here by `write(into:hostBinary:…)`: the binary LaunchServices starts, which
+    /// then adopts the Wine process handed to it over `CX_ALT_LOADER_SOCKET` and becomes it.
+    ///
+    /// *(Under the older `SILO_LOADER_LINK_DIR` patch route this named a file that was never written —
+    /// Wine hard-linked its loader in here instead. That still works: macOS resolves the bundle from the
+    /// *running* executable's path, whatever its file name, so both routes can share one bundle.)*
     static let executableName = "SiloGameHost"
     /// Base name of the `.icns` in `Contents/Resources`, matching `CFBundleIconFile`.
     static let iconName = "AppIcon"
@@ -159,14 +163,20 @@ public struct GameHostBundle: Sendable {
 
     // MARK: - I/O
 
-    /// Create (or refresh) the bundle under `directory` and return the `Contents/MacOS` to hand Wine.
+    /// Create (or refresh) the bundle under `directory` and return its `Contents/MacOS`.
     ///
-    /// `iconICO` is the game exe's icon as `PEIcon` extracts it; `nil` — or an icon we can't convert — just
-    /// means no `.icns`, which still leaves the process *named* after the game. `Contents/MacOS` is created
-    /// **empty**: Wine populates it. Idempotent, and refuses to overwrite anything that isn't ours.
+    /// - `hostBinary`: the alt-loader host to install as `Contents/MacOS/SiloGameHost` — the executable
+    ///   LaunchServices launches. `nil` leaves `Contents/MacOS` empty, which is what the
+    ///   `SILO_LOADER_LINK_DIR` route wants (Wine populates it itself).
+    /// - `iconICO`: the game exe's icon as `PEIcon` extracts it; `nil` — or an icon we can't convert —
+    ///   just means no `.icns`, which still leaves the process *named* after the game.
+    ///
+    /// Idempotent, and refuses to overwrite anything that isn't ours. Replacing the host binary while a
+    /// previous launch is still running is safe: the running process keeps its own inode.
     @discardableResult
     public func write(
-        into directory: URL, iconICO: Data? = nil, fileManager: FileManager = .default
+        into directory: URL, hostBinary: URL? = nil, iconICO: Data? = nil,
+        fileManager: FileManager = .default
     ) throws -> URL {
         let bundle = bundleURL(in: directory)
         let macOS = bundle.appendingPathComponent("Contents/MacOS", isDirectory: true)
@@ -181,6 +191,14 @@ public struct GameHostBundle: Sendable {
             try fileManager.createDirectory(at: macOS, withIntermediateDirectories: true)
             try Data(infoPlist().utf8).write(
                 to: bundle.appendingPathComponent("Contents/Info.plist"), options: .atomic)
+            if let hostBinary {
+                let installed = macOS.appendingPathComponent(Self.executableName)
+                if fileManager.fileExists(atPath: installed.path) {
+                    try fileManager.removeItem(at: installed)
+                }
+                try fileManager.copyItem(at: hostBinary, to: installed)
+                try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: installed.path)
+            }
             if let iconICO, let icns = Self.icnsData(fromICO: iconICO) {
                 let resources = bundle.appendingPathComponent("Contents/Resources", isDirectory: true)
                 try fileManager.createDirectory(at: resources, withIntermediateDirectories: true)

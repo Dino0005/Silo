@@ -66,8 +66,10 @@ static char *rd_blob(int s, uint64_t *out) {
 int main(int argc, char **argv) {
     init_reserved_areas();
     const char *sockpath = argc > 1 ? argv[1] : "/tmp/silo-altloader.sock";
+    /* Log dell'host: solo su richiesta. In produzione la diagnostica del gioco sta
+       nel log che Silo passa al lanciatore, e un file per lancio sarebbe rumore. */
     char lgpath[1100]; snprintf(lgpath, sizeof lgpath, "%s.log", sockpath);
-    lg = fopen(lgpath, "w");
+    lg = getenv("SILO_HOST_DEBUG_LOG") ? fopen(lgpath, "w") : fopen("/dev/null", "w");
     L("host pid %d, socket %s\n", getpid(), sockpath);
 
     unlink(sockpath);
@@ -111,10 +113,15 @@ int main(int argc, char **argv) {
     }
     if (cwd_len && *cwd) chdir(cwd);
 
-    /* DIAGNOSTICA: stdin/stdout adottati, ma stderr resta sul NOSTRO log, cosi'
-       un fatal_perror di Wine ("Bad server socket %d") finisce dove lo leggiamo.
-       In produzione stderr andra' sul log del gioco (lo legge GraphicsFallback). */
-    dup2(fds[0], 0); dup2(fds[1], 1); dup2(fileno(lg), 2);
+    /* Adotta tutti e tre i descrittori standard. Il terzo e' load-bearing: Wine
+       scrive err: e warn: su STDERR, e GraphicsFallback legge proprio quelli per
+       accorgersi del ripiego silenzioso su wined3d. Dirottarlo altrove renderebbe
+       cieca quella guardia (misurato 2026-09-23).
+       Con SILO_HOST_DEBUG_LOG=1 lo stderr resta invece sul log dell'host: serve
+       solo a far parlare Wine durante la diagnostica. */
+    dup2(fds[0], 0);
+    dup2(fds[1], 1);
+    if (getenv("SILO_HOST_DEBUG_LOG")) dup2(fileno(lg), 2); else dup2(fds[2], 2);
 
     char num[32]; snprintf(num, sizeof num, "%d", fds[3]);
     setenv("WINESERVERSOCKET", num, 1);

@@ -57,6 +57,23 @@ shopt -u nullglob
 
 [ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 
+# The alt-loader host (Scripts/altloader-host). Not a SwiftPM target: it must be linked with fixed
+# segment addresses and for the RUNTIME's architecture (x86_64 today), which SwiftPM can't express —
+# see the header of host.c and STATUS.md. GameHostBundle copies it into each per-game .app, where
+# LaunchServices starts it and it adopts the Wine process handed over on CX_ALT_LOADER_SOCKET.
+# Best-effort: a failure here only costs the Mission Control / Stage Manager icon, so it must never
+# fail the app build.
+if [ -x Scripts/altloader-host/build.sh ]; then
+    echo "==> Build alt-loader host"
+    if Scripts/altloader-host/build.sh && [ -f Scripts/altloader-host/host ]; then
+        mkdir -p "$APP/Contents/Helpers"
+        cp Scripts/altloader-host/host "$APP/Contents/Helpers/SiloWineHost"
+        chmod 755 "$APP/Contents/Helpers/SiloWineHost"
+    else
+        echo "    WARNING: alt-loader host did not build — per-game window icons will fall back"
+    fi
+fi
+
 # SiloKit's own resources, flat in Contents/Resources so Bundle.main finds them — the standard macOS app
 # layout. The nested SwiftPM bundle copied above is NOT enough on its own: SwiftPM's generated
 # `Bundle.module` looks beside the .app and then in the build directory of whoever compiled, so a shipped

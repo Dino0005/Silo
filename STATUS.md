@@ -491,10 +491,35 @@
                 half-finished `reg delete` left behind during the experiments. `enableReg(exeNames: [])`
                 is therefore NOT a way to disable, and a test pins that.
               - Not wired into a launch path yet: it is the piece the production host will need.
-            - **▶️ NEXT:** productionise the host — dual-arch per the Rosetta note, per-game bundle + PE
-              icon via the existing `GameHostBundle`, `dup2(fds[2], 2)` so `GraphicsFallback` keeps
-              seeing Wine's stderr, and Silo setting `CX_ALT_LOADER_SOCKET` + applying the whitelist in
-              the launch path.
+            - **✅ Host productionised up to the launch wiring (2026-09-23; 629 tests green, build clean,
+              `dist/Silo.app` assembles).** Four pieces:
+              1. **`host.c` is production-correct on stderr:** it now does `dup2(fds[2], 2)` like the
+                 other two descriptors, because Wine writes `err:`/`warn:` there and `GraphicsFallback`
+                 parses exactly those — diverting it would blind the silent-wined3d guardrail.
+                 `SILO_HOST_DEBUG_LOG=1` restores the old behaviour (stderr into the host's own log) for
+                 diagnostics only; without it the host writes no per-launch file at all.
+              2. **`GameHostBundle.write(into:hostBinary:iconICO:)`** installs the host as
+                 `Contents/MacOS/SiloGameHost` (the name `CFBundleExecutable` declares), 0755, replacing
+                 an older copy — safe while a previous launch runs, since that process keeps its inode.
+                 `hostBinary: nil` still leaves the directory empty, which is what the
+                 `SILO_LOADER_LINK_DIR` patch route wants, so one bundle serves both routes.
+              3. **`AltLoaderHost`** (`Silo.swift`) locates the helper: `Contents/Helpers/SiloWineHost`
+                 inside the running `.app`, with a `SILO_ALTLOADER_HOST` override for dev builds. Returns
+                 **nil** when absent (the normal `swift run` case) — callers must read that as "launch the
+                 old way", since the icon is cosmetic and must never block a game.
+              4. **`build-app.sh`** builds the host and copies it into `Contents/Helpers/`, before the
+                 ad-hoc signing so it is covered by it. Deliberately **best-effort**: a host that fails to
+                 build prints a warning and the app still ships. Verified: the assembled bundle carries a
+                 16 KB `Mach-O x86_64` executable (the 8 GB `WINE_RESERVE` is zerofill, so it costs no
+                 file size).
+              It is NOT a SwiftPM target on purpose: the fixed segment addresses and the runtime-matching
+              architecture can't be expressed there (see `host.c`'s header).
+            - **▶️ NEXT — the launch wiring, the last piece.** In the launch path: create the per-game
+              bundle with the host + PE icon, apply `AltLoaderWhitelist.enableReg` for that exe, start the
+              bundle via LaunchServices with a per-launch socket path, set `CX_ALT_LOADER_SOCKET` in
+              `makePlan`, then spawn Wine as today — with the whole thing skipped when
+              `AltLoaderHost.resolved()` is nil. Then remove the whitelist key afterwards
+              (`disableReg`, never an empty key). Dual-arch stays future work, tied to ARM64 Wine.
             - *(historical)* The plan below — asking the server — is what solved it. `send_client_fd` prints
               `"%04x: *fd* %04x -> %d"` whenever the **server's** `debug_level` is on. So: start the
               wineserver by hand with `wineserver -d1` (or `-f -d1` in the foreground), capture its
