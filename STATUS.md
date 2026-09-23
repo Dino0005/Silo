@@ -441,11 +441,34 @@
             - **Method note worth keeping:** four sessions of guessing on the client side were undone by
               one `wineserver -d1`. The instrumented server said in one trace what no amount of reading
               the sender could.
-            - **▶️ NEXT (now that it works):** the second Dock tile; then the supervision checks
-              (`SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` / the launch log, the log
-              first); then the `UseAltLoader` whitelist as a real mechanism (per-game exe name) instead of
-              a hand-written key; then productionising the host (dual-arch, per-game bundle + PE icon via
-              the existing `GameHostBundle`).
+            - **✅ The double Dock tile is gone — fixed as a side effect.** Measured during a successful
+              adoption: of all `.regular` applications only **one** belongs to us,
+              `pid 26310 SiloWineHost / com.mikael.silo.winehost.test`. The second "wine" tile existed
+              because the fallback `fork()` created a separate Wine process that registered its own; with
+              one process there is one tile. Nothing left to do here.
+            - **✅ The launch log survives, and this pins down what production must do.** `lsof` on the
+              adopted host:
+              ```
+              fd 0 → /dev/null
+              fd 1 → /private/tmp/dock/launcher.log   ← the file Silo's spawnDetached gave the launcher
+              fd 2 → sock.log                          ← MY override, a prototype artefact
+              ```
+              The fds handed over by the launcher are the ones Silo already controls, so the game's output
+              **does** reach Silo's log through them. ⚠️ **Requirement for the production host: adopt
+              `fds[2]` as stderr too** (`dup2(fds[2], 2)`), which the prototype deliberately does not do
+              so that Wine's own errors land in its debug log. Wine writes `err:`/`warn:` to **stderr**,
+              so without that `GraphicsFallback` — the silent-wined3d guardrail — would go blind. That was
+              the supervision risk flagged on 2026-09-19 and it is now precisely bounded.
+            - The other three supervision items need no change, for the reason established earlier: they
+              are **prefix-driven, not parentage-driven** — `SteamReadiness` reads the `ActiveProcess` pid
+              from `user.reg`, `WineServerProbe` looks for socket+lock keyed by the prefix's
+              `(st_dev, st_ino)`, and `stopBottleProcesses` / the startup sweep iterate
+              `allBottlePrefixes()`. The game still runs in Silo's own prefix here (no CrossOver bottle
+              involved), so all three keep working. Worth re-confirming on device once the host is real.
+            - **▶️ NEXT:** the `UseAltLoader` whitelist as a real mechanism (write the game's exe base name
+              at launch instead of a hand-written key, and clean it up after); then productionise the host
+              — dual-arch per the Rosetta note, per-game bundle + PE icon via the existing
+              `GameHostBundle`, and Silo setting `CX_ALT_LOADER_SOCKET` in `makePlan`.
             - *(historical)* The plan below — asking the server — is what solved it. `send_client_fd` prints
               `"%04x: *fd* %04x -> %d"` whenever the **server's** `debug_level` is on. So: start the
               wineserver by hand with `wineserver -d1` (or `-f -d1` in the foreground), capture its
