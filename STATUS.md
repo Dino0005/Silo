@@ -345,7 +345,32 @@
             (`thread.c:1700`, called with a **real** `request_fd` → `fd != -1` → **sends nothing**).
             Combined with `SERVER_PROTOCOL_VERSION` appearing in exactly one place, that means:
             **the version is only ever sent to a process that connected on the master socket itself.**
-          - **Consequence — the current host design is probably wrong at the root, not incomplete.** A
+          - ⚠️ **RETRACTED the same day: "only master-socket connections get the version" is WRONG.** The
+            sanity check that broke it: forked children plainly do work, so the conclusion had to be
+            incomplete. It is — the **parent** creates the child's first thread, from
+            `dlls/ntdll/unix/process.c:1360`:
+            ```c
+            SERVER_START_REQ( new_thread )
+                req->process    = process_handle;  /* the NEW process */
+                req->request_fd = -1;              /* ← minus one */
+            …
+            /* create the child process */
+            spawn_process( params, socketfd[0], … );   /* only AFTER */
+            ```
+            `request_fd == -1` is exactly the branch that reaches `create_thread(-1, …)` and therefore
+            `send_client_fd(process, pipe, SERVER_PROTOCOL_VERSION)` — on the **new** process's socket,
+            and **before** `spawn_process`, hence before `send_to_cx_loader` is ever called.
+          - **So the version should already be queued on the fd we are handed — and our `MSG_PEEK` said
+            it wasn't. THAT is the real anomaly**, and it is a much better-shaped question than any of the
+            previous ones: not "what are we failing to set up", but "why is a message the server has
+            already sent not visible on this descriptor in our process".
+            Candidates to check next: whether `fds[3]` really is the same end of the socketpair the
+            server writes to (the sender sets `cmsg.fds[3] = wineserversocket`, and `spawn_process`
+            receives `socketfd[0]` — worth confirming which end the server kept); and whether an
+            `SCM_RIGHTS`-carried message can sit unread on a descriptor that was itself passed by
+            `SCM_RIGHTS` — i.e. whether passing the socket moved or dropped its queued data.
+          - ~~**Consequence — the current host design is probably wrong at the root, not incomplete.**~~
+            *(Superseded by the retraction above; kept for the reasoning trail.)* A
             `new_process`-created socket is never going to receive a version, so a host that reuses it and
             then runs the *stock* `server_init_process` path (which unconditionally waits for one) can
             only hang. The silence we measured is the correct behaviour of the server, not a missing
