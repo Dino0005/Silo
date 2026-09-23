@@ -477,10 +477,24 @@
             - `SteamReadiness` still rests on reasoning only: it reads the `ActiveProcess` pid from
               `user.reg`, which is parentage-independent, but it has **not** been exercised with an
               adopted host — that needs a real in-prefix Steam, not notepad.
-            - **▶️ NEXT:** the `UseAltLoader` whitelist as a real mechanism (write the game's exe base name
-              at launch instead of a hand-written key, and clean it up after); then productionise the host
-              — dual-arch per the Rosetta note, per-game bundle + PE icon via the existing
-              `GameHostBundle`, and Silo setting `CX_ALT_LOADER_SOCKET` in `makePlan`.
+            - **✅ Whitelist mechanism written (2026-09-23): `Launch/AltLoaderWhitelist.swift`,
+              +10 tests, 620 green, build clean.** Pure builders for the registry import, applied the way
+              `SteamBottle.applyWineDefaults` already does it — one `wine regedit /S` instead of
+              `reg add`, which hung repeatedly by hand.
+              - `exeName(for:)` mirrors the sender's matching: last path component, cut at the final dot,
+                handling **Windows** backslash paths (that is the form `argv[1]` carries) and keeping a
+                leading dot for a name that is only an extension.
+              - `enableReg(exeNames:)` whitelists exactly those names; `disableReg()` **deletes the key**
+                (`[-HKEY…]`).
+              - ⚠️ The distinction is load-bearing and tested: an existing-but-**empty** `UseAltLoader`
+                matches nothing and would exclude *every* exe from the alt loader — exactly the state a
+                half-finished `reg delete` left behind during the experiments. `enableReg(exeNames: [])`
+                is therefore NOT a way to disable, and a test pins that.
+              - Not wired into a launch path yet: it is the piece the production host will need.
+            - **▶️ NEXT:** productionise the host — dual-arch per the Rosetta note, per-game bundle + PE
+              icon via the existing `GameHostBundle`, `dup2(fds[2], 2)` so `GraphicsFallback` keeps
+              seeing Wine's stderr, and Silo setting `CX_ALT_LOADER_SOCKET` + applying the whitelist in
+              the launch path.
             - *(historical)* The plan below — asking the server — is what solved it. `send_client_fd` prints
               `"%04x: *fd* %04x -> %d"` whenever the **server's** `debug_level` is on. So: start the
               wineserver by hand with `wineserver -d1` (or `-f -d1` in the foreground), capture its
