@@ -378,10 +378,30 @@
               is queued. Our probe may have been **blind, not the socket silent** — which would also
               explain why the earlier immediate call *did* read something (`44`, the first 4 bytes of a
               message the peek could not see).
-            - **▶️ NEXT:** measure available bytes without touching the message — Darwin's
-              `getsockopt(fd, SOL_SOCKET, SO_NREAD, …)`, or `ioctl(FIONREAD)` — and log that instead of
-              peeking. If it reports data, the socket was never silent and the whole "server stays quiet"
-              framing goes away; the remaining question then becomes why ntdll misreads the 4 bytes.
+            - **Measured with `SO_NREAD` (2026-09-23): `0 byte per 2000 ms`.** So the Darwin-`MSG_PEEK`
+              excuse was **wrong** and the earlier "socket is empty" reading was right after all. Two
+              independent non-destructive probes now agree.
+            - **And `send_client_fd` (`server/request.c:457`) is immediate** — a plain
+              `sendmsg(get_unix_fd(process->msg_fd), …)` carrying the handle as 4 bytes of payload plus
+              the fd via `SCM_RIGHTS`, with no deferral and no queueing of its own.
+            - ⚠️ **So two established facts now contradict each other:** the server writes the version
+              before `spawn_process` is even called, and the descriptor we adopt reports nothing on it.
+              One of the assumptions in between must be false, and **neither of my probes can settle it**:
+              on Darwin I have not established that `SO_NREAD` or `MSG_PEEK` account for a record whose
+              only real content is ancillary data, so "reports 0" and "is empty" may not be the same
+              statement. I have now built a conclusion on a non-destructive probe twice; that stops here.
+            - **▶️ NEXT — one destructive experiment, and it settles it.** In the host, before
+              `__wine_main`, do a **real** `recvmsg` on `fds[3]` and log what comes back (bytes + any
+              `SCM_RIGHTS` fd). It consumes the message and therefore breaks that run by design — the
+              point is only to learn whether the message exists:
+              * 4 bytes + an fd → the socket was never silent, both probes are blind on Darwin, and the
+                question becomes why `ntdll` mis-reads it;
+              * genuinely nothing → the server is not writing where we think, and the next thing to
+                check is which descriptor `process->msg_fd` actually holds at that moment.
+            - Also worth noting from this run: with the 2 s delay, `__wine_main` produced **no** error at
+              all — the host stayed alive and a separate `notepad.exe` child appeared, i.e. Wine quietly
+              fell back to starting a fresh process tree. That is consistent with the handshake failing
+              and ntdll taking the `server_connect()` route instead.
           - ~~**Consequence — the current host design is probably wrong at the root, not incomplete.**~~
             *(Superseded by the retraction above; kept for the reasoning trail.)* A
             `new_process`-created socket is never going to receive a version, so a host that reuses it and
