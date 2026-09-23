@@ -459,12 +459,24 @@
               so that Wine's own errors land in its debug log. Wine writes `err:`/`warn:` to **stderr**,
               so without that `GraphicsFallback` — the silent-wined3d guardrail — would go blind. That was
               the supervision risk flagged on 2026-09-19 and it is now precisely bounded.
-            - The other three supervision items need no change, for the reason established earlier: they
-              are **prefix-driven, not parentage-driven** — `SteamReadiness` reads the `ActiveProcess` pid
-              from `user.reg`, `WineServerProbe` looks for socket+lock keyed by the prefix's
-              `(st_dev, st_ino)`, and `stopBottleProcesses` / the startup sweep iterate
-              `allBottlePrefixes()`. The game still runs in Silo's own prefix here (no CrossOver bottle
-              involved), so all three keep working. Worth re-confirming on device once the host is real.
+            - **✅ `stopBottleProcesses` and the leftover sweep VERIFIED on device (2026-09-23), not just
+              argued.** With an adopted host live (pid 26555) in Silo's SteamBottle:
+              - before: the prefix's server dir `/tmp/.wine-501/server-100000f-687daa0` held
+                **`lock` + `socket`** → `WineServerProbe.isLive` reads **live**, correctly.
+              - running exactly what *Stop all bottle processes* does — `wineserver -k` with that
+                `WINEPREFIX` — **terminated the adopted host** (pid gone, window gone). So the menu
+                command does control the host: it is a Wine process in that prefix and the server kills
+                it like any other.
+              - after `-k` the dir holds **only `lock`** (the socket is gone) → the probe now reads
+                **dead**, which is precisely the state `sweepLeftovers` is built to remove, and matches
+                the case already documented in `WineServerProbe` ("only a leftover lock and nobody
+                home").
+              So both the kill path and the sweep's precondition behave correctly with the alt-loader
+              host. (These had previously only been *reasoned* from the code — the user asked whether
+              they were actually verified, and they were not; now they are.)
+            - `SteamReadiness` still rests on reasoning only: it reads the `ActiveProcess` pid from
+              `user.reg`, which is parentage-independent, but it has **not** been exercised with an
+              adopted host — that needs a real in-prefix Steam, not notepad.
             - **▶️ NEXT:** the `UseAltLoader` whitelist as a real mechanism (write the game's exe base name
               at launch instead of a hand-written key, and clean it up after); then productionise the host
               — dual-arch per the Rosetta note, per-game bundle + PE icon via the existing
