@@ -326,10 +326,25 @@
           already issued the `new_process` request and the server prepares that socket; for us it never
           speaks. Either the server does not consider this socket ready, or something the client must do
           first is missing.
-        - **▶️ NEXT:** read the **server side** (it is in the FOSS drop too) — `server/process.c` /
-          `server/request.c` — for where the version is written to a new process's socket and what
-          condition gates it. That is the one place that can say why it stays silent for us. Only then
-          revisit the client side and the `uint32_t` reply semantics.
+        - **Server side located (2026-09-23) — the chain is one link from being closed.** The version is
+          not sent on connection: it is sent **as part of thread creation**.
+          `server/thread.c:518`, inside `create_thread(fd, process, sd)`, `if (fd == -1)` →
+          `pipe(request_pipe)` → `send_client_fd( process, request_pipe[1], SERVER_PROTOCOL_VERSION )`.
+          So the 4 bytes ntdll reads as the version travel together with the request pipe fd.
+          - **The only caller passing `-1` is the master-socket accept path** —
+            `server/request.c:566`, in `master_socket_poll_event`: on `accept()` it does
+            `create_process(client, NULL, …)` (note `parent = NULL`) then `create_thread(-1, process, NULL)`.
+            That is the `server_connect()` route, for a process starting from scratch.
+          - The `new_process` route (`server/process.c:1482`) does `create_process(socket_fd, parent, …)`
+            and **does not** call `create_thread(-1, …)` at that point.
+          - **Remaining link, and the next thing to read:** `create_process()` itself
+            (`server/process.c:809`) — does it create the first thread (and hence send the version) for
+            the `new_process` route? It must, since forked children do read a version. Whatever condition
+            it applies there is the most likely reason the server stays silent for an adopted socket.
+        - ⚠️ Note on method: this stayed unexplained for two sessions because I kept reading the **client**
+          side and guessing (`WINESERVERSOCKET`, then `WINEPRELOADRESERVE`, then a "version mismatch" that
+          turned out to be a race artefact). The server side answered more in three greps than those
+          guesses did in two runs. When a handshake fails, read **both** ends before testing.
         - **The prototype now lives in-tree at `Scripts/altloader-host/`** (`host.c` + `build.sh`, with
           the wire format and the mandatory link flags documented in the header) so it survives teardown
           — the previous one was lost in `/tmp` and had to be retyped. Not part of the app build; the
