@@ -410,7 +410,43 @@
               child's end of the pair, as the source said. Every assumption about the plumbing now checks
               out, which leaves only one conclusion: **for this process the server never wrote the
               version.**
-            - **▶️ NEXT — ask the server directly.** `send_client_fd` prints
+            - **🎉 SOLVED (2026-09-23). The bug was our reply value, and asking the server is what found
+              it.** Started the wineserver by hand with `-f -d1` and read its trace:
+              ```
+              new_process( … socket_fd=15 … ) = 0 { pid=00d4, handle=0064 }
+              new_thread( process=0064, …, request_fd=-1, … )
+              *fd* 0711 -> 196          ← 0x711 = 1809 = SERVER_PROTOCOL_VERSION, so it WAS sent
+              new_thread() = 0 { tid=00d8 }
+              00d8: *fd* 5 <- 196       ← and some process received it — not ours
+              ```
+              The version was sent all along; **a different process consumed it**. Reading what the sender
+              does with our reply explains why: `process.c:513` → `ret = (response == RESPONSE_SUCCESS)`,
+              and the enum at line 92 (*"must match definitions in Mac app code (WineLoader.m)"*) makes
+              `RESPONSE_SUCCESS = REQUEST_LOAD_WINE + 1 = 0x52c17356`. **We were replying `0`**, so Wine
+              concluded the alt loader had refused, fell back to `fork()`, and the forked child ate the
+              handshake and became notepad. That single wrong constant produced every symptom chased for
+              four sessions: the "empty" socket, the phantom `44`, the stray child, the silent fallback.
+            - **✅ END-TO-END RESULT with the correct reply:**
+              ```
+              finestra: pid 25874 [SiloWineHost] "(senza nome) - Blocco Note"
+              proprietario: SiloWineHost  bundleID=com.mikael.silo.winehost.test
+              icona: PROPRIA
+              ```
+              One process, no forked child: **our own host became the Windows process, owns the macOS
+              window, and carries our bundle identity and icon** — with no CodeWeavers binary anywhere.
+              **User-confirmed on screen the same day: "in Stage Manager la finestra del Blocco Note ha
+              l'icona di Silo".** That closes the original question of 2026-09-17 end to end.
+              The route is proven viable on the CrossOver-imported runtime, with no Wine patch and no
+              Silo prefix turned into a CrossOver bottle.
+            - **Method note worth keeping:** four sessions of guessing on the client side were undone by
+              one `wineserver -d1`. The instrumented server said in one trace what no amount of reading
+              the sender could.
+            - **▶️ NEXT (now that it works):** the second Dock tile; then the supervision checks
+              (`SteamReadiness` / `WineServerProbe` / `stopBottleProcesses` / the launch log, the log
+              first); then the `UseAltLoader` whitelist as a real mechanism (per-game exe name) instead of
+              a hand-written key; then productionising the host (dual-arch, per-game bundle + PE icon via
+              the existing `GameHostBundle`).
+            - *(historical)* The plan below — asking the server — is what solved it. `send_client_fd` prints
               `"%04x: *fd* %04x -> %d"` whenever the **server's** `debug_level` is on. So: start the
               wineserver by hand with `wineserver -d1` (or `-f -d1` in the foreground), capture its
               stderr, then run the whole alt-loader case. If the trace shows the version being sent for
