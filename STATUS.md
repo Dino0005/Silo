@@ -364,11 +364,24 @@
             it wasn't. THAT is the real anomaly**, and it is a much better-shaped question than any of the
             previous ones: not "what are we failing to set up", but "why is a message the server has
             already sent not visible on this descriptor in our process".
-            Candidates to check next: whether `fds[3]` really is the same end of the socketpair the
-            server writes to (the sender sets `cmsg.fds[3] = wineserversocket`, and `spawn_process`
-            receives `socketfd[0]` — worth confirming which end the server kept); and whether an
-            `SCM_RIGHTS`-carried message can sit unread on a descriptor that was itself passed by
-            `SCM_RIGHTS` — i.e. whether passing the socket moved or dropped its queued data.
+            - **First candidate closed (2026-09-23): we DO get the right end, and the ordering is in our
+              favour.** `dlls/ntdll/unix/process.c`: `socketpair(…, socketfd)` (1293);
+              `setsockopt(socketfd[0], SO_PASSCRED, …)` (1305) marks **`[0]` as the child's end**;
+              `req->socket_fd = socketfd[1]` (1319) hands `[1]` to the server, which the parent then
+              closes (1338); `new_thread` with `request_fd = -1` (1360) makes the server send the version
+              **on that socket**; and only afterwards `spawn_process(params, socketfd[0], …)` (1379) —
+              i.e. `send_to_cx_loader` receives the child's end, which is exactly the fd we adopt. So the
+              version is queued on our descriptor *before* we are even called.
+            - ⚠️ **Which makes the "socket is empty" measurement itself suspect — probably another
+              diagnostic error, like the stderr one.** On Darwin `MSG_PEEK` is unreliable for messages
+              carrying ancillary data (`SCM_RIGHTS`): the peek can report nothing while a control message
+              is queued. Our probe may have been **blind, not the socket silent** — which would also
+              explain why the earlier immediate call *did* read something (`44`, the first 4 bytes of a
+              message the peek could not see).
+            - **▶️ NEXT:** measure available bytes without touching the message — Darwin's
+              `getsockopt(fd, SOL_SOCKET, SO_NREAD, …)`, or `ioctl(FIONREAD)` — and log that instead of
+              peeking. If it reports data, the socket was never silent and the whole "server stays quiet"
+              framing goes away; the remaining question then becomes why ntdll misreads the 4 bytes.
           - ~~**Consequence — the current host design is probably wrong at the root, not incomplete.**~~
             *(Superseded by the retraction above; kept for the reasoning trail.)* A
             `new_process`-created socket is never going to receive a version, so a host that reuses it and
