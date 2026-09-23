@@ -575,3 +575,46 @@ struct ExecutableResolverTests {
         #expect(ExecutableResolver.firstExecutable(in: dir) == nil)
     }
 }
+
+/// The alt-loader hand-over socket (`AltLoaderSession`): Wine reads `CX_ALT_LOADER_SOCKET` and gives
+/// the new process to our bundled host instead of forking it, which is what puts the game's icon on the
+/// window in Mission Control and Stage Manager.
+@Suite("makePlan: alt-loader socket")
+struct MakePlanAltLoaderTests {
+    private let prefix = URL(fileURLWithPath: "/p/220")
+    private let log = URL(fileURLWithPath: "/p/220.log")
+    private let gameExe = URL(fileURLWithPath: "/lib/steamapps/common/HL2/hl2.exe")
+
+    private func backend() -> BackendConfig {
+        var b = BackendConfig()
+        b.wineBinaryPath = URL(fileURLWithPath: "/w/bin/wine64")
+        return b
+    }
+
+    /// Absent by default: no host installed, or the kill switch set, must leave the launch untouched.
+    @Test func absentByDefault() throws {
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
+            prefix: prefix, logURL: log)
+        #expect(plan.environment["CX_ALT_LOADER_SOCKET"] == nil)
+    }
+
+    @Test func publishedWhenASocketIsGiven() throws {
+        let socket = URL(fileURLWithPath: "/tmp/silo-altloader-220.sock")
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
+            prefix: prefix, logURL: log, altLoaderSocket: socket)
+        #expect(plan.environment["CX_ALT_LOADER_SOCKET"] == socket.path)
+    }
+
+    /// The two icon routes are independent: the alt loader needs no `WINEDLLPATH` and no loader link dir,
+    /// and must not quietly enable the patch route (which `makePlan` deliberately keeps opt-in).
+    @Test func doesNotDragInTheOtherRoute() throws {
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
+            prefix: prefix, logURL: log,
+            altLoaderSocket: URL(fileURLWithPath: "/tmp/s.sock"))
+        #expect(plan.environment["SILO_LOADER_LINK_DIR"] == nil)
+        #expect(plan.environment["WINEDLLPATH"] == nil)
+    }
+}

@@ -73,7 +73,8 @@ public struct LaunchOrchestrator: Sendable {
         sharedBottle: Bool = true,
         desktopGeometry: String? = nil,
         steamArguments: [String] = [],
-        loaderLinkDir: URL? = nil
+        loaderLinkDir: URL? = nil,
+        altLoaderSocket: URL? = nil
     ) throws -> LaunchPlan {
         guard let wine = wine ?? backend.wineBinaryPath else {
             throw LaunchError.wineNotConfigured
@@ -126,6 +127,15 @@ public struct LaunchOrchestrator: Sendable {
         // comment above on graphics overrides, and the patch header): the patch fires on this var alone.
         if let loaderLinkDir {
             environment["SILO_LOADER_LINK_DIR"] = loaderLinkDir.path
+        }
+
+        // The hand-over socket for the alt-loader host (`AltLoaderSession`): Wine's `send_to_cx_loader`
+        // reads this and gives the new process to whoever is listening, instead of forking it. That is
+        // what makes the window-owning process our own bundled host, so Mission Control and Stage
+        // Manager show the game's icon. Unset — the host isn't installed, or SILO_DISABLE_ALTLOADER=1 —
+        // and Wine launches exactly as before.
+        if let altLoaderSocket {
+            environment["CX_ALT_LOADER_SOCKET"] = altLoaderSocket.path
         }
 
         // Steam's own launch options first, then the user's — anything they typed by hand WINS and Steam's
@@ -188,7 +198,8 @@ public struct LaunchOrchestrator: Sendable {
     public func launchInBottle(
         app: SteamApp, config: GameConfig, backend: BackendConfig,
         graphics: GraphicsBackend, wine: URL? = nil, prefix: URL, logURL: URL,
-        gameExe: URL? = nil, desktopGeometry: String? = nil, loaderLinkDir: URL? = nil
+        gameExe: URL? = nil, desktopGeometry: String? = nil, loaderLinkDir: URL? = nil,
+        altLoaderSocket: URL? = nil
     ) async throws -> Int32 {
         guard let launchWine = wine ?? backend.wineBinaryPath else { throw LaunchError.wineNotConfigured }
         // Reuse the exe the caller already resolved (the VM resolves it once to pick the backend), else
@@ -203,7 +214,7 @@ public struct LaunchOrchestrator: Sendable {
             gameExe: gameExe, prefix: prefix, logURL: logURL, desktopGeometry: desktopGeometry,
             steamArguments: SteamAppInfo.windowsLaunch(steamRoot: app.libraryPath,
                                                        appID: app.appID)?.arguments ?? [],
-            loaderLinkDir: loaderLinkDir)
+            loaderLinkDir: loaderLinkDir, altLoaderSocket: altLoaderSocket)
         return try await spawn(plan)
     }
 
@@ -217,7 +228,7 @@ public struct LaunchOrchestrator: Sendable {
     public func launchManualGame(
         _ game: ManualGame, backend: BackendConfig,
         graphics: GraphicsBackend, wine: URL? = nil, prefix: URL, logURL: URL, desktopGeometry: String? = nil,
-        loaderLinkDir: URL? = nil
+        loaderLinkDir: URL? = nil, altLoaderSocket: URL? = nil
     ) async throws -> Int32 {
         guard let launchWine = wine ?? backend.wineBinaryPath else { throw LaunchError.wineNotConfigured }
         guard FileManager.default.fileExists(atPath: game.executablePath.path) else {
@@ -228,7 +239,8 @@ public struct LaunchOrchestrator: Sendable {
         let plan = try Self.makePlan(
             config: game.gameConfig, backend: backend, graphics: graphics, wine: launchWine,
             gameExe: game.executablePath, workingDirectory: game.workingDirectory, prefix: prefix, logURL: logURL,
-            sharedBottle: false, desktopGeometry: desktopGeometry, loaderLinkDir: loaderLinkDir)
+            sharedBottle: false, desktopGeometry: desktopGeometry, loaderLinkDir: loaderLinkDir,
+            altLoaderSocket: altLoaderSocket)
         return try await spawn(plan)
     }
 

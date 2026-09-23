@@ -514,12 +514,35 @@
                  file size).
               It is NOT a SwiftPM target on purpose: the fixed segment addresses and the runtime-matching
               architecture can't be expressed there (see `host.c`'s header).
-            - **▶️ NEXT — the launch wiring, the last piece.** In the launch path: create the per-game
-              bundle with the host + PE icon, apply `AltLoaderWhitelist.enableReg` for that exe, start the
-              bundle via LaunchServices with a per-launch socket path, set `CX_ALT_LOADER_SOCKET` in
-              `makePlan`, then spawn Wine as today — with the whole thing skipped when
-              `AltLoaderHost.resolved()` is nil. Then remove the whitelist key afterwards
-              (`disableReg`, never an empty key). Dual-arch stays future work, tied to ARM64 Wine.
+            - **✅ `AltLoaderSession` written (2026-09-23; 641 tests green, build clean).** One launch's
+              setup, in one place: write the per-game bundle with host + PE icon, import
+              `AltLoaderWhitelist.enableReg` for that exe's base name, start the bundle through
+              **`/usr/bin/open`** (LaunchServices — launching the executable directly does not work,
+              measured on CrossOver's own helper), and return the socket to publish. `cleanup` deletes the
+              whitelist key, and is called on the failure path too.
+              - **Always-on with one global escape hatch**, per the decision of 2026-09-23:
+                `SILO_DISABLE_ALTLOADER=1`. Deliberately no per-game setting — a toggle would ask the user
+                to understand a Wine internal to get an icon. A per-game opt-out is worth adding only if a
+                real game demands it.
+              - **Every step degrades to the old launch path** (no host, unwritable `HostApps`, failed
+                registry import, `open` refusing → `prepare` returns nil). Tested, including that a failed
+                `open` still removes the key and that a failed import never launches the host.
+            - **✅ `makePlan` publishes `CX_ALT_LOADER_SOCKET`** (`altLoaderSocket:`, default nil), passed
+              through by `launchInBottle`/`launchManualGame`. Tested absent-by-default, present when given,
+              and that it does **not** drag in `SILO_LOADER_LINK_DIR` or `WINEDLLPATH` — the two icon
+              routes stay independent.
+            - ⚠️ **NOT wired into a launch yet, and this is the honest state: the feature is inert.**
+              `AltLoaderSession.prepare` has no caller. The reason is a design point worth deciding
+              deliberately: `GameLibraryViewModel` has no `ProcessRunning`, so the session cannot be built
+              there — it belongs in **`LaunchOrchestrator`**, which already owns the runner and already does
+              the per-launch side work (`linkGraphics`, `presenceInstaller.apply`). That means widening
+              `launchInBottle`/`launchManualGame` with the game's name/id/icon and `hostAppsDir`, and
+              calling `cleanup` after the spawn.
+            - **▶️ NEXT:** (1) move the call into `LaunchOrchestrator` as above; (2) **then verify on a real
+              Steam game** — the open question is which process owns the window there (`explorer` runs the
+              virtual desktop, so the exe to whitelist may not be the game's) and whether `SteamReadiness`
+              still sees the client. Everything so far was proven with `notepad` only.
+              Dual-arch stays future work, tied to ARM64 Wine.
             - *(historical)* The plan below — asking the server — is what solved it. `send_client_fd` prints
               `"%04x: *fd* %04x -> %d"` whenever the **server's** `debug_level` is on. So: start the
               wineserver by hand with `wineserver -d1` (or `-f -d1` in the foreground), capture its
