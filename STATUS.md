@@ -314,11 +314,22 @@
             `44` therefore arrives *later*, from the server, rather than being stale garbage left in the
             buffer. (The probe is now `MSG_PEEK|MSG_DONTWAIT` in-tree so it cannot hang a future run —
             the blocking version wedged the host and that run produced no verdict.)
-        - **▶️ NEXT:** find out what the server sends first to a client it did not fork. Cheap next probes:
-          non-blocking peek in a short loop to capture those 4 bytes and any attached fd; and check
-          whether the server expects `send_server_task_port()`-style setup (Apple-only, called right
-          after in `server_init_process`) before it will talk protocol. Then the `uint32_t` reply
-          semantics, still unread.
+        - **✅ SYMPTOM RE-DIAGNOSED (2026-09-23): the server sends NOTHING, and `44` was a red herring.**
+          Looping non-blocking peek on the adopted socket: **nothing arrives for 2000 ms**
+          (`PEEK: nulla per 2000 ms`). And with those 2 s of delay in front of `__wine_main` the
+          `version mismatch 44/1809` **stops appearing at all** — the host simply sits waiting. So the
+          `44` was an artefact of calling `__wine_main` immediately (a race reading an empty/transient
+          socket), not the server disagreeing about a version. **Treat the earlier "version mismatch"
+          framing as wrong**: the real symptom is **silence** on the wineserver socket.
+        - **So the open question changes shape:** what makes the wineserver write the
+          version + first thread request fd to a process's socket? In the fork path the parent has
+          already issued the `new_process` request and the server prepares that socket; for us it never
+          speaks. Either the server does not consider this socket ready, or something the client must do
+          first is missing.
+        - **▶️ NEXT:** read the **server side** (it is in the FOSS drop too) — `server/process.c` /
+          `server/request.c` — for where the version is written to a new process's socket and what
+          condition gates it. That is the one place that can say why it stays silent for us. Only then
+          revisit the client side and the `uint32_t` reply semantics.
         - **The prototype now lives in-tree at `Scripts/altloader-host/`** (`host.c` + `build.sh`, with
           the wire format and the mandatory link flags documented in the header) so it survives teardown
           — the previous one was lost in `/tmp` and had to be retyped. Not part of the app build; the

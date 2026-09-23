@@ -135,17 +135,27 @@ int main(int argc, char **argv) {
     if (!h) { L("dlopen: %s\n", dlerror()); return 1; }
     void (*wine_main)(int, char **) = dlsym(h, "__wine_main");
     if (!wine_main) { L("__wine_main assente\n"); return 1; }
-    /* DIAGNOSI (non bloccante: al momento della consegna il socket e' VUOTO, misurato:
-       con MSG_PEEK bloccante l'host si piantava qui).
-       ntdll legge 4 byte come versione + un fd via SCM_RIGHTS. */
-    { uint32_t peek = 0xdeadbeef; char cb[256]; int gotfd = -1;
-      struct iovec v = { &peek, sizeof peek }; struct msghdr m; memset(&m, 0, sizeof m);
-      m.msg_iov = &v; m.msg_iovlen = 1; m.msg_control = cb; m.msg_controllen = sizeof cb;
-      ssize_t r = recvmsg(fds[3], &m, MSG_PEEK | MSG_DONTWAIT);
-      for (struct cmsghdr *cm = CMSG_FIRSTHDR(&m); cm; cm = CMSG_NXTHDR(&m, cm))
-        if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SCM_RIGHTS) gotfd = *(int *)CMSG_DATA(cm);
-      L("PEEK su fd %d: r=%zd primi4=%u (0x%08x) fd_allegato=%d errno=%d\n",
-        fds[3], r, peek, peek, gotfd, r < 0 ? errno : 0); }
+    /* DIAGNOSI: attende in loop NON bloccante cio' che il server manda per primo
+       su quel socket. Misurato: alla consegna il socket e' vuoto, quindi i byte
+       arrivano dopo. ntdll li legge come versione del protocollo (attesa 1809). */
+    for (int t = 0; t < 40; t++) {
+        uint32_t peek = 0; char cb[256]; int gotfd = -1;
+        struct iovec v = { &peek, sizeof peek }; struct msghdr m; memset(&m, 0, sizeof m);
+        m.msg_iov = &v; m.msg_iovlen = 1; m.msg_control = cb; m.msg_controllen = sizeof cb;
+        ssize_t r = recvmsg(fds[3], &m, MSG_PEEK | MSG_DONTWAIT);
+        if (r > 0) {
+            for (struct cmsghdr *cm = CMSG_FIRSTHDR(&m); cm; cm = CMSG_NXTHDR(&m, cm))
+                if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SCM_RIGHTS)
+                    gotfd = *(int *)CMSG_DATA(cm);
+            L("PEEK dopo %d ms: r=%zd primi4=%u (0x%08x) fd_allegato=%d\n",
+              t * 50, r, peek, peek, gotfd);
+            break;
+        }
+        if (r == 0) { L("PEEK: socket chiuso dal server dopo %d ms\n", t * 50); break; }
+        if (errno != EAGAIN && errno != EWOULDBLOCK) { L("PEEK errno=%d\n", errno); break; }
+        usleep(50000);
+        if (t == 39) L("PEEK: nulla per 2000 ms\n");
+    }
     L("--- chiamo __wine_main (da qui sotto parla Wine) ---\n");
     wine_main(n, wargv);
     L("--- __wine_main E' RITORNATO ---\n");
