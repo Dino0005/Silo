@@ -337,10 +337,26 @@
             That is the `server_connect()` route, for a process starting from scratch.
           - The `new_process` route (`server/process.c:1482`) does `create_process(socket_fd, parent, …)`
             and **does not** call `create_thread(-1, …)` at that point.
-          - **Remaining link, and the next thing to read:** `create_process()` itself
-            (`server/process.c:809`) — does it create the first thread (and hence send the version) for
-            the `new_process` route? It must, since forked children do read a version. Whatever condition
-            it applies there is the most likely reason the server stays silent for an adopted socket.
+          - **Link closed (2026-09-23), and the answer is surprising.** `create_process()`
+            (`server/process.c:809`) only parks the socket — `process->msg_fd = create_anonymous_fd(…, fd, …)`
+            — and creates **no** thread. And across the whole server there are exactly **three**
+            `create_thread` sites: the definition (`thread.c:505`), the master-socket accept
+            (`request.c:566`, `-1` → **sends the version**), and the `new_thread` request
+            (`thread.c:1700`, called with a **real** `request_fd` → `fd != -1` → **sends nothing**).
+            Combined with `SERVER_PROTOCOL_VERSION` appearing in exactly one place, that means:
+            **the version is only ever sent to a process that connected on the master socket itself.**
+          - **Consequence — the current host design is probably wrong at the root, not incomplete.** A
+            `new_process`-created socket is never going to receive a version, so a host that reuses it and
+            then runs the *stock* `server_init_process` path (which unconditionally waits for one) can
+            only hang. The silence we measured is the correct behaviour of the server, not a missing
+            setting. Two hypotheses to test next, in order:
+            1. the adopted process is meant to reach `__wine_main` in a mode that does **not** expect the
+               version — i.e. the alt loader wants a different entry point or an extra env flag that
+               makes ntdll skip the handshake (look for what distinguishes the two cases in
+               `server_init_process`, and for any CrossOver-only flag around it);
+            2. or the host should **not** reuse the passed socket for the handshake at all, and the fd is
+               there for a later stage.
+            Only after that does the `uint32_t` reply semantics matter.
         - ⚠️ Note on method: this stayed unexplained for two sessions because I kept reading the **client**
           side and guessing (`WINESERVERSOCKET`, then `WINEPRELOADRESERVE`, then a "version mismatch" that
           turned out to be a race artefact). The server side answered more in three greps than those
