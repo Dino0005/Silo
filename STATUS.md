@@ -390,14 +390,21 @@
               on Darwin I have not established that `SO_NREAD` or `MSG_PEEK` account for a record whose
               only real content is ancillary data, so "reports 0" and "is empty" may not be the same
               statement. I have now built a conclusion on a non-destructive probe twice; that stops here.
-            - **▶️ NEXT — one destructive experiment, and it settles it.** In the host, before
-              `__wine_main`, do a **real** `recvmsg` on `fds[3]` and log what comes back (bytes + any
-              `SCM_RIGHTS` fd). It consumes the message and therefore breaks that run by design — the
-              point is only to learn whether the message exists:
-              * 4 bytes + an fd → the socket was never silent, both probes are blind on Darwin, and the
-                question becomes why `ntdll` mis-reads it;
-              * genuinely nothing → the server is not writing where we think, and the next thing to
-                check is which descriptor `process->msg_fd` actually holds at that moment.
+            - **✅ SETTLED (2026-09-23): the socket really is empty.** The destructive experiment — a real
+              blocking `recvmsg` on `fds[3]` with `SO_RCVTIMEO = 3 s` — returned
+              `errno 35 (EAGAIN)`. All **three** probes now agree (`MSG_PEEK`, `SO_NREAD`, real
+              `recvmsg`), so the Darwin-blindness excuse is dead and the earlier "socket is empty"
+              reading stands.
+            - **Therefore one of the upstream assumptions is false, and it is no longer about our host.**
+              The server demonstrably writes the version before `spawn_process` (hence before the alt
+              loader), and yet nothing is readable on the descriptor we are handed. Either that fd is not
+              the child's end of that socketpair, or the write did not happen for *this* process.
+            - **▶️ NEXT — identify the descriptor itself, before reading any more source.** Cheap probes
+              in the host, all non-destructive: `getsockopt(SO_TYPE)`, `getpeername`/`getsockname`, and
+              `getsockopt(LOCAL_PEERPID)` on `fds[3]` — if the peer is the **wineserver** the plumbing is
+              right and the write is missing; if it is the launcher (or unconnected) then the sender is
+              not passing what we assume. That distinction is what the last three sessions have been
+              missing, and it costs one run.
             - Also worth noting from this run: with the 2 s delay, `__wine_main` produced **no** error at
               all — the host stayed alive and a separate `notepad.exe` child appeared, i.e. Wine quietly
               fell back to starting a fresh process tree. That is consistent with the handshake failing
