@@ -135,24 +135,27 @@ int main(int argc, char **argv) {
     if (!h) { L("dlopen: %s\n", dlerror()); return 1; }
     void (*wine_main)(int, char **) = dlsym(h, "__wine_main");
     if (!wine_main) { L("__wine_main assente\n"); return 1; }
-    /* DIAGNOSI DISTRUTTIVA: legge DAVVERO dal socket del wineserver. Consuma il
-       messaggio e quindi rompe questo run per costruzione: serve solo a stabilire
-       se il messaggio esista. Le sonde non distruttive (MSG_PEEK e SO_NREAD)
-       riportano entrambe zero, ma su Darwin non e' accertato che contino un
-       record il cui unico contenuto reale sono dati ancillari. */
-    { struct timeval tv = { 3, 0 };
-      setsockopt(fds[3], SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
-      uint32_t h = 0xdeadbeef; char cb[256]; int gotfd = -1;
-      struct iovec v = { &h, sizeof h }; struct msghdr m; memset(&m, 0, sizeof m);
-      m.msg_iov = &v; m.msg_iovlen = 1; m.msg_control = cb; m.msg_controllen = sizeof cb;
-      ssize_t r = recvmsg(fds[3], &m, 0);
-      for (struct cmsghdr *cm = CMSG_FIRSTHDR(&m); cm; cm = CMSG_NXTHDR(&m, cm))
-        if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SCM_RIGHTS) gotfd = *(int *)CMSG_DATA(cm);
-      if (r > 0) L("RECVMSG: r=%zd handle=%u (0x%08x) fd_allegato=%d controllen=%u\n",
-                   r, h, h, gotfd, (unsigned)m.msg_controllen);
-      else if (r == 0) L("RECVMSG: socket chiuso dal server\n");
-      else L("RECVMSG: errore errno=%d (%s)\n", errno, strerror(errno));
-      tv.tv_sec = 0; setsockopt(fds[3], SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv); }
+    /* DIAGNOSI: identifica i descrittori ricevuti. Le tre sonde precedenti hanno
+       stabilito che sul socket del wineserver non arriva nulla; resta da capire
+       se quel descrittore sia davvero il capo del figlio di quel socketpair, e
+       chi ci sia all'altro capo. */
+    for (int i = 0; i < nfds; i++) {
+        int type = -1; socklen_t sl = sizeof type;
+        getsockopt(fds[i], SOL_SOCKET, SO_TYPE, &type, &sl);
+        pid_t peer = -1; sl = sizeof peer;
+        int haspeer = getsockopt(fds[i], SOL_LOCAL, LOCAL_PEERPID, &peer, &sl);
+        struct sockaddr_un sn; socklen_t nl = sizeof sn;
+        int named = getsockname(fds[i], (struct sockaddr *)&sn, &nl);
+        struct sockaddr_un sp; socklen_t pl = sizeof sp;
+        int connd = getpeername(fds[i], (struct sockaddr *)&sp, &pl);
+        L("fd %d: SO_TYPE=%d peerpid=%s getsockname=%s getpeername=%s\n",
+          fds[i], type,
+          haspeer == 0 ? (peer > 0 ? "vedi sotto" : "0") : "n/d",
+          named == 0 ? (nl > 2 && sn.sun_path[0] ? sn.sun_path : "(anonimo)") : "errore",
+          connd == 0 ? (pl > 2 && sp.sun_path[0] ? sp.sun_path : "(anonimo)") : "errore");
+        if (haspeer == 0 && peer > 0) L("   -> pid del peer: %d\n", (int)peer);
+    }
+    L("pid del lanciatore atteso come padre del socket; pid nostro: %d\n", getpid());
     L("--- chiamo __wine_main (da qui sotto parla Wine) ---\n");
     wine_main(n, wargv);
     L("--- __wine_main E' RITORNATO ---\n");

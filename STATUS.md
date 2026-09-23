@@ -399,12 +399,25 @@
               The server demonstrably writes the version before `spawn_process` (hence before the alt
               loader), and yet nothing is readable on the descriptor we are handed. Either that fd is not
               the child's end of that socketpair, or the write did not happen for *this* process.
-            - **▶️ NEXT — identify the descriptor itself, before reading any more source.** Cheap probes
-              in the host, all non-destructive: `getsockopt(SO_TYPE)`, `getpeername`/`getsockname`, and
-              `getsockopt(LOCAL_PEERPID)` on `fds[3]` — if the peer is the **wineserver** the plumbing is
-              right and the write is missing; if it is the launcher (or unconnected) then the sender is
-              not passing what we assume. That distinction is what the last three sessions have been
-              missing, and it costs one run.
+            - **✅ DESCRIPTOR IDENTIFIED (2026-09-23) — the plumbing is correct, so the write is what's
+              missing.** Probe over all four received fds:
+              ```
+              fd 6,7,8: SO_TYPE=-1, getsockname/getpeername error   → not sockets (stdin/stdout/stderr)
+              fd 9:     SO_TYPE=1 (SOCK_STREAM), anonymous, LOCAL_PEERPID = 25468
+              pid 25468 = …/Runtimes/wine-crossover-26.3/lib/wine/… (the wineserver)
+              ```
+              So `fds[3]` **is** an anonymous socketpair whose peer is the **wineserver** — exactly the
+              child's end of the pair, as the source said. Every assumption about the plumbing now checks
+              out, which leaves only one conclusion: **for this process the server never wrote the
+              version.**
+            - **▶️ NEXT — ask the server directly.** `send_client_fd` prints
+              `"%04x: *fd* %04x -> %d"` whenever the **server's** `debug_level` is on. So: start the
+              wineserver by hand with `wineserver -d1` (or `-f -d1` in the foreground), capture its
+              stderr, then run the whole alt-loader case. If the trace shows the version being sent for
+              our process, the message exists and something eats it; if it never appears, the parent's
+              `new_thread(request_fd = -1)` did not happen on this path — and then the question is which
+              path the launcher actually took to create notepad, since `spawn_process` is the only
+              `send_to_cx_loader` call site but may not be the only way a process gets created.
             - Also worth noting from this run: with the 2 s delay, `__wine_main` produced **no** error at
               all — the host stayed alive and a separate `notepad.exe` child appeared, i.e. Wine quietly
               fell back to starting a fresh process tree. That is consistent with the handshake failing
