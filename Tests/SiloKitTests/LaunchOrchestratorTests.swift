@@ -57,9 +57,9 @@ struct MakePlanTests {
         let hosted = try LaunchOrchestrator.makePlan(
             config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
             prefix: prefix, logURL: log,
-            loaderLinkDir: URL(fileURLWithPath: "/s/HostApps/Half-Life 2 (220).app/Contents/MacOS"))
+            loaderLinkDir: URL(fileURLWithPath: "/s/HostApps/220/Half-Life 2.app/Contents/MacOS"))
         #expect(hosted.environment["SILO_LOADER_LINK_DIR"]
-                == "/s/HostApps/Half-Life 2 (220).app/Contents/MacOS")
+                == "/s/HostApps/220/Half-Life 2.app/Contents/MacOS")
     }
 
     /// The patch fires on SILO_LOADER_LINK_DIR alone, precisely so Silo never has to set WINEDLLPATH —
@@ -69,7 +69,7 @@ struct MakePlanTests {
         let plan = try LaunchOrchestrator.makePlan(
             config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
             prefix: prefix, logURL: log,
-            loaderLinkDir: URL(fileURLWithPath: "/s/HostApps/G (220).app/Contents/MacOS"))
+            loaderLinkDir: URL(fileURLWithPath: "/s/HostApps/220/G.app/Contents/MacOS"))
         #expect(plan.environment["WINEDLLPATH"] == nil)
     }
 
@@ -639,6 +639,37 @@ struct MakePlanAltLoaderTests {
         #expect(plan.arguments == ["start", "/wait", "/unix", gameExe.path, "-windowed", "-dx11"])
     }
 
+    /// The hand-over loses the working directory (`cwd_len = 0`, measured even with `start /d`), and the
+    /// host inherits `/` from LaunchServices — so Silo has to name the directory itself, or a game that
+    /// loads data beside its exe starts in `Z:\`.
+    @Test func theWorkingDirectoryIsHandedToTheHostExplicitly() throws {
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
+            prefix: prefix, logURL: log,
+            altLoaderSocket: URL(fileURLWithPath: "/tmp/s.sock"))
+        #expect(plan.environment["SILO_HOST_CWD"] == gameExe.deletingLastPathComponent().path)
+        #expect(plan.currentDirectory == gameExe.deletingLastPathComponent())
+    }
+
+    /// A game with its own "start in" directory (a shortcut's WORKING_DIR) must hand the host THAT one,
+    /// not the exe's folder — same rule the plan's own `currentDirectory` follows.
+    @Test func anExplicitWorkingDirectoryWins() throws {
+        let workDir = URL(fileURLWithPath: "/lib/steamapps/common/HL2")
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
+            workingDirectory: workDir, prefix: prefix, logURL: log,
+            altLoaderSocket: URL(fileURLWithPath: "/tmp/s.sock"))
+        #expect(plan.environment["SILO_HOST_CWD"] == workDir.path)
+    }
+
+    /// Without a hand-over there is no host to place, and this variable must not appear.
+    @Test func noHostMeansNoHostCwd() throws {
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
+            prefix: prefix, logURL: log)
+        #expect(plan.environment["SILO_HOST_CWD"] == nil)
+    }
+
     /// The two icon routes are independent: the alt loader needs no `WINEDLLPATH` and no loader link dir,
     /// and must not quietly enable the patch route (which `makePlan` deliberately keeps opt-in).
     @Test func doesNotDragInTheOtherRoute() throws {
@@ -710,16 +741,16 @@ struct LaunchAltLoaderPipelineTests {
         let reg = try #require(fake.invocations.first { $0.arguments.first == "regedit" })
         #expect(reg.environment["WINEPREFIX"] == prefix.path)
         let open = try #require(fake.invocations.first { $0.executable.path == "/usr/bin/open" })
-        #expect(open.arguments[1].hasSuffix("My Game (\(game.id.uuidString)).app"))
+        #expect(open.arguments[2].hasSuffix("\(game.id.uuidString)/My Game.app"))
 
         let spawn = try #require(fake.invocations.last { $0.detached })
-        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"] == open.arguments[3])
+        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"] == open.arguments[4])
         // Short by design: `sun_path` truncates silently past 103 bytes (see AltLoaderSessionTests).
         #expect(spawn.environment["CX_ALT_LOADER_SOCKET"]?
             .hasPrefix(sockets.appendingPathComponent("silo-al-").path) == true)
         // The host really is in the bundle LaunchServices was asked to start.
         #expect(FileManager.default.isExecutableFile(
-            atPath: open.arguments[1] + "/Contents/MacOS/SiloGameHost"))
+            atPath: open.arguments[2] + "/Contents/MacOS/SiloGameHost"))
     }
 
     /// No target — the launch must be byte-identical to the one that shipped before this feature.

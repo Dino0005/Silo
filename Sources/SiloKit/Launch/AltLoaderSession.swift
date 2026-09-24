@@ -140,10 +140,21 @@ public struct AltLoaderSession: Sendable {
             await cleanup(prefix: prefix, wine: wine, fileManager: fileManager)
             return nil
         }
+        // Remove any socket left by an earlier run BEFORE starting the host. The host cannot clean up
+        // after itself — it becomes the game and never returns — so the file outlives it. Left in place
+        // it makes the readiness wait below a lie: the game then connects to a socket nobody accepts on
+        // and **hangs** waiting for the reply (measured 2026-09-24 on God of War's second launch).
+        try? fileManager.removeItem(at: socket)
+
         let app = bundle.bundleURL(in: hostAppsDir)
         guard let result = try? await runner.run(
             executable: Self.openTool,
-            arguments: ["-a", app.path, "--args", socket.path],
+            // `-n` forces a NEW instance. Without it LaunchServices sees an app with this bundle id
+            // already running — the previous run of the same game, or a leftover that outlived it — and
+            // merely activates that one, so nothing binds the new socket and the launch silently goes
+            // back to the old path (measured 2026-09-24: a second launch adopted nothing while the first
+            // game's host was still alive).
+            arguments: ["-n", "-a", app.path, "--args", socket.path],
             environment: [:], currentDirectory: nil),
               result.succeeded
         else {

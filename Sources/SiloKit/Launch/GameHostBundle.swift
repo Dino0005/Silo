@@ -89,10 +89,18 @@ public struct GameHostBundle: Sendable {
         return cleaned.isEmpty ? "Game" : cleaned
     }
 
-    /// Where the bundle lives under `directory` (normally `AppPaths.hostAppsDir`). Disambiguated by `id`,
-    /// so two games with the same display name get one bundle each instead of fighting over it.
+    /// Where the bundle lives under `directory` (normally `AppPaths.hostAppsDir`):
+    /// `<directory>/<id>/<name>.app`.
+    ///
+    /// **The id is the enclosing folder, not part of the `.app` name, and that is deliberate** — the Dock
+    /// labels a tile with the bundle's **file name**, in preference to `CFBundleDisplayName` (measured on
+    /// device 2026-09-24: a bundle named `Silo Host Check (BEEF0000-…).app` produced a tile reading
+    /// exactly that, id and all). Putting the id one level up keeps the tile reading just the game's name
+    /// while two games with the same display name still get a bundle each.
     public func bundleURL(in directory: URL) -> URL {
-        directory.appendingPathComponent("\(fileSafeName) (\(bundleSafe(id))).app", isDirectory: true)
+        directory
+            .appendingPathComponent(bundleSafe(id), isDirectory: true)
+            .appendingPathComponent("\(fileSafeName).app", isDirectory: true)
     }
 
     /// The value for `SILO_LOADER_LINK_DIR` — the `Contents/MacOS` Wine hard-links its loader into.

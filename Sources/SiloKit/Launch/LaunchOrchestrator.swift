@@ -143,6 +143,13 @@ public struct LaunchOrchestrator: Sendable {
         // and Wine launches exactly as before.
         if let altLoaderSocket {
             environment["CX_ALT_LOADER_SOCKET"] = altLoaderSocket.path
+            // The hand-over does NOT carry a working directory: `send_to_cx_loader` sends `cwd_len = 0`
+            // even when the creating process passes one (measured with `start /d` — the field stays
+            // empty). The host is started by LaunchServices, so it inherits `/`, and Wine derives the
+            // game's Windows cwd from the process's unix cwd — leaving a game that looks for its data
+            // beside its exe in `Z:\`. So Silo tells the host where to stand, and the host `chdir`s
+            // there before `__wine_main` (`Scripts/altloader-host/host.c`).
+            environment["SILO_HOST_CWD"] = (workingDirectory ?? gameExe.deletingLastPathComponent()).path
         }
 
         // Steam's own launch options first, then the user's — anything they typed by hand WINS and Steam's

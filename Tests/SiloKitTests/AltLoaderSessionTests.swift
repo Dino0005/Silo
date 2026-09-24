@@ -93,10 +93,13 @@ struct AltLoaderSessionTests {
         // 2) the bundle started through LaunchServices — launching the executable directly does not work
         let open = runner.invocations[1]
         #expect(open.executable.path == "/usr/bin/open")
-        #expect(open.arguments.first == "-a")
-        #expect(open.arguments[1].hasSuffix("Blocco Note (220).app"))
-        #expect(open.arguments[2] == "--args")
-        #expect(open.arguments[3] == socket.path)
+        // `-n`: a still-running instance of the same game must not swallow the launch (see the note in
+        // `prepare`) — LaunchServices would activate it instead of binding the new socket.
+        #expect(open.arguments.first == "-n")
+        #expect(open.arguments[1] == "-a")
+        #expect(open.arguments[2].hasSuffix("220/Blocco Note.app"))
+        #expect(open.arguments[3] == "--args")
+        #expect(open.arguments[4] == socket.path)
     }
 
     /// The host really is installed in the per-game bundle, so LaunchServices has something to start.
@@ -106,7 +109,7 @@ struct AltLoaderSessionTests {
         _ = await prepare(runner: FakeProcessRunner(), root: root,
                           prefix: try makePrefix(in: root), host: host)
         let installed = root.appendingPathComponent(
-            "HostApps/Blocco Note (220).app/Contents/MacOS/SiloGameHost")
+            "HostApps/220/Blocco Note.app/Contents/MacOS/SiloGameHost")
         #expect(FileManager.default.isExecutableFile(atPath: installed.path))
     }
 
@@ -238,7 +241,7 @@ struct AltLoaderSessionTests {
         // Stand in for the host: create the socket file when `open` is called, as `bind` would.
         runner.onRun = { inv in
             guard inv.executable.path == "/usr/bin/open" else { return }
-            try? Data().write(to: URL(fileURLWithPath: inv.arguments[3]))
+            try? Data().write(to: URL(fileURLWithPath: inv.arguments[4]))
         }
         let socket = await AltLoaderSession(
             runner: runner, environment: ["SILO_ALTLOADER_HOST": host.path],
@@ -247,6 +250,27 @@ struct AltLoaderSessionTests {
                   prefix: try makePrefix(in: root), wine: wine,
                   hostAppsDir: root.appendingPathComponent("HostApps", isDirectory: true))
         #expect(socket != nil)
+    }
+
+    /// A socket left behind by an earlier run must be removed before the host starts — otherwise the
+    /// wait below finds *that* file, the game connects to a socket nobody accepts on, and it hangs
+    /// (measured on God of War, 2026-09-24). The stale file must not survive the attempt either.
+    @Test func aStaleSocketIsRemovedSoTheWaitMeansThisRun() async throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let host = try fakeHost(in: root)
+        let stale = AltLoaderSession.socketPath(forGameID: "220", temporaryDirectory: root)
+        try Data("stantio".utf8).write(to: stale)
+
+        let runner = FakeProcessRunner()
+        let socket = await AltLoaderSession(
+            runner: runner, environment: ["SILO_ALTLOADER_HOST": host.path],
+            temporaryDirectory: root, socketWaitTimeout: .milliseconds(120)
+        ).prepare(gameName: "Blocco Note", gameID: "220", gameExe: gameExe, iconICO: nil,
+                  prefix: try makePrefix(in: root), wine: wine,
+                  hostAppsDir: root.appendingPathComponent("HostApps", isDirectory: true))
+
+        #expect(socket == nil)     // nothing bound in this run, so no hand-over
+        #expect(!FileManager.default.fileExists(atPath: stale.path))
     }
 
     /// A host that never binds (crashed, refused by Gatekeeper) must degrade to the old launch path and

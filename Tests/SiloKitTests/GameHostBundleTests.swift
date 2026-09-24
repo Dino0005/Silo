@@ -50,13 +50,22 @@ struct GameHostBundleTests {
     @Test func bundleNameCannotEscapeTheDirectory() {
         let root = URL(fileURLWithPath: "/tmp/hosts", isDirectory: true)
         let url = GameHostBundle(name: "../../evil/Game", id: "9").bundleURL(in: root)
-        #expect(url.deletingLastPathComponent().path == root.path)
+        #expect(url.deletingLastPathComponent().path == root.appendingPathComponent("9").path)
         #expect(!url.lastPathComponent.contains("/"))
     }
 
     @Test func emptyNameStillYieldsAUsableBundleName() {
         let url = GameHostBundle(name: "   ", id: "9").bundleURL(in: URL(fileURLWithPath: "/tmp"))
-        #expect(url.lastPathComponent == "Game (9).app")
+        #expect(url.lastPathComponent == "Game.app")
+    }
+
+    /// The Dock labels a tile with the bundle's **file name**, ahead of `CFBundleDisplayName` (measured
+    /// on device): so the `.app` is named after the game alone, and the id disambiguates one level up.
+    @Test func theAppIsNamedAfterTheGameAndTheIDIsTheFolder() {
+        let url = GameHostBundle(name: "God of War", id: "538C9332").bundleURL(
+            in: URL(fileURLWithPath: "/tmp/hosts", isDirectory: true))
+        #expect(url.lastPathComponent == "God of War.app")
+        #expect(url.deletingLastPathComponent().lastPathComponent == "538C9332")
     }
 
     /// Two games sharing a display name must get one bundle each — otherwise one of them shows the

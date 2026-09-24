@@ -120,7 +120,17 @@ int main(int argc, char **argv) {
         char *eq = strchr(e, '='); if (!eq) continue;
         *eq = 0; setenv(e, eq + 1, 1);
     }
-    if (cwd_len && *cwd) chdir(cwd);
+    if (cwd_len && *cwd) {
+        L("cwd ricevuta: \"%s\" -> chdir %s\n", cwd, chdir(cwd) ? strerror(errno) : "ok");
+    } else {
+        /* Wine non manda una cwd quando chi crea il processo non ne imposta una: l'host
+           nascerebbe nella cartella che LaunchServices gli da' (misurato: "/"), e per Wine
+           la cwd Windows del gioco diventerebbe Z:\\ — un gioco che cerca i suoi dati
+           accanto all'exe resta fermo. Silo passa la cartella giusta qui. */
+        const char *own = getenv("SILO_HOST_CWD");
+        if (own && *own) L("SILO_HOST_CWD=\"%s\" -> chdir %s\n", own,
+                           chdir(own) ? strerror(errno) : "ok");
+    }
 
     /* Adotta tutti e tre i descrittori standard. Il terzo e' load-bearing: Wine
        scrive err: e warn: su STDERR, e GraphicsFallback legge proprio quelli per

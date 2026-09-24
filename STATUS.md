@@ -591,14 +591,58 @@
                 launched **directly** (not through `open`) still got its bundle identity and icon on the
                 window — so the "must go through LaunchServices" note is narrower than recorded;
                 production keeps `open`, which is the proven path, but the constraint isn't identity.
-            - **▶️ NEXT — verify on a real Steam game.** No Steam game is installed in the shared bottle;
-              two real *manual* games are (GOG Batman Arkham Knight, God of War), so the next honest step
-              is one of those — a real window, a real graphics backend, a real cwd. Two open questions
-              remain, both unanswerable with `notepad`:
-              which process owns the window for a Steam game (`explorer` runs the virtual desktop, so the
-              exe to whitelist may not be the game's), and whether `SteamReadiness` still sees the client
-              when the host is the one adopted. The Steam *client* path itself is already confirmed on
-              screen (2026-09-23: Steam's window carried Silo's icon in Stage Manager).
+            - **✅ Verified on a real game — God of War (GOG, manual, GPTK), 2026-09-24.** The window is
+              owned by the host: `owner=God of War`, `bundleIdentifier=com.mikael.silo.host.<uuid>`,
+              `God of War.app`, **non-generic icon**, no separate game process, `d3d11`/`dxgi` builtin (so
+              GPTK is in play, not wined3d), and the Dock tile reads *God of War*. Confirmed on screen for
+              the notepad case on all three surfaces (Stage Manager, Mission Control, Dock).
+              **Three more defects surfaced, all found by running it and all fixed:**
+              1. **The Dock labels a tile with the bundle's file name**, ahead of `CFBundleDisplayName` —
+                 so `Silo Host Check (BEEF0000-…).app` produced a tile reading the id too. The bundle is
+                 now `HostApps/<id>/<name>.app`: the id disambiguates one level up, the tile reads the
+                 game's name alone.
+              2. **`open -a` activates a running instance instead of starting a new one.** With the
+                 previous game's host still alive, the next launch bound nothing, and the game fell back
+                 (or worse — see 3). Now `open -n -a`.
+              3. **A stale socket file made the readiness wait lie, and that one HUNG the game.** The host
+                 can never clean up after itself — it *becomes* the game and never returns — so the socket
+                 outlives it. The next launch found the file, believed a host was ready, and the game
+                 connected to a socket nobody was accepting on and sat there waiting for the reply.
+                 `prepare` now unlinks the socket before starting the host, so the wait measures *this*
+                 run. Pinned by a test.
+              - **And the hand-over does not carry a working directory.** `send_to_cx_loader` sends
+                `cwd_len = 0` even when the creating process sets one (measured with `start /d`, which
+                Wine does support). The host is started by LaunchServices, so it inherits `/`, and Wine
+                derives the game's Windows cwd from the unix cwd — a game looking for data beside its exe
+                would start in `Z:\`. Silo now publishes `SILO_HOST_CWD` and the host `chdir`s there
+                before `__wine_main`. Measured: cwd went from `/` to the game's folder, and the game got
+                measurably further (87 MB → 236 MB resident).
+            - ⚠️ **God of War does not currently start on this box, and it is NOT this feature's doing.**
+              It stops after `winevulkan` loads/unloads with a window titled *God of War*, ~240 MB
+              resident, ~0.4 % CPU, D3DMetal's thread parked in `os_sync_wait_on_address`. **A control run
+              settled it**: the same exe, the same prefix, the same env replayed from the launch log minus
+              the two alt-loader variables, launched by hand *without* any hand-over → **identical state,
+              identical last log lines, after 2:45**. So this is a pre-existing GPTK/game problem to chase
+              on its own, not a regression. Worth re-testing the icon work against the other installed
+              manual game (Batman Arkham Knight) to see it on a game that does run.
+            - **Teardown lesson, sharpened (the user caught two leftover Dock icons, 2026-09-24).** Killing
+              the game and `start.exe` is not "cleaned up": the launch leaves `explorer.exe /desktop` and,
+              for God of War, the game's own `crs-handler.exe` — *those* were the two tiles — plus the
+              bottle's orphaned `services.exe`/`plugplay.exe`/`svchost.exe`/`rpcss.exe` once the wineserver
+              is gone. **Verify with a broad filter (`ps -eo pid,command | grep "\.exe"`), never a list of
+              expected names**, and cross-check with `NSWorkspace.runningApplications` — a bare `wine`
+              process is invisible to a `winedevice|wineserver` grep but very visible in the Dock. Also
+              note `wineserver -k` is a no-op against processes whose server already died (crash orphans):
+              it starts a fresh server, kills nothing, and reports success.
+            - **A clue for the God of War problem, worth keeping:** the run spawned Sony's
+              `crs-handler.exe` (the game's crash reporter) ~13 s after launch, which points at a **crash**
+              being swallowed rather than a hang. Present on the adopted run; the control run was killed
+              before that could be compared, so it is a lead, not a finding.
+            - **▶️ NEXT:** (1) the icon path on a game that actually runs (Batman Arkham Knight);
+              (2) a **Steam** game — still unanswered: which process owns the window there (`explorer`
+              runs the virtual desktop, so the exe to whitelist may not be the game's), and whether
+              `SteamReadiness` still sees the client when the host is the one adopted. No Steam game is
+              installed in the shared bottle yet.
               Dual-arch stays future work, tied to ARM64 Wine.
             - *(historical)* The plan below — asking the server — is what solved it. `send_client_fd` prints
               `"%04x: *fd* %04x -> %d"` whenever the **server's** `debug_level` is on. So: start the
