@@ -726,6 +726,28 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - 🧊 **Spider-Man freezes the Mac when leaving fullscreen — NOT Silo, NOT the hand-over
+              (bisected on device, 2026-09-24 evening).** Symptom: fullscreen game, Cmd+Tab / Cmd+Q dead,
+              only Cmd+Opt+Esc works; Force Quit lists the game as *"non risponde"*; black screen.
+              - **Bisect:** reproduced on the **last-good build `2221a9c`** (built in a separate worktree,
+                its own host verified byte-for-byte in the game bundle) → the latest commits are not the
+                cause. Reproduced again with **`SILO_DISABLE_ALTLOADER=1`** (log: no
+                `CX_ALT_LOADER_SOCKET`, plain `wine64 <exe>`, no host process) → the hand-over is not the
+                cause either. **Nothing was reverted**, on that evidence.
+              - **The sample (`sample`, while hung) is an AppKit/QuartzCore deadlock:** main thread in
+                `NS_setFlushesWithDisplayLink` → `_os_unfair_lock_lock_slow`; a user-interactive queue
+                thread in `_NSWindowTransformAnimation setCurrentProgress:` → `CASpringAnimation mass` →
+                unfair lock; `CA::Fence::Observer` in `CAAnimation dealloc` → unfair lock. No Silo code and
+                no Wine frame among the lock holders — the **window fullscreen-transition animation**
+                deadlocks inside Apple's frameworks on macOS 27, triggered by Wine's fullscreen window.
+              - **Next, if pursued:** (a) the same game in CrossOver, to confirm it is Wine-on-macOS-27 and
+                not specific to anything of ours; (b) winemac's `HKCU\Software\Wine\Mac Driver`
+                `CaptureDisplaysForFullscreen` option, which takes a different fullscreen path — a candidate
+                workaround to *test*, not a fix to assume.
+              - Side-finding to fix separately: after a force-quit, Steam's `ActiveProcess` pid in
+                `user.reg` stays non-zero, and `SteamClientSession.awaitSteamReady` reads it as "ready" the
+                instant the freshly launched client makes the wineserver live — so the game started before
+                Steam (observed 21:03). Fix: zero the pid before starting Steam on a dead bottle.
             - 🚧 **`LaunchLeftovers` — the engine for "close this launch's remains, keep Steam" (user's
               decision, 2026-09-24; 669 tests green).** A **pull**, never a watch: it asks a bottle what is
               alive right now, so it does not need to observe a game's lifecycle (Phase 4 stands).
