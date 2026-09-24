@@ -136,6 +136,22 @@ public enum WineServerProbe {
         return removed
     }
 
+    /// The live `server-<dev>-<ino>` directory for `prefix`, or nil if none of the candidate roots has
+    /// one with a socket in it. `LaunchLeftovers` uses it as the *identity of the bottle*: every process
+    /// attached to a prefix holds files in this directory, which is the only reliable way to attribute a
+    /// Windows process to a prefix (its command line names no prefix).
+    public static func serverDirectory(for prefix: URL, fileManager: FileManager = .default) -> URL? {
+        guard let dirName = serverDirName(for: prefix) else { return nil }
+        let uid = getuid()
+        for root in candidateRoots() {
+            let dir = root
+                .appendingPathComponent(".wine-\(uid)", isDirectory: true)
+                .appendingPathComponent(dirName, isDirectory: true)
+            if fileManager.fileExists(atPath: dir.appendingPathComponent("socket").path) { return dir }
+        }
+        return nil
+    }
+
     private static func candidateRoots() -> [URL] {
         let env = ProcessInfo.processInfo.environment
         var raw: [String] = []

@@ -726,6 +726,33 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - 🚧 **`LaunchLeftovers` — the engine for "close this launch's remains, keep Steam" (user's
+              decision, 2026-09-24; 669 tests green).** A **pull**, never a watch: it asks a bottle what is
+              alive right now, so it does not need to observe a game's lifecycle (Phase 4 stands).
+              - **Attribution is the wineserver directory** (`WineServerProbe.serverDirectory`, added for
+                this): every process attached to a prefix holds files there, and a Windows command line
+                names no prefix. A prefix with no live server yields an empty census — nothing is offered,
+                nothing can be killed by mistake.
+              - **The census splits games from leftovers.** Wine's plumbing (`services`, `winedevice`,
+                `plugplay`, `svchost`, `rpcss`, `start`) and the whole Steam tree (including the client's
+                `explorer.exe /desktop=Silo,…`) are excluded by design — the client's virtual desktop
+                shares the *image name* with the leftover desktop owner, so the match is on `/desktop=`.
+              - **The test caught a defect that would have killed running games:** an *adopted* game
+                reports the **host binary** as its command line, not its exe (measured: the window-owning
+                Spider-Man process showed `…/HostApps/1817070/….app/Contents/MacOS/SiloGameHost`). The
+                classifier now recognises that first and unconditionally, so a playing game can never read
+                as a leftover even if the caller passes no library at all. Pinned by two tests.
+              - **Per-bottle, not per-game, and that is measured rather than lazy:** the leftover that
+                holds the tile is Wine's desktop owner, whose command line ties it to no particular launch.
+                The honest unit is "this prefix has leftovers and no game running" (`isOnlyLeftovers`).
+              - **▶️ NEXT — the part with no code yet, deliberately not half-built:** an `AppEnvironment`
+                action (census → `stop`) and one menu entry shown only when `isOnlyLeftovers`. The state
+                has to be refreshed by a pull at the right moment; the natural one is
+                `NSApplication.didBecomeActiveNotification` — the user comes back to Silo *from* the game,
+                which is exactly when the answer changes. Note `NSRunningApplication` is NOT usable as the
+                signal: measured, it does not list an app in `(exited-with-subordinates)` state, while
+                `lsappinfo` does — which is why the condition is computed from processes, one step upstream
+                of the tile.
             - 🐞 **Silo hung at 98 % CPU during the God of War tests — fixed, and it was NOT the alt
               loader (2026-09-24).** The user reported the app frozen; `sample` put the main thread inside
               `GraphicsFallback.classify` → `range(of:options:.caseInsensitive)`.
