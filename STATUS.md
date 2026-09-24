@@ -617,14 +617,24 @@
                 would start in `Z:\`. Silo now publishes `SILO_HOST_CWD` and the host `chdir`s there
                 before `__wine_main`. Measured: cwd went from `/` to the game's folder, and the game got
                 measurably further (87 MB → 236 MB resident).
-            - ⚠️ **God of War does not currently start on this box, and it is NOT this feature's doing.**
-              It stops after `winevulkan` loads/unloads with a window titled *God of War*, ~240 MB
-              resident, ~0.4 % CPU, D3DMetal's thread parked in `os_sync_wait_on_address`. **A control run
-              settled it**: the same exe, the same prefix, the same env replayed from the launch log minus
-              the two alt-loader variables, launched by hand *without* any hand-over → **identical state,
-              identical last log lines, after 2:45**. So this is a pre-existing GPTK/game problem to chase
-              on its own, not a regression. Worth re-testing the icon work against the other installed
-              manual game (Batman Arkham Knight) to see it on a game that does run.
+            - ✅ **CORRECTION (user, on screen, 2026-09-24 evening): God of War DOES start, and the icon is
+              there in Stage Manager and Mission Control.** My earlier note in this slot said the game
+              "does not currently start on this box" — that was wrong, and the mistake was the *test*, not
+              the game. The window opens **windowed and waits to be activated**: the user clicked it, it
+              went fullscreen, and the game's first-run setup began. Every launch after that goes
+              fullscreen on its own. So the state I measured twice — window titled *God of War*, ~240 MB,
+              ~0.4 % CPU, D3DMetal's thread parked — is a game waiting for focus, not a hang. A headless
+              run cannot supply that click, which is exactly why the control comparison read "identical":
+              **both** runs were waiting, with and without the hand-over. The control still does its job
+              (it rules the hand-over out of any difference), and Sony's `crs-handler.exe` is just the
+              game's companion process, not evidence of a crash.
+              - **Method lesson:** "no progress + low CPU + a window on screen" is not evidence of a hang
+                when nothing has focused the window. Before concluding, either click it or say plainly that
+                the observation is only valid up to activation.
+              - Open, minor, and worth watching rather than fixing blind: Silo is the frontmost app at
+                launch, and `open -n -a` activates the host *before* Wine has a window (seconds earlier),
+                so the game's window can come up unfocused. It self-resolved here after the first run —
+                whether a host-side activation is warranted should be decided on more than one game.
             - **Teardown lesson, sharpened (the user caught two leftover Dock icons, 2026-09-24).** Killing
               the game and `start.exe` is not "cleaned up": the launch leaves `explorer.exe /desktop` and,
               for God of War, the game's own `crs-handler.exe` — *those* were the two tiles — plus the
@@ -638,7 +648,20 @@
               `crs-handler.exe` (the game's crash reporter) ~13 s after launch, which points at a **crash**
               being swallowed rather than a hang. Present on the adopted run; the control run was killed
               before that could be compared, so it is a lead, not a finding.
-            - **▶️ NEXT:** (1) the icon path on a game that actually runs (Batman Arkham Knight);
+            - 🚧 **DO NOT PUSH YET (user, 2026-09-24).** There are **23 commits** ahead of `origin/main`
+              (last pushed: `be33e6e`) and they stay local until the whole on-device checklist is green.
+              The gate is deliberate: the alt loader is always-on for every launch, so it gets pushed once,
+              proven, not in instalments. **The checklist:**
+              1. **Batman Arkham Knight** — a second running game: icon on all three surfaces, and whether
+                 the first window comes up unfocused there too (God of War's did).
+              2. **The Steam client** — it must still start and log in with the hand-over live, and
+                 `SteamReadiness` must still see it (`user.reg` pid + `WineServerProbe`). Confirmed once by
+                 hand on 2026-09-23, never through the wired launch path.
+              3. **A Steam game** — the open structural question: with the client co-resident and
+                 `explorer` potentially owning a virtual desktop, the exe to whitelist may not be the
+                 game's. None is installed in the shared bottle yet, so this needs an install first.
+            - **▶️ NEXT:** (1) optional — a second running game (Batman Arkham Knight) to see whether the
+              unfocused first window is general or was God of War's first-run setup;
               (2) a **Steam** game — still unanswered: which process owns the window there (`explorer`
               runs the virtual desktop, so the exe to whitelist may not be the game's), and whether
               `SteamReadiness` still sees the client when the host is the one adopted. No Steam game is
