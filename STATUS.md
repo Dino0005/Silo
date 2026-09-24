@@ -746,9 +746,15 @@
                 for a bundled app whose child keeps running?), and whether the host bundle should declare
                 something to avoid it.
               - **Tekken 8 shows two Dock tiles**, both closing with the game.
-              - **Resident Evil Requiem shows the generic macOS app icon** (circles and lines) — i.e. the
-                bundle exists but its icon did not come through: likely `PEIcon` found no usable icon in
-                that exe, or the exe resolved is a launcher. To check.
+              - ✅ **Resident Evil Requiem showed the generic macOS app icon — fixed (2026-09-25).** Its
+                host bundle had no `Contents/Resources` at all: `PEIcon` found no icon. `re9.exe` is a
+                protected 560 MB image whose nineteen section names are scrambled; the resources are real
+                (resource data directory → `0xfc32000`) but live in a section called `.rdata`, and `PEIcon`
+                looked for `.rsrc` **by name**. It now follows the optional header's resource data
+                directory — how the Windows loader finds them — with the name kept as a fallback. Verified
+                on the real file (`SILO_TEST_EXE=…/re9.exe`, filter `PEIconReal`): a 204 KB `.ico` that
+                AppKit reads. Three synthetic tests pin the scrambled-name case and the unchanged ordinary
+                one. The bundle picks the icon up on the game's next launch (it is rewritten every launch).
             - 🧊 **Spider-Man freezes the Mac when leaving fullscreen — NOT Silo, NOT the hand-over
               (bisected on device, 2026-09-24 evening).** Symptom: fullscreen game, Cmd+Tab / Cmd+Q dead,
               only Cmd+Opt+Esc works; Force Quit lists the game as *"non risponde"*; black screen.

@@ -33,6 +33,13 @@ public enum PEIcon {
     /// convert a data-entry RVA back into a file offset.
     private struct Section { let base: Int; let virtualAddress: Int }
 
+    /// Where the resource tree is. **Found the way the Windows loader finds it — through the optional
+    /// header's resource data directory — and not by the section's name.** Measured 2026-09-25 on Resident
+    /// Evil Requiem's `re9.exe` (560 MB, protected): all nineteen section names are scrambled and the
+    /// resources sit in one called `.rdata`, so a lookup for `.rsrc` found nothing and the game's host
+    /// bundle was written with no icon at all (the generic macOS app icon in the Dock and Stage Manager).
+    /// The name is only a convention; the data directory is what the format guarantees. The name lookup is
+    /// kept as a fallback for an image without an optional header.
     private static func resourceSection(_ b: [UInt8]) -> Section? {
         guard b.count > 0x40, b[0] == 0x4D, b[1] == 0x5A else { return nil }   // 'MZ'
         guard let peOff = u32(b, 0x3C).map(Int.init), peOff + 24 <= b.count,
@@ -40,15 +47,34 @@ public enum PEIcon {
         let coff = peOff + 4
         guard let sectionCount = u16(b, coff + 2).map(Int.init),
               let optSize = u16(b, coff + 16).map(Int.init) else { return nil }
-        let table = coff + 20 + optSize
-        for i in 0..<sectionCount {
-            let s = table + i * 40
-            guard s + 40 <= b.count else { return nil }
-            let name = String(bytes: b[s..<s + 8].prefix { $0 != 0 }, encoding: .ascii)
-            if name == ".rsrc", let va = u32(b, s + 12).map(Int.init), let raw = u32(b, s + 20).map(Int.init),
-               raw > 0, raw <= b.count {
-                return Section(base: raw, virtualAddress: va)
+        let optional = coff + 20
+        let table = optional + optSize
+
+        func sections() -> [(name: String?, va: Int, virtualSize: Int, rawSize: Int, raw: Int)] {
+            (0..<sectionCount).compactMap { i in
+                let s = table + i * 40
+                guard s + 40 <= b.count,
+                      let vsize = u32(b, s + 8).map(Int.init), let va = u32(b, s + 12).map(Int.init),
+                      let rsize = u32(b, s + 16).map(Int.init), let raw = u32(b, s + 20).map(Int.init)
+                else { return nil }
+                return (String(bytes: b[s..<s + 8].prefix { $0 != 0 }, encoding: .ascii), va, vsize, rsize, raw)
             }
+        }
+
+        // DataDirectory[2] (resources): at +96 in a PE32 optional header, +112 in PE32+.
+        if optSize >= 2, let magic = u16(b, optional) {
+            let directories = optional + (magic == 0x20B ? 112 : 96)
+            if directories + 3 * 8 <= optional + optSize,
+               let rva = u32(b, directories + 2 * 8).map(Int.init), rva != 0 {
+                for s in sections() where s.va <= rva && rva < s.va + max(s.virtualSize, s.rawSize) {
+                    let base = s.raw + (rva - s.va)
+                    guard s.raw > 0, base < b.count else { break }
+                    return Section(base: base, virtualAddress: rva)
+                }
+            }
+        }
+        for s in sections() where s.name == ".rsrc" && s.raw > 0 && s.raw <= b.count {
+            return Section(base: s.raw, virtualAddress: s.va)
         }
         return nil
     }

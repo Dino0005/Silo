@@ -49,14 +49,45 @@ struct PEIconTests {
     }
 }
 
+/// Resident Evil Requiem's case (2026-09-25): a protected exe whose resource section is not named `.rsrc`.
+struct PEIconScrambledSectionTests {
+    private let icon = SyntheticPE.Icon(id: 1, image: [UInt8](repeating: 0xAB, count: 40),
+                                        width: 32, height: 32, bitCount: 32)
+
+    /// Found through the resource data directory, whatever the section is called.
+    @Test func findsResourcesInASectionNotNamedRsrc() {
+        let pe = SyntheticPE.build([icon], sectionName: ".rdata", withOptionalHeader: true)
+        #expect(PEIcon.icoData(fromExecutable: pe) != nil)
+    }
+
+    /// Without the data directory there is nothing to follow, and the name is the only clue — so an image
+    /// that has neither yields no icon rather than a guess.
+    @Test func withoutTheDirectoryAScrambledNameYieldsNothing() {
+        let pe = SyntheticPE.build([icon], sectionName: ".rdata", withOptionalHeader: false)
+        #expect(PEIcon.icoData(fromExecutable: pe) == nil)
+    }
+
+    /// The ordinary case must be unchanged, with and without an optional header.
+    @Test func anOrdinaryRsrcSectionStillWorks() {
+        #expect(PEIcon.icoData(fromExecutable: SyntheticPE.build([icon])) != nil)
+        #expect(PEIcon.icoData(fromExecutable: SyntheticPE.build([icon], withOptionalHeader: true)) != nil)
+    }
+}
+
 /// Builds a minimal-but-valid PE byte buffer carrying one or more icons (a `.rsrc` section with the full
 /// Type→Name→Language resource tree for RT_GROUP_ICON + RT_ICON), for testing `PEIcon` headlessly.
 private enum SyntheticPE {
     struct Icon { let id: UInt16; let image: [UInt8]; let width: UInt8; let height: UInt8; let bitCount: UInt16 }
 
-    static func build(_ icons: [Icon]) -> Data {
+    /// - Parameters:
+    ///   - sectionName: the resource section's name. `.rsrc` is only a convention — protected executables
+    ///     scramble it (Resident Evil Requiem's `re9.exe` keeps its resources in `.rdata`).
+    ///   - withOptionalHeader: emit a PE32+ optional header whose resource data directory points at the
+    ///     section, which is how the Windows loader — and now `PEIcon` — finds the resources.
+    static func build(_ icons: [Icon], sectionName: String = ".rsrc", withOptionalHeader: Bool = false) -> Data {
         let n = icons.count
-        let sectionBase = 0x80, va = 0x1000
+        let optSize = withOptionalHeader ? 240 : 0              // PE32+ optional header, 16 data directories
+        let sectionBase = withOptionalHeader ? 0x200 : 0x80, va = 0x1000
         let lang: UInt32 = 1033, groupID: UInt32 = 1
 
         // Pass 1: allocate section-relative offsets in layout order.
@@ -131,9 +162,15 @@ private enum SyntheticPE {
         pu32(0x40, 0x0000_4550)    // 'PE\0\0'
         let coff = 0x44
         pu16(coff + 2, 1)          // NumberOfSections
-        pu16(coff + 16, 0)         // SizeOfOptionalHeader
-        let table = coff + 20
-        for (k, c) in [UInt8](".rsrc".utf8).enumerated() { pe[table + k] = c }
+        pu16(coff + 16, UInt16(optSize))   // SizeOfOptionalHeader
+        if withOptionalHeader {
+            let opt = coff + 20
+            pu16(opt, 0x20B)                          // PE32+
+            pu32(opt + 112 + 2 * 8, UInt32(va))      // DataDirectory[2].VirtualAddress = the resource root
+            pu32(opt + 112 + 2 * 8 + 4, UInt32(sectionSize))
+        }
+        let table = coff + 20 + optSize
+        for (k, c) in [UInt8](sectionName.utf8).prefix(8).enumerated() { pe[table + k] = c }
         pu32(table + 8, UInt32(sectionSize))    // VirtualSize
         pu32(table + 12, UInt32(va))            // VirtualAddress
         pu32(table + 16, UInt32(sectionSize))   // SizeOfRawData
