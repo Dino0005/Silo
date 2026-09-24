@@ -755,6 +755,26 @@
                 on the real file (`SILO_TEST_EXE=…/re9.exe`, filter `PEIconReal`): a 204 KB `.ico` that
                 AppKit reads. Three synthetic tests pin the scrambled-name case and the unchanged ordinary
                 one. The bundle picks the icon up on the game's next launch (it is rewritten every launch).
+            - 🧊 **Resident Evil Requiem now hangs at startup — NOT the icon, NOT the hand-over (bisected
+              2026-09-25 ~00:30–00:47).** Symptom: small window (164×159) activates in Stage Manager but
+              never goes fullscreen, beachball, "non risponde". It ran on 2026-09-24 ~23:09.
+              **Hang point, identical in all three runs:** main thread in `NSApplication run` → winemac
+              creating an `NSPanel` → `-[NSWindow _commonInitFrame…]` → `+[CATransaction
+              addCommitHandler:forPhase:]` → `CA::Transaction::add_commit_handler` →
+              `_os_unfair_lock_lock_slow`; a game thread is in `NtUserCreateWindowEx` waiting on it. **No
+              other thread visibly holds the Core Animation lock.**
+              | run | icon in bundle | host | result |
+              |---|---|---|---|
+              | working build `4f81bd2` | yes (653 KB) | yes | hung, frame above |
+              | `cf1c35a` (pre-icon-fix) + icon file removed | no | yes | hung, same frame |
+              | working build + `SILO_DISABLE_ALTLOADER=1` | — | **no** (`wine`, id nil) | hung, same frame |
+              So neither the new icon nor the alt loader causes it. Same family as the Spider-Man freeze
+              (a Core Animation unfair lock nobody visibly releases), different call site. Samples kept in
+              `/tmp/re9-hang-*.txt` (lost on reboot).
+              **▶️ Next:** the same game in **CrossOver's own bottle** on this Mac, now — the only comparison
+              that separates "Wine/GPTK on this macOS 27 build" from anything Silo does. Also worth noting:
+              the Dock showed the game's icon on the no-host run; that tile was the previous launch's,
+              cached — `NSRunningApplication` reported the process as plain `wine`.
             - 🧊 **Spider-Man freezes the Mac when leaving fullscreen — NOT Silo, NOT the hand-over
               (bisected on device, 2026-09-24 evening).** Symptom: fullscreen game, Cmd+Tab / Cmd+Q dead,
               only Cmd+Opt+Esc works; Force Quit lists the game as *"non risponde"*; black screen.
