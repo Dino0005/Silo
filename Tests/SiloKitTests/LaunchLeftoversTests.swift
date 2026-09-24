@@ -139,3 +139,32 @@ struct LaunchLeftoversTests {
         #expect(runner.invocations.isEmpty)      // not even asked
     }
 }
+
+/// The aggregation `AppEnvironment` does over the bottles: which censuses may be offered for cleanup.
+struct LeftoverAggregationTests {
+    private func census(games: [Int32], leftovers: [Int32]) -> LaunchLeftovers.Census {
+        .init(games: games.map { .init(id: $0, command: "game") },
+              leftovers: leftovers.map { .init(id: $0, command: "leftover") })
+    }
+
+    /// A bottle where someone is playing has leftovers too (the desktop owner), but it must NOT be
+    /// offered: the action would then sit one click away from a running game.
+    @Test func aBottleWithAGameRunningContributesNothing() {
+        #expect(AppEnvironment.leftoverCount(from: [census(games: [1], leftovers: [2, 3])]) == 0)
+    }
+
+    @Test func onlyBottlesWithNoGameRunningAreCounted() {
+        let counted = AppEnvironment.leftoverCount(from: [
+            census(games: [], leftovers: [10, 11]),      // a finished launch → offered
+            census(games: [20], leftovers: [21]),        // playing → not offered
+            census(games: [], leftovers: []),            // clean
+        ])
+        #expect(counted == 2)
+    }
+
+    /// Nothing alive means nothing to offer — the menu entry stays hidden.
+    @Test func anEmptyMachineOffersNothing() {
+        #expect(AppEnvironment.leftoverCount(from: []) == 0)
+        #expect(AppEnvironment.leftoverCount(from: [census(games: [], leftovers: [])]) == 0)
+    }
+}

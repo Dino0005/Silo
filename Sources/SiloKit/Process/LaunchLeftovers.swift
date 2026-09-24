@@ -114,6 +114,12 @@ public struct LaunchLeftovers: Sendable {
         // Every process attached to a prefix holds files in its wineserver directory — the same identity
         // `WineServerProbe` keys liveness on. That is what attributes a process to THIS bottle; a command
         // line can't (a Windows path names no prefix).
+        //
+        // **Verified on device against a live prefix (2026-09-24):** `lsof -t +D <serverDir>` returns all
+        // ten processes of a booted bottle. What they hold there are the server's **regular** files (the
+        // `tmpmap-*` shared-memory maps) — NOT the socket: `lsof` reports a unix socket only for the
+        // listening end, so a socket-based query would have found the wineserver alone. Measured both ways
+        // before settling on this one.
         guard let pidList = try? await runner.run(
             executable: URL(fileURLWithPath: "/usr/sbin/lsof"),
             arguments: ["-t", "+D", dir.path], environment: [:], currentDirectory: nil),

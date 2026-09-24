@@ -384,3 +384,4 @@
 "Latest %@ (%@) is already installed." = "Latest %@ (%@) is already installed.";
 "Latest %@ release has no installable archive." = "Latest %@ release has no installable archive.";
 "Downloading %@… %@" = "Downloading %@… %@";
+"Close Leftover Game Processes" = "Close Leftover Game Processes";

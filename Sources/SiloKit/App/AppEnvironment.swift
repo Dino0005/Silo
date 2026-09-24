@@ -206,6 +206,62 @@ public final class AppEnvironment {
         return stopped
     }
 
+    // MARK: - Leftovers of past launches
+
+    /// How many processes of *finished* launches a bottle still has alive — the thing that keeps a game's
+    /// Dock tile up after the game is gone (see `LaunchLeftovers`, and STATUS for the measurements).
+    /// Zero until something asks: this is a pull, refreshed when Silo becomes active again, which is
+    /// exactly when the user comes back *from* a game and the answer has changed.
+    public private(set) var launchLeftoverCount = 0
+
+    /// Only bottles with **no game running** contribute. A bottle where someone is playing has leftovers
+    /// too (the desktop owner), but offering to clear them there would put a running game one click away
+    /// from being killed — so those don't count and aren't acted on.
+    nonisolated static func leftoverCount(from censuses: [LaunchLeftovers.Census]) -> Int {
+        censuses.filter(\.isOnlyLeftovers).reduce(0) { $0 + $1.leftovers.count }
+    }
+
+    /// Ask every bottle what it still has alive. Best-effort and silent: a probe that can't answer leaves
+    /// the count at zero, which offers nothing.
+    public func refreshLaunchLeftovers() async {
+        launchLeftoverCount = Self.leftoverCount(from: await censusAllBottles())
+    }
+
+    /// Close the leftovers, leaving Steam, the bottle's plumbing and any running game untouched. Returns
+    /// how many were stopped. Re-censuses first: the state may have changed since the menu was drawn.
+    @discardableResult
+    public func closeLaunchLeftovers() async -> Int {
+        let leftovers = LaunchLeftovers(runner: runner)
+        var stopped = 0
+        for census in await censusAllBottles() where census.isOnlyLeftovers {
+            stopped += await leftovers.stop(census.leftovers)
+        }
+        await refreshLaunchLeftovers()
+        return stopped
+    }
+
+    private func censusAllBottles() async -> [LaunchLeftovers.Census] {
+        let leftovers = LaunchLeftovers(runner: runner)
+        let executables = knownGameExecutables()
+        var censuses: [LaunchLeftovers.Census] = []
+        for prefix in allBottlePrefixes() {
+            censuses.append(await leftovers.census(prefix: prefix, gameExecutables: executables))
+        }
+        return censuses
+    }
+
+    /// Where the library's games live on disk, so a process running one is read as a game and never as a
+    /// leftover. An adopted game is recognised by the host binary regardless (`LaunchLeftovers.classify`);
+    /// this covers the un-adopted case — no host installed, or `SILO_DISABLE_ALTLOADER=1`.
+    private func knownGameExecutables() -> [String] {
+        gameLibrary.manualGames.map(\.executablePath.path)
+            + gameLibrary.games.map {
+                $0.libraryPath
+                    .appendingPathComponent("steamapps/common", isDirectory: true)
+                    .appendingPathComponent($0.installDir, isDirectory: true).path
+            }
+    }
+
     public func bootstrap() async {
         mediaFoundation.refresh()   // so the MF tab shows its real state before it's first opened
         guard !didBootstrap, !isBootstrapping else { return }

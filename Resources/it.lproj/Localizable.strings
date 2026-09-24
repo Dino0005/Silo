@@ -386,3 +386,4 @@
 "Latest %@ (%@) is already installed." = "L'ultima versione di %@ (%@) è già installata.";
 "Latest %@ release has no installable archive." = "L'ultima release di %@ non ha un archivio installabile.";
 "Downloading %@… %@" = "Download di %@… %@";
+"Close Leftover Game Processes" = "Chiudi i processi rimasti dei giochi";

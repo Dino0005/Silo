@@ -745,14 +745,24 @@
               - **Per-bottle, not per-game, and that is measured rather than lazy:** the leftover that
                 holds the tile is Wine's desktop owner, whose command line ties it to no particular launch.
                 The honest unit is "this prefix has leftovers and no game running" (`isOnlyLeftovers`).
-              - **▶️ NEXT — the part with no code yet, deliberately not half-built:** an `AppEnvironment`
-                action (census → `stop`) and one menu entry shown only when `isOnlyLeftovers`. The state
-                has to be refreshed by a pull at the right moment; the natural one is
-                `NSApplication.didBecomeActiveNotification` — the user comes back to Silo *from* the game,
-                which is exactly when the answer changes. Note `NSRunningApplication` is NOT usable as the
-                signal: measured, it does not list an app in `(exited-with-subordinates)` state, while
-                `lsappinfo` does — which is why the condition is computed from processes, one step upstream
-                of the tile.
+              - **✅ Wired (672 tests green).** `AppEnvironment.refreshLaunchLeftovers()` censuses every
+                bottle and publishes `launchLeftoverCount`; `closeLaunchLeftovers()` re-censuses and stops
+                (SIGTERM only — Wine's loader handles it, and escalating on a whim risks cutting a write).
+                The refresh is a **pull on `scenePhase == .active`**, next to the existing library refresh:
+                coming back to Silo *from* a game is exactly when the answer changes. The menu entry
+                (*Close Leftover Game Processes*, under the app menu beside *Stop All Bottle Processes*)
+                exists **only while `launchLeftoverCount > 0`**, which is the conditional visibility the
+                user asked for. Aggregation rule, pinned by tests: a bottle with a game running
+                contributes **zero**, so the action can never sit one click away from killing a game.
+                `NSRunningApplication` is deliberately NOT the signal — measured, it does not list an app
+                in `(exited-with-subordinates)` state while `lsappinfo` does, so the condition is computed
+                from processes, one step upstream of the tile.
+              - **The `lsof` form was verified on device, and the first check was mine being wrong.** A
+                unix-socket experiment suggested `+D` could not see socket holders, which would have made
+                every census empty; measured against a live prefix, `lsof -t +D <serverDir>` returns all
+                ten of a booted bottle's processes — they hold the server's **regular** `tmpmap-*` files
+                there, not the socket. The original form was correct; the socket test was testing the wrong
+                file type.
             - 🐞 **Silo hung at 98 % CPU during the God of War tests — fixed, and it was NOT the alt
               loader (2026-09-24).** The user reported the app frozen; `sample` put the main thread inside
               `GraphicsFallback.classify` → `range(of:options:.caseInsensitive)`.

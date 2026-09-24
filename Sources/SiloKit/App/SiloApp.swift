@@ -66,7 +66,12 @@ public struct SiloApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     // Returning to Silo (e.g. after downloading games in Steam) re-scans the library.
-                    if phase == .active { Task { await environment.refreshLibraryIfReady() } }
+                    if phase == .active {
+                        Task { await environment.refreshLibraryIfReady() }
+                        // Coming back from a game is precisely when a finished launch's leftovers appear
+                        // (they are what keeps its Dock tile up), so this is where the question is asked.
+                        Task { await environment.refreshLaunchLeftovers() }
+                    }
                 }
                 .onOpenURL { url in
                     // A Desktop game shortcut opened a silo://play/… deep link. Ignore anything that isn't a
@@ -85,6 +90,13 @@ public struct SiloApp: App {
                 Divider()
                 Button("Stop All Bottle Processes") {
                     Task { await environment.stopBottleProcesses() }
+                }
+                // Shown only when there is something to close AND no game is running anywhere — the
+                // narrower answer to "can't I just close the game's remains and keep Steam?".
+                if environment.launchLeftoverCount > 0 {
+                    Button("Close Leftover Game Processes") {
+                        Task { await environment.closeLaunchLeftovers() }
+                    }
                 }
             }
         }
