@@ -748,6 +748,13 @@
                 `_NSWindowTransformAnimation setCurrentProgress:` on a user-interactive queue). So this has
                 existed since at least 2026-09-21 and is independent of every change made since; it had
                 simply never been triggered, because leaving a fullscreen game with Cmd+Tab was never tried.
+              - ⚠️ **Caveat on the whole bisect (raised before rebooting, 2026-09-24 ~21:30):** every
+                reproduction happened AFTER at least one force-quit of a process deadlocked inside the
+                fullscreen window animation, and the user then saw macOS windows misbehaving. If those
+                force-quits left WindowServer in a dirty state, the three reproductions may reflect that
+                state rather than the builds — so "the freeze predates everything" is NOT yet proven.
+                **▶️ After a reboot, on a clean session: first the working build (`dist/`, where the freeze
+                first appeared); only if it freezes, `/Applications/Silo.app` again.**
               - **Next, if pursued:** (a) the same game in CrossOver, to confirm it is Wine-on-macOS-27 and
                 not specific to anything of ours; (b) winemac's `HKCU\Software\Wine\Mac Driver`
                 `CaptureDisplaysForFullscreen` option, which takes a different fullscreen path — a candidate
