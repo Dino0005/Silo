@@ -39,12 +39,22 @@ public struct SteamStoreClient: Sendable {
         (Locale.preferredLanguages.first?.hasPrefix("it") ?? false) ? "italian" : "english"
     }
 
-    /// Parse the `{ "<appid>": { "success": true, "data": { … } } }` response.
+    /// Parse the `{ "<key>": { "success": true, "data": { … } } }` response.
+    ///
+    /// **The key is no longer the app id that was asked for (measured 2026-09-25).** Steam now answers
+    /// under a different id for every game in the library — `appids=1817070` (Spider-Man Remastered) comes
+    /// back keyed `"2083110"`, Tekken 8 `1778820` → `"4536150"`, and so on for all seven tested — so a
+    /// lookup by `String(appID)` found nothing and every detail sheet came up empty, seasonal header
+    /// included. The entry is identified instead by `data.steam_appid`, which still carries the id that was
+    /// requested. An entry keyed by the id itself is still accepted (the old shape, and what the API may
+    /// return again).
     static func parse(_ data: Data, appID: Int) -> SteamStoreDetails? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let entry = json[String(appID)] as? [String: Any],
-              entry["success"] as? Bool == true,
-              let d = entry["data"] as? [String: Any] else { return nil }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let entries = json.values.compactMap { $0 as? [String: Any] }
+            .filter { $0["success"] as? Bool == true }
+        let matching = entries.first { ($0["data"] as? [String: Any])?["steam_appid"] as? Int == appID }
+            ?? (json[String(appID)] as? [String: Any]).flatMap { $0["success"] as? Bool == true ? $0 : nil }
+        guard let d = matching?["data"] as? [String: Any] else { return nil }
         let genres = (d["genres"] as? [[String: Any]])?.compactMap { $0["description"] as? String } ?? []
         // `pc_requirements` is a dict when present, or an empty array when the store lists none.
         let minRaw = (d["pc_requirements"] as? [String: Any])?["minimum"] as? String

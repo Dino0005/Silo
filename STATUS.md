@@ -726,6 +726,29 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - ✅ **Game detail sheets were empty for EVERY Steam game — Steam changed its API (fixed
+              2026-09-25).** `appdetails?appids=<id>` now answers under a *different* key for all seven
+              library games (Spider-Man `1817070` → `"2083110"`, Tekken 8 `1778820` → `"4536150"`, …), so
+              `SteamStoreClient.parse`'s lookup by `String(appID)` found nothing: no description, no
+              requirements, and no seasonal `header_image` (the sheet fell back to the base art — which is
+              the "missing seasonal poster" the user saw on Tekken 8 and Fatal Fury). **Not caused by
+              `2e7d1a7`**, which only touches the tile's `Artwork/` cache. Fix: match the entry on
+              `data.steam_appid` (still the requested id — verified live for all six games), keep accepting
+              the old key shape, and reject an entry about another game. Two tests pin the new shape.
+            - 📝 **User observations still open (2026-09-24 evening, working build, clean session):**
+              - The working build **no longer freezes** after the reboot — so the freeze cause stays
+                unknown; the dirty-WindowServer caveat above is the leading explanation, not proven.
+              - **Spider-Man was added to *Login Items & Extensions* as a background app** ("App in
+                esecuzione in background … Puoi gestire le app in background"), and while that toggle was
+                on, its Dock tile outlived the game (Steam closed beforehand). With the toggle **off**, the
+                tile went away with the game. Only Spider-Man was added, not other Steam games. To
+                investigate: what registers it (the game's own helpers? macOS's background-task attribution
+                for a bundled app whose child keeps running?), and whether the host bundle should declare
+                something to avoid it.
+              - **Tekken 8 shows two Dock tiles**, both closing with the game.
+              - **Resident Evil Requiem shows the generic macOS app icon** (circles and lines) — i.e. the
+                bundle exists but its icon did not come through: likely `PEIcon` found no usable icon in
+                that exe, or the exe resolved is a launcher. To check.
             - 🧊 **Spider-Man freezes the Mac when leaving fullscreen — NOT Silo, NOT the hand-over
               (bisected on device, 2026-09-24 evening).** Symptom: fullscreen game, Cmd+Tab / Cmd+Q dead,
               only Cmd+Opt+Esc works; Force Quit lists the game as *"non risponde"*; black screen.
