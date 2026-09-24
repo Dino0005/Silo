@@ -726,6 +726,19 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - ✅ **RESOLVED BY REBOOT, twice — the freezes were SESSION state, not Silo (2026-09-25).**
+              After a reboot the unchanged working build runs Resident Evil Requiem **with its icon in the
+              Dock and Stage Manager** (the `PEIcon` data-directory fix, live) — exactly as a reboot had
+              cleared the Spider-Man freeze the evening before. Before each reboot the hang hit EVERY
+              variant (host or no host, icon or none, CrossOver's DLLs, overlay off), always at the same
+              Core Animation lock with no visible holder.
+              - **Reading:** a Core Animation / WindowServer state left broken by force-quitting a process
+                hung inside it, which then poisons every later Wine launch in that login session.
+              - **Still unknown:** what caused the FIRST hang (2026-09-24 20:42). Every test after it ran on
+                an already-dirty session; CrossOver working at ~01:00 is consistent with that too.
+              - **Method rule:** after a Wine game hangs and is force-quit, **reboot before judging any
+                build** — otherwise the session is being measured, not the code. All the bisect entries
+                below were taken on dirty sessions and are superseded by this one.
             - ✅ **Game detail sheets were empty for EVERY Steam game — Steam changed its API (fixed
               2026-09-25).** `appdetails?appids=<id>` now answers under a *different* key for all seven
               library games (Spider-Man `1817070` → `"2083110"`, Tekken 8 `1778820` → `"4536150"`, …), so
