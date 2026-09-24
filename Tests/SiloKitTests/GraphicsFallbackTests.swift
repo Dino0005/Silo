@@ -98,6 +98,59 @@ struct GraphicsFallbackTests {
         #expect(!fired)                            // a healthy launch never fires the fallback callback
     }
 
+    /// The hang of 2026-09-24: a game logging through wine's trace channels writes continuously, the
+    /// kqueue source fires per write, and every event used to enqueue a 64 KB case-insensitive scan on the
+    /// main actor. The queue grew without bound and Silo spun at 98 % CPU. The scan now runs off the main
+    /// actor, coalesced — so the main actor must stay responsive under a flood of writes.
+    @MainActor
+    @Test("a chatty log does not saturate the main actor")
+    func monitorKeepsTheMainActorResponsiveUnderAFloodOfWrites() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let log = try tmp.write("game.log", "starting…\n")
+        let monitor = GraphicsFallbackMonitor()
+        monitor.start(url: log, backend: .gptk) { }
+        defer { monitor.stop() }
+
+        let writer = Task.detached {
+            guard let h = try? FileHandle(forWritingTo: log) else { return }
+            h.seekToEndOfFile()
+            let line = Data("00e8:trace:loaddll:build_module Loaded builtin module\n".utf8)
+            for _ in 0..<3000 { h.write(line) }
+            try? h.close()
+        }
+
+        // A main-actor round trip during the flood: with the old code this waited on thousands of queued
+        // scans. The bound is generous on purpose — the failure it guards against was 17 minutes long.
+        let started = ContinuousClock.now
+        try await Task.sleep(for: .milliseconds(50))
+        let elapsed = ContinuousClock.now - started
+        await writer.value
+        #expect(elapsed < .seconds(2))
+    }
+
+    /// Coalescing must not cost detection: a fallback line written after a burst of noise is still caught.
+    @MainActor
+    @Test("a fallback written after a burst of noise is still detected")
+    func monitorStillCatchesAFallbackAfterNoise() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let log = try tmp.write("game.log", "starting…\n")
+        let monitor = GraphicsFallbackMonitor()
+        let fired = LockedBox(false)
+        monitor.start(url: log, backend: .gptk) { fired.set(true) }
+        defer { monitor.stop() }
+
+        let h = try FileHandle(forWritingTo: log)
+        h.seekToEndOfFile()
+        for _ in 0..<200 { h.write(Data("00e8:trace:loaddll:build_module Loaded builtin\n".utf8)) }
+        h.write(Data("""
+            05c4:err:winediag:wined3d_adapter_create Using the Vulkan renderer for d3d10/11 applications.
+            """.utf8))
+        try? h.close()
+
+        for _ in 0..<400 where !fired.value { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(fired.value)
+    }
+
     @MainActor
     @Test("a confirmed-engaged DXMT launch tears the watch down without firing a false fallback")
     func monitorStopsOnEngagedWithoutFiring() async throws {

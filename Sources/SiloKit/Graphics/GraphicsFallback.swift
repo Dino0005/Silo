@@ -84,6 +84,17 @@ final class GraphicsFallbackMonitor {
     /// Whether a kqueue watch is currently armed (test/introspection hook).
     var isObserving: Bool { watch != nil }
 
+    /// The shortest gap between two log inspections.
+    ///
+    /// **This bound is load-bearing, not tidiness** (measured 2026-09-24): the kqueue source fires on
+    /// EVERY write, on a *concurrent* queue, and a game logging through wine's trace channels writes
+    /// continuously — God of War produced a 42 MB log in one session. Without a bound, every write
+    /// enqueued another 64 KB case-insensitive scan on the main actor; the queue grew without limit, Silo
+    /// spun at 98 % CPU for 17 minutes, and even `autoStop` could no longer get onto the main actor to
+    /// call `stop()`. Nothing is lost by coalescing: a signature stays in the log, and at the write rates
+    /// measured (~47 KB/s) this window covers ~12 KB of a 64 KB tail, so the next check still sees it.
+    nonisolated static let minimumCheckInterval: Duration = .milliseconds(250)
+
     func start(url: URL, backend: GraphicsBackend = .gptk, onFallback: @escaping @MainActor () -> Void) {
         stop()
         self.onFallback = onFallback
@@ -100,9 +111,29 @@ final class GraphicsFallbackMonitor {
         // the launch it was watching, which is exactly what the fd bound below tries to avoid. The inner
         // `[weak self]` looked like it covered that and didn't — it only re-captured an already-strong
         // reference.
+        let backend = backend
+        let pending = LockedBox(false)
         watch = FileWatch(url: url) { [weak self] in
-            let tail = url.tailString()                                  // read off the main actor
-            Task { @MainActor in self?.check(tail) }
+            // Coalesce (see `minimumCheckInterval`) and classify off the main actor — a 64 KB tail
+            // scanned case-insensitively, i.e. Unicode folding per character, is work that must never
+            // land on the actor that draws the UI thousands of times a second. Only a verdict crosses.
+            //
+            // The coalescing **schedules a trailing check instead of dropping events**, and that
+            // distinction is the whole point: simply ignoring events inside the window loses the LAST
+            // write, so a game that logs its fallback line and then goes quiet would never be noticed
+            // (caught by `monitorStillCatchesAFallbackAfterNoise` — my first attempt did exactly that).
+            var alreadyScheduled = false
+            pending.mutate { alreadyScheduled = $0; $0 = true }
+            guard !alreadyScheduled else { return }
+            Task.detached {
+                try? await Task.sleep(for: Self.minimumCheckInterval)
+                // Clear BEFORE reading, so a write arriving during the scan schedules the next check
+                // rather than being swallowed by it.
+                pending.set(false)
+                let status = GraphicsFallback.classify(url.tailString(), backend: backend)
+                guard status != .unknown else { return }
+                Task { @MainActor in self?.apply(status) }
+            }
         }
         // Bound the watch's lifetime: a healthy launch never fires, so without this the fd leaks until the
         // owning VM drops the monitor (i.e. never, within a session). Self-cancels on fire/stop.
@@ -116,8 +147,12 @@ final class GraphicsFallbackMonitor {
     func stop() { watch = nil; onFallback = nil; autoStop?.cancel(); autoStop = nil }
 
     private func check(_ tail: String) {
+        apply(GraphicsFallback.classify(tail, backend: backend))
+    }
+
+    private func apply(_ status: GraphicsFallback.Status) {
         guard !fired else { return }
-        switch GraphicsFallback.classify(tail, backend: backend) {
+        switch status {
         case .engaged:
             // Confirmed engaged — tear the watch down so a later benign wined3d line can't fire a false
             // fallback. `fired` also stops `start` from arming a watch after an immediate engaged tail.

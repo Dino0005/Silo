@@ -648,6 +648,26 @@
               `crs-handler.exe` (the game's crash reporter) ~13 s after launch, which points at a **crash**
               being swallowed rather than a hang. Present on the adopted run; the control run was killed
               before that could be compared, so it is a lead, not a finding.
+            - 🐞 **Silo hung at 98 % CPU during the God of War tests — fixed, and it was NOT the alt
+              loader (2026-09-24).** The user reported the app frozen; `sample` put the main thread inside
+              `GraphicsFallback.classify` → `range(of:options:.caseInsensitive)`.
+              **Mechanism:** `GraphicsFallbackMonitor` arms a kqueue `FileWatch` that fires on **every**
+              write, on a **concurrent** queue, and each event enqueued `Task { @MainActor in check(tail) }`
+              — a 64 KB tail scanned case-insensitively (Unicode folding per character) **on the main
+              actor**. A game logging through wine's trace channels writes constantly (God of War: a 42 MB
+              log), so the main actor accumulated an unbounded queue of scans. It could not even stop
+              itself: `autoStop`'s `stop()` needs the same starved main actor. GPTK has no engagement
+              signature, so the watch never tore down early either.
+              **Fix:** read *and* classify inside the watch closure (off the main actor — only a verdict
+              crosses over), coalesced to one check per 250 ms.
+              - The coalescing **schedules a trailing check rather than dropping events**. My first attempt
+                dropped them, and a new test caught it immediately: the last write is then lost forever, so
+                a game that logs its fallback line and goes quiet would never be noticed. Both properties
+                are now pinned — main-actor responsiveness under 3 000 writes, and detection after a burst.
+              - **Pre-existing, not a regression of this work**, but worth knowing it is much louder
+                locally: `Silo.wineDebug` is `+loaddll` in dev builds and `-all,+winediag` in shipped ones
+                (`SILO_QUIET_WINE`), so a shipped app writes a fraction of that volume. The unbounded
+                enqueue was a defect regardless of volume.
             - 🚧 **DO NOT PUSH YET (user, 2026-09-24).** There are **23 commits** ahead of `origin/main`
               (last pushed: `be33e6e`) and they stay local until the whole on-device checklist is green.
               The gate is deliberate: the alt loader is always-on for every launch, so it gets pushed once,
