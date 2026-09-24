@@ -771,7 +771,27 @@
               So neither the new icon nor the alt loader causes it. Same family as the Spider-Man freeze
               (a Core Animation unfair lock nobody visibly releases), different call site. Samples kept in
               `/tmp/re9-hang-*.txt` (lost on reboot).
-              **▶️ Next:** the same game in **CrossOver's own bottle** on this Mac, now — the only comparison
+              **CrossOver comparison done (2026-09-25 ~01:00): RE Requiem RUNS in CrossOver's own bottle.**
+              Then, one variable at a time, all still hanging at the SAME frame in Silo's bottle:
+              - `D3DM_MTL4` — moot: D3DMetal 3.0 has no such string (all its `D3DM_*` env names listed);
+                the two frozen games being the two set to "Metal 4" was a coincidence I first took as a lead.
+              - **CrossOver's loader + its own builtin `d3d11`/`dxgi`/`d3d12`** in Silo's bottle → hangs.
+                So Apple's GPTK 3.0 PE DLLs that Silo overlays are not it.
+              - **Steam overlay disabled** (`gameoverlayrenderer64=d`, confirmed not loaded) → hangs.
+              - Byte-identical between the two: `ntdll`/`winemac`/`win32u`/`wineserver`, D3DMetal 3.0,
+                `libd3dshared`; same Steam client (manifest `1788652215`, same files); the game's
+                `config.ini` lives in the shared game dir. CrossOver's bottle env: only `WINEMSYNC=1`,
+                `CX_GRAPHICS_BACKEND=d3dmetal`, `D3DM_ENABLE_METALFX=1`; `Mac Driver` keys identical.
+              **So the difference is the BOTTLE**, and its biggest structural difference touches windows:
+              Silo runs the Steam client inside a Wine virtual desktop (`explorer /desktop=Silo,…`),
+              CrossOver does not. **▶️ Next test:** start Silo's Steam WITHOUT the virtual desktop, then
+              launch RE9 — one variable.
+              **Mechanism hypothesis (unproven):** the main thread waits on a Core Animation lock that none
+              of the 53 live threads holds — the signature of a lock left held by a thread that was
+              terminated while inside Core Animation (e.g. mid-present). It would fit the same frame every
+              time, the intermittency, and "it ran yesterday".
+              The user rebooted before the next test.
+              **▶️ (superseded) Next:** the same game in **CrossOver's own bottle** on this Mac, now — the only comparison
               that separates "Wine/GPTK on this macOS 27 build" from anything Silo does. Also worth noting:
               the Dock showed the game's icon on the no-host run; that tile was the previous launch's,
               cached — `NSRunningApplication` reported the process as plain `wine`.
