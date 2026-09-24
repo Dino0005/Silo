@@ -663,42 +663,69 @@
                 process in the tree belongs to the **client's** launch (`SteamClientSession` runs it in a
                 virtual desktop); the game is launched directly, so the window-owner is the game's own
                 adopted process. That closes the structural question this checklist item was really about.
-            - 🐞 **A Dock tile outlived the game, and the host now refuses to be that tile.** The user saw
-              Spider-Man's tile still there after quitting the game, labelled *"In esecuzione in
-              background"* — and **had to end it by hand** (right-click → quit the background process), so
-              a process really was alive with no window; it was gone by the time it was measured only
-              because the user had already closed it. Two candidates remain, and they need one measured
-              relaunch to separate: the game's own process lingering after its window closed (legitimate —
-              Silo never owned a game's lifecycle, and pre-alt-loader the same leftover simply showed up as
-              an anonymous "wine" tile instead of a named one), or a host nobody ever connected to. The
-              second case is now impossible, and it was a real hole: a host parked on `accept()` lives
-              forever and macOS keeps a tile with the game's name.
-              **▶️ On the next Spider-Man launch, measure after quitting:** which pid owns the tile, whether
-              it is the adopted host (`NSWorkspace` bundle id `com.mikael.silo.host.1817070`) or a plain
-              `wine` process, and its thread state.
-              **Two changes in `host.c`, both verified:**
-              1. **A bounded wait** — `select` with 60 s, then exit and unlink. Measured: the lonely host
-                 exits by itself and takes its socket with it. The hand-over arrives within a second or
-                 two of the spawn, so a minute is generous.
-              2. **The socket is single-use** — unlinked right after `accept`. This is the *durable* fix
-                 for the stale-socket hang that stopped God of War: `prepare` removing it before each
-                 launch only helps if a next launch happens, while this holds even when the host dies on
-                 its own.
-            - ✅ **Batman Arkham Knight (manual, GPTK) — icon confirmed, and one observation that is
-              macOS, not us (user, 2026-09-24 ~15:50).** The startup window appeared **in Stage Manager
-              carrying the game's icon**, then took focus and went fullscreen. Once fullscreen, the game's
-              window was **no longer listed in Stage Manager** — only the Dock tile, which returns to the
-              game when clicked.
-              - **Measured, no longer inferred (Spider-Man, live, 2026-09-24):** a fullscreen game's
-                window does not appear in `CGWindowListCopyWindowInfo(.optionOnScreenOnly)` **at all** —
-                it took `.optionAll` to see it, because it lives in **its own space**. Stage Manager tiles
-                the current space's windows, so a fullscreen game is absent from the strip by macOS's
-                design, not for want of an identity. The same probe confirmed the identity where it counts:
-                window `Marvel's Spider-Man Remastered v4.630.0.0`, 1728×1117, layer 0, on-screen, owned by
-                the host pid with `bundleIdentifier = com.mikael.silo.host.1817070`.
-              - Also answers the focus question left open by God of War: **Batman's first window took focus
-                by itself.** So the unfocused first window was God of War's own first-run setup, not a
-                general property of the hand-over. No host-side activation is warranted.
+            - ✅ **DIAGNOSED: the Dock tile that outlives a game is kept alive by the game's own leftover
+              Wine children, not by the host (measured 2026-09-24).** Sequence, all measured on a live
+              Spider-Man session:
+              1. While playing: pid 45671 is the adopted host — `com.mikael.silo.host.1817070`, 166 % CPU,
+                 709 MB, owner of the game's window.
+              2. After the user quits the game: **45671 does not exist** (not even a zombie), and no process
+                 carries our bundle id — yet the tile is still in the Dock, and `lsappinfo` still lists the
+                 app as `type="Foreground"` with `pid = 45671` and a **coalition**.
+              3. The bottle still had `explorer.exe /desktop` (pid 45677) from that launch. **Killing it
+                 made the `lsappinfo` entry vanish immediately** (1 → 0).
+              So the app's ASN — and therefore the Dock tile — lives as long as *any* member of the launch's
+              coalition lives. Wine's per-desktop `explorer.exe` (and a game's own helpers, e.g. Sony's
+              `crs-handler.exe`) outlive the game by design; in a shared Steam bottle they stay while the
+              client keeps the wineserver up.
+              - **Not a regression, and not the host's doing:** the same leftovers existed before this
+                work — they simply showed up as anonymous `wine` tiles. What the alt loader changed is that
+                a leftover now wears the game's name and icon, which *reads* as "the game is still
+                running".
+                (**Correction, user 2026-09-24:** the earlier "two God of War icons" do NOT corroborate
+                this — those were leftovers of a test run I had failed to close, not of a normally-quit
+                game. The Spider-Man measurement above is the only clean evidence, and it stands on its
+                own.)
+              - **The variability is explained too, by a 2 s-resolution trace of a fourth run (user asked
+                the right question: the tile vanished by itself that time, so a mechanism that only fires
+                sometimes was not yet an explanation).** Sampling `lsappinfo` + the launch's processes
+                every 2 s gave: `19:44:27` host 47255 adopted, ASN=1 → `19:45:19` **host dead, ASN still
+                1**, with Sony's `crs-handler.exe` (47291) still alive → `19:45:21` **handler exits, ASN
+                drops to 0** in the same sample. So the ASN tracks the coalition *exactly*, with no stale
+                registration and no delay: the tile outlived the game by two seconds because one child
+                outlived it by two seconds. **What varies is which leftover survives and for how long** —
+                a crash handler goes in seconds, Wine's per-desktop `explorer.exe /desktop` can stay for
+                as long as the wineserver does. Nothing here is Silo's or the host's defect: the tile is
+                macOS reporting, accurately, that a process from that launch is still running.
+              - **The cold-bottle case, measured end to end (5th and 6th runs).** With Steam closed, the
+                game's launch is what creates Wine's **default-desktop owner**, `explorer.exe /desktop`,
+                and that one outlives the game: `lsappinfo` showed the app as
+                `(exited-with-subordinates)` with `coalition: 22257 { 49718 … }`, pid 49718 being exactly
+                that explorer, alive for minutes. Then, quitting Steam: `19:58:41` client shutting down,
+                explorer alive, ASN=1 → `19:58:54` client gone, **explorer gone, ASN=0 in the same
+                sample** → `19:58:58` bottle services gone. So in both directions the registration tracks
+                the coalition with no staleness; the tile's lifetime is exactly the lifetime of the
+                launch's longest-lived process.
+                (Method note: my first tracer reported `explorer_desktop` as always empty — the filter
+                anchored `/desktop$` while `ps` prints a trailing space. A blind column is worse than no
+                column, because it reads as evidence of absence.)
+              - **Verdict: known behaviour, not a defect to fix.** Wine holds the desktop owner until the
+                bottle's wineserver stops, and macOS honestly reports it under the app that process
+                belongs to. The two ways to make the tile go sooner are both worse: Silo creating the
+                desktop owner itself would move the tile onto a permanent anonymous `wine` process, and
+                running the game inside the client's virtual desktop would hand the window back to
+                `explorer` and lose the icon — i.e. the whole feature. The levers that do work are the
+                ones a user already has: quit Steam, or *Stop all bottle processes*.
+              - **The tile does NOT clear itself after a minute.** `host.c`'s 60 s bound applies only to a
+                host that never receives a connection; a host that *was* used has become the game and is
+                outside that path entirely. The tile lasts as long as the launch's leftovers do — i.e.
+                until Steam quits (shared bottle) or the bottle is stopped.
+              - **Not worth fixing by reaping**, and this is a deliberate call: killing a launch's leftovers
+                would mean Silo owning a game's lifecycle, which Phase 4 rules out — and in the shared Steam
+                bottle those processes belong to the co-resident client too. The existing user-facing lever
+                already clears it: *Stop all bottle processes*. Documented rather than engineered.
+              - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
+                a *different*, real hole (a host nobody ever connected to would linger forever), verified in
+                isolation.
             - 🐞 **Silo hung at 98 % CPU during the God of War tests — fixed, and it was NOT the alt
               loader (2026-09-24).** The user reported the app frozen; `sample` put the main thread inside
               `GraphicsFallback.classify` → `range(of:options:.caseInsensitive)`.
@@ -728,8 +755,8 @@
               2. ✅ **The Steam client** — done: it starts and the readiness gate passes with the
                  hand-over live (see the Spider-Man entry above).
               3. ✅ **A Steam game** — done: Spider-Man Remastered, icon in Stage Manager.
-              4. Re-confirm the Dock tile no longer outlives an unused host, now that `host.c` exits on
-                 its own (the fix is verified in isolation; it wants one real launch to close the loop).
+              4. ✅ **The lingering Dock tile** — diagnosed and explained above: the game's leftover Wine
+                 children keep the app's ASN alive. Cleared by *Stop all bottle processes*.
             - **▶️ NEXT:** (1) optional — a second running game (Batman Arkham Knight) to see whether the
               unfocused first window is general or was God of War's first-run setup;
               (2) a **Steam** game — still unanswered: which process owns the window there (`explorer`
