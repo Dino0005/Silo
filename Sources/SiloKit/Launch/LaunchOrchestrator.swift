@@ -148,7 +148,7 @@ public struct LaunchOrchestrator: Sendable {
         // Steam's own launch options first, then the user's — anything they typed by hand WINS and Steam's
         // copy of it is dropped (see `mergeArguments`), so a hand-added switch extends the game's required
         // arguments instead of duplicating them.
-        var arguments = Self.invocation(for: gameExe)
+        var arguments = Self.invocation(for: gameExe, viaStart: altLoaderSocket != nil)
             + Self.mergeArguments(steam: steamArguments, user: config.customArgs)
         // winemac.drv only ever honors a ChangeDisplaySettings/fullscreen request against what IT considers
         // the PRIMARY adapter (see dlls/winemac.drv/display.c — a deliberate upstream Wine limitation, not
@@ -181,8 +181,25 @@ public struct LaunchOrchestrator: Sendable {
     /// Windows Installer package (`.msi`) is data, not a PE — it must be handed to the bottle's builtin
     /// `msiexec /i`. Everything else runs directly. (Steam/manual game targets are always `.exe`; only the
     /// "run installer" path feeds an `.msi` here.)
-    static func invocation(for target: URL) -> [String] {
-        guard target.pathExtension.lowercased() == "msi" else { return [target.path] }
+    ///
+    /// - Parameter viaStart: route the game through the bottle's builtin `start`, which is required for
+    ///   the alt-loader hand-over and pointless without it.
+    ///
+    ///   **Why (measured on device 2026-09-24, and this is the whole reason the first wired run failed
+    ///   with everything else correct):** `wine64 <exe>` runs the game **in the launcher's own process** —
+    ///   the loader `execve`s itself, so `spawn_process` is never called, and `send_to_cx_loader` (its only
+    ///   call site) never runs. The socket, the whitelist key and `CX_ALT_LOADER_SOCKET` were all in place
+    ///   and Wine simply never connected. `start /unix <exe>` makes the game a genuinely **created**
+    ///   process, and the same run then handed over on the first try. `start.exe` itself is never adopted:
+    ///   the whitelist names the game's exe (`AltLoaderWhitelist`).
+    ///
+    ///   `/wait` keeps the launcher alive for the game's lifetime, as it is today without `start` — so the
+    ///   log fds Silo hands the launcher stay open, and the process tree keeps the shape the rest of the
+    ///   app was measured against.
+    static func invocation(for target: URL, viaStart: Bool = false) -> [String] {
+        guard target.pathExtension.lowercased() == "msi" else {
+            return viaStart ? ["start", "/wait", "/unix", target.path] : [target.path]
+        }
         return ["msiexec", "/i", dosPath(for: target)]
     }
 

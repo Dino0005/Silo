@@ -72,9 +72,18 @@ int main(int argc, char **argv) {
     lg = getenv("SILO_HOST_DEBUG_LOG") ? fopen(lgpath, "w") : fopen("/dev/null", "w");
     L("host pid %d, socket %s\n", getpid(), sockpath);
 
+    /* Un path piu' lungo di sun_path non fa fallire il bind: lo tronca. L'host legherebbe
+       un nome diverso da quello a cui Wine si collega, Wine ripiegherebbe su fork() e
+       l'icona si perderebbe senza un solo errore (misurato 2026-09-24: 105 byte contro 103).
+       Meglio non partire: il lancio prosegue comunque, solo senza consegna. */
+    struct sockaddr_un sa; memset(&sa, 0, sizeof sa);
+    if (strlen(sockpath) >= sizeof sa.sun_path) {
+        L("socket path di %zu byte, il massimo e' %zu: rifiuto invece di troncare\n",
+          strlen(sockpath), sizeof sa.sun_path - 1);
+        return 1;
+    }
     unlink(sockpath);
     int srv = socket(PF_LOCAL, SOCK_STREAM, 0);
-    struct sockaddr_un sa; memset(&sa, 0, sizeof sa);
     sa.sun_family = AF_UNIX; strncpy(sa.sun_path, sockpath, sizeof sa.sun_path - 1);
     if (bind(srv, (struct sockaddr *)&sa, sizeof sa) || listen(srv, 5)) {
         L("bind/listen: %s\n", strerror(errno)); return 1; }

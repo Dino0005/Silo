@@ -607,6 +607,38 @@ struct MakePlanAltLoaderTests {
         #expect(plan.environment["CX_ALT_LOADER_SOCKET"] == socket.path)
     }
 
+    /// The measured reason the first wired on-device run failed: `wine64 <exe>` runs the game in the
+    /// launcher's own process (the loader `execve`s itself), so `spawn_process` — the only caller of
+    /// `send_to_cx_loader` — never runs and Wine never connects to the waiting host. `start` makes the
+    /// game a created process.
+    @Test func aHandOverRoutesTheGameThroughStartSoItIsACreatedProcess() throws {
+        let plan = try LaunchOrchestrator.makePlan(
+            config: GameConfig(appID: 220), backend: backend(), gameExe: gameExe,
+            prefix: prefix, logURL: log,
+            altLoaderSocket: URL(fileURLWithPath: "/tmp/s.sock"))
+        #expect(plan.arguments == ["start", "/wait", "/unix", gameExe.path])
+    }
+
+    /// And without a hand-over the command is exactly the one that shipped before — `start` would be
+    /// pointless there, and this is the GPTK/DXMT-critical path.
+    @Test func withoutAHandOverTheCommandIsUnchanged() throws {
+        var config = GameConfig(appID: 220)
+        config.customArgs = ["-windowed"]
+        let plan = try LaunchOrchestrator.makePlan(
+            config: config, backend: backend(), gameExe: gameExe, prefix: prefix, logURL: log)
+        #expect(plan.arguments == [gameExe.path, "-windowed"])
+    }
+
+    /// The game's own arguments still follow the exe: `start` passes everything after the program on.
+    @Test func theGamesArgumentsSurviveTheStartWrapper() throws {
+        var config = GameConfig(appID: 220)
+        config.customArgs = ["-windowed", "-dx11"]
+        let plan = try LaunchOrchestrator.makePlan(
+            config: config, backend: backend(), gameExe: gameExe, prefix: prefix, logURL: log,
+            altLoaderSocket: URL(fileURLWithPath: "/tmp/s.sock"))
+        #expect(plan.arguments == ["start", "/wait", "/unix", gameExe.path, "-windowed", "-dx11"])
+    }
+
     /// The two icon routes are independent: the alt loader needs no `WINEDLLPATH` and no loader link dir,
     /// and must not quietly enable the patch route (which `makePlan` deliberately keeps opt-in).
     @Test func doesNotDragInTheOtherRoute() throws {
@@ -631,11 +663,24 @@ struct LaunchAltLoaderPipelineTests {
         return host
     }
 
-    private func orchestrator(_ fake: FakeProcessRunner, host: URL?) -> LaunchOrchestrator {
+    /// A short socket root (see `AltLoaderSessionTests.tempDir`): `sun_path` holds 103 bytes, and a
+    /// `TempDir` under the per-user `TMPDIR` would leave too few for a UUID-named game.
+    private func socketRoot() throws -> URL {
+        let url = URL(fileURLWithPath: "/tmp", isDirectory: true)
+            .appendingPathComponent("sa-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func orchestrator(
+        _ fake: FakeProcessRunner, host: URL?, socketRoot: URL
+    ) -> LaunchOrchestrator {
         var env: [String: String] = [:]
         if let host { env["SILO_ALTLOADER_HOST"] = host.path }
-        return LaunchOrchestrator(runner: fake, linker: GraphicsLinker(),
-                                  altLoader: AltLoaderSession(runner: fake, environment: env))
+        return LaunchOrchestrator(
+            runner: fake, linker: GraphicsLinker(),
+            altLoader: AltLoaderSession(runner: fake, environment: env, temporaryDirectory: socketRoot,
+                                        socketWaitTimeout: .zero))
     }
 
     private func manualSetup(_ tmp: TempDir) throws -> (BackendConfig, ManualGame, URL) {
@@ -650,11 +695,12 @@ struct LaunchAltLoaderPipelineTests {
     @Test("launchManualGame with a target gates the prefix, starts the host and publishes the socket")
     func manualLaunchPreparesTheHandOver() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
+        let sockets = try socketRoot(); defer { try? FileManager.default.removeItem(at: sockets) }
         let fake = FakeProcessRunner()
         let (backend, game, prefix) = try manualSetup(tmp)
         let hostApps = tmp.url.appendingPathComponent("HostApps", isDirectory: true)
 
-        _ = try await orchestrator(fake, host: try fakeHost(in: tmp)).launchManualGame(
+        _ = try await orchestrator(fake, host: try fakeHost(in: tmp), socketRoot: sockets).launchManualGame(
             game, backend: backend, graphics: .gptk, prefix: prefix,
             logURL: tmp.url.appendingPathComponent("m.log"),
             altLoaderTarget: .init(gameName: game.name, gameID: game.id.uuidString,
@@ -668,8 +714,9 @@ struct LaunchAltLoaderPipelineTests {
 
         let spawn = try #require(fake.invocations.last { $0.detached })
         #expect(spawn.environment["CX_ALT_LOADER_SOCKET"] == open.arguments[3])
-        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"]?.hasSuffix(
-            "silo-altloader-\(game.id.uuidString).sock") == true)
+        // Short by design: `sun_path` truncates silently past 103 bytes (see AltLoaderSessionTests).
+        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"]?
+            .hasPrefix(sockets.appendingPathComponent("silo-al-").path) == true)
         // The host really is in the bundle LaunchServices was asked to start.
         #expect(FileManager.default.isExecutableFile(
             atPath: open.arguments[1] + "/Contents/MacOS/SiloGameHost"))
@@ -679,10 +726,11 @@ struct LaunchAltLoaderPipelineTests {
     @Test("Without a target nothing is prepared and no socket reaches the game")
     func withoutATargetTheLaunchIsUntouched() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
+        let sockets = try socketRoot(); defer { try? FileManager.default.removeItem(at: sockets) }
         let fake = FakeProcessRunner()
         let (backend, game, prefix) = try manualSetup(tmp)
 
-        _ = try await orchestrator(fake, host: try fakeHost(in: tmp)).launchManualGame(
+        _ = try await orchestrator(fake, host: try fakeHost(in: tmp), socketRoot: sockets).launchManualGame(
             game, backend: backend, graphics: .gptk, prefix: prefix,
             logURL: tmp.url.appendingPathComponent("m.log"))
 
@@ -697,10 +745,11 @@ struct LaunchAltLoaderPipelineTests {
     @Test("A target but no host still launches the game, with no socket")
     func aMissingHostDegradesToTheOldPath() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
+        let sockets = try socketRoot(); defer { try? FileManager.default.removeItem(at: sockets) }
         let fake = FakeProcessRunner()
         let (backend, game, prefix) = try manualSetup(tmp)
 
-        let pid = try await orchestrator(fake, host: nil).launchManualGame(
+        let pid = try await orchestrator(fake, host: nil, socketRoot: sockets).launchManualGame(
             game, backend: backend, graphics: .gptk, prefix: prefix,
             logURL: tmp.url.appendingPathComponent("m.log"),
             altLoaderTarget: .init(gameName: game.name, gameID: game.id.uuidString,
@@ -715,11 +764,12 @@ struct LaunchAltLoaderPipelineTests {
     @Test("An explicitly passed socket is used as-is, with no session work")
     func anExplicitSocketSkipsPreparation() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
+        let sockets = try socketRoot(); defer { try? FileManager.default.removeItem(at: sockets) }
         let fake = FakeProcessRunner()
         let (backend, game, prefix) = try manualSetup(tmp)
         let socket = URL(fileURLWithPath: "/tmp/mine.sock")
 
-        _ = try await orchestrator(fake, host: try fakeHost(in: tmp)).launchManualGame(
+        _ = try await orchestrator(fake, host: try fakeHost(in: tmp), socketRoot: sockets).launchManualGame(
             game, backend: backend, graphics: .gptk, prefix: prefix,
             logURL: tmp.url.appendingPathComponent("m.log"), altLoaderSocket: socket,
             altLoaderTarget: .init(gameName: game.name, gameID: game.id.uuidString,

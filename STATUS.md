@@ -553,8 +553,48 @@
               - `loaderLinkDir` (the from-source patch route) and `altLoaderTarget` land on the **same**
                 per-game bundle on purpose — two ways in, for two runtime kinds; a CrossOver-imported
                 runtime is prebuilt and ignores `SILO_LOADER_LINK_DIR` entirely.
-            - **▶️ NEXT — verify on a real Steam game.** Needs a game installed in the bottle (none is, so
-              this can't be done on this box yet). Two open questions, both unanswerable with `notepad`:
+            - **✅ Verified end to end on device, and it took two real fixes (2026-09-24; 652 tests green).**
+              The first wired run was measured, not assumed — and it failed, which is the whole value of
+              having run it. Silo launched the game the old way while host, socket and whitelist all looked
+              correct. Two distinct defects, both now fixed and pinned by tests:
+              1. **The socket path was silently truncated.** `sockaddr_un.sun_path` holds 104 bytes on
+                 Darwin, and overflowing it does not fail — it **truncates**. The per-user `TMPDIR` (49) +
+                 `silo-altloader-` + a manual game's 36-char UUID + `.sock` came to **105**, so the host
+                 bound `…0001.so` while Wine connected to `…0001.sock`, got ENOENT and forked. Fixed by a
+                 short name (`silo-al-<head>-<FNV-1a hash>.sock`), a hard guard that refuses rather than
+                 truncates, and the same refusal in `host.c`. Steam app IDs are short — this bites manual
+                 games only, which is exactly why testing on a manual game was worth it.
+              2. **`wine64 <exe>` never hands over at all.** With everything else correct Wine still did
+                 not connect. Measured by hand, twice, with a listening host: `wine64 <exe>` → no
+                 connection; `wine64 start /unix <exe>` → `LOAD_WINE`, 4 fds, `RESPONSE_SUCCESS`,
+                 `argv[1]=C:\windows\system32\notepad.exe`, adopted. The reason: the plain form runs the
+                 game **in the launcher's own process** (the loader `execve`s itself), so `spawn_process` —
+                 the only call site of `send_to_cx_loader` — is never reached. `makePlan` now emits
+                 `start /wait /unix <exe>` **only when a hand-over is active**; `/wait` keeps the launcher
+                 alive for the game's lifetime, as before, so the log fds stay open.
+              - Also added: `prepare` **waits for the host to `bind`** (bounded, 5 s, polling the socket
+                file — which comes into existence at `bind`). `open` returns before the host has started,
+                and the spawn follows within milliseconds, so the game could otherwise reach `connect()`
+                first and fork. A host that never binds times out, cleans the key, and the game launches
+                the old way.
+              - **The result, measured on the production path** (deep link → `GameLibraryViewModel` →
+                `LaunchOrchestrator` → `AltLoaderSession` → host): the window is owned by
+                `Silo Host Check (…).app`, `bundleIdentifier = com.mikael.silo.host.<id>`, **non-generic
+                icon**, and there is **no separate game process at all** — the host IS the game. Silo's
+                per-game log still captures Wine's output through the adopted fds (117 lines, `winemac.drv`
+                load traces and all), so `GraphicsFallback` keeps its eyes.
+              - **Method notes worth keeping.** (a) A `silo://` deep link is resolved by **LaunchServices**,
+                which picked the user's installed `/Applications/Silo.app` — the first "failed" run was the
+                *old* build launching the game. Use `open -a "$PWD/dist/Silo.app" "silo://…"` to test the
+                build you just made. (b) `ManualGame.bottleID` is separate from `id`, so a throwaway test
+                entry can reuse an already-provisioned prefix instead of booting a new one. (c) The host
+                launched **directly** (not through `open`) still got its bundle identity and icon on the
+                window — so the "must go through LaunchServices" note is narrower than recorded;
+                production keeps `open`, which is the proven path, but the constraint isn't identity.
+            - **▶️ NEXT — verify on a real Steam game.** No Steam game is installed in the shared bottle;
+              two real *manual* games are (GOG Batman Arkham Knight, God of War), so the next honest step
+              is one of those — a real window, a real graphics backend, a real cwd. Two open questions
+              remain, both unanswerable with `notepad`:
               which process owns the window for a Steam game (`explorer` runs the virtual desktop, so the
               exe to whitelist may not be the game's), and whether `SteamReadiness` still sees the client
               when the host is the one adopted. The Steam *client* path itself is already confirmed on

@@ -20,13 +20,23 @@ import Foundation
 public struct AltLoaderSession: Sendable {
     private let runner: ProcessRunning
     private let environment: [String: String]
+    private let temporaryDirectory: URL
+    private let socketWaitTimeout: Duration
 
-    /// - Parameter environment: where the host path and the kill switch are read from. Injectable so a
-    ///   test can hand over a fake host without mutating the process environment.
+    /// - Parameters:
+    ///   - environment: where the host path and the kill switch are read from. Injectable so a test can
+    ///     hand over a fake host without mutating the process environment.
+    ///   - temporaryDirectory: where the hand-over socket is created.
+    ///   - socketWaitTimeout: how long `prepare` waits for the host to `bind`. Zero means "don't wait",
+    ///     which is what the unit tests use — no real host binds there.
     public init(runner: ProcessRunning,
-                environment: [String: String] = ProcessInfo.processInfo.environment) {
+                environment: [String: String] = ProcessInfo.processInfo.environment,
+                temporaryDirectory: URL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true),
+                socketWaitTimeout: Duration = .seconds(5)) {
         self.runner = runner
         self.environment = environment
+        self.temporaryDirectory = temporaryDirectory
+        self.socketWaitTimeout = socketWaitTimeout
     }
 
     /// What a launch needs in order to be handed to a host: the identity the window will carry, and
@@ -54,11 +64,36 @@ public struct AltLoaderSession: Sendable {
     /// CrossOver's own helper, which starts and then sits there (2026-09-20).
     static let openTool = URL(fileURLWithPath: "/usr/bin/open")
 
-    /// Where a launch's hand-over socket lives. One per game id, under the per-user temp dir, so two
-    /// games can't collide and a stale file from a crashed run is simply overwritten (the host `unlink`s
-    /// it before binding).
+    /// The hard limit on an `AF_UNIX` path: `sockaddr_un.sun_path` is 104 bytes on Darwin, one of which
+    /// is the terminator. **Exceeding it does not fail — it truncates**, and a truncated bind produces a
+    /// socket under a *different* name than the one Wine connects to, so Wine falls back to `fork()` and
+    /// the window stays icon-less. Measured 2026-09-24 on a manual game: the per-user `TMPDIR` (49 bytes)
+    /// plus a 36-char UUID plus `silo-altloader-.sock` came to 105 — two bytes over, silently.
+    static let maxSocketPathLength = 103
+
+    /// Where a launch's hand-over socket lives. One per game, under the per-user temp dir (never `/tmp`:
+    /// a world-writable path would let a local squatter receive the fds Wine passes, including the
+    /// wineserver socket). A stale file from a crashed run is simply overwritten — the host `unlink`s it
+    /// before binding.
+    ///
+    /// The name is kept **short on purpose**, because of `maxSocketPathLength`: a readable head from the
+    /// id plus a hash of the whole id, which keeps it unique for ids that share a prefix (manual games'
+    /// UUIDs do not, but a Steam app id and a UUID starting with the same digits could).
     public static func socketPath(forGameID id: String, temporaryDirectory: URL) -> URL {
-        temporaryDirectory.appendingPathComponent("silo-altloader-\(bundleSafe(id)).sock")
+        let safe = bundleSafe(id)
+        let head = String(safe.prefix(8))
+        return temporaryDirectory.appendingPathComponent("silo-al-\(head)-\(shortHash(id)).sock")
+    }
+
+    /// FNV-1a, 64-bit, as 16 hex digits. Not a cryptographic need: this only has to keep two games'
+    /// sockets apart, and be the same value on every launch of the same game.
+    private static func shortHash(_ s: String) -> String {
+        var h: UInt64 = 0xcbf2_9ce4_8422_2325
+        for b in s.utf8 {
+            h ^= UInt64(b)
+            h = h &* 0x0000_0100_0000_01b3
+        }
+        return String(h, radix: 16)
     }
 
     /// Prepare the hand-over and return the socket to publish as `CX_ALT_LOADER_SOCKET`, or `nil` to
@@ -78,11 +113,8 @@ public struct AltLoaderSession: Sendable {
         prefix: URL,
         wine: URL,
         hostAppsDir: URL,
-        environment: [String: String]? = nil,
-        temporaryDirectory: URL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true),
         fileManager: FileManager = .default
     ) async -> URL? {
-        let environment = environment ?? self.environment
         guard environment[Self.disableFlag] != "1" else { return nil }
         guard let host = AltLoaderHost.resolved(environment: environment, fileManager: fileManager)
         else { return nil }
@@ -102,6 +134,12 @@ public struct AltLoaderSession: Sendable {
         else { return nil }
 
         let socket = Self.socketPath(forGameID: gameID, temporaryDirectory: temporaryDirectory)
+        // Better no hand-over than a truncated one: a truncated bind looks like it worked and then
+        // silently costs the icon (see `maxSocketPathLength`).
+        guard socket.path.utf8.count <= Self.maxSocketPathLength else {
+            await cleanup(prefix: prefix, wine: wine, fileManager: fileManager)
+            return nil
+        }
         let app = bundle.bundleURL(in: hostAppsDir)
         guard let result = try? await runner.run(
             executable: Self.openTool,
@@ -112,7 +150,28 @@ public struct AltLoaderSession: Sendable {
             await cleanup(prefix: prefix, wine: wine, fileManager: fileManager)
             return nil
         }
+
+        // `open` returns as soon as LaunchServices has taken the request — the host still has to start
+        // and `bind`. The spawn follows within milliseconds, so without this wait the game can reach
+        // `connect()` first, get ENOENT, and fork. Waiting for the socket file to appear IS the readiness
+        // signal: it comes into existence at `bind`, and `listen` follows immediately.
+        guard await waitForSocket(socket, fileManager: fileManager) else {
+            await cleanup(prefix: prefix, wine: wine, fileManager: fileManager)
+            return nil
+        }
         return socket
+    }
+
+    /// Poll for the host's socket. A zero timeout means "don't wait" — what the unit tests use, since no
+    /// real host binds there.
+    private func waitForSocket(_ socket: URL, fileManager: FileManager) async -> Bool {
+        guard socketWaitTimeout > .zero else { return true }
+        let deadline = ContinuousClock.now.advanced(by: socketWaitTimeout)
+        while ContinuousClock.now < deadline {
+            if fileManager.fileExists(atPath: socket.path) { return true }
+            do { try await Task.sleep(for: .milliseconds(25)) } catch { return false }
+        }
+        return fileManager.fileExists(atPath: socket.path)
     }
 
     /// Remove the whitelist key. **Always call this once the launch has been handed over**, including on
