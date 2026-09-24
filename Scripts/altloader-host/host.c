@@ -26,7 +26,9 @@
 #include <dlfcn.h>
 #include <stdint.h>
 #include <sys/mman.h>
+#include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/un.h>
 
 __asm__(".zerofill WINE_RESERVE,WINE_RESERVE");
@@ -88,7 +90,25 @@ int main(int argc, char **argv) {
     if (bind(srv, (struct sockaddr *)&sa, sizeof sa) || listen(srv, 5)) {
         L("bind/listen: %s\n", strerror(errno)); return 1; }
 
+    /* Nessuno da servire: non restare in giro. Un host fermo su accept() vive per sempre
+       e macOS gli tiene una tile nel Dock col nome del gioco, "in esecuzione in background"
+       (osservato dall'utente il 2026-09-24). La consegna, quando arriva, arriva entro un
+       secondo o due dallo spawn: un minuto e' larghissimo. */
+    struct timeval tv = { .tv_sec = 60, .tv_usec = 0 };
+    fd_set rfds; FD_ZERO(&rfds); FD_SET(srv, &rfds);
+    int ready = select(srv + 1, &rfds, NULL, NULL, &tv);
+    if (ready <= 0) {
+        L("nessuna connessione in 60s: esco invece di restare una tile nel Dock\n");
+        unlink(sockpath);
+        return ready < 0 ? 1 : 0;
+    }
     int c = accept(srv, NULL, NULL);
+    /* Il socket e' monouso, come l'host: il file non serve piu' a nessuno una volta che
+       Wine ha il suo descrittore. Toglierlo qui e' cio' che impedisce a un lancio
+       successivo di trovare un socket su cui nessuno accetta piu' - il difetto che aveva
+       bloccato God of War. Silo lo rimuove comunque prima di avviare l'host: due
+       protezioni, perche' questa e' l'unica che vale anche se l'host muore per conto suo. */
+    unlink(sockpath);
     uint32_t type; if (!rd(c, &type, sizeof type)) { L("nessun tipo\n"); return 1; }
     L("type=0x%08x%s\n", type, type == REQUEST_LOAD_WINE ? " LOAD_WINE" : " (inatteso)");
 

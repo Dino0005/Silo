@@ -648,6 +648,57 @@
               `crs-handler.exe` (the game's crash reporter) ~13 s after launch, which points at a **crash**
               being swallowed rather than a hang. Present on the adopted run; the control run was killed
               before that could be compared, so it is a lead, not a finding.
+            - ✅ **A STEAM GAME WORKS — Marvel's Spider-Man Remastered, appID 1817070 (user, on screen,
+              2026-09-24 16:02).** The two Steam checklist items are substantially answered:
+              - **The game's window carries its icon in Stage Manager**, and the launch was the wired
+                production path with the hand-over live (`CX_ALT_LOADER_SOCKET=…silo-al-1817070-….sock`,
+                `args: start /wait /unix …/Spider-Man.exe`).
+              - **`SteamReadiness` still sees the client** — not by inspection but by construction:
+                `play` refuses to launch a Steam game unless `SteamClientSession.ensureRunning()` returns
+                true, and the game launched. The client came up first, then the game.
+              - **The Steam client itself shows the generic icon, and that is correct, not a gap.** The
+                whitelist names only the game's exe, so `steam.exe` is never adopted — adopting the client
+                would put the *game's* icon on the *client's* window.
+              - **The `explorer` worry does not apply to the game.** The `explorer /desktop=Silo,3456x2234`
+                process in the tree belongs to the **client's** launch (`SteamClientSession` runs it in a
+                virtual desktop); the game is launched directly, so the window-owner is the game's own
+                adopted process. That closes the structural question this checklist item was really about.
+            - 🐞 **A Dock tile outlived the game, and the host now refuses to be that tile.** The user saw
+              Spider-Man's tile still there after quitting the game, labelled *"In esecuzione in
+              background"* — and **had to end it by hand** (right-click → quit the background process), so
+              a process really was alive with no window; it was gone by the time it was measured only
+              because the user had already closed it. Two candidates remain, and they need one measured
+              relaunch to separate: the game's own process lingering after its window closed (legitimate —
+              Silo never owned a game's lifecycle, and pre-alt-loader the same leftover simply showed up as
+              an anonymous "wine" tile instead of a named one), or a host nobody ever connected to. The
+              second case is now impossible, and it was a real hole: a host parked on `accept()` lives
+              forever and macOS keeps a tile with the game's name.
+              **▶️ On the next Spider-Man launch, measure after quitting:** which pid owns the tile, whether
+              it is the adopted host (`NSWorkspace` bundle id `com.mikael.silo.host.1817070`) or a plain
+              `wine` process, and its thread state.
+              **Two changes in `host.c`, both verified:**
+              1. **A bounded wait** — `select` with 60 s, then exit and unlink. Measured: the lonely host
+                 exits by itself and takes its socket with it. The hand-over arrives within a second or
+                 two of the spawn, so a minute is generous.
+              2. **The socket is single-use** — unlinked right after `accept`. This is the *durable* fix
+                 for the stale-socket hang that stopped God of War: `prepare` removing it before each
+                 launch only helps if a next launch happens, while this holds even when the host dies on
+                 its own.
+            - ✅ **Batman Arkham Knight (manual, GPTK) — icon confirmed, and one observation that is
+              macOS, not us (user, 2026-09-24 ~15:50).** The startup window appeared **in Stage Manager
+              carrying the game's icon**, then took focus and went fullscreen. Once fullscreen, the game's
+              window was **no longer listed in Stage Manager** — only the Dock tile, which returns to the
+              game when clicked.
+              - **Measured, no longer inferred (Spider-Man, live, 2026-09-24):** a fullscreen game's
+                window does not appear in `CGWindowListCopyWindowInfo(.optionOnScreenOnly)` **at all** —
+                it took `.optionAll` to see it, because it lives in **its own space**. Stage Manager tiles
+                the current space's windows, so a fullscreen game is absent from the strip by macOS's
+                design, not for want of an identity. The same probe confirmed the identity where it counts:
+                window `Marvel's Spider-Man Remastered v4.630.0.0`, 1728×1117, layer 0, on-screen, owned by
+                the host pid with `bundleIdentifier = com.mikael.silo.host.1817070`.
+              - Also answers the focus question left open by God of War: **Batman's first window took focus
+                by itself.** So the unfocused first window was God of War's own first-run setup, not a
+                general property of the hand-over. No host-side activation is warranted.
             - 🐞 **Silo hung at 98 % CPU during the God of War tests — fixed, and it was NOT the alt
               loader (2026-09-24).** The user reported the app frozen; `sample` put the main thread inside
               `GraphicsFallback.classify` → `range(of:options:.caseInsensitive)`.
@@ -672,14 +723,13 @@
               (last pushed: `be33e6e`) and they stay local until the whole on-device checklist is green.
               The gate is deliberate: the alt loader is always-on for every launch, so it gets pushed once,
               proven, not in instalments. **The checklist:**
-              1. **Batman Arkham Knight** — a second running game: icon on all three surfaces, and whether
-                 the first window comes up unfocused there too (God of War's did).
-              2. **The Steam client** — it must still start and log in with the hand-over live, and
-                 `SteamReadiness` must still see it (`user.reg` pid + `WineServerProbe`). Confirmed once by
-                 hand on 2026-09-23, never through the wired launch path.
-              3. **A Steam game** — the open structural question: with the client co-resident and
-                 `explorer` potentially owning a virtual desktop, the exe to whitelist may not be the
-                 game's. None is installed in the shared bottle yet, so this needs an install first.
+              1. ✅ **Batman Arkham Knight** — done: icon on the startup window and the Dock tile, and its
+                 first window took focus by itself (see the entry above).
+              2. ✅ **The Steam client** — done: it starts and the readiness gate passes with the
+                 hand-over live (see the Spider-Man entry above).
+              3. ✅ **A Steam game** — done: Spider-Man Remastered, icon in Stage Manager.
+              4. Re-confirm the Dock tile no longer outlives an unused host, now that `host.c` exits on
+                 its own (the fix is verified in isolation; it wants one real launch to close the loop).
             - **▶️ NEXT:** (1) optional — a second running game (Batman Arkham Knight) to see whether the
               unfocused first window is general or was God of War's first-run setup;
               (2) a **Steam** game — still unanswered: which process owns the window there (`explorer`
