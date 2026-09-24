@@ -445,7 +445,9 @@ public final class GameLibraryViewModel {
                 logURL: paths.log(forAppID: game.appID),
                 gameExe: exe,
                 loaderLinkDir: await hostLoaderLinkDir(
-                    name: game.name, id: String(game.appID), exe: exe))
+                    name: game.name, id: String(game.appID), exe: exe),
+                altLoaderTarget: .init(gameName: game.name, gameID: String(game.appID),
+                                       hostAppsDir: paths.hostAppsDir))
             // NOTE (2026-07-25): `desktopGeometry: ScreenGeometry.nativeResolution()` was here as an
             // attempted fix for GPTK games not covering the real screen (menu bar/Dock visible around
             // them). REVERTED — on-device testing showed `explorer /desktop=` produces a bordered,
@@ -512,6 +514,11 @@ public final class GameLibraryViewModel {
     /// The exe read + PE parse + bundle write all happen off the main actor. A nil `exe` (the caller hasn't
     /// resolved one yet) still gets a bundle — just without an icon, which leaves the process correctly
     /// *named* after the game.
+    ///
+    /// **This and `altLoaderTarget` deliberately land on the SAME bundle** — one `.app` per game, as
+    /// `GameHostBundle` documents. They are two ways into it for two runtime kinds: this one for a
+    /// from-source Wine carrying our loader patch, the alt loader for any runtime (including a
+    /// CrossOver-imported one, which ignores `SILO_LOADER_LINK_DIR` because it is prebuilt).
     private func hostLoaderLinkDir(name: String, id: String, exe: URL?) async -> URL? {
         let bundle = GameHostBundle(name: name, id: id)
         let directory = paths.hostAppsDir
@@ -671,7 +678,9 @@ public final class GameLibraryViewModel {
                 game, backend: backend, graphics: context.graphics,
                 wine: context.wineBinary, prefix: context.prefix, logURL: paths.manualLog(game.id),
                 loaderLinkDir: await hostLoaderLinkDir(
-                    name: game.name, id: game.id.uuidString, exe: game.executablePath))
+                    name: game.name, id: game.id.uuidString, exe: game.executablePath),
+                altLoaderTarget: .init(gameName: game.name, gameID: game.id.uuidString,
+                                       hostAppsDir: paths.hostAppsDir))
             // See the matching NOTE in play(above) — reverted for the same reason.
             do {
                 _ = try await configStore.updateManualGame(id: game.id) { $0.lastPlayed = Date() }

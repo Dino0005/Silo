@@ -12,12 +12,19 @@ public struct LaunchOrchestrator: Sendable {
     public init(
         runner: ProcessRunning,
         linker: GraphicsLinker,
-        presenceInstaller: SteamPresenceInstaller = SteamPresenceInstaller()
+        presenceInstaller: SteamPresenceInstaller = SteamPresenceInstaller(),
+        altLoader: AltLoaderSession? = nil
     ) {
         self.runner = runner
         self.linker = linker
         self.presenceInstaller = presenceInstaller
+        self.altLoader = altLoader ?? AltLoaderSession(runner: runner)
     }
+
+    /// Set up the per-launch hand-over so the game's window carries its own icon (`AltLoaderSession`).
+    /// Built from the same runner: the launch path is where this belongs, because the view model has no
+    /// `ProcessRunning` of its own.
+    private let altLoader: AltLoaderSession
 
     public enum LaunchError: Error, Sendable, Equatable {
         case wineNotConfigured
@@ -199,7 +206,7 @@ public struct LaunchOrchestrator: Sendable {
         app: SteamApp, config: GameConfig, backend: BackendConfig,
         graphics: GraphicsBackend, wine: URL? = nil, prefix: URL, logURL: URL,
         gameExe: URL? = nil, desktopGeometry: String? = nil, loaderLinkDir: URL? = nil,
-        altLoaderSocket: URL? = nil
+        altLoaderSocket: URL? = nil, altLoaderTarget: AltLoaderSession.Target? = nil
     ) async throws -> Int32 {
         guard let launchWine = wine ?? backend.wineBinaryPath else { throw LaunchError.wineNotConfigured }
         // Reuse the exe the caller already resolved (the VM resolves it once to pick the backend), else
@@ -209,13 +216,37 @@ public struct LaunchOrchestrator: Sendable {
         try check32BitSupported(gameExe, graphics: graphics)
         try linkGraphics(backendConfig: backend, graphics: graphics, wine: launchWine, prefix: prefix)
         try presenceInstaller.apply(strategy: config.presence, appID: app.appID, gameExe: gameExe)
+        var socket = altLoaderSocket
+        if socket == nil {
+            socket = await prepareAltLoader(
+                target: altLoaderTarget, gameExe: gameExe, prefix: prefix, wine: launchWine)
+        }
         let plan = try Self.makePlan(
             config: config, backend: backend, graphics: graphics, wine: launchWine,
             gameExe: gameExe, prefix: prefix, logURL: logURL, desktopGeometry: desktopGeometry,
             steamArguments: SteamAppInfo.windowsLaunch(steamRoot: app.libraryPath,
                                                        appID: app.appID)?.arguments ?? [],
-            loaderLinkDir: loaderLinkDir, altLoaderSocket: altLoaderSocket)
+            loaderLinkDir: loaderLinkDir, altLoaderSocket: socket)
         return try await spawn(plan)
+    }
+
+    /// Prepare the alt-loader hand-over for `target`, returning the socket to publish — or `nil`, which
+    /// means "launch exactly as before".
+    ///
+    /// **The whitelist key is deliberately NOT removed after the spawn.** `spawnDetached` returns as soon
+    /// as the launcher process exists, while Wine reads the key later, when it creates the Windows
+    /// process — deleting it here would race the hand-over away. Instead every launch rewrites the key for
+    /// its own exe, so a leftover naming the previous game is harmless (that exe simply isn't adopted).
+    /// `AltLoaderSession.cleanup` stays available for a deliberate teardown.
+    private func prepareAltLoader(
+        target: AltLoaderSession.Target?, gameExe: URL, prefix: URL, wine: URL
+    ) async -> URL? {
+        guard let target else { return nil }
+        let icon = (try? Data(contentsOf: gameExe, options: .mappedIfSafe))
+            .flatMap(PEIcon.icoData(fromExecutable:))
+        return await altLoader.prepare(
+            gameName: target.gameName, gameID: target.gameID, gameExe: gameExe, iconICO: icon,
+            prefix: prefix, wine: wine, hostAppsDir: target.hostAppsDir)
     }
 
     // MARK: - Manual (non-Steam) games
@@ -228,7 +259,8 @@ public struct LaunchOrchestrator: Sendable {
     public func launchManualGame(
         _ game: ManualGame, backend: BackendConfig,
         graphics: GraphicsBackend, wine: URL? = nil, prefix: URL, logURL: URL, desktopGeometry: String? = nil,
-        loaderLinkDir: URL? = nil, altLoaderSocket: URL? = nil
+        loaderLinkDir: URL? = nil, altLoaderSocket: URL? = nil,
+        altLoaderTarget: AltLoaderSession.Target? = nil
     ) async throws -> Int32 {
         guard let launchWine = wine ?? backend.wineBinaryPath else { throw LaunchError.wineNotConfigured }
         guard FileManager.default.fileExists(atPath: game.executablePath.path) else {
@@ -236,11 +268,16 @@ public struct LaunchOrchestrator: Sendable {
         }
         try check32BitSupported(game.executablePath, graphics: graphics)
         try linkGraphics(backendConfig: backend, graphics: graphics, wine: launchWine, prefix: prefix)
+        var socket = altLoaderSocket
+        if socket == nil {
+            socket = await prepareAltLoader(
+                target: altLoaderTarget, gameExe: game.executablePath, prefix: prefix, wine: launchWine)
+        }
         let plan = try Self.makePlan(
             config: game.gameConfig, backend: backend, graphics: graphics, wine: launchWine,
             gameExe: game.executablePath, workingDirectory: game.workingDirectory, prefix: prefix, logURL: logURL,
             sharedBottle: false, desktopGeometry: desktopGeometry, loaderLinkDir: loaderLinkDir,
-            altLoaderSocket: altLoaderSocket)
+            altLoaderSocket: socket)
         return try await spawn(plan)
     }
 

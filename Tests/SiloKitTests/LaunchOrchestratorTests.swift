@@ -618,3 +618,115 @@ struct MakePlanAltLoaderTests {
         #expect(plan.environment["WINEDLLPATH"] == nil)
     }
 }
+
+/// The alt loader wired into the launch path: `LaunchOrchestrator` owns the `ProcessRunning`, so the
+/// hand-over is set up here and not in the view model. Runs with no Wine — the fake runner records the
+/// registry import, the bundle launch, and the spawn.
+struct LaunchAltLoaderPipelineTests {
+
+    /// An executable host, standing in for the one `build-app.sh` installs in the app bundle.
+    private func fakeHost(in tmp: TempDir) throws -> URL {
+        let host = try tmp.write("Helpers/SiloWineHost", "#!/bin/sh\nexit 0\n")
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: host.path)
+        return host
+    }
+
+    private func orchestrator(_ fake: FakeProcessRunner, host: URL?) -> LaunchOrchestrator {
+        var env: [String: String] = [:]
+        if let host { env["SILO_ALTLOADER_HOST"] = host.path }
+        return LaunchOrchestrator(runner: fake, linker: GraphicsLinker(),
+                                  altLoader: AltLoaderSession(runner: fake, environment: env))
+    }
+
+    private func manualSetup(_ tmp: TempDir) throws -> (BackendConfig, ManualGame, URL) {
+        var backend = BackendConfig()
+        backend.wineBinaryPath = URL(fileURLWithPath: "/w/wine64")
+        let exe = try tmp.write("Games/My Game/game.exe", "MZ")
+        return (backend, ManualGame(name: "My Game", executablePath: exe), try tmp.makeDir("bottle"))
+    }
+
+    /// The whole point of moving this into the orchestrator: one call site produces the whitelist, the
+    /// host, and the `CX_ALT_LOADER_SOCKET` the spawned Wine hands its process over on.
+    @Test("launchManualGame with a target gates the prefix, starts the host and publishes the socket")
+    func manualLaunchPreparesTheHandOver() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let fake = FakeProcessRunner()
+        let (backend, game, prefix) = try manualSetup(tmp)
+        let hostApps = tmp.url.appendingPathComponent("HostApps", isDirectory: true)
+
+        _ = try await orchestrator(fake, host: try fakeHost(in: tmp)).launchManualGame(
+            game, backend: backend, graphics: .gptk, prefix: prefix,
+            logURL: tmp.url.appendingPathComponent("m.log"),
+            altLoaderTarget: .init(gameName: game.name, gameID: game.id.uuidString,
+                                   hostAppsDir: hostApps))
+
+        // The registry gate and the host launch both precede the spawn — Wine must find both in place.
+        let reg = try #require(fake.invocations.first { $0.arguments.first == "regedit" })
+        #expect(reg.environment["WINEPREFIX"] == prefix.path)
+        let open = try #require(fake.invocations.first { $0.executable.path == "/usr/bin/open" })
+        #expect(open.arguments[1].hasSuffix("My Game (\(game.id.uuidString)).app"))
+
+        let spawn = try #require(fake.invocations.last { $0.detached })
+        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"] == open.arguments[3])
+        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"]?.hasSuffix(
+            "silo-altloader-\(game.id.uuidString).sock") == true)
+        // The host really is in the bundle LaunchServices was asked to start.
+        #expect(FileManager.default.isExecutableFile(
+            atPath: open.arguments[1] + "/Contents/MacOS/SiloGameHost"))
+    }
+
+    /// No target — the launch must be byte-identical to the one that shipped before this feature.
+    @Test("Without a target nothing is prepared and no socket reaches the game")
+    func withoutATargetTheLaunchIsUntouched() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let fake = FakeProcessRunner()
+        let (backend, game, prefix) = try manualSetup(tmp)
+
+        _ = try await orchestrator(fake, host: try fakeHost(in: tmp)).launchManualGame(
+            game, backend: backend, graphics: .gptk, prefix: prefix,
+            logURL: tmp.url.appendingPathComponent("m.log"))
+
+        #expect(!fake.invocations.contains { $0.arguments.first == "regedit" })
+        #expect(!fake.invocations.contains { $0.executable.path == "/usr/bin/open" })
+        let spawn = try #require(fake.invocations.last { $0.detached })
+        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"] == nil)
+    }
+
+    /// A dev build (`swift run`) has no host: the game must still launch, just without the icon. This is
+    /// the degrade path that keeps a cosmetic feature from ever being able to stop a launch.
+    @Test("A target but no host still launches the game, with no socket")
+    func aMissingHostDegradesToTheOldPath() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let fake = FakeProcessRunner()
+        let (backend, game, prefix) = try manualSetup(tmp)
+
+        let pid = try await orchestrator(fake, host: nil).launchManualGame(
+            game, backend: backend, graphics: .gptk, prefix: prefix,
+            logURL: tmp.url.appendingPathComponent("m.log"),
+            altLoaderTarget: .init(gameName: game.name, gameID: game.id.uuidString,
+                                   hostAppsDir: tmp.url.appendingPathComponent("HostApps")))
+
+        #expect(pid == 4242)
+        let spawn = try #require(fake.invocations.last { $0.detached })
+        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"] == nil)
+    }
+
+    /// An explicit socket (the low-level escape hatch `makePlan` already had) wins, and skips the setup.
+    @Test("An explicitly passed socket is used as-is, with no session work")
+    func anExplicitSocketSkipsPreparation() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let fake = FakeProcessRunner()
+        let (backend, game, prefix) = try manualSetup(tmp)
+        let socket = URL(fileURLWithPath: "/tmp/mine.sock")
+
+        _ = try await orchestrator(fake, host: try fakeHost(in: tmp)).launchManualGame(
+            game, backend: backend, graphics: .gptk, prefix: prefix,
+            logURL: tmp.url.appendingPathComponent("m.log"), altLoaderSocket: socket,
+            altLoaderTarget: .init(gameName: game.name, gameID: game.id.uuidString,
+                                   hostAppsDir: tmp.url.appendingPathComponent("HostApps")))
+
+        #expect(!fake.invocations.contains { $0.executable.path == "/usr/bin/open" })
+        let spawn = try #require(fake.invocations.last { $0.detached })
+        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"] == socket.path)
+    }
+}

@@ -19,9 +19,31 @@ import Foundation
 /// icon is cosmetic and must never be able to stop a game from starting.
 public struct AltLoaderSession: Sendable {
     private let runner: ProcessRunning
+    private let environment: [String: String]
 
-    public init(runner: ProcessRunning) {
+    /// - Parameter environment: where the host path and the kill switch are read from. Injectable so a
+    ///   test can hand over a fake host without mutating the process environment.
+    public init(runner: ProcessRunning,
+                environment: [String: String] = ProcessInfo.processInfo.environment) {
         self.runner = runner
+        self.environment = environment
+    }
+
+    /// What a launch needs in order to be handed to a host: the identity the window will carry, and
+    /// where the per-game bundles live. Passing `nil` instead of a `Target` is how a caller opts out.
+    public struct Target: Sendable {
+        /// Shown as the process name and the bundle's `CFBundleName`.
+        public let gameName: String
+        /// Stable per-game token — a Steam app ID, or a manual game's UUID string.
+        public let gameID: String
+        /// Normally `AppPaths.hostAppsDir`.
+        public let hostAppsDir: URL
+
+        public init(gameName: String, gameID: String, hostAppsDir: URL) {
+            self.gameName = gameName
+            self.gameID = gameID
+            self.hostAppsDir = hostAppsDir
+        }
     }
 
     /// Set to `1` to disable the alt loader entirely, for the whole app.
@@ -56,10 +78,11 @@ public struct AltLoaderSession: Sendable {
         prefix: URL,
         wine: URL,
         hostAppsDir: URL,
-        environment: [String: String] = ProcessInfo.processInfo.environment,
+        environment: [String: String]? = nil,
         temporaryDirectory: URL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true),
         fileManager: FileManager = .default
     ) async -> URL? {
+        let environment = environment ?? self.environment
         guard environment[Self.disableFlag] != "1" else { return nil }
         guard let host = AltLoaderHost.resolved(environment: environment, fileManager: fileManager)
         else { return nil }

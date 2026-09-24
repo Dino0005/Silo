@@ -531,17 +531,34 @@
               through by `launchInBottle`/`launchManualGame`. Tested absent-by-default, present when given,
               and that it does **not** drag in `SILO_LOADER_LINK_DIR` or `WINEDLLPATH` — the two icon
               routes stay independent.
-            - ⚠️ **NOT wired into a launch yet, and this is the honest state: the feature is inert.**
-              `AltLoaderSession.prepare` has no caller. The reason is a design point worth deciding
-              deliberately: `GameLibraryViewModel` has no `ProcessRunning`, so the session cannot be built
-              there — it belongs in **`LaunchOrchestrator`**, which already owns the runner and already does
-              the per-launch side work (`linkGraphics`, `presenceInstaller.apply`). That means widening
-              `launchInBottle`/`launchManualGame` with the game's name/id/icon and `hostAppsDir`, and
-              calling `cleanup` after the spawn.
-            - **▶️ NEXT:** (1) move the call into `LaunchOrchestrator` as above; (2) **then verify on a real
-              Steam game** — the open question is which process owns the window there (`explorer` runs the
-              virtual desktop, so the exe to whitelist may not be the game's) and whether `SteamReadiness`
-              still sees the client. Everything so far was proven with `notepad` only.
+            - **✅ Wired into the launch path (2026-09-24; 645 tests green, build clean).** The call lives
+              in **`LaunchOrchestrator`**, which owns the `ProcessRunning` (`GameLibraryViewModel` does
+              not — that is why it could not live there) and already does the per-launch side work
+              (`linkGraphics`, `presenceInstaller.apply`). Shape of it:
+              - `AltLoaderSession.Target {gameName, gameID, hostAppsDir}` is the opt-in: both
+                `launchInBottle` and `launchManualGame` take `altLoaderTarget:` (default nil = the launch
+                that shipped before this feature, byte-identical). The VM passes one from both call sites
+                with `paths.hostAppsDir`.
+              - `prepareAltLoader` reads the exe's icon (`PEIcon`) itself and returns the socket, which is
+                handed to `makePlan` as `altLoaderSocket:`. An explicitly passed socket still wins and
+                skips the setup.
+              - The session is injectable (`LaunchOrchestrator(… altLoader:)`) and carries its own
+                `environment`, so a test can hand over a fake host without mutating the process env.
+              - **The whitelist key is deliberately NOT removed after the spawn** — a correction to the
+                plan of 2026-09-23, which said "call `cleanup` after the spawn". `spawnDetached` returns as
+                soon as the launcher exists, while Wine reads the key *later*, when it creates the Windows
+                process: deleting it there would race the hand-over away. Every launch rewrites the key for
+                its own exe instead, so a leftover naming the previous game is harmless (that exe simply
+                isn't adopted). `cleanup` stays for a deliberate teardown and for `prepare`'s failure path.
+              - `loaderLinkDir` (the from-source patch route) and `altLoaderTarget` land on the **same**
+                per-game bundle on purpose — two ways in, for two runtime kinds; a CrossOver-imported
+                runtime is prebuilt and ignores `SILO_LOADER_LINK_DIR` entirely.
+            - **▶️ NEXT — verify on a real Steam game.** Needs a game installed in the bottle (none is, so
+              this can't be done on this box yet). Two open questions, both unanswerable with `notepad`:
+              which process owns the window for a Steam game (`explorer` runs the virtual desktop, so the
+              exe to whitelist may not be the game's), and whether `SteamReadiness` still sees the client
+              when the host is the one adopted. The Steam *client* path itself is already confirmed on
+              screen (2026-09-23: Steam's window carried Silo's icon in Stage Manager).
               Dual-arch stays future work, tied to ARM64 Wine.
             - *(historical)* The plan below — asking the server — is what solved it. `send_client_fd` prints
               `"%04x: *fd* %04x -> %d"` whenever the **server's** `debug_level` is on. So: start the
