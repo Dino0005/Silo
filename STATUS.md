@@ -740,6 +740,14 @@
                 unfair lock; `CA::Fence::Observer` in `CAAnimation dealloc` → unfair lock. No Silo code and
                 no Wine frame among the lock holders — the **window fullscreen-transition animation**
                 deadlocks inside Apple's frameworks on macOS 27, triggered by Wine's fullscreen window.
+              - **Third bisect point, the decisive one (user's idea):** the installed
+                `/Applications/Silo.app` — 0.6.2 build `202609212207`, from **before any of the alt-loader
+                work** (no host in the bundle, zero `CX_ALT_LOADER_SOCKET` strings in the binary, launch log
+                `wine64 <exe>` with no hand-over) — **freezes identically**. Its sample shows the same three
+                threads on the same unfair locks (`CASpringAnimation mass` inside
+                `_NSWindowTransformAnimation setCurrentProgress:` on a user-interactive queue). So this has
+                existed since at least 2026-09-21 and is independent of every change made since; it had
+                simply never been triggered, because leaving a fullscreen game with Cmd+Tab was never tried.
               - **Next, if pursued:** (a) the same game in CrossOver, to confirm it is Wine-on-macOS-27 and
                 not specific to anything of ours; (b) winemac's `HKCU\Software\Wine\Mac Driver`
                 `CaptureDisplaysForFullscreen` option, which takes a different fullscreen path — a candidate
