@@ -70,4 +70,51 @@ enum SteamReadiness {
         }
         return false
     }
+
+    // MARK: - Stale pid after a force-quit
+
+    /// Pure: `userReg` with the `ActiveProcess` pid set to zero, or nil when there is nothing to change
+    /// (no such section, no pid line, or already zero). Only the value is rewritten — the line keeps its
+    /// place, and every other key, section and the section's `#time=` stamp are left as they were.
+    static func clearingActivePid(_ userReg: String) -> String? {
+        var inActiveProcess = false
+        var changed = false
+        var lines = userReg.components(separatedBy: "\n")
+        for i in lines.indices {
+            let line = lines[i].trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("[") {
+                inActiveProcess = line.contains("ActiveProcess")
+                continue
+            }
+            if inActiveProcess, line.hasPrefix("\"pid\"=dword:") {
+                let hex = line.dropFirst("\"pid\"=dword:".count).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard (UInt64(hex, radix: 16) ?? 0) != 0 else { return nil }
+                let trailingCR = lines[i].hasSuffix("\r") ? "\r" : ""
+                lines[i] = "\"pid\"=dword:00000000" + trailingCR
+                changed = true
+                break
+            }
+        }
+        return changed ? lines.joined(separator: "\n") : nil
+    }
+
+    /// Zero a pid left behind by a Steam that died without shutting down (a force-quit, a crash). Returns
+    /// whether it changed anything.
+    ///
+    /// **Why:** readiness is "the `ActiveProcess` pid in `user.reg` is non-zero", and a Steam that is
+    /// killed never gets to reset it. The next launch starts a fresh client — which makes the wineserver
+    /// live — and `awaitSteamReady` then finds the OLD pid and declares Steam ready at once, so the game
+    /// starts before the client exists (observed 2026-09-24 21:03, after a force-quit).
+    ///
+    /// **Only with the bottle down.** A live wineserver owns the registry and flushes its own copy over the
+    /// file, so an edit then would be both pointless and racy. With no server there is also no Steam, so a
+    /// non-zero pid can only be stale — no judgement needed. Best-effort: any failure leaves the file as is.
+    @discardableResult
+    static func clearStalePid(prefix: URL, fileManager: FileManager = .default) -> Bool {
+        guard !WineServerProbe.isLive(prefix: prefix, fileManager: fileManager) else { return false }
+        let url = userReg(prefix: prefix)
+        guard let text = try? String(contentsOf: url, encoding: .utf8),
+              let cleared = clearingActivePid(text) else { return false }
+        return (try? cleared.write(to: url, atomically: true, encoding: .utf8)) != nil
+    }
 }

@@ -10,18 +10,28 @@ import Testing
 struct SteamClientSessionTests {
 
     private func make(_ tmp: TempDir) -> (SteamClientSession, AppPaths) {
+        let (session, paths, _) = makeWithRunner(tmp)
+        return (session, paths)
+    }
+
+    private func makeWithRunner(_ tmp: TempDir) -> (SteamClientSession, AppPaths, FakeProcessRunner) {
         let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
         let fake = FakeProcessRunner()
         let bottle = SteamBottle(runner: fake, session: FakeURLProtocol.makeSession(), paths: paths)
         let session = SteamClientSession(
             bottle: bottle, orchestrator: LaunchOrchestrator(runner: fake, linker: GraphicsLinker()))
         session.updateWine(URL(fileURLWithPath: "/w/wine64"))   // fake path: webhelper wrapper is a no-op
-        return (session, paths)
+        return (session, paths, fake)
     }
 
     /// Write the bottle's `user.reg` with `ActiveProcess` carrying `pid` — in place (truncate+write) so an
     /// update fires the kqueue `.write` event, exactly as Wine's in-place registry save does.
     private func setActivePid(_ paths: AppPaths, _ pid: UInt32) throws {
+        try Self.writeActivePid(paths, pid)
+    }
+
+    /// Static so a fake-runner callback (a `@Sendable` closure) can play "Steam registering its pid".
+    nonisolated static func writeActivePid(_ paths: AppPaths, _ pid: UInt32) throws {
         let prefix = paths.steamBottle
         try FileManager.default.createDirectory(at: prefix, withIntermediateDirectories: true)
         let body = Data("""
@@ -64,16 +74,27 @@ struct SteamClientSessionTests {
     @Test("resolves promptly when Steam writes its pid AFTER the wait begins (kqueue watch fires)")
     func resolvesOnWrite() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
-        let (session, paths) = make(tmp)
+        let (session, paths, fake) = makeWithRunner(tmp)
         try setActivePid(paths, 0)                  // file exists (watchable) but no live pid yet
         session.readinessTimeout = 10               // failsafe ceiling — a working watch resolves far sooner
 
+        // "Steam" registers its pid only AFTER it has been started — as the real client does — rather than
+        // at a fixed delay from the test's start. The fixed delay used to be enough; it stopped being so
+        // once `startSteam` began clearing a stale pid first (2026-09-25): under load the clear could land
+        // AFTER the timed write and zero the new pid, a race the real client can't produce, since it only
+        // writes once launched and by then the bottle is live and the clear refuses to run.
+        let pidFile = paths
+        fake.onRun = { inv in
+            guard inv.detached else { return }
+            Task.detached {
+                try? await Task.sleep(for: .milliseconds(80))   // let the wait arm its watch
+                try? Self.writeActivePid(pidFile, 0x1234)       // flip to a live pid → the watch fires
+            }
+        }
+
         let clock = ContinuousClock()
         let start = clock.now
-        let task = Task { await session.ensureRunning() }
-        try await Task.sleep(for: .milliseconds(80))   // let the wait arm its watch
-        try setActivePid(paths, 0x1234)             // flip to a live pid → the watch fires
-        let running = await task.value
+        let running = await session.ensureRunning()
 
         #expect(running)
         #expect(clock.now - start < .seconds(6))    // under the 10 s failsafe ⇒ the watch resolved it

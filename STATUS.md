@@ -841,10 +841,19 @@
                 not specific to anything of ours; (b) winemac's `HKCU\Software\Wine\Mac Driver`
                 `CaptureDisplaysForFullscreen` option, which takes a different fullscreen path — a candidate
                 workaround to *test*, not a fix to assume.
-              - Side-finding to fix separately: after a force-quit, Steam's `ActiveProcess` pid in
-                `user.reg` stays non-zero, and `SteamClientSession.awaitSteamReady` reads it as "ready" the
-                instant the freshly launched client makes the wineserver live — so the game started before
-                Steam (observed 21:03). Fix: zero the pid before starting Steam on a dead bottle.
+              - ✅ **Stale Steam pid after a force-quit — fixed (2026-09-25, 682 tests green).** A killed
+                Steam leaves `ActiveProcess` `"pid"` non-zero in `user.reg`; the next launch started a fresh
+                client (making the wineserver live) and `awaitSteamReady` read the OLD pid as "ready", so the
+                game started before Steam (observed 21:03). `startSteam` now calls
+                `SteamReadiness.clearStalePid` first: **only with the bottle down** (a live wineserver owns
+                the registry and would flush over the edit; with no server there is no Steam, so a non-zero
+                pid can only be stale), rewriting just that one value — every other line, including another
+                section's `"pid"` and the `#time=` stamps, is left byte-identical, and CRLF survives. Five
+                tests. **An existing test caught a real ordering assumption:** it played "Steam" by writing
+                the pid at a fixed 80 ms, with no client launched; under load the new clear landed after
+                that write and zeroed it. The real client can't produce that order (it writes only after
+                launch, when the bottle is live and the clear refuses), so the test now writes the pid from
+                the fake runner's launch callback — ordering, not timing.
             - 🚧 **`LaunchLeftovers` — the engine for "close this launch's remains, keep Steam" (user's
               decision, 2026-09-24; 669 tests green).** A **pull**, never a watch: it asks a bottle what is
               alive right now, so it does not need to observe a game's lifecycle (Phase 4 stands).

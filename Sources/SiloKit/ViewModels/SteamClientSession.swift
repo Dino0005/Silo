@@ -241,6 +241,9 @@ public final class SteamClientSession {
     }
 
     private func startSteam() async {
+        // A pid left by a Steam that was killed would make the readiness wait below pass before the new
+        // client exists. Cleared only if the bottle is down — see `SteamReadiness.clearStalePid`.
+        SteamReadiness.clearStalePid(prefix: bottle.prefix)
         guard await launchSteamProcess() != nil else { return }   // spawned detached; we don't track its PID
         launchError = nil
         // NOT gated on the readiness result, and that is deliberate. Upstream bacb7a1 turned a readiness
