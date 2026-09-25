@@ -354,6 +354,7 @@ public struct LaunchOrchestrator: Sendable {
     private func writeLogHeader(for plan: LaunchPlan) {
         try? FileManager.default.createDirectory(
             at: plan.logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        LogRotation.rotate(plan.logURL)   // keep the previous launches — see `LogRotation`
         try? Data(plan.logHeader(at: Date()).utf8).write(to: plan.logURL)
     }
 
