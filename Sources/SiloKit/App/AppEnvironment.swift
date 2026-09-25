@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// Composition root: constructs every service + the long-lived view models, and wires them together.
@@ -225,6 +226,41 @@ public final class AppEnvironment {
     /// the count at zero, which offers nothing.
     public func refreshLaunchLeftovers() async {
         launchLeftoverCount = Self.leftoverCount(from: await censusAllBottles())
+    }
+
+    /// Keep `launchLeftoverCount` current when a game ends — the moment its leftovers appear.
+    ///
+    /// **Why this exists (measured 2026-09-25):** refreshing only when Silo becomes active missed the
+    /// common case. The user checks Silo while the game runs (count correctly 0, a game is playing), then
+    /// quits the game from inside it — Silo never becomes active again, the count stays 0, and the menu
+    /// entry never appears although the leftover holding the Dock tile is right there. The census itself
+    /// was verified correct against a real bottle; the question was simply never asked at the right time.
+    ///
+    /// So: when one of OUR host apps terminates (`GameHostBundle.bundleIDPrefix`), ask again — twice,
+    /// because leftovers come and go on different clocks (a crash handler leaves in ~2 s, Wine's desktop
+    /// owner stays). This *listens* to an app ending to refresh a menu entry; it tracks no pid, stops
+    /// nothing and owns no lifecycle, which is what Phase 4 rules out.
+    public func watchGameExitsForLeftovers() async {
+        // Coming back to Silo is the other moment the answer can have changed. Hooked to the APP becoming
+        // active, not to SwiftUI's `scenePhase`: measured 2026-09-25, switching to another app and back
+        // does not move a macOS window scene off `.active` (the window stays on screen), so a
+        // `scenePhase` hook fired only once, at launch — a leftover born later never showed up.
+        Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
+                await self?.refreshLaunchLeftovers()
+            }
+        }
+        let center = NSWorkspace.shared.notificationCenter
+        for await note in center.notifications(named: NSWorkspace.didTerminateApplicationNotification) {
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard app?.bundleIdentifier?.hasPrefix(GameHostBundle.bundleIDPrefix) == true else { continue }
+            Task { [weak self] in
+                for delay in [Duration.seconds(3), .seconds(10)] {
+                    try? await Task.sleep(for: delay)
+                    await self?.refreshLaunchLeftovers()
+                }
+            }
+        }
     }
 
     /// Close the leftovers, leaving Steam, the bottle's plumbing and any running game untouched. Returns

@@ -726,6 +726,39 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - ✅ **"Close Leftover Game Processes" never appeared in real use — it was the TIMING of the
+              question, now fixed and verified on device (2026-09-25).** The user never saw the entry, and
+              went looking in *Login Items* because of it. Diagnosed in two measured steps:
+              1. **The engine was right.** A new env-gated test (`SILO_TEST_PREFIX=… --filter
+                 LaunchLeftoversReal`) ran the real census against the live SteamBottle with a lone
+                 `explorer.exe /desktop`: server dir found, the explorer classed as a leftover,
+                 `isOnlyLeftovers: true`. And with that leftover present *at launch*, the menu entry showed.
+              2. **The refresh hook was wrong, twice over.** (a) In real use the user checks Silo while the
+                 game runs (count correctly 0), then quits the game from inside it; Silo is never
+                 reactivated, so nobody asks again. (b) Worse, the `scenePhase == .active` hook does not
+                 fire on an app switch on macOS — the window scene stays `.active` — so it only ever ran at
+                 launch. A leftover created with Silo already open never showed up (reproduced).
+              **Fix:** `AppEnvironment.watchGameExitsForLeftovers()` asks again (a) when **Silo becomes the
+              active app** (`NSApplication.didBecomeActiveNotification`) and (b) **3 s and 10 s after one of
+              our host apps terminates** (`NSWorkspace.didTerminateApplicationNotification`, filtered on
+              `GameHostBundle.bundleIDPrefix`). That *listens* to an app ending to refresh a menu entry; it
+              tracks no pid, stops nothing, owns no lifecycle.
+              **Verified on device:** (1) leftover present at launch → entry shown → clicked → leftover
+              gone; (2) leftover created while Silo was open and in the background → user reactivated
+              Silo → entry shown → clicked → gone. Still to see once on a real game: quitting Spider-Man
+              from inside the game on a cold bottle, the entry should appear without touching Silo.
+            - 📝 **Why Spider-Man landed in Login Items & Extensions (read from `sfltool dumpbtm`).**
+              macOS 27's Background Task Management keeps two records per host app: `Type: app` and
+              `"… - background tasks"`. The latter appears when the app's main process has exited but
+              processes of its coalition live on — exactly `(exited-with-subordinates)`: on a cold bottle
+              the game creates Wine's default-desktop `explorer.exe /desktop`, which outlives it. macOS
+              then notifies ("in esecuzione in background") and lists it. Spider-Man's record reads
+              `enabled, disallowed, notified` — the user turned it off, and after that the tile went with
+              the game: macOS no longer lets those processes linger. God of War has one too (from the
+              leftovers of an unclosed test run). BTM keys these on the host binary's signing id + Mach-O
+              UUID (`SiloWineHost-…3f707441…`), not the bundle id — so a change to `host.c` yields fresh
+              records per game. Which processes macOS terminates when disallowed is observed, not
+              measured; Steam is started separately by Silo, outside the game's coalition.
             - ✅ **RESOLVED BY REBOOT, twice — the freezes were SESSION state, not Silo (2026-09-25).**
               After a reboot the unchanged working build runs Resident Evil Requiem **with its icon in the
               Dock and Stage Manager** (the `PEIcon` data-directory fix, live) — exactly as a reboot had

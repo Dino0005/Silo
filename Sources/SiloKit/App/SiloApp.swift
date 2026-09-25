@@ -64,12 +64,16 @@ public struct SiloApp: App {
                     quitGuard.environment = environment   // the delegate outlives the view; hand it the env
                     await environment.bootstrap()
                 }
+                .task {
+                    // A game ending is when its leftovers appear — see `watchGameExitsForLeftovers`.
+                    await environment.watchGameExitsForLeftovers()
+                }
                 .onChange(of: scenePhase) { _, phase in
                     // Returning to Silo (e.g. after downloading games in Steam) re-scans the library.
                     if phase == .active {
                         Task { await environment.refreshLibraryIfReady() }
-                        // Coming back from a game is precisely when a finished launch's leftovers appear
-                        // (they are what keeps its Dock tile up), so this is where the question is asked.
+                        // Leftovers are refreshed on APP activation instead (`watchGameExitsForLeftovers`):
+                        // this `scenePhase` hook only fires at launch on macOS — measured.
                         Task { await environment.refreshLaunchLeftovers() }
                     }
                 }
