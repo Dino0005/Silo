@@ -734,6 +734,12 @@
               after the game and counts as a game while alive. **This is a deliberate exception to Phase 4**
               ("Silo never follows a game"): it acts only after a game has ended, on non-game processes,
               tracks no pid. The menu entry stays as the manual fallback.
+              **Verified on device (user, 2026-09-25 14:35–14:40):** Spider-Man and Tekken 8 launched from
+              the working build, and on quitting each the Dock tile closed by itself. Evidence it was Silo,
+              not macOS: the shared background-task record reads `enabled, allowed` (macOS only reaps when
+              disallowed); afterwards no host registration and no `explorer.exe /desktop` left, Steam up.
+              Log rotation seen working (`1817070.1.log`, `.2.log`, `1778820.1.log`). My 2 s tracer had
+              stopped at 14:33:49, so the exact closing times of those two runs were not measured.
               - **Why Tekken was not in Login Items:** macOS's Background Task Management identifies these
                 apps by the host BINARY (`SiloWineHost-<Mach-O UUID>`), not the bundle, and every game shares
                 one host binary — so all games are ONE background item, named after the first registered
@@ -747,7 +753,10 @@
               again) Tekken 8 ran too — adopted correctly (host = `Polaris-Win64-Shipping`, 195 % CPU, 1 GB;
               launcher a plain 4 MB process), in a Steam session 6 min old. Every freeze today happened in a
               Steam session that had already outlived one or more force-killed games. **Hypothesis to test
-              deliberately:** the shared bottle's wineserver outlives a killed game (Steam keeps it up) and
+              deliberately:** (**REFUTED at 14:26:** Spider-Man froze in a Steam session started 30 s earlier,
+              with no game killed before it — a clean Steam session does not prevent the freeze. The two
+              macOS hang reports, the very first freeze 2026-09-24 20:46 and this one, have the same shape;
+              even spindump does not unwind below `ntdll`.) the shared bottle's wineserver outlives a killed game (Steam keeps it up) and
               the state it leaves (windows/desktop/USER objects) poisons the next game's window setup — the
               exact moment `GameThread` deadlocks with the main thread. Test: fresh Steam → game OK →
               force-kill it → next launch in the SAME Steam session; vs. restarting Steam in between.
