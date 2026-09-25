@@ -42,8 +42,16 @@ public enum AltLoaderWhitelist: Sendable {
     ///
     /// The key is emitted even when `exeNames` is empty, which is a deliberate footgun guard: callers
     /// wanting "no alt loader at all" must use `disableReg`, not an empty list (see the type's note).
+    ///
+    /// **The key is deleted and recreated in the same import, and that is load-bearing (measured
+    /// 2026-09-25).** A `.reg` import MERGES: it adds values and never removes the ones already there. So
+    /// every launch left its exe name behind, and the key grew to `"Polaris-Win64-Shipping"`, `"re9"`,
+    /// `"Spider-Man"` and `"TEKKEN 8"` — whereupon Tekken's launcher, still listed from an earlier launch,
+    /// passed the check and took the host that was meant for the game (Wine's own `+process` trace:
+    /// `send_to_cx_loader argv[1] "…\TEKKEN 8.exe"`). The `[-key]` line makes each launch list exactly the
+    /// exe it asked for.
     public static func enableReg(exeNames: [String]) -> String {
-        var reg = "REGEDIT4\r\n\r\n[\(keyPath)]\r\n"
+        var reg = "REGEDIT4\r\n\r\n[-\(keyPath)]\r\n\r\n[\(keyPath)]\r\n"
         for name in exeNames { reg += "\"\(escaped(name))\"=\"1\"\r\n" }
         return reg
     }

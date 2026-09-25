@@ -43,8 +43,19 @@ struct AltLoaderWhitelistTests {
         #expect(reg.contains(#"[HKEY_CURRENT_USER\Software\CrossOver\UseAltLoader]"#))
         #expect(reg.contains("\"notepad\"=\"1\"\r\n"))
         #expect(reg.contains("\"steam\"=\"1\"\r\n"))
-        // not a deletion
-        #expect(!reg.contains("[-HKEY"))
+    }
+
+    /// An import MERGES, so without a delete first the key kept every exe ever launched — and Tekken's
+    /// launcher, still listed from an earlier launch, took the host meant for the game (2026-09-25). The
+    /// delete must come BEFORE the key is recreated, or it would wipe the values just written.
+    @Test func enableRegReplacesTheKeyRatherThanMergingIntoIt() throws {
+        let reg = AltLoaderWhitelist.enableReg(exeNames: ["Polaris-Win64-Shipping"])
+        let delete = try #require(reg.range(of: #"[-HKEY_CURRENT_USER\Software\CrossOver\UseAltLoader]"#))
+        let create = try #require(reg.range(of: #"[HKEY_CURRENT_USER\Software\CrossOver\UseAltLoader]"#,
+                                            range: delete.upperBound..<reg.endIndex))
+        let value = try #require(reg.range(of: #""Polaris-Win64-Shipping"="1""#))
+        #expect(delete.upperBound <= create.lowerBound)
+        #expect(create.upperBound <= value.lowerBound)
     }
 
     /// CRLF throughout: `regedit` reads a DOS text file.
@@ -75,8 +86,10 @@ struct AltLoaderWhitelistTests {
     /// everything. Guards the distinction so a future caller can't conflate the two.
     @Test func emptyEnableRegIsNotTheSameAsDisabling() {
         let empty = AltLoaderWhitelist.enableReg(exeNames: [])
+        // Deletes and then RE-CREATES the key (empty): the key still exists afterwards, which blocks
+        // every exe — unlike `disableReg`, which only deletes. The re-created key is what makes it differ.
         #expect(empty.contains(#"[HKEY_CURRENT_USER\Software\CrossOver\UseAltLoader]"#))
-        #expect(!empty.contains("[-HKEY"))
+        #expect(empty.hasSuffix("[HKEY_CURRENT_USER\\Software\\CrossOver\\UseAltLoader]\r\n"))
         #expect(empty != AltLoaderWhitelist.disableReg())
     }
 }
