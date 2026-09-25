@@ -726,6 +726,18 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - 📌 **New data point on the freeze (user, 2026-09-25 14:05): a FULL restart of Steam, then games
+              run.** The user closed everything including Steam (which I had kept leaving up between tests),
+              reopened the working build: Spider-Man ran; after quitting it (tile released, Steam closed
+              again) Tekken 8 ran too — adopted correctly (host = `Polaris-Win64-Shipping`, 195 % CPU, 1 GB;
+              launcher a plain 4 MB process), in a Steam session 6 min old. Every freeze today happened in a
+              Steam session that had already outlived one or more force-killed games. **Hypothesis to test
+              deliberately:** the shared bottle's wineserver outlives a killed game (Steam keeps it up) and
+              the state it leaves (windows/desktop/USER objects) poisons the next game's window setup — the
+              exact moment `GameThread` deadlocks with the main thread. Test: fresh Steam → game OK →
+              force-kill it → next launch in the SAME Steam session; vs. restarting Steam in between.
+              Logs of the good runs archived in `Logs/archivio/` — until now Silo kept ONE log per game and
+              overwrote it every launch, which is why yesterday's working launch could not be compared.
             - 🔬 **THE FREEZE, ROOT-CAUSED ONE LEVEL DEEPER (lldb on the hung Tekken 8, 2026-09-25 ~13:50).**
               Main thread: `-[NSWindow displayIfNeeded]` → `-[NSView _updateLayerGeometryFromView]` →
               `CA::Layer::set_bit` → `_os_unfair_lock_lock_slow` on **`QuartzCore\`CA::Transaction::transaction_lock`**
