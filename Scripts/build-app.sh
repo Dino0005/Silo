@@ -61,18 +61,32 @@ shopt -u nullglob
 # segment addresses and for the RUNTIME's architecture (x86_64 today), which SwiftPM can't express —
 # see the header of host.c and STATUS.md. GameHostBundle copies it into each per-game .app, where
 # LaunchServices starts it and it adopts the Wine process handed over on CX_ALT_LOADER_SOCKET.
-# Best-effort: a failure here only costs the Mission Control / Stage Manager icon, so it must never
-# fail the app build.
-if [ -x Scripts/altloader-host/build.sh ]; then
-    echo "==> Build alt-loader host"
-    if Scripts/altloader-host/build.sh && [ -f Scripts/altloader-host/host ]; then
-        mkdir -p "$APP/Contents/Helpers"
-        cp Scripts/altloader-host/host "$APP/Contents/Helpers/SiloWineHost"
-        chmod 755 "$APP/Contents/Helpers/SiloWineHost"
-    else
-        echo "    WARNING: alt-loader host did not build — per-game window icons will fall back"
-    fi
+#
+# **A missing or broken host FAILS the build** (user's decision, 2026-09-25). It used to be best-effort
+# with a WARNING, which meant a release could ship without it and the game icons would silently fall
+# back to "wine" — a feature that switches itself off without a word is worse than a build that stops.
+# The old binary is removed first: otherwise a failed compile would leave the previous build's `host`
+# in place and the check below would package that stale copy.
+echo "==> Build alt-loader host"
+HOST_OUT=Scripts/altloader-host/host
+rm -f "$HOST_OUT"
+if ! Scripts/altloader-host/build.sh || [ ! -f "$HOST_OUT" ]; then
+    echo "ERROR: the alt-loader host did not build (Scripts/altloader-host/build.sh)." >&2
+    exit 1
 fi
+# Sanity: an x86_64 executable that carries the reserved segment Wine needs (see host.c). A host built
+# for the wrong arch, or without WINE_RESERVE, would build fine and then fail at every game launch.
+if ! lipo -archs "$HOST_OUT" 2>/dev/null | grep -qw x86_64; then
+    echo "ERROR: the alt-loader host is not x86_64 ($(lipo -archs "$HOST_OUT" 2>/dev/null))." >&2
+    exit 1
+fi
+if ! otool -l "$HOST_OUT" | grep -q "segname WINE_RESERVE"; then
+    echo "ERROR: the alt-loader host lacks the WINE_RESERVE segment — check its link flags." >&2
+    exit 1
+fi
+mkdir -p "$APP/Contents/Helpers"
+cp "$HOST_OUT" "$APP/Contents/Helpers/SiloWineHost"
+chmod 755 "$APP/Contents/Helpers/SiloWineHost"
 
 # SiloKit's own resources, flat in Contents/Resources so Bundle.main finds them — the standard macOS app
 # layout. The nested SwiftPM bundle copied above is NOT enough on its own: SwiftPM's generated

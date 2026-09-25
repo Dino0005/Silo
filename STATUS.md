@@ -726,6 +726,17 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - ✅ **A missing or broken alt-loader host now FAILS `build-app.sh` (user's decision, 2026-09-25,
+              before the 0.6.3 release).** It was best-effort with a WARNING, so a CI release could ship
+              without the host and the icons would silently fall back to "wine". Now: the old
+              `Scripts/altloader-host/host` is removed before compiling (a failed compile used to leave the
+              previous binary in place and get packaged), a failed build exits 1, and the result must be an
+              x86_64 Mach-O carrying the `WINE_RESERVE` segment. Verified both ways: normal build passes;
+              a deliberately broken `host.c` stops the build with `ERROR: the alt-loader host did not build`.
+              `release.yml` runs `build-app.sh`, so a broken host now stops publication. (Corrected on the
+              way: app updates come from `Silo.updateRepo = "Dino0005/Silo"`, pinned by a test;
+              `SILO_GITHUB_REPO` is only the Wine-runtime repo and stays upstream until the fork builds its
+              own runtimes — the next task after 0.6.3.)
             - ✅ **Leftovers are now closed AUTOMATICALLY when a game ends (user's decision, 2026-09-25).**
               The user had to use the menu entry after Tekken and did not want to do it every time. When one
               of our host apps terminates, Silo re-censuses at +3 s and +10 s and closes what it finds, with
