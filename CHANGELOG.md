@@ -7,6 +7,57 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.6.3
+
+### Added
+- **Games show their own icon in Mission Control and Stage Manager.** On macOS 27 those two read the icon
+  from the *bundle* of the process that owns a window, and a Wine process has none — so every game came up
+  as a blank sheet, even though the Dock tile was right. Silo now builds a small `.app` per game carrying
+  the game's name and the icon extracted from its executable, and hands the game's process to it through
+  the alt-loader socket Wine's own `ntdll` already speaks (`CX_ALT_LOADER_SOCKET`). The host is ours, written
+  from the protocol in Wine's source; no CodeWeavers binary is shipped or copied. A kill switch exists:
+  `SILO_DISABLE_ALTLOADER=1`.
+- **One Dock tile per game, and it closes when the game does.** A game's leftover Wine processes (the
+  default desktop's `explorer.exe`, a crash handler) kept its tile — and a "running in the background"
+  notice — alive long after it quit. Silo now closes them a few seconds after a game ends, leaving Steam and
+  Wine's own services untouched and never acting while another game runs in the same bottle. *Close
+  Leftover Game Processes* in the app menu does the same by hand.
+- **The last five launches of each game keep their log** (`<game>.log`, `<game>.1.log` … `<game>.4.log`).
+  Only the latest one used to survive, so a launch that worked couldn't be compared with one that didn't.
+
+### Fixed
+- **Every Steam game's detail sheet was empty.** Steam's store API now answers under a different id than the
+  one asked for — for every game in the library — so the parser found nothing: no description, no requirements,
+  no seasonal header. The entry is now matched on the `steam_appid` inside it.
+- **Unreal Engine launchers took the game's place.** TEKKEN 8 and FATAL FURY start a small launcher that
+  starts the real game (`…/Binaries/Win64/*-Win64-Shipping.exe`); the launcher was the one handed the
+  identity, so the game ran anonymously beside a second, windowless tile. The real executable is now the
+  one that gets it.
+- **The alt-loader whitelist grew launch after launch.** A registry import merges, so every exe ever
+  launched stayed listed — which is how TEKKEN 8's launcher kept taking the host after the fix above. The
+  key is now deleted and rewritten on each launch.
+- **Resident Evil Requiem had no icon.** Its executable is protected and its section names are scrambled; the
+  icon resources sit in a section called `.rdata`, and the extractor looked for `.rsrc` by name. It now
+  follows the executable's resource directory, as Windows does.
+- **After a force-quit, a game could start before Steam.** A killed Steam leaves its `ActiveProcess` pid in
+  the bottle's registry, and the readiness check read that stale pid as "Steam is up". It is cleared before
+  Steam starts on a bottle that isn't running.
+- **Silo could freeze while a game was logging heavily.** The graphics-fallback watcher re-scanned the game's
+  log on the main thread for every single write; a game logging continuously queued scans faster than they
+  ran. The scan now runs off the main thread, at most every 250 ms, and still catches a line written last.
+
+### Changed
+- **The app build fails if the alt-loader host is missing or wrong** (not x86_64, or without the reserved
+  memory segment Wine needs) instead of warning and shipping without it — a feature that switches itself off
+  silently is worse than a build that stops.
+
+### Known issues
+- **Some GPTK games can hang at their first dialog or window change** (seen with Marvel's Spider-Man
+  Remastered, TEKKEN 8 and Resident Evil Requiem on macOS 27): the game's own thread holds Core Animation's
+  transaction lock while waiting on Wine, and the main thread waits on that lock. It is intermittent, and it
+  has hung a game process that was not the icon host, so the host is not the cause. If it happens, force-quit the game;
+  if the next launch hangs as well, restart the Mac.
+
 ## 0.6.2
 
 ### Fixed
