@@ -726,6 +726,15 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - 🚀 **Silo 0.6.3 released (2026-09-25 ~19:38).** Tag `v0.6.3` on `ab6b57f`; `release.yml` run
+              `36167921468` green (tests → build → publish → notify). Verified on the PUBLISHED `Silo.zip`: the
+              bundle reports 0.6.3 and `Contents/Helpers/SiloWineHost` is x86_64 with `WINE_RESERVE` — the
+              first time the host was built on GitHub's runner, and it built. Notes in `RELEASE_NOTES.md`,
+              history in `CHANGELOG.md` (incl. the intermittent GPTK hang as a known issue).
+              **▶️ Next (user, 2026-09-25):** the from-source CrossOver-FOSS Wine build, to parity with
+              CrossOver's own Wine (GStreamer integrated); then host those runtimes on the fork and point
+              `SILO_GITHUB_REPO` at it. Still open alongside: the intermittent hang (repeat a game in
+              CrossOver a few times to separate Wine/GPTK from Silo), and the `CX_HOME`/compat-DB decision.
             - ✅ **A missing or broken alt-loader host now FAILS `build-app.sh` (user's decision, 2026-09-25,
               before the 0.6.3 release).** It was best-effort with a WARNING, so a CI release could ship
               without the host and the icons would silently fall back to "wine". Now: the old
