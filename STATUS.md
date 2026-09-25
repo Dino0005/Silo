@@ -726,6 +726,31 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - 🚧 **Tekken 8 — the Unreal-launcher fix does NOT work yet, and the freeze came back
+              (2026-09-25 ~11:30).** Measured:
+              - The whitelist correctly named `Polaris-Win64-Shipping` (plus a stale `re9` — **the
+                `.reg` import MERGES**, so values accumulate launch after launch; `enableReg` must delete
+                the key first), yet the host adopted **`TEKKEN 8.exe`, the launcher** (its image mapped in
+                the host), and the real game ran as plain `wine`. Wine's rule, read in
+                `crossover-sources-26.3.0/…/dlls/ntdll/unix/process.c` `send_to_cx_loader`: exe name =
+                basename of `argv[1]` of the new process's command line, checked with `has_key_value`
+                against `UseAltLoader` — and on a match the creating process `unsetenv`s
+                `CX_ALT_LOADER_SOCKET` BEFORE sending its environment, so the adopted child can never hand
+                over a grandchild. Why the launcher passed the check is **not understood yet**; next step
+                is one launch with `envFlags.extra["WINEDEBUG"]="+process,+loaddll"` for Tekken only, whose
+                TRACE prints the name derived and the decision ("skipped … not in whitelist (argv[1] …)").
+              - **The freeze:** the user left Tekken's GPU-warning dialog open a long time, then clicked
+                *No* → hung, beachball. Sample of the game (`Polaris-Win64-Shipping`, **NOT adopted**,
+                plain `wine`): the main thread AND a `com.apple.root.user-interactive-qos` thread inside
+                `CAAnimation_getter`/`CA::Layer::getter` both wait on `_os_unfair_lock_lock_slow` — the
+                same shape as the Spider-Man freeze (a window ANIMATION thread + main thread on the Core
+                Animation lock). So it happens without the host too. **Working hypothesis:** a Wine
+                window's appearance/dismissal animation (a dialog closing, a fullscreen transition)
+                deadlocks inside Core Animation on macOS 27; RE Requiem's hang was also at a small
+                164×159 window, dialog-sized. **Test to try after reboot:** disable window animations
+                for the game processes (e.g. `NSAutomaticWindowAnimationsEnabled = NO` in the host's
+                defaults domain `com.mikael.silo.host.<id>`) and repeat the dialog-then-close sequence.
+                Sample kept at `/tmp/tekken-hang-18018.txt` (lost on reboot).
             - ✅ **"Close Leftover Game Processes" never appeared in real use — it was the TIMING of the
               question, now fixed and verified on device (2026-09-25).** The user never saw the entry, and
               went looking in *Login Items* because of it. Diagnosed in two measured steps:

@@ -266,10 +266,14 @@ public struct LaunchOrchestrator: Sendable {
         target: AltLoaderSession.Target?, gameExe: URL, prefix: URL, wine: URL
     ) async -> URL? {
         guard let target else { return nil }
-        let icon = (try? Data(contentsOf: gameExe, options: .mappedIfSafe))
+        // The process that will own the window. For an Unreal launcher that is NOT the exe being launched
+        // but the Shipping executable it starts — see `UnrealLauncher`. The launch itself is unchanged: the
+        // launcher still runs (it is what Steam expects); only the hand-over and the icon move.
+        let windowOwner = UnrealLauncher.shippingExecutable(forLauncher: gameExe) ?? gameExe
+        let icon = (try? Data(contentsOf: windowOwner, options: .mappedIfSafe))
             .flatMap(PEIcon.icoData(fromExecutable:))
         return await altLoader.prepare(
-            gameName: target.gameName, gameID: target.gameID, gameExe: gameExe, iconICO: icon,
+            gameName: target.gameName, gameID: target.gameID, gameExe: windowOwner, iconICO: icon,
             prefix: prefix, wine: wine, hostAppsDir: target.hostAppsDir)
     }
 
