@@ -726,6 +726,36 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - 🔬 **THE FREEZE, ROOT-CAUSED ONE LEVEL DEEPER (lldb on the hung Tekken 8, 2026-09-25 ~13:50).**
+              Main thread: `-[NSWindow displayIfNeeded]` → `-[NSView _updateLayerGeometryFromView]` →
+              `CA::Layer::set_bit` → `_os_unfair_lock_lock_slow` on **`QuartzCore\`CA::Transaction::transaction_lock`**
+              — the process-wide Core Animation transaction lock. Its word read `0x00003f02` → owner port
+              **`0x3f03`**. Asking every live thread `mach_thread_self()` (a kernel trap, safe in a hung
+              process) found the owner: **thread #3 `GameThread`** — Unreal's game thread, a WINDOWS thread —
+              currently parked in Wine's `NtWaitForSingleObject`. So it is a **lock-order deadlock**: the
+              game thread holds the Core Animation lock and waits on a Windows object (almost certainly the
+              main thread's answer to a window operation — the GPU-warning dialog's creation/dismissal),
+              while the main thread needs that lock to do any window work. The frames below the ntdll wait
+              are not unwindable (Rosetta + Wine's signal trampolines), so WHICH call took the lock is not
+              known yet. This explains every observation: intermittent (depends where `GameThread` is when the
+              dialog closes), independent of host / icon / whitelist / compat DB / window animations (all
+              ruled out today on clean sessions), and tied to the dialog moment.
+              - Ruled out today, each on a clean session with the same hang frame: **window animations**
+                (`NSAutomaticWindowAnimationsEnabled=NO` for the host removed the `CAAnimation` thread, the
+                hang stayed); **CrossOver's compat DB** (`CX_HOME=~/Library/Application Support/CrossOver`
+                makes `cxcompatdb` load `compatdb-26.dat`, 169 rules — hang stayed). Both test settings
+                reverted. Note for later: Silo never sets `CX_HOME`, so `cxcompatdb` has never loaded in Silo
+                (`couldn't get path to JSON database` in every log) — a real CrossOver-parity gap, separate
+                from the freeze; worth a deliberate decision (it reads the user's own licensed data).
+              - **Next, if pursued:** find the call that takes the lock on the game thread (e.g.
+                `WINEDEBUG=+macdrv` around the dialog, or D3DMetal's layer setup on a non-main thread), and
+                report the deadlock to CodeWeavers with this evidence — it lives in Wine/D3DMetal, not Silo.
+                Practical mitigation to evaluate: avoiding the dialog path (the GPU warning) for Tekken.
+            - ✅ **Tekken 8 — Unreal launcher: FIXED once the whitelist stopped accumulating (2026-09-25).**
+              With `enableReg` deleting the key before recreating it, the key held only
+              `Polaris-Win64-Shipping`; Wine's trace: `start` skipped, `"TEKKEN 8" is not in whitelist`
+              skipped, then `argv[1] "…\Polaris-Win64-Shipping.exe"` handed over — the host adopted the real
+              game (1.8 GB) and the Dock showed ONE tile (user). The notes below record how it got there.
             - 🚧 **Tekken 8 — the Unreal-launcher fix does NOT work yet, and the freeze came back
               (2026-09-25 ~11:30).** Measured:
               - The whitelist correctly named `Polaris-Win64-Shipping` (plus a stale `re9` — **the
