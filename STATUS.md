@@ -745,8 +745,11 @@
               tracks no pid, stops nothing, owns no lifecycle.
               **Verified on device:** (1) leftover present at launch → entry shown → clicked → leftover
               gone; (2) leftover created while Silo was open and in the background → user reactivated
-              Silo → entry shown → clicked → gone. Still to see once on a real game: quitting Spider-Man
-              from inside the game on a cold bottle, the entry should appear without touching Silo.
+              Silo → entry shown → clicked → gone. **(3) On the real game (user, 2026-09-25):** Spider-Man
+              quit from inside the game → the entry appeared without touching Silo. Census before the
+              click: exactly one leftover, `explorer.exe /desktop` (16462), no game, Steam excluded. After
+              the click: leftover gone, the host's `lsappinfo` registration gone (tile released), Steam
+              intact (3 `steam.exe` + 5 webhelpers, `ActiveProcess` pid still the live `e0`). **Closed.**
             - 📝 **Why Spider-Man landed in Login Items & Extensions (read from `sfltool dumpbtm`).**
               macOS 27's Background Task Management keeps two records per host app: `Type: app` and
               `"… - background tasks"`. The latter appears when the app's main process has exited but
