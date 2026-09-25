@@ -238,8 +238,10 @@ public final class AppEnvironment {
     ///
     /// So: when one of OUR host apps terminates (`GameHostBundle.bundleIDPrefix`), ask again — twice,
     /// because leftovers come and go on different clocks (a crash handler leaves in ~2 s, Wine's desktop
-    /// owner stays). This *listens* to an app ending to refresh a menu entry; it tracks no pid, stops
-    /// nothing and owns no lifecycle, which is what Phase 4 rules out.
+    /// owner stays) — and **close what is found**. This is a deliberate, user-requested exception to
+    /// Phase 4's "Silo never follows a game": it acts only after a game has ENDED, only on processes that
+    /// are not a game, not Steam and not Wine's plumbing, and tracks no pid. The menu entry remains as the
+    /// manual fallback.
     public func watchGameExitsForLeftovers() async {
         // Coming back to Silo is the other moment the answer can have changed. Hooked to the APP becoming
         // active, not to SwiftUI's `scenePhase`: measured 2026-09-25, switching to another app and back
@@ -258,6 +260,14 @@ public final class AppEnvironment {
                 for delay in [Duration.seconds(3), .seconds(10)] {
                     try? await Task.sleep(for: delay)
                     await self?.refreshLaunchLeftovers()
+                    // Close them automatically (user's decision, 2026-09-25: "non voglio fare ogni volta
+                    // la chiusura dal menu"). Safe for the same reasons the menu entry is: the count is
+                    // non-zero only for a bottle with NO game running, and Steam's tree and Wine's plumbing
+                    // are never in it. Two passes, because a launcher (Tekken's) exits a moment after the
+                    // game and counts as a game while it lives.
+                    if (self?.launchLeftoverCount ?? 0) > 0 {
+                        await self?.closeLaunchLeftovers()
+                    }
                 }
             }
         }

@@ -726,6 +726,21 @@
               - The `host.c` bounded wait (60 s) and single-use socket added for this symptom stay: they fix
                 a *different*, real hole (a host nobody ever connected to would linger forever), verified in
                 isolation.
+            - ✅ **Leftovers are now closed AUTOMATICALLY when a game ends (user's decision, 2026-09-25).**
+              The user had to use the menu entry after Tekken and did not want to do it every time. When one
+              of our host apps terminates, Silo re-censuses at +3 s and +10 s and closes what it finds, with
+              the menu entry's guarantees (a bottle with any game running contributes nothing; Steam's tree
+              and Wine's plumbing are never included). Two passes because Tekken's launcher exits a moment
+              after the game and counts as a game while alive. **This is a deliberate exception to Phase 4**
+              ("Silo never follows a game"): it acts only after a game has ended, on non-game processes,
+              tracks no pid. The menu entry stays as the manual fallback.
+              - **Why Tekken was not in Login Items:** macOS's Background Task Management identifies these
+                apps by the host BINARY (`SiloWineHost-<Mach-O UUID>`), not the bundle, and every game shares
+                one host binary — so all games are ONE background item, named after the first registered
+                ("Marvel's Spider-Man Remastered"). Its toggle applies to every game. Fixable by giving each
+                host its own signing identity (e.g. ad-hoc `codesign --identifier <bundle id>` per bundle);
+                not done — with automatic cleanup the toggle is no longer needed.
+            - ✅ **Launch logs rotate: the last five per game are kept** (`LogRotation`, `<game>.N.log`).
             - 📌 **New data point on the freeze (user, 2026-09-25 14:05): a FULL restart of Steam, then games
               run.** The user closed everything including Steam (which I had kept leaving up between tests),
               reopened the working build: Spider-Man ran; after quitting it (tile released, Steam closed
