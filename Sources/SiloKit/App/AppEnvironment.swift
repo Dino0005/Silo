@@ -39,6 +39,30 @@ public final class AppEnvironment {
     /// The bottles-location move flow (Settings → General → Bottles).
     public let bottles: BottlesRelocationCoordinator
     public private(set) var didBootstrap = false
+
+    // MARK: Rosetta (the Wine Silo runs is x86_64 — nothing launches without it)
+
+    /// The startup check found no Rosetta. Drives the install prompt in the library and onboarding.
+    public private(set) var rosettaMissing = false
+    public private(set) var rosettaInstalling = false
+    /// `softwareupdate`'s own words when an install failed, for the prompt to show.
+    public private(set) var rosettaMessage: String?
+
+    /// Install Rosetta without sending the user to Terminal (`RosettaCheck.install`). A zero exit counts as
+    /// installed even if the daemon isn't up yet: `softwareupdate` is the authority on its own install, and
+    /// a check that disagreed would keep the prompt coming back for nothing.
+    public func installRosetta() async {
+        guard !rosettaInstalling else { return }
+        rosettaInstalling = true
+        defer { rosettaInstalling = false }
+        do {
+            try await RosettaCheck.install(runner: runner)
+            rosettaMissing = false
+            rosettaMessage = nil
+        } catch {
+            rosettaMessage = error.localizedDescription
+        }
+    }
     private var isBootstrapping = false
     /// A deep link (from a Desktop shortcut) that arrived before the app finished bootstrapping — the library
     /// isn't loaded yet, so we hold it and route it the moment `bootstrap()` completes. At most one is kept
@@ -319,9 +343,8 @@ public final class AppEnvironment {
         Task.detached { WineServerProbe.sweepLeftovers(prefixes: ourBottles) }
         // Said at startup, not at the first Play: without translation nothing can launch, and the failure
         // surfaces as an error about Steam that names a CPU type and helps nobody.
-        if await !RosettaCheck.isAvailable(runner: runner) {
-            gameLibrary.setStatus(String(localized: "Rosetta isn't installed, and Silo's Wine is Intel software: no game can start until macOS can translate it. Install it from Terminal with `softwareupdate --install-rosetta`."), actionable: true)
-        }
+        // The library/onboarding then asks to install it (`installRosetta`).
+        rosettaMissing = await !RosettaCheck.isAvailable(runner: runner)
         let state = await configStore.load()
         backendSettings.config = state.backend
         applyBackend(state.backend)
@@ -467,6 +490,13 @@ public final class AppEnvironment {
         guard !isRunningFullSetup else { return }
         isRunningFullSetup = true
         defer { isRunningFullSetup = false }
+
+        // 0. Rosetta — every Wine spawn below needs it. A failed install stops here with its reason on screen
+        //    rather than letting the Wine download succeed and the first spawn fail with a CPU-type error.
+        if rosettaMissing {
+            await installRosetta()
+            guard !rosettaMissing else { return }
+        }
 
         // 1. Wine — then apply the freshly-installed runtime to the backend config HERE, awaited, so the
         //    bottle VM has its wine binary before setUp. `installLatest` also adopts it via `onDefaultChanged`

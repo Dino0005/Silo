@@ -7,6 +7,21 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Added
+- **Silo installs Rosetta itself.** When it's missing, the library and onboarding offer to install it with
+  Apple's own `softwareupdate`, and *Set up* installs it first — instead of a notice sending the user to
+  Terminal. A launch the kernel refuses for its CPU type now says Rosetta is missing rather than
+  "Bad CPU type in executable". Ported from upstream (`83bc83b`, `55978c8`); the detection stays the fork's
+  own, the running `oahd` daemon, measured across a macOS upgrade.
+
+### Fixed
+- **Desktop shortcuts carry the game's icon again, shaped like the host's.** Since the alt-loader launch the
+  log records `start /wait /unix <exe>`, and the shortcut read the wrapper as part of the path, so every game
+  fell back to its Steam cover. The icon also goes into the bundle now (`AppIcon.icns`), where macOS gives it
+  the system's rounded shape; a Finder custom icon was drawn square.
+
 ## 0.6.3
 
 ### Added

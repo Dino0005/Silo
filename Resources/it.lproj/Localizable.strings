@@ -25,8 +25,13 @@
 "Create Shortcut" = "Crea collegamento";
 "Shortcuts" = "Collegamenti";
 
-/* Avviso all'avvio quando manca Rosetta */
-"Rosetta isn't installed, and Silo's Wine is Intel software: no game can start until macOS can translate it. Install it from Terminal with `softwareupdate --install-rosetta`." = "Rosetta non è installato, e il Wine di Silo è software Intel: nessun gioco può partire finché macOS non è in grado di tradurlo. Installalo dal Terminale con `softwareupdate --install-rosetta`.";
+/* Avviso e errore di lancio quando manca Rosetta */
+"Rosetta isn't installed, and Silo's Wine is Intel software: no game can start until macOS can translate it. Reopen Silo to install it." = "Rosetta non è installato, e il Wine di Silo è software Intel: nessun gioco può partire finché macOS non è in grado di tradurlo. Riapri Silo per installarlo.";
+"Couldn't install Rosetta: %@" = "Impossibile installare Rosetta: %@";
+"Rosetta is required" = "Serve Rosetta";
+"Silo's Wine is Intel software, and macOS needs Rosetta to translate it. Silo can install it now with Apple's own installer." = "Il Wine di Silo è software Intel, e macOS ha bisogno di Rosetta per tradurlo. Silo può installarlo adesso con l'installer di Apple.";
+"Install" = "Installa";
+"Not Now" = "Non ora";
 "Create shortcuts in" = "Crea i collegamenti in";
 "Desktop" = "Scrivania";
 "Applications" = "Applicazioni";

@@ -41,4 +41,37 @@ struct RosettaCheckTests {
         #expect(await RosettaCheck.isAvailable(runner: fake))
         #expect(fake.invocations.isEmpty)
     }
+
+    @Test("a spawn the kernel refuses for its CPU type reads as Rosetta missing, not as \"Bad CPU type\"")
+    func badArchitectureMeansRosettaMissing() {
+        let refused = NSError(domain: NSPOSIXErrorDomain, code: Int(EBADARCH))
+        #expect(RosettaCheck.translating(refused) as? RosettaCheck.RosettaError == .notInstalled)
+    }
+
+    @Test("any other spawn failure passes through untouched")
+    func otherErrorsPassThrough() {
+        let missing = NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT))
+        let out = RosettaCheck.translating(missing) as NSError
+        #expect(out.domain == NSPOSIXErrorDomain && out.code == Int(ENOENT))
+    }
+
+    @Test("installing runs Apple's softwareupdate, license accepted, and nothing else")
+    func installRunsSoftwareUpdate() async throws {
+        let fake = FakeProcessRunner()
+        fake.defaultResult = ProcessResult(exitCode: 0)
+        try await RosettaCheck.install(runner: fake)
+        #expect(fake.invocations.count == 1)
+        #expect(fake.lastInvocation?.executable.path == "/usr/sbin/softwareupdate")
+        #expect(fake.lastInvocation?.arguments == ["--install-rosetta", "--agree-to-license"])
+    }
+
+    @Test("a failed install carries softwareupdate's own words, so the prompt can show them")
+    func failedInstallKeepsTheReason() async {
+        let fake = FakeProcessRunner()
+        fake.defaultResult = ProcessResult(exitCode: 1, standardOutput: Data(),
+                                           standardError: Data("Install failed: no network\n".utf8))
+        await #expect(throws: RosettaCheck.RosettaError.installFailed("Install failed: no network")) {
+            try await RosettaCheck.install(runner: fake)
+        }
+    }
 }

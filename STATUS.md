@@ -3,6 +3,16 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **Rosetta: Silo offers to install it (2026-09-26, from upstream `83bc83b`/`55978c8`).** `RosettaCheck`
+  gains `install` (`softwareupdate --install-rosetta --agree-to-license`) and `translating` (`EBADARCH` →
+  `.notInstalled`, applied to both spawns in `SystemProcessRunner`). The startup notice became an alert with
+  *Install* (`LibraryGridView`), and `runFullSetup` installs Rosetta first. Detection unchanged (`pgrep oahd`).
+  Not ported: upstream's file-based probe, its `xcode-27` runner / SDK pin. `xcode-27` IS GitHub-hosted
+  (verified 2026-09-26: upstream's 0.5.0 release job ran in runner group "GitHub Actions"; listed in
+  `actions/runner-images` as a **preview** image, arm64, macOS 27 SDK, issue #14404). The fork's CI still
+  builds on the macos-26 SDK while local builds use 27 — proposal: move only `release.yml` to it.
+  Measured: as a normal user `softwareupdate --install-rosetta --agree-to-license` asks for no password —
+  on the dev box (Rosetta present) it reinstalled it and exited 0. The missing-Rosetta path itself is unmeasured.
 - **🖼️ Wine windows show a generic icon in Mission Control / Stage Manager on macOS 27 — diagnosed on
   device, and the route CrossOver uses is now identified: an `--enable-alt-loader` bundled host app that
   OWNS the macOS window (2026-09-17/18, `main`; investigation only, no code changed).** User report: on

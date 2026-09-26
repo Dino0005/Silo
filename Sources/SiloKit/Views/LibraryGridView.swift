@@ -16,6 +16,8 @@ struct LibraryGridView: View {
     /// required steps doesn't yank the user straight into the library — they click "Done" when ready.
     /// Persisted so it doesn't reappear.
     @AppStorage("onboardingDone") private var onboardingDone = false
+    /// "Not Now" on the Rosetta prompt — for this session only, so it asks again at the next launch.
+    @State private var rosettaPromptDismissed = false
 
     var body: some View {
         @Bindable var lib = env.gameLibrary
@@ -90,6 +92,16 @@ struct LibraryGridView: View {
             if #available(macOS 26, *) {
                 ToolbarSpacer(.fixed)
             }
+        }
+        // Onboarding and library alike: without Rosetta, setup can't boot a bottle and no game can start.
+        .alert("Rosetta is required", isPresented: Binding(
+            get: { env.didBootstrap && env.rosettaMissing && !env.rosettaInstalling && !rosettaPromptDismissed },
+            set: { if !$0 { rosettaPromptDismissed = true } })) {
+            // Re-armed after the attempt: if it failed, the prompt comes back carrying the reason.
+            Button("Install") { Task { await env.installRosetta(); rosettaPromptDismissed = false } }
+            Button("Not Now", role: .cancel) {}
+        } message: {
+            Text(env.rosettaMessage ?? String(localized: "Silo's Wine is Intel software, and macOS needs Rosetta to translate it. Silo can install it now with Apple's own installer."))
         }
         .sheet(isPresented: $showAddGame) { AddGameSheet() }
         .sheet(item: $settingsTarget) { GameSettingsSheet(game: $0) }
