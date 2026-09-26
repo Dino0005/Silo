@@ -7,7 +7,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.6.4
 
 ### Added
 - **Silo installs Rosetta itself.** When it's missing, the library and onboarding offer to install it with
@@ -21,6 +21,11 @@ the commit message says why.
   log records `start /wait /unix <exe>`, and the shortcut read the wrapper as part of the path, so every game
   fell back to its Steam cover. The icon also goes into the bundle now (`AppIcon.icns`), where macOS gives it
   the system's rounded shape; a Finder custom icon was drawn square.
+
+### Changed
+- **The release is built with Xcode 27 and the macOS 27 SDK**, the same SDK as local builds — it was still
+  compiled on the macOS 26 image. GitHub's `xcode-27` image is still in preview; the SDK is pinned in
+  `versions.env`.
 
 ## 0.6.3
 
