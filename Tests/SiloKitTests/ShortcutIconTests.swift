@@ -22,6 +22,19 @@ struct ShortcutIconTests {
         #expect(exe.path.hasSuffix("RE requiem/re9.exe"))
     }
 
+    @Test("a hand-over launch's `start /wait /unix` wrapper is not taken for part of the path")
+    func stripsStartWrapper() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let log = try tmp.write("1817070.log", """
+        ===== Silo launch @ 2026-09-26 09:30:00 =====
+        exe   : /Users/x/bin/wine64
+        args  : start /wait /unix /Volumes/Extreme Pro/common/Marvel's Spider-Man Remastered/Spider-Man.exe
+        cwd   : /Volumes/Extreme Pro/common/Marvel's Spider-Man Remastered
+        """)
+        let exe = try #require(ShortcutFinalize.loggedExecutable(logFile: log))
+        #expect(exe.path == "/Volumes/Extreme Pro/common/Marvel's Spider-Man Remastered/Spider-Man.exe")
+    }
+
     @Test("launch options after the executable are not taken for part of the path")
     func stripsLaunchOptions() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

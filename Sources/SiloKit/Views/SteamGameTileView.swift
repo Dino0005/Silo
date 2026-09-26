@@ -99,16 +99,20 @@ struct SteamGameTileView: View {
                     ShortcutFinalize.apply(icon: mine, to: app, shaped: false)
                     return
                 }
-                let exeIcon: NSImage?
+                var exeIcns: Data? = nil
                 if let logged = ShortcutFinalize.loggedExecutable(
                     logFile: env.paths.log(forAppID: game.appID)) {
-                    exeIcon = await ShortcutFinalize.executableIcon(at: logged)
-                } else {
-                    exeIcon = await ShortcutFinalize.firstIconBearingExecutable(in: game.installURL)
+                    // The same executable the host takes its icon from: an Unreal launcher's Shipping exe.
+                    let owner = UnrealLauncher.shippingExecutable(forLauncher: logged) ?? logged
+                    exeIcns = await ShortcutFinalize.executableIcns(at: owner)
                 }
-                // An `if`, not `??`: the right-hand side of `??` is an autoclosure, and that can't be
-                // async. The header art is still only reached when the executable gave nothing.
-                var final = exeIcon
+                if exeIcns == nil {
+                    exeIcns = await ShortcutFinalize.firstIconBearingExecutable(in: game.installURL)
+                }
+                // The executable's icon goes in as the host's does — the bundle's own `.icns`, no mask.
+                if let exeIcns, ShortcutFinalize.apply(icns: exeIcns, to: app) { return }
+                // Header art only from here on — rectangular, so it DOES go through the mask.
+                var final: NSImage? = nil
                 if final == nil {
                     // The CACHED artwork before the network. `headerArtURL` is guessed from the app ID and
                     // 404s for some titles — 3764200 among them, which is why the tile cache exists at all —

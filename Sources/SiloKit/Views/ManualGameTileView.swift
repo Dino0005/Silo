@@ -70,9 +70,11 @@ struct ManualGameTileView: View {
                     ShortcutFinalize.apply(icon: mine, to: app, shaped: false)
                     return
                 }
-                // Otherwise the game's own icon, parsed from its .exe, in macOS's rounded-square shape.
-                let icon = await ManualIconCache.shared.icon(for: game.executablePath)
-                ShortcutFinalize.apply(icon: icon, to: app)
+                // Otherwise the game's own icon, parsed from its .exe and built like its host bundle's:
+                // the bundle's own `.icns`, no mask (see `ShortcutFinalize.executableIcns`).
+                if let icns = await ShortcutFinalize.executableIcns(at: game.executablePath),
+                   ShortcutFinalize.apply(icns: icns, to: app) { return }
+                ShortcutFinalize.apply(icon: nil, to: app)
             }
         }
         Button("View in Finder") {

@@ -79,12 +79,33 @@ enum ShortcutFinalize {
     /// file only exists as a 799-byte `.jpg` thumbnail. The real `.ico` hangs off a `clienticon` hash the
     /// public API doesn't expose — it lives in `appinfo.vdf`, an undocumented binary, or on a third-party
     /// service. The executable is already on disk.
-    static func executableIcon(at exe: URL) async -> NSImage? {
-        let ico: Data? = await Task.detached(priority: .utility) {
-            guard let data = try? Data(contentsOf: exe, options: .mappedIfSafe) else { return nil }
-            return PEIcon.icoData(fromExecutable: data)
+    ///
+    /// Built the same way as the game's host bundle icon (`GameHostBundle.icnsData`): every `.icns` size
+    /// from 16 to 512, each redrawn from the largest image in the `.ico`, and the icon's own shape and
+    /// transparency left alone. It used to be a single image run through `macOSShaped`, which boxed an
+    /// icon that was already designed as one into a rounded square and upscaled a 256 px source to fill
+    /// 512 — the user noticed the host's icon looked better than the shortcut's for the same game.
+    /// It goes into the bundle as `.icns` (`apply(icns:to:)`), where macOS gives it the system shape; the
+    /// mask is for rectangular header art only.
+    static func executableIcns(at exe: URL) async -> Data? {
+        await Task.detached(priority: .utility) {
+            guard let data = try? Data(contentsOf: exe, options: .mappedIfSafe),
+                  let ico = PEIcon.icoData(fromExecutable: data) else { return nil }
+            return GameHostBundle.icnsData(fromICO: ico)
         }.value
-        return ico.flatMap { NSImage(data: $0) }
+    }
+
+    /// Install an executable's `.icns` as the bundle's own icon (see `GameShortcut.installIcon` for why not
+    /// a Finder custom icon), then select the shortcut in Finder. Returns false if it couldn't be written,
+    /// so the caller can fall back on the next icon source.
+    @MainActor
+    static func apply(icns: Data, to app: URL) -> Bool {
+        guard (try? GameShortcut.installIcon(icns, in: app)) != nil else { return false }
+        // Re-read the bundle now: the same path may have held an earlier shortcut with no icon, and Finder
+        // keeps showing what LaunchServices last recorded until told otherwise.
+        LSRegisterURL(app as CFURL, true)
+        NSWorkspace.shared.activateFileViewerSelecting([app])
+        return true
     }
 
     /// The executable a game actually ran, taken from the header its own launch log carries:
@@ -105,7 +126,11 @@ enum ShortcutFinalize {
         for line in logFile.headString().split(separator: "\n", maxSplits: 8,
                                                omittingEmptySubsequences: false)
         where line.hasPrefix("args  : ") {
-            let path = String(line.dropFirst("args  : ".count))
+            var path = String(line.dropFirst("args  : ".count))
+            // A hand-over launch goes through `start /wait /unix <exe>` (see `LaunchOrchestrator`); the
+            // wrapper isn't part of the path, and leaving it in made every such game fall back to its cover.
+            let wrapper = "start /wait /unix "
+            if path.hasPrefix(wrapper) { path = String(path.dropFirst(wrapper.count)) }
             // Just the executable: anything after it is the game's own arguments.
             guard let end = path.range(of: ".exe", options: [.caseInsensitive, .backwards]) else { continue }
             return URL(fileURLWithPath: String(path[path.startIndex..<end.upperBound]))
@@ -115,13 +140,13 @@ enum ShortcutFinalize {
 
     /// Fall back on the executables sitting in the game's own folder, taking the first that carries an icon.
     /// Only that folder — the nested ones under `Binaries/` hold engine helpers, not the game's face.
-    static func firstIconBearingExecutable(in dir: URL) async -> NSImage? {
+    static func firstIconBearingExecutable(in dir: URL) async -> Data? {
         let entries = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))
             ?? []
         for exe in entries.filter({ $0.pathExtension.lowercased() == "exe" }).sorted(by: {
             $0.lastPathComponent < $1.lastPathComponent
         }) {
-            if let icon = await executableIcon(at: exe) { return icon }
+            if let icns = await executableIcns(at: exe) { return icns }
         }
         return nil
     }

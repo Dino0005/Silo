@@ -45,6 +45,7 @@ public struct GameShortcut: Sendable {
             <key>CFBundleDisplayName</key><string>\(xmlEscaped(name))</string>
             <key>CFBundleIdentifier</key><string>\(Self.bundleIDPrefix)\(bundleSafe(link.bundleIDComponent))</string>
             <key>CFBundleExecutable</key><string>launch</string>
+            <key>CFBundleIconFile</key><string>\(Self.iconName)</string>
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
             <key>CFBundleShortVersionString</key><string>1.0</string>
@@ -90,6 +91,20 @@ public struct GameShortcut: Sendable {
             throw ShortcutError.writeFailed((error as NSError).localizedDescription)
         }
         return app
+    }
+
+    /// Base name of the `.icns` in `Contents/Resources`, matching `CFBundleIconFile`. Until one is installed
+    /// the key points at nothing, which just leaves the generic app icon.
+    static let iconName = "AppIcon"
+
+    /// Put `icns` into the bundle as its own icon — the way the game's host bundle carries it, not as a
+    /// Finder custom icon. The difference is visible: macOS 26+ fits a *bundle* icon into the system's
+    /// rounded shape, as the Dock shows for the host, while a custom icon (`NSWorkspace.setIcon`) is drawn
+    /// as-is — a game's square Windows icon stayed square on the shortcut (user, 2026-09-26).
+    public static func installIcon(_ icns: Data, in app: URL, fileManager: FileManager = .default) throws {
+        let resources = app.appendingPathComponent("Contents/Resources", isDirectory: true)
+        try fileManager.createDirectory(at: resources, withIntermediateDirectories: true)
+        try icns.write(to: resources.appendingPathComponent("\(iconName).icns"), options: .atomic)
     }
 
     /// Whether the item at `url` is one of Silo's own shortcut `.app`s — i.e. a bundle whose Info.plist
