@@ -50,6 +50,11 @@ public struct GameHostBundle: Sendable {
     /// window, so it must be a regular app or the window would have no Dock tile at all. No
     /// `CFBundleIconName` — that key points at an asset catalog we don't have; `CFBundleIconFile` names the
     /// `.icns` written beside it.
+    ///
+    /// `LSApplicationCategoryType = public.app-category.games` is load-bearing, not a label: it is what makes
+    /// macOS treat the game as a game — Game Mode turns on in full screen and Command-Esc opens the system's
+    /// game overlay (brightness, volume, controller). Seen on TEKKEN 8 under the host (user, 2026-09-26,
+    /// "Modalità di gioco: Sì", DualSense listed). A bundle-less Wine process had no category to read.
     public func infoPlist() -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>

@@ -3,6 +3,37 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Side effect of the host: macOS treats Silo's games as games (user, 2026-09-26).** On TEKKEN 8 under
+  the host, Command-Esc opens macOS 27's game overlay — brightness, volume, the DualSense listed, and
+  "Modalità di gioco: Sì". The cause is the host bundle's `LSApplicationCategoryType =
+  public.app-category.games` (`GameHostBundle.infoPlist`, confirmed on the real `HostApps/1778820` bundle):
+  the window now belongs to a bundle in the games category, so Game Mode engages in full screen. A
+  bundle-less Wine process had no category to read, so it very likely never did — but the pre-0.6.3 state
+  was never measured. Keep the key; its effect on performance under Wine/Rosetta is unmeasured.
+- **📌 After the Wine work: the Steam CLIENT's icon in Stage Manager (user, 2026-09-26 — not urgent).**
+  `SteamBottle.launchSteam` doesn't go through the alt-loader host (only the two game launch paths do), so
+  Silo's Steam window shows a generic icon. CrossOver DOES get it right — measured live 2026-09-26 (Steam in
+  bottle "TEKKEN 8"): every Steam window is owned by `~/Applications/CrossOver/Steam/steam (TEKKEN 8).app/
+  Contents/MacOS/Menu Helper` (Foreground, bundled); `steam.exe` is a separate bundle-less Foreground
+  process with only a hidden 500×500 window (its own second Dock tile); `steamwebhelper.exe` are
+  BackgroundOnly with no windows. Start by finding WHICH Windows process runs inside the Menu Helper (not
+  steam.exe, which has its own pid) — that's the one to hand to Silo's host. Treat as an experiment: the
+  client launch is the fragile path (login, CEF black window, readiness).
+- **📌 From-source Wine parity — the checklist (user, 2026-09-26).** Acceptance bar = the CrossOver-imported
+  runtime: **GStreamer integrated with its plugin dir** (the headline item — `bundle-wine-dylibs.sh` can't
+  bundle it today; verify on a game that actually plays media through it), `lib64/apple_gptk`, same
+  behaviour on the games tested; build WITHOUT `0001-loader-bundle-link-dir.patch` and verify the host, then
+  drop the patch + `SILO_LOADER_LINK_DIR`; the planned cfgmgr32 patch (TEKKEN 8 crash on exit); and:
+- **📌 For the from-source Wine parity work (user, 2026-09-26): check `CX_HOME` / `cxcompatdb`.** First
+  whether the from-source build contains `cxcompatdb` at all; then decide whether Silo sets
+  `CX_HOME=~/Library/Application Support/CrossOver` so CrossOver's compat DB (`compatdb-26.dat`, 169 rules)
+  loads as it does in CrossOver — today it never does (`couldn't get path to JSON database` in every log).
+  It reads the user's own licensed data, never copied; its effect on games is unmeasured → try it on them.
+- **0.6.4 published and verified (2026-09-26).** Tag `v0.6.4` → release run 36264004765, the first on the
+  `xcode-27` image: runner group "GitHub Actions", no queueing, Xcode/SDK 27.0 selected, tests + build green
+  (notarize skipped, no secrets — as before). Downloaded `Silo.zip`: SHA-256 matches the published
+  `Silo.zip.sha256`; 0.6.4 build 202609261852; app arm64 recording SDK 27.0; `SiloWineHost` x86_64 with its
+  3 `WINE_RESERVE` segments, SDK 27.0; signature verifies; Italian Rosetta strings present.
 - **Rosetta: Silo offers to install it (2026-09-26, from upstream `83bc83b`/`55978c8`).** `RosettaCheck`
   gains `install` (`softwareupdate --install-rosetta --agree-to-license`) and `translating` (`EBADARCH` →
   `.notInstalled`, applied to both spawns in `SystemProcessRunner`). The startup notice became an alert with
