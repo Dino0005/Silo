@@ -24,12 +24,25 @@ concurrency:
 
 jobs:
   app:
-    runs-on: macos-26
+    # GitHub-hosted, still "preview" (actions/runner-images #14404): if it queues forever or breaks, going
+    # back to macos-26 is this one line — the Select step below then fails loudly on the missing SDK.
+    runs-on: xcode-27
     timeout-minutes: 30
     env:
       HAS_NOTARY: ${{ secrets.AC_API_KEY_ID }}
     steps:
       - uses: actions/checkout@v7
+
+      # The same SDK the local builds use (versions.env). SDKROOT goes into GITHUB_ENV so every later step —
+      # the tests, build-app.sh and its recorded-SDK guard — compiles against it.
+      - name: Select Xcode + macOS SDK (versions.env)
+        run: |
+          set -eo pipefail
+          set -a; . ./versions.env; set +a
+          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+          . ./Scripts/sdk-env.sh
+          echo "SDKROOT=$SDKROOT" >> "$GITHUB_ENV"
+          echo "SDK version: $(xcrun --show-sdk-version)"
 
       - name: Show toolchain
         run: swift --version
