@@ -19,6 +19,10 @@
   BackgroundOnly with no windows. Start by finding WHICH Windows process runs inside the Menu Helper (not
   steam.exe, which has its own pid) — that's the one to hand to Silo's host. Treat as an experiment: the
   client launch is the fragile path (login, CEF black window, readiness).
+  **Steam is a launcher, not a game (user, 2026-09-27):** its host bundle must NOT carry the games category
+  (`LSApplicationCategoryType`), or Game Mode and the Command-Esc overlay would engage on the client.
+  Declare none, like native `/Applications/Steam.app` (measured: no key; CrossOver's Steam bundles have
+  none either) → a Steam variant of `GameHostBundle`, not the game one reused.
 - **📌 From-source Wine parity — the checklist (user, 2026-09-26).** Acceptance bar = the CrossOver-imported
   runtime: **GStreamer integrated with its plugin dir** (the headline item — `bundle-wine-dylibs.sh` can't
   bundle it today; verify on a game that actually plays media through it), `lib64/apple_gptk`, same
