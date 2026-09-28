@@ -3,6 +3,15 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **▶️ Parity step 2 — IN PROGRESS (started 2026-09-28): the from-source runtime ships CrossOver's own GStreamer.**
+  Plan (each stage its own commit): (a) `build-gst-libav.sh` also builds CrossOver's 17 plugins from the tarball
+  (coreelements; base: audioconvert, audioresample, playback, typefindfunctions, videoconvertscale, opengl; good:
+  audioparsers, avi, deinterlace, id3demux, isomp4, videofilter, wavparse; bad: applemedia, videoparsersbad; ugly:
+  asf) + libav + matroska, and packages the whole relocated stack (`dist/gstreamer-1.24.4/lib64`) next to the
+  add-on; (b) `bundle_wine_dylibs.py` takes GStreamer from that stack (env `SILO_GST_STACK`) instead of Homebrew,
+  and `build-wine.sh`/`.yml` build it first and compile winegstreamer against its 1.24.4 headers (as CrossOver:
+  compat 2405); (c) verify on `.wine-build/install` — MF probe H.264+AAC and the DMC5 VC-1 samples in
+  `/tmp/dmc5-asf` (+ `mftest.exe` there), 0 Homebrew loads. Resume from the last commit if interrupted.
 - **🚦 Steam readiness now waits for SIGN-IN, not just the client process (2026-09-28).** Symptom (after the
   `Silo-backup` restore): Steam slow to open, DMC5's icon appeared in the Dock and vanished, Steam opened.
   Steam's own logs: Silo launched DMC5 at 20:17:12; Steam finished starting at 20:17:19 ("System startup time");
