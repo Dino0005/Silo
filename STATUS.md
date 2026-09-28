@@ -3,6 +3,13 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **▶️ RESUME HERE (next session, from 2026-09-29).** The from-source runtime `wine-cx-26.3.0-gst` is the user's
+  live runtime and works (DMC5 incl. VC-1 movies, Steam stays up after games). Open items, in order:
+  (1) remove `Scripts/patches/0001-loader-bundle-link-dir.patch` + the `SILO_LOADER_LINK_DIR` plumbing in Silo
+  (keep `GameHostBundle`) — the host works without it, and with it DMC5 could not start; (2) Kerberos missing
+  in the build (`err:kerberos … no Kerberos support`; configure found no krb5) — parity gap; (3) rest of the
+  parity checklist: `apple_gptk`, `CX_HOME`/cxcompatdb, cfgmgr32 patch; (4) CI `build-wine.yml` updated for the
+  GStreamer stack but never run; x86_64-Homebrew risk (see below).
 - **✅ Parity step 2 (2026-09-28): the from-source runtime ships CrossOver's OWN GStreamer — 1.24.4 / glib 2.78
   from the FOSS tarball, CrossOver's 17 plugins + libav + matroska — no Homebrew GStreamer anywhere.**
   - `build-gst-libav.sh` now also packages the whole stack, `dist/gstreamer-1.24.4/lib64` (19 plugins + 25 libs,
@@ -57,8 +64,9 @@
     start):** after DMC5 exited (00:32:19) Steam's window stayed; its logs show the UI initialised once, at Steam
     start (00:30:52), and never again. (Also fixed then: a readiness test that flaked under load — its simulated
     Steam now registers only after the fake launch, like the real client.)
-  - **Pending: restore `Application Support/Silo-backup` → `Silo`** once Steam + Silo are closed (the test ran
-    on the live folder).
+  - **Decision (user, 2026-09-29): KEEP the live folder on the from-source runtime** — it works; `Silo-backup`
+    deleted. The user now runs `wine-cx-26.3.0-gst` (patch-free rebuild) from `dist/Silo.app` (0.6.4 + the Steam
+    readiness and leftover fixes; `/Applications/Silo.app` is still plain 0.6.4).
   - Installed as runtime `wine-cx-26.3.0-gst` (not default). **Next: the user tries it on a game** (DMC5 on the
     Steam bottle, like the add-on test). CI workflow updated but not run. Remaining checklist: `apple_gptk`,
     `CX_HOME`/cxcompatdb, build without patch 0001, cfgmgr32 patch.
