@@ -47,7 +47,13 @@
     log shows a burst of process terminations (`AppPolicyGetProcessTerminationMethod`, `crashhandler64.dll`
     load/unload) and no explicit exception. Cause unknown. Also seen: `err:kerberos … no Kerberos support` in every
     Steam process on the from-source build (configure found no krb5) — parity gap, not shown to be related.
-    **Next:** A/B with WINEDEBUG=+seh,+process (or +loaddll timestamps) on Steam, same game exit, both runtimes.
+    **✅ Cause found (2026-09-29, prompted by the user asking whether the post-game host/leftover handling could
+    interfere): Silo itself killed them.** `watchGameExitsForLeftovers` auto-closes a bottle's leftovers a few
+    seconds after a game exits (user's 2026-09-25 decision), and `LaunchLeftovers.steamClient` protected Steam's
+    tree by the name `steamwebhelper.exe`. On the from-source runtime the CEF children run as
+    `steamwebhelper_orig.exe` (`ps`, measured) — Silo's webhelper wrapper, which only that runtime ships — so
+    they were SIGTERMed as leftovers and Steam rebuilt its UI. **Fix:** match `steamwebhelper` (both names) + a
+    test on the verbatim command lines. Not yet re-verified in game.
   - **Pending: restore `Application Support/Silo-backup` → `Silo`** once Steam + Silo are closed (the test ran
     on the live folder).
   - Installed as runtime `wine-cx-26.3.0-gst` (not default). **Next: the user tries it on a game** (DMC5 on the

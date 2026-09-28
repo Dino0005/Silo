@@ -54,8 +54,15 @@ public struct LaunchLeftovers: Sendable {
     /// "clear the game's remains, keep Steam" — and in the shared bottle the client's virtual-desktop
     /// `explorer.exe /desktop=Silo,…` is part of that tree, which is why the match below is on `/desktop=`
     /// and not on the image name (both explorers share it).
+    ///
+    /// `steamwebhelper`, not `steamwebhelper.exe`: with Silo's own runtime the CEF children run as
+    /// `steamwebhelper_orig.exe` — `SteamBottle` moves the real helper aside and puts its wrapper in its
+    /// place (the runtime ships `share/silo/steamwebhelper-wrapper.exe`; a CrossOver-imported one doesn't).
+    /// Measured 2026-09-29: matched on the full name, the renderer/network/storage children read as
+    /// leftovers, the automatic post-game cleanup SIGTERMed them, and Steam's whole UI reloaded (window gone,
+    /// back with the loading spinner) on every game exit — on the from-source runtime only.
     static let steamClient = [
-        "steam.exe", "steamwebhelper.exe", "steamservice.exe", "gameoverlayui", "steamerrorreporter",
+        "steam.exe", "steamwebhelper", "steamservice.exe", "gameoverlayui", "steamerrorreporter",
     ]
 
     // MARK: - Pure classification

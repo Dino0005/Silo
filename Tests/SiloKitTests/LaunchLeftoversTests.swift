@@ -66,6 +66,22 @@ struct LaunchLeftoversTests {
         #expect(!ids.contains(49243))    // the client's /desktop=Silo explorer
     }
 
+    /// With Silo's own runtime the webhelper wrapper renames the real helper, so Steam's CEF children run as
+    /// `steamwebhelper_orig.exe` (verbatim from `ps` on 2026-09-29). They are Steam's, not leftovers — killing
+    /// them made Steam's UI reload after every game.
+    @Test func theWrappedWebhelperChildrenAreSteamsToo() {
+        let children: [LaunchLeftovers.Process] = [
+            .init(id: 77156, command: #"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper_orig.exe --type=utility --utility-sub-type=storage.mojom.StorageService --lang=it"#),
+            .init(id: 77163, command: #"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper_orig.exe --type=renderer --enable-dinosaur-easter-egg-alt-images"#),
+        ]
+        let census = LaunchLeftovers.classify(
+            all: afterQuitting + children, inPrefix: inPrefix.union([77156, 77163]), gameExecutables: [spiderMan])
+        let ids = Set(census.leftovers.map(\.id) + census.games.map(\.id))
+        #expect(!ids.contains(77156))
+        #expect(!ids.contains(77163))
+        #expect(census.leftovers.map(\.id) == [49718])   // the desktop owner is still the only leftover
+    }
+
     /// Wine's own plumbing belongs to the bottle, not to a launch: stopping it is what *Stop all bottle
     /// processes* is for, and pulling it out from under a live prefix is how a bottle gets hurt.
     @Test func theBottlesPlumbingIsNotALeftover() {
