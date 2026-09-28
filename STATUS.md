@@ -37,9 +37,17 @@
     from-source runtime); closing the game removes its Dock icon. Steam shows TWO Dock tiles named "wine" — same
     as the imported CrossOver runtime. So the patch is not what makes the host work → **next: drop
     `0001-loader-bundle-link-dir.patch` + the `SILO_LOADER_LINK_DIR` plumbing (keep `GameHostBundle`)**; not
-    done yet. Open item: after closing the game the user saw Steam "close and reopen twice", but Steam's logs
-    show ONE client start (23:42:28) across three game sessions — likely its windows/webhelper being recreated,
-    not a restart; compare with the imported runtime before calling it a regression.
+    done yet.
+  - **❗ Regression vs the imported runtime (user, 2026-09-29: does NOT happen there): on every game exit Steam's
+    window disappears and comes back with the loading spinner.** Measured in Steam's logs (23:46–23:58, 4 exits):
+    NOT a client restart (one `Startup - Steam Client launched`, 23:42:28) and NOT a webhelper restart (one
+    `webhelper launched`, 23:42:37). What happens: `Removing overlay browser window` (23:53:54), then the webhelper
+    re-launches its CHILD processes and re-creates `SP Desktop_uid0` + the whole `Shared JS Context`; SteamUI
+    re-initialises from scratch (`Storing new config params`, `SteamApp Init - Before Login`, 23:54:00). The Wine
+    log shows a burst of process terminations (`AppPolicyGetProcessTerminationMethod`, `crashhandler64.dll`
+    load/unload) and no explicit exception. Cause unknown. Also seen: `err:kerberos … no Kerberos support` in every
+    Steam process on the from-source build (configure found no krb5) — parity gap, not shown to be related.
+    **Next:** A/B with WINEDEBUG=+seh,+process (or +loaddll timestamps) on Steam, same game exit, both runtimes.
   - **Pending: restore `Application Support/Silo-backup` → `Silo`** once Steam + Silo are closed (the test ran
     on the live folder).
   - Installed as runtime `wine-cx-26.3.0-gst` (not default). **Next: the user tries it on a game** (DMC5 on the
