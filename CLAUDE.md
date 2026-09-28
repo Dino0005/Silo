@@ -117,8 +117,9 @@ went stale, needed DXMT prefix-seeding, showed a "wine" Dock tile, and couldn't 
    runtime they actually run, via the shipped `CrossOverWineImporter` (Settings → Wine → "Import Wine from
    CrossOver <ver>"), because that tree is better in practice: GStreamer with its plugin dir, plus
    `lib64/apple_gptk`. The from-source build has real defects and limitations by comparison; bringing it
-   to parity is **the work in progress since 2026-09-28** — GStreamer now ships in CrossOver's own
-   lib64/@rpath layout (`bundle_wine_dylibs.py`; see STATUS), pending the user's check on a real game. So: **#8 governs what Silo compiles and
+   to parity is **the work in progress since 2026-09-28** — GStreamer now ships as CrossOver's own 1.24.4
+   stack (built from the tarball by `build-gst-libav.sh`, + libav/matroska) in its lib64/@rpath layout
+   (`bundle_wine_dylibs.py`; see STATUS), pending the user's check on a real game. So: **#8 governs what Silo compiles and
    ships, never what the user may import from their own licence**, and a fix that only lands in a
    from-source runtime is completeness work, not a priority. Every black-window / login / graphics
    problem is to be **fixed on this from-source CrossOver-FOSS Wine** — debug the build flags, Wine

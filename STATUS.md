@@ -3,15 +3,29 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
-- **▶️ Parity step 2 — IN PROGRESS (started 2026-09-28): the from-source runtime ships CrossOver's own GStreamer.**
-  Plan (each stage its own commit): (a) `build-gst-libav.sh` also builds CrossOver's 17 plugins from the tarball
-  (coreelements; base: audioconvert, audioresample, playback, typefindfunctions, videoconvertscale, opengl; good:
-  audioparsers, avi, deinterlace, id3demux, isomp4, videofilter, wavparse; bad: applemedia, videoparsersbad; ugly:
-  asf) + libav + matroska, and packages the whole relocated stack (`dist/gstreamer-1.24.4/lib64`) next to the
-  add-on; (b) `bundle_wine_dylibs.py` takes GStreamer from that stack (env `SILO_GST_STACK`) instead of Homebrew,
-  and `build-wine.sh`/`.yml` build it first and compile winegstreamer against its 1.24.4 headers (as CrossOver:
-  compat 2405); (c) verify on `.wine-build/install` — MF probe H.264+AAC and the DMC5 VC-1 samples in
-  `/tmp/dmc5-asf` (+ `mftest.exe` there), 0 Homebrew loads. Resume from the last commit if interrupted.
+- **✅ Parity step 2 (2026-09-28): the from-source runtime ships CrossOver's OWN GStreamer — 1.24.4 / glib 2.78
+  from the FOSS tarball, CrossOver's 17 plugins + libav + matroska — no Homebrew GStreamer anywhere.**
+  - `build-gst-libav.sh` now also packages the whole stack, `dist/gstreamer-1.24.4/lib64` (19 plugins + 25 libs,
+    35 MB, all `@rpath`), next to the CrossOver add-on. Build made hermetic from `/usr/local` with `-isysroot
+    <SDK>` (clang's default search paths are x86_64 Homebrew: glib and asf had linked Homebrew's libintl); glib
+    then uses its proxy-libintl — same compat version 10.0/10.5 CrossOver's refs show. Packaged as
+    `libproxy-intl.8.dylib` (+ `RENAMES`): it exports `g_libintl_*`, while Homebrew's gnutls/idn2 import GNU
+    `libintl_*` from their own `libintl.8.dylib`, and both must live in one lib64.
+  - `build-wine.sh` / `build-wine.yml` build the stack first and put its prefix FIRST on PKG_CONFIG_PATH and
+    LDFLAGS (LDFLAGS precede pkg-config's `-L`, so `-L/usr/local/lib` first would bind Homebrew's glib).
+    Needed: winegstreamer compiled against Homebrew's headers imports `g_once_init_enter_pointer`, absent from
+    glib 2.78 (measured). Homebrew `gstreamer` dropped from the build deps. `bundle_wine_dylibs.py` with
+    `SILO_GST_STACK` copies the stack and maps Wine's refs to it, refusing a Homebrew-built winegstreamer.
+    `install-local-wine.sh` no longer re-bundles a tree that has `lib64/.silo-relocated`.
+  - **Measured (full local `build-wine.sh`, 26.3.0):** `winegstreamer.so` = CrossOver's (gst 2405, glib 7801,
+    rpaths `@loader_path/` + `../../../lib64`; only difference: `libproxy-intl` vs `libintl` leaf). lib64 **50 MB**
+    (Homebrew variant: 267 MB; CrossOver: 88 MB). With `/usr/local` + `/opt/homebrew` unreadable (`sandbox-exec`):
+    wineboot OK; MF probe H.264+AAC 90 video + 131 audio samples; DMC5 VC-1 samples 180/120 frames, 1080p 500
+    frames in 2 s. Decoders: `qtdemux → h264parse → vtdec_hw` (VideoToolbox, as CrossOver), AAC via `avdec_aac`
+    (libav outranks applemedia's `atdec` — as it would on CrossOver + add-on). No `pygobject` noise.
+  - Installed as runtime `wine-cx-26.3.0-gst` (not default). **Next: the user tries it on a game** (DMC5 on the
+    Steam bottle, like the add-on test). CI workflow updated but not run. Remaining checklist: `apple_gptk`,
+    `CX_HOME`/cxcompatdb, build without patch 0001, cfgmgr32 patch.
 - **🚦 Steam readiness now waits for SIGN-IN, not just the client process (2026-09-28).** Symptom (after the
   `Silo-backup` restore): Steam slow to open, DMC5's icon appeared in the Dock and vanished, Steam opened.
   Steam's own logs: Silo launched DMC5 at 20:17:12; Steam finished starting at 20:17:19 ("System startup time");

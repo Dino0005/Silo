@@ -39,8 +39,14 @@ else
 fi
 
 if find "$DEST" \( -name wine64 -o -name wine \) -type f 2>/dev/null | grep -q .; then
-  # Bundle its dependency dylibs (freetype/gstreamer/…) so it's self-contained, matching the CI build.
-  "$(dirname "$0")/bundle-wine-dylibs.sh" "$DEST" || echo "(warning: dylib bundling failed — wine may need Homebrew deps)"
+  # Bundle its dependency dylibs (freetype/gstreamer/…) so it's self-contained, matching the CI build — unless
+  # it already is: a tree from build-wine.sh carries lib64/.silo-relocated, and re-bundling it without
+  # build-wine.sh's SILO_GST_STACK would replace its CrossOver GStreamer with Homebrew's.
+  if [ -f "$DEST/lib64/.silo-relocated" ]; then
+    echo "Already self-contained (lib64/.silo-relocated) — not re-bundling."
+  else
+    "$(dirname "$0")/bundle-wine-dylibs.sh" "$DEST" || echo "(warning: dylib bundling failed — wine may need Homebrew deps)"
+  fi
   echo "Installed Wine '$NAME' for local testing:"
   echo "  $DEST"
   echo "Open Silo → Wine Manager → Wine tab → Set default."
