@@ -32,6 +32,16 @@
     switches). Upstream only runs it with WINEDLLPATH set, where ntdll.so is found anyway. Steam on this runtime:
     ONE Dock tile named "wine" (user). **Decision (user): build WITHOUT 0001** (option A) and re-test; if the
     host alone gives icon/tile, drop the patch + `SILO_LOADER_LINK_DIR` plumbing (keep `GameHostBundle`).
+  - **✅ Re-test WITHOUT patch 0001 (2026-09-28 23:4x, same runtime name, rebuilt; backup still in `Silo-backup`):**
+    DMC5 starts; "History of DMC" and the skill previews play (GStreamer 1.24.4 stack verified IN GAME on the
+    from-source runtime); closing the game removes its Dock icon. Steam shows TWO Dock tiles named "wine" — same
+    as the imported CrossOver runtime. So the patch is not what makes the host work → **next: drop
+    `0001-loader-bundle-link-dir.patch` + the `SILO_LOADER_LINK_DIR` plumbing (keep `GameHostBundle`)**; not
+    done yet. Open item: after closing the game the user saw Steam "close and reopen twice", but Steam's logs
+    show ONE client start (23:42:28) across three game sessions — likely its windows/webhelper being recreated,
+    not a restart; compare with the imported runtime before calling it a regression.
+  - **Pending: restore `Application Support/Silo-backup` → `Silo`** once Steam + Silo are closed (the test ran
+    on the live folder).
   - Installed as runtime `wine-cx-26.3.0-gst` (not default). **Next: the user tries it on a game** (DMC5 on the
     Steam bottle, like the add-on test). CI workflow updated but not run. Remaining checklist: `apple_gptk`,
     `CX_HOME`/cxcompatdb, build without patch 0001, cfgmgr32 patch.
