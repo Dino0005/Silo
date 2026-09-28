@@ -19,7 +19,10 @@
     `isRunning`/Open Steam/shutdown — requiring ActiveUser there would relaunch a Steam sitting on its login screen.
     Failsafe unchanged (idle countdown, fails open). Cost: none when the flush lands after sign-in (both values
     arrive together); otherwise waits for the next flush (≤ ~30 s) instead of a failed launch. +8 tests.
-  - **Not yet verified on device** with the rebuilt app.
+  - **✅ Verified on device (2026-09-28, `dist/Silo.app` build 202609282048, cold start, Play on DMC5 directly):**
+    Steam launched 20:53:04, logon 20:53:13, startup done 20:53:14; `user.reg` flushed 20:53:33 with pid +
+    ActiveUser together; Silo launched DMC5 20:53:35; "App Running" 20:53:36 → 20:54:42 (closed by the user), no
+    `steam://run` relaunch. The ~20 s between sign-in and launch is the registry flush, not the new check.
 - **🎞️ DMC5 / RE2 / RE3 movie crash: `gst-libav` + `matroska` built for CrossOver's GStreamer 1.24.4 — measured
   working on the game's own movies (2026-09-28; user's in-game check pending).**
   - **Why the old fix replaced everything.** The imported runtime on this box (`wine-crossover-26.3`) is NOT stock:
