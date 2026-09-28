@@ -53,7 +53,10 @@
     tree by the name `steamwebhelper.exe`. On the from-source runtime the CEF children run as
     `steamwebhelper_orig.exe` (`ps`, measured) — Silo's webhelper wrapper, which only that runtime ships — so
     they were SIGTERMed as leftovers and Steam rebuilt its UI. **Fix:** match `steamwebhelper` (both names) + a
-    test on the verbatim command lines. Not yet re-verified in game.
+    test on the verbatim command lines. **✅ Verified in game (2026-09-29, `dist/Silo.app` 202609290026, cold
+    start):** after DMC5 exited (00:32:19) Steam's window stayed; its logs show the UI initialised once, at Steam
+    start (00:30:52), and never again. (Also fixed then: a readiness test that flaked under load — its simulated
+    Steam now registers only after the fake launch, like the real client.)
   - **Pending: restore `Application Support/Silo-backup` → `Silo`** once Steam + Silo are closed (the test ran
     on the live folder).
   - Installed as runtime `wine-cx-26.3.0-gst` (not default). **Next: the user tries it on a game** (DMC5 on the
