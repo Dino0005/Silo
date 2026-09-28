@@ -108,7 +108,7 @@ struct SteamClientSessionTests {
     @Test("readiness is noticed even when the file watch misses it — Wine replaces user.reg, it doesn't rewrite it")
     func readinessSeenWithoutWatchEvent() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
-        let (session, paths) = make(tmp)
+        let (session, paths, fake) = makeWithRunner(tmp)
         try setActivePid(paths, 0)
         // Long on purpose. The failsafe counts idle time in ticks of `min(1, timeout/5)`, so with 20 it
         // cannot possibly end this wait before 20 s, while the poll notices the pid on its first tick —
@@ -117,8 +117,14 @@ struct SteamClientSessionTests {
 
         // Replace the file the way Wine does — write a sibling, then rename over the original. A watch
         // armed on the original vnode is left holding a file nothing points at any more.
+        // Only AFTER Steam has been launched, as the real client does — like `resolvesOnWrite`. A flip timed
+        // from the test's start could land before `startSteam` and be zeroed by its stale-pid clear (the
+        // bottle isn't live yet), leaving only the failsafe: measured flaking under a parallel full run.
         let userReg = paths.steamBottle.appendingPathComponent("user.reg")
+        let launched = AsyncStream<Void>.makeStream()
+        fake.onRun = { inv in if inv.detached { launched.continuation.yield() } }
         let flip = Task.detached {
+            for await _ in launched.stream { break }
             try? await Task.sleep(for: .seconds(0.4))
             let text = (try? String(contentsOf: userReg, encoding: .utf8)) ?? ""
             let ready = text
