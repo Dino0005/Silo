@@ -23,6 +23,15 @@
     wineboot OK; MF probe H.264+AAC 90 video + 131 audio samples; DMC5 VC-1 samples 180/120 frames, 1080p 500
     frames in 2 s. Decoders: `qtdemux → h264parse → vtdec_hw` (VideoToolbox, as CrossOver), AAC via `avdec_aac`
     (libav outranks applemedia's `atdec` — as it would on CrossOver + add-on). No `pygobject` noise.
+  - **First in-game try (2026-09-28 22:53, backup in `Application Support/Silo-backup`): DMC5 did not start —
+    patch 0001's fault, not GStreamer's.** `wine: could not load ntdll.so: dlopen(…/HostApps/601150/Devil May Cry
+    5.app/Contents/MacOS/ntdll.so)`: that symlink pointed at `lib/wine/i386-unix/ntdll.so` (and `wine64` at
+    `i386-unix/wine`) — nonexistent under new WoW64. Upstream `create_tempdir` derives the link from the loader
+    about to be exec'd, one candidate is the i386 loader, `symlink()` accepts a dangling target, and the ntdll.so
+    link is made once per dir and never replaced — so the host dir stays poisoned (also stale across runtime
+    switches). Upstream only runs it with WINEDLLPATH set, where ntdll.so is found anyway. Steam on this runtime:
+    ONE Dock tile named "wine" (user). **Decision (user): build WITHOUT 0001** (option A) and re-test; if the
+    host alone gives icon/tile, drop the patch + `SILO_LOADER_LINK_DIR` plumbing (keep `GameHostBundle`).
   - Installed as runtime `wine-cx-26.3.0-gst` (not default). **Next: the user tries it on a game** (DMC5 on the
     Steam bottle, like the add-on test). CI workflow updated but not run. Remaining checklist: `apple_gptk`,
     `CX_HOME`/cxcompatdb, build without patch 0001, cfgmgr32 patch.
