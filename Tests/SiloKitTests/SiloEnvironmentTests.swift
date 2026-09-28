@@ -26,7 +26,7 @@ struct SiloEnvironmentTests {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let prefix = URL(fileURLWithPath: "/p/220")
 
-        // A runtime WITHOUT lib64 (Silo's own self-compiled build) — no extras, matching upstream Wine.
+        // A runtime WITHOUT lib64 (a self-compiled build from before lib64) — no extras, matching upstream Wine.
         let plainWine = try tmp.write("plain/bin/wine", "#!/bin/sh")
         let plainEnv = Silo.wineEnvironment(prefix: prefix, wine: plainWine)
         #expect(plainEnv["CX_APPLEGPTK_LIBD3DSHARED_PATH"] == nil)
@@ -44,6 +44,21 @@ struct SiloEnvironmentTests {
             == cxRoot.appendingPathComponent("lib64/apple_gptk/external/libd3dshared.dylib").path)
         #expect(cxEnv["GST_PLUGIN_SYSTEM_PATH"] == cxRoot.appendingPathComponent("lib64/gstreamer-1.0").path)
         #expect(cxEnv["GST_REGISTRY"] == prefix.appendingPathComponent("gstreamer-1.0-registry.x86_64.bin").path)
+    }
+
+    @Test("A self-compiled runtime in the lib64 layout gets the GStreamer vars but not the apple_gptk one")
+    func selfCompiledLib64() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let prefix = URL(fileURLWithPath: "/p/220")
+        // What Scripts/bundle-wine-dylibs.sh produces: lib64 + its plugin dir, no apple_gptk (GPTK is
+        // overlaid into lib/wine from the user's own .dmg instead).
+        let wine = try tmp.write("own/bin/wine", "#!/bin/sh")
+        try tmp.makeDir("own/lib64/gstreamer-1.0")
+        let root = wine.deletingLastPathComponent().deletingLastPathComponent()
+        let env = Silo.wineEnvironment(prefix: prefix, wine: wine)
+        #expect(env["GST_PLUGIN_SYSTEM_PATH"] == root.appendingPathComponent("lib64/gstreamer-1.0").path)
+        #expect(env["GST_REGISTRY"] == prefix.appendingPathComponent("gstreamer-1.0-registry.x86_64.bin").path)
+        #expect(env["CX_APPLEGPTK_LIBD3DSHARED_PATH"] == nil)
     }
 
     @Test("enforceMsync sets WINEMSYNC and strips a user's WINEESYNC (the co-residency rule)")

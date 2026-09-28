@@ -69,7 +69,11 @@ export PATH="$($ARCH "$BREW" --prefix bison)/bin:$PATH"
 # of the invoking shell's environment. SDL_PREFIX is prepended so --with-sdl below finds its headers.
 BREW_PREFIX="$($ARCH "$BREW" --prefix)"
 export PKG_CONFIG_PATH="$SDL_PREFIX/lib/pkgconfig:$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig:$($ARCH "$BREW" --prefix gnutls)/lib/pkgconfig"
-export LDFLAGS="-L$SDL_PREFIX/lib -L$BREW_PREFIX/lib"
+# The rpath is CrossOver's own (measured on its winegstreamer.so / ntdll.so): from lib/wine/x86_64-unix it
+# reaches <root>/lib64, where bundle-wine-dylibs.sh puts every third-party dylib with an @rpath install name
+# — link-time references AND Wine's leaf-name dlopen()s (freetype, gnutls, SDL) resolve through it, with no
+# DYLD_* variable. headerpad leaves room for the bundler's install_name_tool rewrites.
+export LDFLAGS="-L$SDL_PREFIX/lib -L$BREW_PREFIX/lib -Wl,-rpath,@loader_path/../../../lib64 -Wl,-headerpad_max_install_names"
 export CPPFLAGS="-I$SDL_PREFIX/include -I$BREW_PREFIX/include"
 # CRITICAL: `arch -x86_64` only picks which slice of the (universal) clang/gcc DRIVER BINARY runs under
 # Rosetta — it does NOT tell clang which architecture to GENERATE CODE FOR. Without an explicit `-arch
@@ -97,8 +101,10 @@ $ARCH env CFLAGS="-fvisibility=default -O2" CROSSCFLAGS="-fvisibility=default -O
   "$WORK/$WINE_SRC/configure" --prefix="$WORK/install" \
   --enable-archs=i386,x86_64 --disable-tests --without-x \
   --with-freetype --with-gstreamer --with-gnutls --with-sdl
-$ARCH make -j"$(sysctl -n hw.ncpu)"
-$ARCH make install
+# /usr/bin/make explicitly: it's universal, while Xcode 27's own make (first on PATH in an Xcode-launched
+# shell) is arm64-only, so `arch -x86_64 make` failed with "Bad CPU type in executable".
+$ARCH /usr/bin/make -j"$(sysctl -n hw.ncpu)"
+$ARCH /usr/bin/make install
 
 echo "==> Build the steamwebhelper wrapper (forces CEF --in-process-gpu + software GL so Steam's UI paints)"
 mkdir -p "$WORK/install/share/silo"
@@ -108,9 +114,9 @@ WRAPPER="$WORK/install/share/silo/steamwebhelper-wrapper.exe"
 # The wrapper is load-bearing — fail the build if its CEF flags are wrong (shared check, also run in CI).
 python3 "$ROOT/Scripts/check-webhelper-wrapper.py" "$WRAPPER"
 
-echo "==> Bundle dependency dylibs (self-contained runtime)"
-# SILO_SDL_DYLIB tells the bundler to ship our pinned libSDL2 (winebus dlopens it by leaf name from
-# DYLD_FALLBACK_LIBRARY_PATH=<wine>/lib/silo-bundled).
+echo "==> Bundle dependency dylibs + GStreamer into lib64 (self-contained, CrossOver's layout)"
+# SILO_SDL_DYLIB tells the bundler to ship our pinned libSDL2 (winebus dlopens it by leaf name, resolved
+# through the lib64 rpath above).
 SILO_SDL_DYLIB="$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" "$ROOT/Scripts/bundle-wine-dylibs.sh" "$WORK/install"
 
 # Sign every Mach-O in the tree (wine64, wineserver, winemac.so, and all other PE/Unix-side .so's

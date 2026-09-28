@@ -3,6 +3,40 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🎬 From-source Wine parity, step 1: GStreamer integrated, in CrossOver's own layout (2026-09-28).**
+  Measured the reference first: CrossOver 26.3 keeps EVERY third-party dylib in `<root>/lib64` with an
+  `@rpath/<leaf>` install name, 257 plugins in `lib64/gstreamer-1.0`, and gives Wine's unix modules the rpath
+  `@loader_path/../../../lib64` (added by their LDFLAGS — not in the FOSS source); no `DYLD_*`, no
+  `gst-plugin-scanner`. Its GStreamer is **1.28.7 / glib 2.82, universal, a Homebrew-like plugin set** — NOT
+  the 1.24.4 / 2.78 whose sources sit in the FOSS tarball (which also carries glib, freetype, gnutls, moltenvk).
+  - **Done:** `bundle-wine-dylibs.sh` → `bundle_wine_dylibs.py` reproduces that layout from the x86_64 Homebrew
+    the build links against: closure of Wine's refs + the leaf-name `dlopen` libs (freetype, gnutls, MoltenVK,
+    pinned SDL) + GStreamer plugins and their closure → `lib64/`, every install name/reference rewritten to
+    `@rpath`, one rpath to lib64 per file; fails if anything still resolves out of tree. Plugins denied: gtk,
+    gtk4, python, validatetracer (Wine scans in-process — `--gst-disable-registry-fork` in winegstreamer — so
+    each would load into the game; CrossOver ships python and logs `pygobject initialization failed`). No
+    scanner shipped (never used, same reason). Idempotent; leaves a lib64 it didn't make alone.
+    `build-wine.sh`/`build-wine.yml` link CrossOver's rpath + headerpad. `lib/silo-bundled` is gone from new
+    builds; `siloDyldFallback` still names it (older runtimes) and is inert otherwise.
+  - **Measured (local build of 26.3.0, 138 libs + 270 plugins, lib64 267 MB, tarball 152 MB):** leaf-name
+    `dlopen` resolves through the caller's LC_RPATH on macOS 27 (standalone probe). `winegstreamer.so` has
+    exactly CrossOver's references and rpaths. A mingw Media Foundation probe (`IMFSourceReader`, H.264+AAC
+    MP4 → NV12/PCM) decodes **90 video + 131 audio samples — identical to CrossOver's runtime**, same single
+    `gst_video_info_from_caps` CRITICAL on both (winegstreamer's, not ours); **0 dylibs loaded from Homebrew**
+    (`DYLD_PRINT_LIBRARIES`), and the same result with `/usr/local` + `/opt/homebrew` made unreadable by
+    `sandbox-exec`; FreeType loads there too; `wineboot` clean.
+  - **Installed locally as runtime `wine-cx-26.3.0-gst`** (not default). **Next: the user tries it in Silo on a
+    game that plays video through Media Foundation** — the acceptance bar; not yet done. Then the rest of the
+    checklist below (`apple_gptk`, `CX_HOME`/cxcompatdb, build without 0001, cfgmgr32 patch).
+  - **Build fixes found on the way:** `bootstrap-x86-brew.sh` sets `HOMEBREW_NO_INSTALL_UPGRADE=1` — x86_64
+    Homebrew is Tier 3 on macOS 27 and gstreamer after 1.28.5 has **no x86_64 bottle**, so the upgrade attempt
+    failed the whole install. `build-wine.sh` calls `/usr/bin/make` (universal): Xcode 27's make is arm64-only
+    and first on PATH in an Xcode-launched shell → `arch -x86_64 make` = "Bad CPU type".
+  - **⚠️ Risk (not acted on):** the build rests on x86_64 Homebrew, which is losing bottles now, and macOS 27
+    already warns that Intel-only executables (seen on `/usr/local/bin/brew`, 2026-09-28) won't open in macOS
+    28. CI's fresh x86_64 brew may hit the missing-bottle gap (unverified). The exit route is in the FOSS
+    tarball itself: build glib/gstreamer/freetype/gnutls from its own sources. Wine itself runs under Rosetta
+    like CrossOver's — expected to fall under Apple's retained games subset; unmeasured until macOS 28.
 - **✅ Side effect of the host: macOS treats Silo's games as games (user, 2026-09-26).** On TEKKEN 8 under
   the host, Command-Esc opens macOS 27's game overlay — brightness, volume, the DualSense listed, and
   "Modalità di gioco: Sì". The cause is the host bundle's `LSApplicationCategoryType =

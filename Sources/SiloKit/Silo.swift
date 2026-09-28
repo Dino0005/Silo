@@ -158,9 +158,10 @@ public enum Silo {
 
         // CrossOver-derived runtimes ship a SEPARATE apple_gptk/GStreamer tree under <root>/lib64 — its
         // own wine script (CrossOver's Perl "bin/wine") sets these two before every launch; distinct from
-        // Silo's own GPTK overlay in <root>/lib/wine, and from the dylib bundle in <root>/lib/silo-bundled.
-        // Conditioned on the paths actually existing: a harmless no-op for Silo's own self-compiled
-        // runtimes, which have no lib64 directory at all.
+        // Silo's own GPTK overlay in <root>/lib/wine. Silo's self-compiled runtime reproduces the same
+        // lib64 layout (Scripts/bundle-wine-dylibs.sh) with GStreamer but no apple_gptk, so it gets the
+        // GStreamer pair and not the GPTK one. Conditioned on the paths actually existing: older
+        // self-compiled runtimes have no lib64 at all.
         let libd3dshared = root.appendingPathComponent("lib64/apple_gptk/external/libd3dshared.dylib")
         if FileManager.default.fileExists(atPath: libd3dshared.path) {
             env["CX_APPLEGPTK_LIBD3DSHARED_PATH"] = libd3dshared.path
@@ -199,8 +200,10 @@ public enum Silo {
 }
 
 extension URL {
-    /// For a wine binary at `<root>/bin/wine[64]`, the bundled-dylib dir `<root>/lib/silo-bundled`
-    /// (populated by Scripts/bundle-wine-dylibs.sh so the runtime carries its own freetype/gstreamer/…).
+    /// For a wine binary at `<root>/bin/wine[64]`, the bundled-dylib dir `<root>/lib/silo-bundled` —
+    /// where self-compiled runtimes built before 2026-09-28 carry their freetype/gnutls/SDL. Newer ones
+    /// (and CrossOver-imported ones) keep them in `<root>/lib64`, found through rpaths with no DYLD
+    /// variable, so this dir simply doesn't exist there and the fallback entry is inert.
     public var siloBundledDylibDir: URL {
         WineRuntimeLayout(wineBinary: self).bundledDylibDir
     }

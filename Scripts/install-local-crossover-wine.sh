@@ -2,8 +2,8 @@
 # Install CrossOver's own Wine (from an installed CrossOver.app) into Silo's Runtimes dir for LOCAL
 # testing — automates what we did by hand: copy CrossOver's internal Wine tree, symlink wine64 to its
 # real Mach-O loader (wineloader — CrossOver's own top-level "wine" is a Perl wrapper script, not a
-# binary, so `bin/wine64` must point at `wineloader` for Silo's runtime discovery / dylib bundling to
-# work), then bundle its dependency dylibs exactly like install-local-wine.sh does.
+# binary, so `bin/wine64` must point at `wineloader` for Silo's runtime discovery to work). Its dylibs
+# need no bundling: CrossOver's lib64 already carries them.
 #
 # Usage: Scripts/install-local-crossover-wine.sh [/path/to/CrossOver.app]
 #   Defaults to /Applications/CrossOver.app. The runtime is named wine-crossover-<version>, where
@@ -68,8 +68,8 @@ rm -f "$DEST/bin/wine64"
 ln -s wineloader "$DEST/bin/wine64"
 echo "==> Linked bin/wine64 -> bin/wineloader (the real Mach-O loader, not CrossOver's Perl wine script)"
 
-# Bundle its dependency dylibs (freetype/gstreamer/…) so it's self-contained, matching install-local-wine.sh.
-"$(dirname "$0")/bundle-wine-dylibs.sh" "$DEST" || echo "(warning: dylib bundling failed — wine may need Homebrew deps)"
+# No dylib bundling: CrossOver's tree is already self-contained (every third-party dylib in its own lib64,
+# referenced by @rpath) — the layout bundle-wine-dylibs.sh reproduces for Silo's own build.
 
 echo "Installed CrossOver's Wine '$NAME' for local testing:"
 echo "  $DEST"
