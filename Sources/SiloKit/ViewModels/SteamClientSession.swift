@@ -86,6 +86,18 @@ public final class SteamClientSession {
         return launchError == nil
     }
 
+    /// `ensureRunning`, then wait for Steam to be SIGNED IN — what a game's `SteamAPI_Init` needs. The one
+    /// to call before launching a game: `ensureRunning` alone returns at once when the client process is
+    /// already up, which after a fresh "Open Steam" can still be minutes from sign-in (or sitting on the
+    /// login screen). Returns immediately when already signed in; otherwise the same readiness wait (and
+    /// failsafe — it fails open) as a cold start. Returns whether the client is running.
+    @discardableResult
+    func ensureReadyForGame() async -> Bool {
+        guard await ensureRunning() else { return false }
+        await awaitSteamReady()
+        return true
+    }
+
     /// Ask this bottle's Steam to quit, and wait (bounded) for the prefix to go quiet.
     ///
     /// Returns true once nothing is left running in the prefix. False means the client was asked to quit
@@ -259,8 +271,9 @@ public final class SteamClientSession {
         await awaitSteamReady()
     }
 
-    /// Wait until the co-resident Steam client is ready for a game's Steamworks — i.e. it has registered a
-    /// live `ActiveProcess` pid in the prefix's `user.reg` (the exact thing `SteamAPI_Init` reads). Resolves
+    /// Wait until the co-resident Steam client is ready for a game's Steamworks — i.e. the prefix's
+    /// `user.reg` shows a live `ActiveProcess` pid AND a signed-in `ActiveUser` (`SteamReadiness.isSignedIn`;
+    /// the pid alone arrives before sign-in, see there). Resolves
     /// the INSTANT that happens via a kqueue watch on `user.reg`: no fixed wait, no polling. The
     /// `readinessTimeout` is purely a failsafe so a missing signal can't hang a launch — in normal operation
     /// the event resolves first. Returns immediately when readiness is already present or disabled (tests).
@@ -269,18 +282,18 @@ public final class SteamClientSession {
     private func awaitSteamReady() async -> Bool {
         guard readinessTimeout > 0 else { return true }
         let prefix = bottle.prefix
-        if SteamReadiness.isReady(prefix: prefix) { return true }
+        if SteamReadiness.isSignedIn(prefix: prefix) { return true }
         let timeout = readinessTimeout
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             let gate = ReadyGate(continuation)
-            // Event-driven: resolve the moment Steam writes its ActiveProcess pid to user.reg.
+            // Event-driven: resolve the moment user.reg shows Steam signed in (pid + ActiveUser).
             gate.watch = FileWatch(url: SteamReadiness.userReg(prefix: prefix)) {
-                if SteamReadiness.isReady(prefix: prefix) { Task { @MainActor in gate.finish() } }
+                if SteamReadiness.isSignedIn(prefix: prefix) { Task { @MainActor in gate.finish() } }
             }
             // Arm-then-check: kqueue is edge-triggered (it fires only on writes AFTER the watch is armed),
             // so a pid written in the window between the pre-check above and arming here would be missed
             // and stall the launch on the failsafe. Re-checking once after arming closes that gap.
-            if SteamReadiness.isReady(prefix: prefix) { gate.finish(); return }
+            if SteamReadiness.isSignedIn(prefix: prefix) { gate.finish(); return }
             // Failsafe only — guards against a never-arriving signal (or Steam dying mid-boot). It counts
             // IDLE time, not elapsed time: every time Steam touches its own folder the countdown restarts,
             // so a client that's busy updating is waited out instead of being declared hung. Without this
@@ -298,14 +311,14 @@ public final class SteamClientSession {
                     // watch holding the old vnode never fires. Measured: pid present at 00:06:35, launch
                     // at 00:07:10; the signal was there and only the failsafe ended the wait. The bug
                     // predates the idle countdown, which merely stopped hiding it.
-                    if SteamReadiness.isReady(prefix: prefix) { gate.finish(); return }
+                    if SteamReadiness.isSignedIn(prefix: prefix) { gate.finish(); return }
                     let now = SteamReadiness.lastActivity(prefix: prefix)
                     if now != seen { seen = now; idle = 0 } else { idle += tick }
                 }
                 gate.finish()
             }
         }
-        return SteamReadiness.isReady(prefix: prefix)   // false ⇒ the failsafe fired, Steam never registered
+        return SteamReadiness.isSignedIn(prefix: prefix)   // false ⇒ the failsafe fired, never signed in
     }
 
     /// Launch the bottle's Steam client (re-applying the steamwebhelper wrapper first); returns the PID,

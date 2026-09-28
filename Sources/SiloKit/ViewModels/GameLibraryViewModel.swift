@@ -434,7 +434,7 @@ public final class GameLibraryViewModel {
             }.value
             // Steamworks IPC is prefix-scoped: the client must be up + logged in first. If it can't start,
             // surface why rather than launching against a dead Steam (which fails SteamAPI_Init silently).
-            guard await session.ensureRunning() else {
+            guard await session.ensureReadyForGame() else {
                 let why = session.launchError.map { ": \($0)" } ?? ""
                 setStatus(String(localized: "\(game.name) needs Steam, which couldn't start\(why)."))
                 return

@@ -3,6 +3,23 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🚦 Steam readiness now waits for SIGN-IN, not just the client process (2026-09-28).** Symptom (after the
+  `Silo-backup` restore): Steam slow to open, DMC5's icon appeared in the Dock and vanished, Steam opened.
+  Steam's own logs: Silo launched DMC5 at 20:17:12; Steam finished starting at 20:17:19 ("System startup time");
+  DMC5 found no signed-in client, sent `steam://run/601150` and quit; Steam's relaunch (no Silo env) died at
+  20:17:30. **Measured cold start (20:31–20:32, sampler on user.reg every 0.25 s):** `steam.exe` 20:31:51, logon
+  20:31:59, `ActiveProcess` key last-write 20:32:00, "System startup time" 20:32:01 — but `user.reg` on disk
+  changed only at **20:32:19**, `pid` and `ActiveUser` together: the wineserver flushes the registry from
+  memory every ~30 s. Steam writes `pid` at client start and `ActiveUser` at sign-in (the key stamp matched the
+  startup-complete line to the second in both runs), so a flush between the two shows a pid with ActiveUser 0 —
+  the old pid-only gate passed there. Clean exit zeroes both.
+  - **Fix:** `SteamReadiness.isSignedIn` / `hasSignedInUser` (pid AND ActiveUser ≠ 0); `awaitSteamReady` uses it;
+    new `SteamClientSession.ensureReadyForGame()` (= `ensureRunning` + that wait) is what the game launch calls, so
+    "Steam already up but not signed in yet" waits too. `isReady` (pid only) still means "client running" for
+    `isRunning`/Open Steam/shutdown — requiring ActiveUser there would relaunch a Steam sitting on its login screen.
+    Failsafe unchanged (idle countdown, fails open). Cost: none when the flush lands after sign-in (both values
+    arrive together); otherwise waits for the next flush (≤ ~30 s) instead of a failed launch. +8 tests.
+  - **Not yet verified on device** with the rebuilt app.
 - **🎞️ DMC5 / RE2 / RE3 movie crash: `gst-libav` + `matroska` built for CrossOver's GStreamer 1.24.4 — measured
   working on the game's own movies (2026-09-28; user's in-game check pending).**
   - **Why the old fix replaced everything.** The imported runtime on this box (`wine-crossover-26.3`) is NOT stock:

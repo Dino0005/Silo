@@ -1,7 +1,7 @@
 import Foundation
 
-/// Tells whether the bottle's Steam client is ready for a co-resident game's `SteamAPI_Init` — replacing
-/// the old fixed cold-start sleep with the actual signal.
+/// Tells whether the bottle's Steam client is up (`isReady`) and ready for a co-resident game's
+/// `SteamAPI_Init` (`isSignedIn`) — replacing the old fixed cold-start sleep with the actual signal.
 ///
 /// When the Windows Steam client comes up it advertises itself in the registry under
 /// `[Software\Valve\Steam\ActiveProcess]` with a non-zero `pid` (plus the client-DLL paths) — and that is
@@ -47,15 +47,43 @@ enum SteamReadiness {
             .max()
     }
 
-    /// Whether `prefix`'s Steam has registered a live `ActiveProcess` pid.
+    /// Whether `prefix`'s Steam has registered a live `ActiveProcess` pid — i.e. the client PROCESS is up.
+    /// The right question for "is Steam running?"; NOT for "can a game start?" — see `isSignedIn`.
     static func isReady(prefix: URL) -> Bool {
         guard let text = try? String(contentsOf: userReg(prefix: prefix), encoding: .utf8) else { return false }
         return hasActivePid(text)
     }
 
+    /// Whether `prefix`'s Steam is ready for a game: a live pid AND a signed-in `ActiveUser`.
+    ///
+    /// **Why the pid alone isn't enough (measured 2026-09-28).** Steam writes `pid` the moment the client
+    /// starts and `ActiveUser` only once sign-in completes — the key's last-write stamp matched Steam's own
+    /// "System startup time" line to the second, twice (20:17:19 and 20:32:00). And Silo reads `user.reg`,
+    /// which the wineserver flushes from memory only every ~30 s (the values landed on disk 19 s after the
+    /// write). When a flush falls between the two writes, the file shows a pid with `ActiveUser` still 0:
+    /// the pid-only gate passed, Devil May Cry 5 started 7 s before Steam had finished, found no signed-in
+    /// client, asked Steam to relaunch it (`steam://run/601150`) and quit — and Steam's own relaunch, without
+    /// Silo's environment, died 4 s later. Requiring both changes nothing when the flush lands after sign-in
+    /// (both values arrive together); it only holds back exactly the launches that used to fail.
+    static func isSignedIn(prefix: URL) -> Bool {
+        guard let text = try? String(contentsOf: userReg(prefix: prefix), encoding: .utf8) else { return false }
+        return hasSignedInUser(text)
+    }
+
     /// Pure parse: does a Wine `user.reg` carry a non-zero `"pid"` under the `ActiveProcess` section?
     /// (Section detection is lenient about backslash escaping — `[Software\\Valve\\Steam\\ActiveProcess]`.)
     static func hasActivePid(_ userReg: String) -> Bool {
+        activeProcessValue("pid", in: userReg) != 0
+    }
+
+    /// Pure parse: a non-zero `"pid"` AND a non-zero `"ActiveUser"` under `ActiveProcess`.
+    static func hasSignedInUser(_ userReg: String) -> Bool {
+        activeProcessValue("pid", in: userReg) != 0 && activeProcessValue("ActiveUser", in: userReg) != 0
+    }
+
+    /// The `dword` value named `name` in the `ActiveProcess` section, or 0 when absent or unparsable.
+    private static func activeProcessValue(_ name: String, in userReg: String) -> UInt64 {
+        let key = "\"\(name)\"=dword:"
         var inActiveProcess = false
         for rawLine in userReg.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -63,12 +91,11 @@ enum SteamReadiness {
                 inActiveProcess = line.contains("ActiveProcess")
                 continue
             }
-            if inActiveProcess, line.hasPrefix("\"pid\"=dword:") {
-                let hex = line.dropFirst("\"pid\"=dword:".count)
-                return (UInt64(hex, radix: 16) ?? 0) != 0
+            if inActiveProcess, line.hasPrefix(key) {
+                return UInt64(line.dropFirst(key.count), radix: 16) ?? 0
             }
         }
-        return false
+        return 0
     }
 
     // MARK: - Stale pid after a force-quit

@@ -24,20 +24,25 @@ struct SteamClientSessionTests {
         return (session, paths, fake)
     }
 
-    /// Write the bottle's `user.reg` with `ActiveProcess` carrying `pid` — in place (truncate+write) so an
-    /// update fires the kqueue `.write` event, exactly as Wine's in-place registry save does.
-    private func setActivePid(_ paths: AppPaths, _ pid: UInt32) throws {
-        try Self.writeActivePid(paths, pid)
+    /// Write the bottle's `user.reg` with `ActiveProcess` carrying `pid` and `ActiveUser` — in place
+    /// (truncate+write) so an update fires the kqueue `.write` event, exactly as Wine's in-place registry
+    /// save does. `user` 0 = the client is up but not signed in yet.
+    private func setActivePid(_ paths: AppPaths, _ pid: UInt32, user: UInt32 = 0) throws {
+        try Self.writeActivePid(paths, pid, user: user)
     }
 
+    /// A signed-in account id, as the dev box's Steam wrote it.
+    nonisolated static let signedInUser: UInt32 = 0x6ff8a909
+
     /// Static so a fake-runner callback (a `@Sendable` closure) can play "Steam registering its pid".
-    nonisolated static func writeActivePid(_ paths: AppPaths, _ pid: UInt32) throws {
+    nonisolated static func writeActivePid(_ paths: AppPaths, _ pid: UInt32, user: UInt32 = 0) throws {
         let prefix = paths.steamBottle
         try FileManager.default.createDirectory(at: prefix, withIntermediateDirectories: true)
         let body = Data("""
         WINE REGISTRY Version 2
 
         [Software\\Valve\\Steam\\ActiveProcess]
+        "ActiveUser"=dword:\(String(user, radix: 16))
         "pid"=dword:\(String(pid, radix: 16))
         """.utf8)
         let url = prefix.appendingPathComponent("user.reg")
@@ -88,7 +93,7 @@ struct SteamClientSessionTests {
             guard inv.detached else { return }
             Task.detached {
                 try? await Task.sleep(for: .milliseconds(80))   // let the wait arm its watch
-                try? Self.writeActivePid(pidFile, 0x1234)       // flip to a live pid → the watch fires
+                try? Self.writeActivePid(pidFile, 0x1234, user: Self.signedInUser)   // signed in → the watch fires
             }
         }
 
@@ -116,8 +121,9 @@ struct SteamClientSessionTests {
         let flip = Task.detached {
             try? await Task.sleep(for: .seconds(0.4))
             let text = (try? String(contentsOf: userReg, encoding: .utf8)) ?? ""
-            let ready = text.replacingOccurrences(of: "\"pid\"=dword:0",
-                                                  with: "\"pid\"=dword:e0")
+            let ready = text
+                .replacingOccurrences(of: "\"pid\"=dword:0", with: "\"pid\"=dword:e0")
+                .replacingOccurrences(of: "\"ActiveUser\"=dword:0", with: "\"ActiveUser\"=dword:6ff8a909")
             let temp = userReg.deletingLastPathComponent().appendingPathComponent("user.reg.tmp")
             try? ready.write(to: temp, atomically: false, encoding: .utf8)
             _ = try? FileManager.default.replaceItemAt(userReg, withItemAt: temp)
@@ -135,6 +141,79 @@ struct SteamClientSessionTests {
         // CI runs the whole suite in parallel on a saturated machine, where this sleep-driven poll took
         // 3.1 s against a 3 s ceiling and failed a release over 0.1 s (`v0.6.2`, macos-26 runner).
         #expect(waited < .seconds(10))
+    }
+
+    @Test("cold start: a pid without ActiveUser does not end the wait — sign-in does")
+    func coldStartWaitsForSignIn() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (session, paths, fake) = makeWithRunner(tmp)
+        try setActivePid(paths, 0)
+        session.readinessTimeout = 10               // failsafe ceiling — must not be what ends this
+
+        // What was measured on 2026-09-28: the pid reaches user.reg first, sign-in (ActiveUser) later.
+        let pidFile = paths
+        fake.onRun = { inv in
+            guard inv.detached else { return }
+            Task.detached {
+                try? await Task.sleep(for: .milliseconds(80))
+                try? Self.writeActivePid(pidFile, 0xe0)                               // client up
+                try? await Task.sleep(for: .milliseconds(1200))
+                try? Self.writeActivePid(pidFile, 0xe0, user: Self.signedInUser)      // signed in
+            }
+        }
+
+        let clock = ContinuousClock()
+        let start = clock.now
+        let running = await session.ensureRunning()
+        let waited = clock.now - start
+
+        #expect(running)
+        #expect(waited >= .seconds(1))              // the pid alone did NOT release it (it lands at ~80 ms)
+        #expect(waited < .seconds(8))               // sign-in did, well before the failsafe
+    }
+
+    @Test("ensureReadyForGame waits for sign-in when Steam is already running but not signed in")
+    func readyForGameWaitsOnARunningClient() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (session, paths) = make(tmp)
+        try setActivePid(paths, 0xe0)               // client process up (e.g. just opened with Open Steam)…
+        let removeSocket = try makeWineServerSocket(for: paths.steamBottle)
+        defer { removeSocket() }
+        session.readinessTimeout = 10
+
+        // `ensureRunning` alone is satisfied by a live client — right for Open Steam, wrong for a game.
+        let clock = ContinuousClock()
+        var start = clock.now
+        #expect(await session.ensureRunning())
+        #expect(clock.now - start < .seconds(1))
+
+        let signIn = Task.detached {
+            try? await Task.sleep(for: .seconds(1))
+            try? Self.writeActivePid(paths, 0xe0, user: Self.signedInUser)
+        }
+        start = clock.now
+        let running = await session.ensureReadyForGame()
+        let waited = clock.now - start
+        signIn.cancel()
+
+        #expect(running)
+        #expect(waited >= .seconds(0.8))            // held until sign-in…
+        #expect(waited < .seconds(8))               // …and released by it, not by the failsafe
+    }
+
+    @Test("ensureReadyForGame returns at once when Steam is already signed in")
+    func readyForGameImmediateWhenSignedIn() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (session, paths) = make(tmp)
+        try setActivePid(paths, 0xe0, user: Self.signedInUser)
+        let removeSocket = try makeWineServerSocket(for: paths.steamBottle)
+        defer { removeSocket() }
+        session.readinessTimeout = 10
+
+        let clock = ContinuousClock()
+        let start = clock.now
+        #expect(await session.ensureReadyForGame())
+        #expect(clock.now - start < .seconds(6))    // far under the 10 s failsafe floor
     }
 
     @Test("the failsafe's countdown restarts while Steam is visibly working")
