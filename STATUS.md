@@ -27,8 +27,12 @@
   - **Measured on runtime `wine-crossover-26.3.0-libav`** (stock zip, imported like `CrossOverWineImporter` +
     quarantine removed, + add-on): the same probe decodes all DMC5 samples — 180/94/120 frames (= duration × 30)
     and 3000 frames of the 1080p movie in 17 s (~175 fps under Rosetta); GStreamer builds `asfdemux → avdec_vc1`;
-    same result with `/usr/local` + `/opt/homebrew` unreadable (`sandbox-exec`). **Next: the user plays DMC5 on that
-    runtime** (skill previews + History of DMC). Then step 2 — the from-source runtime switches to this 1.24.4
+    same result with `/usr/local` + `/opt/homebrew` unreadable (`sandbox-exec`).
+  - **✅ Confirmed in game by the user (2026-09-28):** DMC5 on `wine-crossover-26.3.0-libav` shows the skill
+    previews (previously a crash). Log `601150.log` shows that runtime's `bin/wine64` + `GST_PLUGIN_SYSTEM_PATH`;
+    the Steam bottle's GStreamer registry (19:52, first launch) lists `avdec_vc1` from its `libgstlibav.dylib`.
+    "History of DMC" not tried in game (its 1080p VC-1 file decodes in the probe above). The test ran with the
+    whole `Application Support/Silo` cloned to `Silo-backup` first, to be restored afterwards. Then step 2 — the from-source runtime switches to this 1.24.4
     stack with CrossOver's 17 plugins + libav + matroska, instead of Homebrew's 270 (below).
 - **🎬 From-source Wine parity, step 1: GStreamer integrated, in CrossOver's own layout (2026-09-28).**
   Measured the reference first: CrossOver 26.3 keeps EVERY third-party dylib in `<root>/lib64` with an
