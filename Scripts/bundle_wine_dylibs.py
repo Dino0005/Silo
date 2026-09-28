@@ -29,8 +29,18 @@ every shipped plugin is dlopen()ed into the game once.
 
 Idempotent. Refuses to touch a lib64/ it didn't create (a CrossOver-imported tree already has its own).
 
+GStreamer — two sources:
+  * SILO_GST_STACK set (what build-wine.sh / build-wine.yml do): CrossOver's own GStreamer 1.24.4 / glib 2.78
+    with CrossOver's 17 plugins + libav + matroska, built from the FOSS tarball by build-gst-libav.sh and
+    already relocated. It is copied into lib64 as is, and Wine's references into the GStreamer build prefix
+    are pointed at it (its RENAMES file maps any leaf it renamed). Wine must have been compiled against that
+    prefix: winegstreamer built against Homebrew's newer glib needs symbols 2.78 doesn't have
+    (g_once_init_enter_pointer — measured), so that combination is refused.
+  * unset (legacy): Homebrew's GStreamer and its plugins, minus DENIED_PLUGINS.
+
 Usage: bundle_wine_dylibs.py <wine-install-dir>
-Env:   SILO_SDL_DYLIB      — the pinned libSDL2 to ship (built by build-wine.sh / build-wine.yml)
+Env:   SILO_GST_STACK      — dist/gstreamer-<ver>/lib64 from Scripts/build-gst-libav.sh (see above)
+       SILO_SDL_DYLIB      — the pinned libSDL2 to ship (built by build-wine.sh / build-wine.yml)
        SILO_SIGN_IDENTITY  — codesign identity for modified files (default: ad-hoc "-")
 """
 import os
@@ -149,6 +159,27 @@ class Bundler:
         self.leaf_of = {}      # real source path -> canonical leaf in lib64
         self.source_of = {}    # canonical leaf -> real source path (collision check)
         self.denied = set()    # plugins skipped, for the summary
+        self.stack = os.environ.get("SILO_GST_STACK") or None
+        self.stack_leafs, self.stack_renames = set(), {}
+        if self.stack:
+            if not os.path.isdir(os.path.join(self.stack, "gstreamer-1.0")):
+                sys.exit(f"ERROR: SILO_GST_STACK={self.stack} is not a GStreamer stack (no gstreamer-1.0/)")
+            self.stack_leafs = {f for f in os.listdir(self.stack) if f.endswith(".dylib")}
+            renames = os.path.join(self.stack, "RENAMES")
+            if os.path.exists(renames):
+                for line in open(renames):
+                    if line.split():
+                        old, new = line.split()
+                        self.stack_renames[old] = new
+
+    def stack_leaf(self, ref):
+        """The stack file a reference means, or None. Only references that are NOT Homebrew's count: a
+        Homebrew library that happens to share a leaf with one of ours (GNU libintl.8.dylib vs our renamed
+        proxy-libintl) is a different library and stays Homebrew's."""
+        if not self.stack or ref.startswith(BREW_ROOTS) or not (ref.startswith("/") or ref.startswith("@rpath/")):
+            return None
+        leaf = self.stack_renames.get(os.path.basename(ref), os.path.basename(ref))
+        return leaf if leaf in self.stack_leafs else None
 
     def macho(self, path):
         real = os.path.realpath(path)
@@ -174,6 +205,12 @@ class Bundler:
         while queue:
             m = self.macho(queue.pop())
             for ref in m.refs:
+                if self.stack_leaf(ref) and not self.inside(os.path.realpath(ref) if ref.startswith("/") else ""):
+                    continue                      # provided by the GStreamer stack — not copied from anywhere
+                if self.stack and ref.startswith(BREW_ROOTS) and os.path.basename(ref) in self.stack_leafs \
+                        and os.path.basename(ref).startswith(("libgst", "libglib", "libgobject")):
+                    sys.exit(f"ERROR: {m.path} links Homebrew's {ref} but SILO_GST_STACK is set — Wine must be "
+                             "compiled against the stack's GStreamer (build-wine.sh puts it first on PKG_CONFIG_PATH)")
                 real = m.resolve(ref)
                 if real is None:
                     if ref.startswith(BREW_ROOTS):
@@ -199,6 +236,12 @@ class Bundler:
         if set_id:
             args += ["-id", "@rpath/" + os.path.basename(path)]
         for ref in m.refs:
+            leaf = self.stack_leaf(ref)
+            if leaf and not ref.startswith("@rpath/" + leaf):
+                args += ["-change", ref, "@rpath/" + leaf]
+                continue
+            if leaf:
+                continue
             real = m.resolve(ref)
             if real is None or not is_foreign(real) or self.inside(real):
                 continue
@@ -293,12 +336,12 @@ class Bundler:
             libs |= {real} | self.closure(real)
             aliases["libSDL2-2.0.0.dylib"] = real
 
-        gst = self.brew_prefix("gstreamer")
-        if not gst:
-            sys.exit(f"ERROR: Homebrew formula 'gstreamer' ({self.arch}) not found — install it first")
         plugins = {}
-        plugdir = os.path.join(gst, "lib", "gstreamer-1.0")
-        for name in sorted(os.listdir(plugdir)):
+        gst = None if self.stack else self.brew_prefix("gstreamer")
+        if not self.stack and not gst:
+            sys.exit(f"ERROR: Homebrew formula 'gstreamer' ({self.arch}) not found — install it first")
+        plugdir = os.path.join(gst, "lib", "gstreamer-1.0") if gst else None
+        for name in sorted(os.listdir(plugdir)) if plugdir else []:
             p = os.path.join(plugdir, name)
             if not name.endswith(".dylib") or not os.path.exists(p):
                 continue
@@ -319,6 +362,13 @@ class Bundler:
         shutil.rmtree(os.path.join(self.wd, "lib", "silo-bundled"), ignore_errors=True)
         os.makedirs(self.lib64)
 
+        if self.stack:
+            # The stack first, as built (already @rpath and signed). Its leafs are reserved: a Homebrew
+            # library claiming one would be a second copy under the same name.
+            shutil.copytree(self.stack, self.lib64, symlinks=True, dirs_exist_ok=True)
+            os.remove(os.path.join(self.lib64, "RENAMES")) if os.path.exists(os.path.join(self.lib64, "RENAMES")) else None
+            for leaf in self.stack_leafs:
+                self.source_of[leaf] = "the GStreamer stack"
         for real in sorted(libs):
             self.leaf_of[real] = self.canonical_leaf(real)
 
@@ -344,7 +394,8 @@ class Bundler:
         for f in wine_files:
             unix_module = os.sep + "lib" + os.sep + "wine" + os.sep in f
             m = self.macho(f)
-            needs = any(is_foreign(r) and not self.inside(r) for r in (m.resolve(x) for x in m.refs))
+            needs = any(is_foreign(r) and not self.inside(r) for r in (m.resolve(x) for x in m.refs)) \
+                or any(self.stack_leaf(x) for x in m.refs)
             if needs or unix_module:
                 if self.rewrite(f, f, self.rpath_to_lib64(f), False):
                     self.sign(f)
@@ -354,7 +405,12 @@ class Bundler:
 
         self.verify()
         size = run("du", "-sh", self.lib64).split()[0]
-        print(f"Bundled {len(libs)} libraries + {len(plugins)} GStreamer plugins into {self.lib64} ({size})")
+        if self.stack:
+            n = len([f for f in os.listdir(self.plugins) if f.endswith(".dylib")])
+            print(f"Bundled {len(libs)} libraries + the GStreamer stack ({len(self.stack_leafs)} libraries, "
+                  f"{n} plugins) into {self.lib64} ({size})")
+        else:
+            print(f"Bundled {len(libs)} libraries + {len(plugins)} GStreamer plugins into {self.lib64} ({size})")
         if self.denied:
             print(f"Skipped plugins: {', '.join(sorted(self.denied))}")
 

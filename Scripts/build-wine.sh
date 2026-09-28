@@ -23,7 +23,8 @@ BREW=/usr/local/bin/brew
 echo "==> Rosetta + x86_64 Homebrew dependencies"
 # NB: sdl2 is NOT installed from Homebrew — we build the pinned SDL_VERSION from source below (a generic
 # Homebrew libSDL2 aborted Wine off the main thread; the pinned CrossOver version does not). cmake builds it.
-"$ROOT/Scripts/bootstrap-x86-brew.sh" bison mingw-w64 freetype gnutls gstreamer molten-vk cmake
+# No Homebrew gstreamer: GStreamer is built from the CrossOver source below (build-gst-libav.sh).
+"$ROOT/Scripts/bootstrap-x86-brew.sh" bison mingw-w64 freetype gnutls molten-vk cmake pkgconf
 
 echo "==> Fetch CrossOver source $VER"
 mkdir -p "$WORK" && cd "$WORK"
@@ -42,6 +43,15 @@ for p in "$ROOT"/Scripts/patches/*.patch; do
   ( cd "$WINE_SRC" && patch -p1 --forward < "$p" ) \
     || { echo "ERROR: $(basename "$p") did not apply to CrossOver source $VER — rebase it"; exit 1; }
 done
+
+echo "==> Build CrossOver's GStreamer $(sed -n "s/^ *version *: *'\([0-9.]*\)'.*/\1/p" "$WORK/src/sources/gstreamer/meson.build" | head -1) from this source (+ libav + matroska)"
+# winegstreamer must compile against the SAME GStreamer/glib it will run on — CrossOver's (1.24.4 / 2.78,
+# from this very tarball). Built against Homebrew's newer glib it imports g_once_init_enter_pointer, which
+# 2.78 doesn't have (measured). build-gst-libav.sh builds that stack into .wine-build/gst/prefix (the
+# headers/pkg-config Wine's configure uses below) and packages it, relocated, for the bundler.
+"$ROOT/Scripts/build-gst-libav.sh"
+GST_PREFIX="$WORK/gst/prefix"
+GST_STACK="$(ls -d "$ROOT"/dist/gstreamer-*/lib64 | sort -V | tail -1)"
 
 echo "==> Build pinned SDL $SDL_VERSION (x86_64) — winebus's game-controller backend dlopens libSDL2"
 # Build the EXACT SDL CrossOver ships (versions.env) from libsdl-org source, x86_64 to match Wine. This
@@ -68,12 +78,14 @@ export PATH="$($ARCH "$BREW" --prefix bison)/bin:$PATH"
 # does not reliably survive the arch -x86_64 + env nesting below — makes the build reproducible regardless
 # of the invoking shell's environment. SDL_PREFIX is prepended so --with-sdl below finds its headers.
 BREW_PREFIX="$($ARCH "$BREW" --prefix)"
-export PKG_CONFIG_PATH="$SDL_PREFIX/lib/pkgconfig:$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig:$($ARCH "$BREW" --prefix gnutls)/lib/pkgconfig"
+# The GStreamer prefix FIRST, on both search paths: LDFLAGS precede pkg-config's -L on the link line, so
+# with /usr/local/lib ahead of it `-lglib-2.0` would bind Homebrew's glib instead of the stack's.
+export PKG_CONFIG_PATH="$GST_PREFIX/lib/pkgconfig:$SDL_PREFIX/lib/pkgconfig:$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig:$($ARCH "$BREW" --prefix gnutls)/lib/pkgconfig"
 # The rpath is CrossOver's own (measured on its winegstreamer.so / ntdll.so): from lib/wine/x86_64-unix it
 # reaches <root>/lib64, where bundle-wine-dylibs.sh puts every third-party dylib with an @rpath install name
 # — link-time references AND Wine's leaf-name dlopen()s (freetype, gnutls, SDL) resolve through it, with no
 # DYLD_* variable. headerpad leaves room for the bundler's install_name_tool rewrites.
-export LDFLAGS="-L$SDL_PREFIX/lib -L$BREW_PREFIX/lib -Wl,-rpath,@loader_path/../../../lib64 -Wl,-headerpad_max_install_names"
+export LDFLAGS="-L$GST_PREFIX/lib -L$SDL_PREFIX/lib -L$BREW_PREFIX/lib -Wl,-rpath,@loader_path/../../../lib64 -Wl,-headerpad_max_install_names"
 export CPPFLAGS="-I$SDL_PREFIX/include -I$BREW_PREFIX/include"
 # CRITICAL: `arch -x86_64` only picks which slice of the (universal) clang/gcc DRIVER BINARY runs under
 # Rosetta — it does NOT tell clang which architecture to GENERATE CODE FOR. Without an explicit `-arch
@@ -117,7 +129,8 @@ python3 "$ROOT/Scripts/check-webhelper-wrapper.py" "$WRAPPER"
 echo "==> Bundle dependency dylibs + GStreamer into lib64 (self-contained, CrossOver's layout)"
 # SILO_SDL_DYLIB tells the bundler to ship our pinned libSDL2 (winebus dlopens it by leaf name, resolved
 # through the lib64 rpath above).
-SILO_SDL_DYLIB="$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" "$ROOT/Scripts/bundle-wine-dylibs.sh" "$WORK/install"
+SILO_GST_STACK="$GST_STACK" SILO_SDL_DYLIB="$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" \
+  "$ROOT/Scripts/bundle-wine-dylibs.sh" "$WORK/install"
 
 # Sign every Mach-O in the tree (wine64, wineserver, winemac.so, and all other PE/Unix-side .so's
 # `make install` produced) with the SAME identity used for the bundled dylibs and the app itself.

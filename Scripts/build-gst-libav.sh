@@ -31,7 +31,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 set -a; . "$ROOT/versions.env"; set +a
 WORK="$ROOT/.wine-build/gst"
-SRC="$ROOT/.wine-build/src/sources"
+SRC="${SILO_CX_SOURCES:-$ROOT/.wine-build/src/sources}"   # CI extracts the tarball elsewhere
 PREFIX="$WORK/prefix"
 JOBS="$(sysctl -n hw.ncpu)"
 BISON="$(arch -x86_64 /usr/local/bin/brew --prefix bison 2>/dev/null)/bin"
@@ -227,14 +227,27 @@ def closure(roots):
                 queue.append(real)
     return need
 
-def install(src, dest, rpath):
+# glib's proxy-libintl exports g_libintl_* — NOT the GNU gettext libintl_* symbols that Homebrew's gnutls,
+# libidn2, … import from THEIR libintl.8.dylib. Both have to live in one lib64, so ours gets its own leaf
+# (measured 2026-09-28: the two symbol sets don't overlap, so they coexist in one process).
+RENAMES = {"libintl.8.dylib": "libproxy-intl.8.dylib"}
+
+def leaf_for(name):
+    return RENAMES.get(name, name)
+
+def install(src, dest, rpath, renames=False):
+    if renames:
+        dest = os.path.join(os.path.dirname(dest), leaf_for(os.path.basename(dest)))
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     subprocess.run(["cp", "-L", src, dest], check=True)
     os.chmod(dest, 0o755)
     args = ["-id", "@rpath/" + os.path.basename(dest)]
     for r in refs(dest):
-        if r.startswith(prefix + "/"):              # meson's absolute install names → @rpath
-            args += ["-change", r, "@rpath/" + os.path.basename(r)]
+        leaf = os.path.basename(r)
+        if r.startswith(prefix + "/") or (renames and r.startswith("@rpath/") and leaf in RENAMES):
+            new = "@rpath/" + (leaf_for(leaf) if renames else leaf)   # meson's absolute install names → @rpath
+            if new != r:
+                args += ["-change", r, new]
     for rp in rpaths(dest):
         if rp != rpath:
             args += ["-delete_rpath", rp]
@@ -247,7 +260,7 @@ def install(src, dest, rpath):
         if not r.startswith(("@rpath/", "/usr/lib/", "/System/")):
             sys.exit(f"ERROR: {dest} still references {r}")
 
-def package(out, plugins, extra_roots, keep):
+def package(out, plugins, extra_roots, keep, renames=False):
     missing = [p for p in plugins if not os.path.exists(os.path.join(plugdir, p))]
     if missing:
         sys.exit(f"ERROR: plugins not built: {', '.join(missing)}")
@@ -256,15 +269,18 @@ def package(out, plugins, extra_roots, keep):
     libs.update({l: os.path.realpath(os.path.join(prefix, "lib", l)) for l in extra_roots})
     libs = {leaf: real for leaf, real in libs.items() if keep(leaf)}
     for p in plugins:
-        install(os.path.join(plugdir, p), os.path.join(out, "gstreamer-1.0", p), "@loader_path/..")
+        install(os.path.join(plugdir, p), os.path.join(out, "gstreamer-1.0", p), "@loader_path/..", renames)
     for leaf, real in sorted(libs.items()):
-        install(real, os.path.join(out, leaf), "@loader_path")
+        install(real, os.path.join(out, leaf), "@loader_path", renames)
+    if renames:   # a renamed leaf must be referenced by its new name only
+        with open(os.path.join(out, "RENAMES"), "w") as fh:
+            fh.writelines(f"{a} {b}\n" for a, b in RENAMES.items() if a in libs)
     return len(plugins), len(libs)
 
 ffmpeg = lambda leaf: leaf.startswith(("libav", "libsw", "libpostproc"))
 n = package(addon, ADDON_PLUGINS, [], ffmpeg)
 print(f"    add-on: {n[0]} plugins + {n[1]} FFmpeg libraries")
-n = package(stack, CX_PLUGINS + ADDON_PLUGINS, WINEGST_LIBS, lambda leaf: True)
+n = package(stack, CX_PLUGINS + ADDON_PLUGINS, WINEGST_LIBS, lambda leaf: True, renames=True)
 print(f"    stack:  {n[0]} plugins + {n[1]} libraries")
 PY
 echo "$GST_VERSION" > "$ADDON/GSTREAMER_VERSION"

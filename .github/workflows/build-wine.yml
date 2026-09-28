@@ -84,9 +84,10 @@ jobs:
           # Install the build deps. `|| true` + the explicit assert below remain a backstop for any other
           # transient keg-link conflict: we reference every formula by `brew --prefix` (its Cellar path),
           # never the linked name, so a stray link failure is harmless as long as the formula is installed.
-          $ARCH_PREFIX "$BREW" install bison mingw-w64 freetype gnutls gstreamer molten-vk cmake ccache pkgconf || true
+          # No Homebrew gstreamer: CrossOver's own GStreamer is built from the source tarball (step below).
+          $ARCH_PREFIX "$BREW" install bison mingw-w64 freetype gnutls molten-vk cmake ccache pkgconf || true
           missing=""
-          for f in bison mingw-w64 freetype gnutls gstreamer cmake ccache pkgconf; do
+          for f in bison mingw-w64 freetype gnutls cmake ccache pkgconf; do
             $ARCH_PREFIX "$BREW" --prefix "$f" >/dev/null 2>&1 || missing="$missing $f"
           done
           if [ -n "$missing" ]; then echo "::error::required brew formulae failed to install:$missing"; exit 1; fi
@@ -119,6 +120,14 @@ jobs:
             }
           done
 
+      - name: Build CrossOver's GStreamer (1.24.4 + libav + matroska) from the source tarball
+        run: |
+          set -eo pipefail
+          # Same as Scripts/build-wine.sh: winegstreamer must compile against the GStreamer/glib it runs on.
+          SILO_CX_SOURCES="$GITHUB_WORKSPACE/$(dirname "$WINE_SRC")" ./Scripts/build-gst-libav.sh
+          echo "GST_PREFIX=$GITHUB_WORKSPACE/.wine-build/gst/prefix" >> "$GITHUB_ENV"
+          echo "GST_STACK=$(ls -d "$GITHUB_WORKSPACE"/dist/gstreamer-*/lib64 | sort -V | tail -1)" >> "$GITHUB_ENV"
+
       - name: Build pinned SDL (winebus game-controller backend)
         run: |
           set -eo pipefail
@@ -143,11 +152,12 @@ jobs:
           set -eo pipefail
           BREW_PREFIX="$($ARCH_PREFIX "$BREW" --prefix)"
           export PATH="$($ARCH_PREFIX "$BREW" --prefix ccache)/libexec:$($ARCH_PREFIX "$BREW" --prefix bison)/bin:$($ARCH_PREFIX "$BREW" --prefix pkgconf)/bin:$PATH"
-          export PKG_CONFIG_PATH="$SDL_PREFIX/lib/pkgconfig:$($ARCH_PREFIX "$BREW" --prefix gnutls)/lib/pkgconfig:$($ARCH_PREFIX "$BREW" --prefix freetype)/lib/pkgconfig:$($ARCH_PREFIX "$BREW" --prefix gstreamer)/lib/pkgconfig:$BREW_PREFIX/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          # The GStreamer prefix FIRST (see Scripts/build-wine.sh): LDFLAGS precede pkg-config's -L.
+          export PKG_CONFIG_PATH="$GST_PREFIX/lib/pkgconfig:$SDL_PREFIX/lib/pkgconfig:$($ARCH_PREFIX "$BREW" --prefix gnutls)/lib/pkgconfig:$($ARCH_PREFIX "$BREW" --prefix freetype)/lib/pkgconfig:$BREW_PREFIX/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
           export CPPFLAGS="-I$SDL_PREFIX/include -I$($ARCH_PREFIX "$BREW" --prefix gnutls)/include -I$($ARCH_PREFIX "$BREW" --prefix freetype)/include ${CPPFLAGS:-}"
           # The lib64 rpath is CrossOver's own (see Scripts/build-wine.sh): bundle-wine-dylibs.sh puts every
           # third-party dylib there with an @rpath install name; headerpad leaves room for its rewrites.
-          export LDFLAGS="-L$SDL_PREFIX/lib -L$($ARCH_PREFIX "$BREW" --prefix gnutls)/lib -L$($ARCH_PREFIX "$BREW" --prefix freetype)/lib -L$BREW_PREFIX/lib -Wl,-rpath,@loader_path/../../../lib64 -Wl,-headerpad_max_install_names ${LDFLAGS:-}"
+          export LDFLAGS="-L$GST_PREFIX/lib -L$SDL_PREFIX/lib -L$($ARCH_PREFIX "$BREW" --prefix gnutls)/lib -L$($ARCH_PREFIX "$BREW" --prefix freetype)/lib -L$BREW_PREFIX/lib -Wl,-rpath,@loader_path/../../../lib64 -Wl,-headerpad_max_install_names ${LDFLAGS:-}"
           export CC="clang -arch x86_64"
           export CXX="clang++ -arch x86_64"
           pkg-config --modversion gnutls
@@ -185,7 +195,7 @@ jobs:
 
       - name: Bundle dependency dylibs + GStreamer into lib64 (self-contained, CrossOver's layout)
         # SILO_SDL_DYLIB ships our pinned libSDL2 (winebus dlopens it by leaf name, resolved via the lib64 rpath).
-        run: SILO_SDL_DYLIB="$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" ./Scripts/bundle-wine-dylibs.sh "$GITHUB_WORKSPACE/wine-install"
+        run: SILO_GST_STACK="$GST_STACK" SILO_SDL_DYLIB="$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" ./Scripts/bundle-wine-dylibs.sh "$GITHUB_WORKSPACE/wine-install"
 
       - name: Package wine.tar.xz
         run: |
