@@ -3,12 +3,41 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🎞️ DMC5 / RE2 / RE3 movie crash: `gst-libav` + `matroska` built for CrossOver's GStreamer 1.24.4 — measured
+  working on the game's own movies (2026-09-28; user's in-game check pending).**
+  - **Why the old fix replaced everything.** The imported runtime on this box (`wine-crossover-26.3`) is NOT stock:
+    before importing, the user ran their `cx-mf-fix` app (`GSPatchProcessor`, github.com/Dino0005/cx-mf-fix), which
+    overlays a whole GStreamer **1.28.6** stack onto CrossOver's `lib64` — that fixed Devil May Cry 5 crashing on
+    the skill previews (customisation menu) and on "History of DMC". Stock CrossOver 26.3.0 (measured from
+    `~/Downloads/crossover-26.3.0.zip`) ships **GStreamer 1.24.4 / glib 2.78 — exactly the FOSS tarball's sources**,
+    x86_64 only, **17 plugins**, no FFmpeg; H.264/AAC go through `applemedia` (VideoToolbox). A 1.28 plugin alone
+    can't be dropped in: the core refuses any plugin built for a newer minor (`gstplugin.c:487`).
+  - **Cause, confirmed on the game files.** `re_chunk_000.pak` holds 401 uncompressed ASF movies (+70 in
+    `patch_005`); every one sampled is **VC-1 (`WVC1`), video only** — 320×180 3–6 s clips (skill previews) up to
+    a 341 s 1080p one (History of DMC). Stock CrossOver has no VC-1 decoder: a Media Foundation probe
+    (`IMFSourceReader` → NV12) fails with `MF_E_UNEXPECTED` (0xC00D36BB) on all of them.
+  - **Fix:** `Scripts/build-gst-libav.sh` builds glib 2.78 + GStreamer 1.24.4 from the FOSS tarball (build deps
+    only), FFmpeg 6.1.2 (the version that GStreamer's own `FFmpeg.wrap` pins; LGPL-only, decoders only, nasm
+    SIMD) and ships just `libgstlibav` + `libgstmatroska` + 6 FFmpeg libs (**21 MB**, all `@rpath`, resolving
+    CrossOver's own 1.24.4 libs — identical compatibility versions 2405/7801). `Scripts/add-gst-libav.sh` adds
+    them to a CrossOver-layout runtime, refusing a different GStreamer minor (it rejects the patched 1.28 tree)
+    and never overwriting. Versions in `versions.env` (`FFMPEG_VERSION`, `NASM_VERSION`). Build quirks handled:
+    the tarball's empty `glib/subprojects/gvdb` submodule dir, glib 2.78's codegen needing `distutils`
+    (setuptools in the venv), bison ≥ 2.4 from x86_64 Homebrew.
+  - **Measured on runtime `wine-crossover-26.3.0-libav`** (stock zip, imported like `CrossOverWineImporter` +
+    quarantine removed, + add-on): the same probe decodes all DMC5 samples — 180/94/120 frames (= duration × 30)
+    and 3000 frames of the 1080p movie in 17 s (~175 fps under Rosetta); GStreamer builds `asfdemux → avdec_vc1`;
+    same result with `/usr/local` + `/opt/homebrew` unreadable (`sandbox-exec`). **Next: the user plays DMC5 on that
+    runtime** (skill previews + History of DMC). Then step 2 — the from-source runtime switches to this 1.24.4
+    stack with CrossOver's 17 plugins + libav + matroska, instead of Homebrew's 270 (below).
 - **🎬 From-source Wine parity, step 1: GStreamer integrated, in CrossOver's own layout (2026-09-28).**
   Measured the reference first: CrossOver 26.3 keeps EVERY third-party dylib in `<root>/lib64` with an
-  `@rpath/<leaf>` install name, 257 plugins in `lib64/gstreamer-1.0`, and gives Wine's unix modules the rpath
+  `@rpath/<leaf>` install name, plugins in `lib64/gstreamer-1.0`, and gives Wine's unix modules the rpath
   `@loader_path/../../../lib64` (added by their LDFLAGS — not in the FOSS source); no `DYLD_*`, no
-  `gst-plugin-scanner`. Its GStreamer is **1.28.7 / glib 2.82, universal, a Homebrew-like plugin set** — NOT
-  the 1.24.4 / 2.78 whose sources sit in the FOSS tarball (which also carries glib, freetype, gnutls, moltenvk).
+  `gst-plugin-scanner`. ⚠️ **Correction (same day):** an earlier version of this entry said CrossOver's GStreamer
+  is 1.28.7 with 257 plugins. That was measured on the user's PATCHED import (see the DMC5 entry above); stock
+  CrossOver is 1.24.4, 17 plugins. The layout finding stands; the plugin set here (Homebrew 1.28, 270) is
+  therefore NOT CrossOver parity — step 2 replaces it.
   - **Done:** `bundle-wine-dylibs.sh` → `bundle_wine_dylibs.py` reproduces that layout from the x86_64 Homebrew
     the build links against: closure of Wine's refs + the leaf-name `dlopen` libs (freetype, gnutls, MoltenVK,
     pinned SDL) + GStreamer plugins and their closure → `lib64/`, every install name/reference rewritten to
@@ -21,7 +50,7 @@
   - **Measured (local build of 26.3.0, 138 libs + 270 plugins, lib64 267 MB, tarball 152 MB):** leaf-name
     `dlopen` resolves through the caller's LC_RPATH on macOS 27 (standalone probe). `winegstreamer.so` has
     exactly CrossOver's references and rpaths. A mingw Media Foundation probe (`IMFSourceReader`, H.264+AAC
-    MP4 → NV12/PCM) decodes **90 video + 131 audio samples — identical to CrossOver's runtime**, same single
+    MP4 → NV12/PCM) decodes **90 video + 131 audio samples — the same as the (patched, 1.28) imported runtime**, same single
     `gst_video_info_from_caps` CRITICAL on both (winegstreamer's, not ours); **0 dylibs loaded from Homebrew**
     (`DYLD_PRINT_LIBRARIES`), and the same result with `/usr/local` + `/opt/homebrew` made unreadable by
     `sandbox-exec`; FreeType loads there too; `wineboot` clean.
