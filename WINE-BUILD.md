@@ -34,15 +34,31 @@ The app doesn't care whether the Wine asset was built in CI or on your Mac; it o
 It belongs as a **Release asset** (`gh release`), which is exactly where `Silo.wineRepo` looks.
 
 ## Pipeline
-- `.github/workflows/build-wine.yml` (manual `workflow_dispatch`, inputs: CrossOver version + release
-  tag) downloads **CrossOver's FOSS source** from CodeWeavers
-  (`media.codeweavers.com/pub/crossover/source/crossover-sources-<ver>.tar.gz`; mirror:
-  `PhoenicisOrg/winecx`), builds it (`configure --enable-archs=i386,x86_64 … && make`, x86_64 via
-  Rosetta — CrossOver is Intel code), packages `wine.tar.xz`, and publishes a `wine-*` Release.
-- The app's Wine tab / onboarding pulls Wine from `Silo.wineRepo` (= this repo). `RuntimeManager`
-  downloads + extracts the tarball and `locateWineBinary` finds `bin/wine64`.
-- **GPTK / D3DMetal is NEVER built or bundled here** — it's Apple-licensed; the user imports it from
-  their own GPTK `.dmg` (login-gated) via `GPTKImporter`. This workflow produces **Wine only**.
+Same recipe in both places — `Scripts/build-wine.sh` (local) and `.github/workflows/build-wine.yml` (CI,
+manual `workflow_dispatch`: CrossOver version + release tag + `draft`, default **on** for manual runs):
+
+1. **Source:** CrossOver's FOSS tarball (`media.codeweavers.com/pub/crossover/source/crossover-sources-<ver>.tar.gz`).
+2. **Our patches:** every `Scripts/patches/*.patch`, required to apply (today: `0002-cfgmgr32-deviceinstance-
+   notification` — Steam games like TEKKEN 8 / SoulCalibur VI crashed on every exit).
+3. **GStreamer = CrossOver's own:** `Scripts/build-gst-libav.sh` builds GStreamer 1.24.4 + glib 2.78 from the
+   same tarball with CrossOver's 17 plugins **plus libav + matroska** (FFmpeg 6.1, LGPL, decoders only — VC-1/WMV/
+   WMA, e.g. Devil May Cry 5's movies). Wine is configured against that prefix (it must be: winegstreamer built
+   against a newer glib needs symbols 2.78 lacks).
+4. **Pinned PE compiler:** `Scripts/pin-mingw-w64.sh` provides the exact Homebrew mingw-w64 bottle
+   (`versions.env`: `MINGW_W64_BOTTLE`, digest, `MINGW_GCC_VERSION` = GCC 16.1.0 — the one the tested runtime was
+   built with), verifying version and a probe compile. llvm-mingw was tried and broke Steam's sign-in.
+5. **Configure + make:** x86_64 under Rosetta (CrossOver is Intel code), `--enable-archs=i386,x86_64`.
+6. **Self-contained, CrossOver's layout:** `Scripts/bundle_wine_dylibs.py` puts every third-party dylib in
+   `lib64/` with `@rpath` names and the GStreamer stack in `lib64/gstreamer-1.0` — no Homebrew path left, no
+   `DYLD_*` needed. Then `wine.tar.xz` + `.sha256`, published as a `wine-cx-*` Release (a draft when asked).
+
+- The app's Wine tab / onboarding pulls Wine from `Silo.wineRepo` (`SILO_GITHUB_REPO`); `RuntimeManager`
+  downloads + extracts the tarball and finds `bin/wine64`.
+- **GPTK / D3DMetal is NEVER built or bundled here** — it's Apple-licensed; the user imports it from their own
+  GPTK `.dmg` via `GPTKImporter`. Silo overlays it into the runtime and sets `CX_APPLEGPTK_LIBD3DSHARED_PATH` to
+  the overlaid `libd3dshared.dylib` (it arms a CrossOver hack in ntdll; without it D3D12 games crash).
+- **Not in the FOSS source, so never in this runtime:** CrossOver's proprietary `cxcompatdb.so` (its compat DB)
+  — only the hook that would load it is in the tarball.
 
 ## Keeping Wine current with CrossOver (automatic)
 `.github/workflows/wine-autoupdate.yml` runs weekly (and on demand). It reads the latest CrossOver
@@ -66,17 +82,16 @@ so users can update on their own schedule.
   tarball, verified to exist before building. The cask is the oracle, not the source.
 
 ## Status / caveats
-- Building Wine for macOS is intricate and slow (~30+ min) and **the workflow needs CI iteration to
-  converge — it is not yet validated end-to-end.** Until the first `wine-*` release is published, the
-  Wine tab is empty; users can install **CrossOver** (auto-detected by `BackendResolver`) or override
-  `wineRepo`/the wine path under *Advanced Settings* in the meantime.
+- **Local build validated in game (2026-09-29, runtime `wine-cx-26.3.0-gcc16`):** Steam sign-in, Devil May Cry
+  5 (VC-1 movies), TEKKEN 8 and SoulCalibur VI start and exit cleanly.
+- **CI not yet run with this recipe** — the first run should be a draft. The pinned-compiler step's
+  fetch-and-install branch (a runner without that mingw-w64 revision) is untested.
+- The build still relies on x86_64 Homebrew (bison, freetype, gnutls, MoltenVK…), which is Tier 3 on recent
+  macOS and losing bottles; macOS 27 already warns that Intel-only executables won't open in macOS 28.
+- Games that need Windows' own Media Foundation (Wine's MF topology loader is a stub) still need the MF
+  bottle — GStreamer additions can't replace it.
 
 ## Steam client
-The Steam client (CEF web helper) crashes/black-screens under GPTK Wine. Silo launches Steam with
-`Silo.steamLaunchArgs` (`-allosarches -cef-force-32bit -cef-disable-gpu`) and can use a separate plain
-Wine for the Steam bottle (`BackendConfig.steamWineBinaryPath`).
-
-## Deferred performance work (after architecture is settled)
-- **DXMT** (Sikarugir) as a selectable D3D11/10 backend alongside D3DMetal.
-- **rosettax87** faster x86 translation.
-- `msync` on by default for new games.
+Silo runs the Windows Steam client co-resident in the shared bottle on the same runtime. Its CEF UI is kept
+painting by the steamwebhelper wrapper shipped in the runtime (`share/silo/steamwebhelper-wrapper.exe`: forces
+`--in-process-gpu` + software GL); Silo moves the real helper aside as `steamwebhelper_orig.exe`.

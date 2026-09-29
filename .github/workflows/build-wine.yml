@@ -21,6 +21,10 @@ on:
       release_tag:
         description: "Release tag to publish, e.g. wine-cx-26.2.0"
         required: true
+      draft:
+        description: "Create the release as a DRAFT (visible only to the repo's maintainers) — for test runs"
+        type: boolean
+        default: true
   workflow_call:   # invoked by wine-autoupdate.yml when a new CrossOver version appears
     inputs:
       crossover_version:
@@ -29,6 +33,10 @@ on:
       release_tag:
         required: true
         type: string
+      draft:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -227,6 +235,8 @@ jobs:
         with:
           tag_name: ${{ inputs.release_tag }}
           name: ${{ inputs.release_tag }}
+          # Manual runs default to a draft: nothing is public until someone presses "Publish" on GitHub.
+          draft: ${{ inputs.draft }}
           files: |
             wine.tar.xz
             wine.tar.xz.sha256
