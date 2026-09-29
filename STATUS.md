@@ -5,8 +5,20 @@
 ## Now
 - **▶️ RESUME HERE (updated end of 2026-09-29).** Live from-source runtime = `wine-cx-26.3.0-gcc16` (pinned GCC
   16.1.0 via `Scripts/pin-mingw-w64.sh`, patch 0002, GStreamer 1.24.4 stack, CX_APPLEGPTK fix) — verified on Steam,
-  DMC5, TEKKEN 8, SoulCalibur VI (MF bottle). Next: run CI `build-wine.yml` once (the pin's fetch-and-install path
-  and the yml changes are untested). Details in the entries below.
+  DMC5, TEKKEN 8, SoulCalibur VI (MF bottle). Details in the entries below.
+  **❗ NEXT TASK — drop x86_64 Homebrew from the Wine build (CI can't run otherwise).** First CI run of
+  `build-wine.yml` (run 36640933776, 2026-09-29, draft, after pushing 34 commits to origin — `Build Wine` had to be
+  re-enabled by hand; `Wine auto-update` is disabled on the fork; `Release` only fires on `v*` tags) failed in 3 s
+  at "Build dependencies": Homebrew's official installer now says **"Homebrew on macOS is only supported on Apple
+  Silicon processors!"** — an x86_64 Homebrew can no longer be installed on a fresh Mac. The dev box still has one
+  (installed earlier), so LOCAL builds work, but that is borrowed time. Plan: build tools (bison, cmake, pkgconf,
+  ccache, meson/ninja) from the runner's native arm64 Homebrew — they run on the host, never ship; mingw-w64 from
+  the SAME revision 14.0.0_1 as an **arm64** bottle (same GCC 16.1.0; digest in ghcr's index: arm64 macOS 26
+  `11aff599…`, update `pin-mingw-w64.sh`); the x86_64 libraries SHIPPED in the runtime (freetype, gnutls + nettle/
+  gmp/libtasn1/…, MoltenVK) built from the CrossOver FOSS tarball's own sources (it carries freetype, gnutls/{gmp,
+  nettle}, moltenvk), the way build-gst-libav.sh does GStreamer. Then full build + game re-test, then the draft CI
+  run. After that: DXMT the same way (build-dxmt.yml downloads the wine-cx-* release by tag, so Wine's release
+  must be PUBLISHED first — a draft has no tag yet; add the same `draft` input to build-dxmt.yml).
   **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
   `dlls/ntdll/unix/loader.c:2246` ("CW Hack 24067") `dlopen`s `<ntdll_dir>/cxcompatdb.so` if present, else a WARN.
   `cxcompatdb.so` itself is a proprietary CodeWeavers binary with no source: present in the imported
