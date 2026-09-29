@@ -13,7 +13,11 @@
   imported CrossOver runtime too (e.g. the 20:53 `wine-crossover-26.3` session) — CrossOver builds without krb5
   as well (its kerberos.so references no krb5 library). Ours: header found, soname not (the SDK's libkrb5 has no
   versioned install name). Leave it. (3) cfgmgr32: `Scripts/patches/0002-cfgmgr32-deviceinstance-notification.patch`
-  WRITTEN 2026-09-29 (dry-run applies to 26.3.0) — build + TEKKEN 8 clean-exit check pending; then `apple_gptk`
+  WRITTEN 2026-09-29, built into runtime `wine-cx-26.3.0-gst-cfgmgr` (verified in both cfgmgr32.dll). **First try
+  (14:22): TEKKEN 8 crashed at STARTUP** (black screen after the GPU warning, back to desktop; new UECC dir, 61 now):
+  minidump → EXCEPTION_ACCESS_VIOLATION reading 0x907 in `kernelbase!SwitchToFiber+0x44`, called from
+  `Polaris-Win64-Shipping.exe` (UE fiber job system); no cfgmgr32 on the stack. TEKKEN 8 had NEVER been run on the
+  from-source runtime before → A/B pending on `wine-cx-26.3.0-gst` (no 0002) to tell patch vs from-source runtime; then `apple_gptk`
   (Silo overlays GPTK from the user's .dmg, and D3DMetal games already render on the from-source runtime — likely
   covered, confirm) and `CX_HOME`/cxcompatdb; (4) CI `build-wine.yml` updated for the
   GStreamer stack but never run; x86_64-Homebrew risk (see below).
