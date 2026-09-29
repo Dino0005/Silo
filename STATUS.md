@@ -36,8 +36,13 @@
   same pin as DXMT; `x86_64_CC`/`i386_CC` + a PATH shim with only its `*-w64-mingw32-*` tools, because winegcc
   links through the target-named driver and found Homebrew's GCC) instead of Homebrew's floating GCC (16.1;
   CrossOver: 13.2). Built OK (no GCC strings left in the PE DLLs, 0002 in, 0001 out, tarball 78 MB), installed as
-  runtime `wine-cx-26.3.0-llvm`; **pending: user re-test (DMC5 movies, TEKKEN 8 start+exit) before it replaces
-  `-cfgmgr`**; `build-wine.yml` not yet switched to the same toolchain; then `apple_gptk`
+  runtime `wine-cx-26.3.0-llvm`. **❌ First use (19:24): Steam never finishes signing in** — `LogOn() called; not
+  connected yet, scheduling connection` then `EConnect called` forever, never `Connect() starting connection`
+  (which follows at once on `-cfgmgr`); no error in any Steam log; HTTPS via WinHTTP to api.steampowered.com works
+  on BOTH runtimes (200), so not TLS. Also ONE Steam Dock tile (like the clone with CrossOver's GCC-13 PE DLLs;
+  GCC 16 PE → two) — tile count follows the PE compiler, not itself a fault. **Decision pending (user):** investigate
+  clang, newer llvm-mingw, pin GCC 13.2 (CrossOver's), or pin the working GCC 16.1. `-cfgmgr` stays the live
+  runtime; `build-wine.sh` currently pins llvm-mingw (commits a06381b, fc5d921) — revisit before any release build; then `apple_gptk`
   (Silo overlays GPTK from the user's .dmg, and D3DMetal games already render on the from-source runtime — likely
   covered, confirm) and `CX_HOME`/cxcompatdb; (4) CI `build-wine.yml` updated for the
   GStreamer stack but never run; x86_64-Homebrew risk (see below).
