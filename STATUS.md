@@ -30,7 +30,14 @@
   showed ONE Dock tile instead of two. **✅ Verified via the code path (15:05, `dist/Silo.app` 202609291501,
   hand-made symlink + the `lib64/apple_gptk` tree GraphicsLinker had filled because of it both removed):** env
   pointed at `lib/external/libd3dshared.dylib`; TEKKEN 8 ran 15:05:16–15:06:44 and exited with NO new UECC dir
-  (64 before and after). Patch 0002 and the env fix both confirmed on the from-source runtime; then `apple_gptk`
+  (64 before and after). Patch 0002 and the env fix both confirmed on the from-source runtime. User: kept
+  `wine-cx-26.3.0-gst-cfgmgr` as the live runtime, `wine-cx-26.3.0-gst` deleted. **PE toolchain pinned
+  (2026-09-29):** `build-wine.sh` now compiles Wine's Windows DLLs with `llvm-mingw LLVM_MINGW_VERSION` (20231017,
+  same pin as DXMT; `x86_64_CC`/`i386_CC` + a PATH shim with only its `*-w64-mingw32-*` tools, because winegcc
+  links through the target-named driver and found Homebrew's GCC) instead of Homebrew's floating GCC (16.1;
+  CrossOver: 13.2). Built OK (no GCC strings left in the PE DLLs, 0002 in, 0001 out, tarball 78 MB), installed as
+  runtime `wine-cx-26.3.0-llvm`; **pending: user re-test (DMC5 movies, TEKKEN 8 start+exit) before it replaces
+  `-cfgmgr`**; `build-wine.yml` not yet switched to the same toolchain; then `apple_gptk`
   (Silo overlays GPTK from the user's .dmg, and D3DMetal games already render on the from-source runtime — likely
   covered, confirm) and `CX_HOME`/cxcompatdb; (4) CI `build-wine.yml` updated for the
   GStreamer stack but never run; x86_64-Homebrew risk (see below).
