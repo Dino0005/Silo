@@ -53,8 +53,13 @@
   0001 out, 19 plugins) verified in game by the user:** Steam signs in; DMC5 + History of DMC play; TEKKEN 8
   (SteamBottle, 20:29) and SoulCalibur VI (**SteamBottleMF**, 20:31 — it had the same exit popup) start and exit
   with NO error popup, no new crash dirs; both launches carry CX_APPLEGPTK_LIBD3DSHARED_PATH. Steam showed ONE Dock
-  tile on this build too — so the tile count is NOT the PE compiler (same GCC as `-cfgmgr`); cause open (compare a
-  `-cfgmgr` start). `-gcc16` is the candidate to replace `-cfgmgr`; then `apple_gptk`
+  tile on this build too, and so did `-cfgmgr` on a later start (it had shown two on 2026-09-28) — the tile count
+  varies between starts; it is NOT the compiler nor the build (my earlier attribution was wrong). Cosmetic; next
+  time two appear, identify the second one's process with `lsappinfo` while Steam is up. `-gcc16` is the candidate
+  to replace `-cfgmgr`. **MF bottle still needed (tested 2026-09-29):** SoulCalibur VI in the normal bottle on
+  `-gcc16` (libav present) shows no menu videos; its log stops at Wine mfplat `topology_loader_Load … stub!` — an
+  unimplemented Media Foundation piece (topology loader), not a missing codec, so GStreamer additions can't help.
+  MF-flagged games: SoulCalibur VI (544750), FATAL FURY: City of the Wolves (2492040); then `apple_gptk`
   (Silo overlays GPTK from the user's .dmg, and D3DMetal games already render on the from-source runtime — likely
   covered, confirm) and `CX_HOME`/cxcompatdb; (4) CI `build-wine.yml` updated for the
   GStreamer stack but never run; x86_64-Homebrew risk (see below).
