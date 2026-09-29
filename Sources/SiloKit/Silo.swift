@@ -162,8 +162,20 @@ public enum Silo {
         // lib64 layout (Scripts/bundle-wine-dylibs.sh) with GStreamer but no apple_gptk, so it gets the
         // GStreamer pair and not the GPTK one. Conditioned on the paths actually existing: older
         // self-compiled runtimes have no lib64 at all.
-        let libd3dshared = root.appendingPathComponent("lib64/apple_gptk/external/libd3dshared.dylib")
-        if FileManager.default.fileExists(atPath: libd3dshared.path) {
+        //
+        // CX_APPLEGPTK_LIBD3DSHARED_PATH is not cosmetic: it arms CrossOver's "CX Hack 23015" in ntdll
+        // (dlls/ntdll/unix/loader.c + unix_private.h, in the FOSS source, so in BOTH runtime kinds). With it,
+        // ntdll loads that libd3dshared and routes calls coming FROM it through ms_abi thunks; without it
+        // they take the sysv path and arrive with scrambled arguments. Measured 2026-09-29 on the
+        // from-source runtime: TEKKEN 8 (D3D12) crashed at startup in kernelbase!SwitchToFiber on a
+        // garbage pointer (rcx = 0x8ff) — with the Windows DLLs of the imported runtime too — and started
+        // once the variable was set. A self-compiled runtime has no lib64/apple_gptk, so the variable
+        // falls back to the libd3dshared Silo's own GPTK overlay puts in <root>/lib/external
+        // (`GraphicsLinker.overlayGPTK`) — the same D3DMetal build CrossOver ships (GPTK 3.0, hash-equal).
+        let cxLibd3dshared = root.appendingPathComponent("lib64/apple_gptk/external/libd3dshared.dylib")
+        let overlayLibd3dshared = wine.wineRuntimeExternalDir.appendingPathComponent("libd3dshared.dylib")
+        if let libd3dshared = [cxLibd3dshared, overlayLibd3dshared]
+            .first(where: { FileManager.default.fileExists(atPath: $0.path) }) {
             env["CX_APPLEGPTK_LIBD3DSHARED_PATH"] = libd3dshared.path
         }
         let gstPlugins = root.appendingPathComponent("lib64/gstreamer-1.0", isDirectory: true)

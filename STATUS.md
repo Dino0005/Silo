@@ -17,7 +17,18 @@
   (14:22): TEKKEN 8 crashed at STARTUP** (black screen after the GPU warning, back to desktop; new UECC dir, 61 now):
   minidump → EXCEPTION_ACCESS_VIOLATION reading 0x907 in `kernelbase!SwitchToFiber+0x44`, called from
   `Polaris-Win64-Shipping.exe` (UE fiber job system); no cfgmgr32 on the stack. TEKKEN 8 had NEVER been run on the
-  from-source runtime before → A/B pending on `wine-cx-26.3.0-gst` (no 0002) to tell patch vs from-source runtime; then `apple_gptk`
+  from-source runtime before. **Bisected (2026-09-29):** same crash on `wine-cx-26.3.0-gst` (no 0002) → not the
+  patch; same with CrossOver's kernelbase.dll, and with ALL of CrossOver's PE DLLs (GCC 13.2 vs our GCC 16.1) → not
+  the PE side/compiler; D3DMetal hash-identical (GPTK 3.0) → not GPTK. **Cause: `CX_APPLEGPTK_LIBD3DSHARED_PATH`
+  unset** — Silo only set it when `lib64/apple_gptk` exists (imported runtime). It arms CrossOver's "CX Hack 23015"
+  in ntdll (loader.c/unix_private.h, FOSS source): libd3dshared's calls into ntdll go through ms_abi thunks;
+  without it they take sysv and arrive scrambled (rcx=0x8ff → SwitchToFiber). **Verified:** with the variable
+  pointed at the overlay's libd3dshared, TEKKEN 8 started (14:53:41) and exited cleanly (14:55:54, no new UECC dir
+  — the patch-0002 fix confirmed too). **Fix in Silo:** `Silo.wineEnvironment` falls back to
+  `<root>/lib/external/libd3dshared.dylib` (Silo's GPTK overlay); `lib64/apple_gptk` still wins; +2 tests (708
+  green). This was the `apple_gptk` checklist item. Side note: with CrossOver's PE DLLs on our unix side, Steam
+  showed ONE Dock tile instead of two. Pending: rebuild `dist/Silo.app`, drop the hand-made
+  `lib64/apple_gptk/external/libd3dshared.dylib` symlink in `wine-cx-26.3.0-gst-cfgmgr`, re-test via the code path; then `apple_gptk`
   (Silo overlays GPTK from the user's .dmg, and D3DMetal games already render on the from-source runtime — likely
   covered, confirm) and `CX_HOME`/cxcompatdb; (4) CI `build-wine.yml` updated for the
   GStreamer stack but never run; x86_64-Homebrew risk (see below).

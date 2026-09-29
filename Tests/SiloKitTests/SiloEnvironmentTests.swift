@@ -46,6 +46,27 @@ struct SiloEnvironmentTests {
         #expect(cxEnv["GST_REGISTRY"] == prefix.appendingPathComponent("gstreamer-1.0-registry.x86_64.bin").path)
     }
 
+    @Test("A self-compiled runtime with Silo's GPTK overlay gets CX_APPLEGPTK_LIBD3DSHARED_PATH from lib/external")
+    func selfCompiledGPTKOverlay() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let wine = try tmp.write("own/bin/wine", "#!/bin/sh")
+        let overlay = try tmp.write("own/lib/external/libd3dshared.dylib", "DYLIB")
+        let env = Silo.wineEnvironment(prefix: URL(fileURLWithPath: "/p/220"), wine: wine)
+        // Without it CrossOver's CX Hack 23015 stays off and D3DMetal's calls into ntdll take the wrong ABI —
+        // TEKKEN 8 crashed at startup (measured 2026-09-29).
+        #expect(env["CX_APPLEGPTK_LIBD3DSHARED_PATH"] == overlay.path)
+    }
+
+    @Test("CrossOver's own lib64/apple_gptk wins over Silo's overlay when both exist")
+    func crossOverApplegptkWins() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let wine = try tmp.write("cx/bin/wine", "#!/bin/sh")
+        try tmp.write("cx/lib/external/libd3dshared.dylib", "OVERLAY")
+        let cx = try tmp.write("cx/lib64/apple_gptk/external/libd3dshared.dylib", "CX")
+        let env = Silo.wineEnvironment(prefix: URL(fileURLWithPath: "/p/220"), wine: wine)
+        #expect(env["CX_APPLEGPTK_LIBD3DSHARED_PATH"] == cx.path)
+    }
+
     @Test("A self-compiled runtime in the lib64 layout gets the GStreamer vars but not the apple_gptk one")
     func selfCompiledLib64() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
