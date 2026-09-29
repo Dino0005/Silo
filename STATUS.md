@@ -42,7 +42,13 @@
   on BOTH runtimes (200), so not TLS. Also ONE Steam Dock tile (like the clone with CrossOver's GCC-13 PE DLLs;
   GCC 16 PE → two) — tile count follows the PE compiler, not itself a fault. **Decision pending (user):** investigate
   clang, newer llvm-mingw, pin GCC 13.2 (CrossOver's), or pin the working GCC 16.1. `-cfgmgr` stays the live
-  runtime; `build-wine.sh` currently pins llvm-mingw (commits a06381b, fc5d921) — revisit before any release build; then `apple_gptk`
+  runtime. **Decision (user, 2026-09-29): pin the working GCC 16.1.0.** `Scripts/pin-mingw-w64.sh` (shared by
+  build-wine.sh and build-wine.yml) provides Homebrew mingw-w64 bottle `14.0.0_1` (x86_64 macOS, sha256 in
+  versions.env): uses it if that exact revision is installed, else fetches the bottle BY DIGEST from ghcr.io,
+  verifies it and `brew install`s the file (brew must pour it — hand-unpacking gave a compiler with the wrong ld
+  and a 4-byte-different crt2.o); then checks `-dumpfullversion` = 16.1.0 and compiles a probe for both ABIs.
+  Homebrew's current revision is 14.0.0_3 = GCC 16.2.0, so an unpinned CI would already differ. llvm-mingw
+  reverted to DXMT-only. Verified here (installed-revision path); the fetch-and-install path is untested; then `apple_gptk`
   (Silo overlays GPTK from the user's .dmg, and D3DMetal games already render on the from-source runtime — likely
   covered, confirm) and `CX_HOME`/cxcompatdb; (4) CI `build-wine.yml` updated for the
   GStreamer stack but never run; x86_64-Homebrew risk (see below).

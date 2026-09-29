@@ -24,7 +24,7 @@ echo "==> Rosetta + x86_64 Homebrew dependencies"
 # NB: sdl2 is NOT installed from Homebrew — we build the pinned SDL_VERSION from source below (a generic
 # Homebrew libSDL2 aborted Wine off the main thread; the pinned CrossOver version does not). cmake builds it.
 # No Homebrew gstreamer: GStreamer is built from the CrossOver source below (build-gst-libav.sh).
-# No Homebrew mingw-w64 either: the PE cross compiler is the pinned llvm-mingw fetched below.
+# mingw-w64 is NOT taken at "whatever brew installs": the PE cross compiler is one pinned bottle (below).
 "$ROOT/Scripts/bootstrap-x86-brew.sh" bison freetype gnutls molten-vk cmake pkgconf
 
 echo "==> Fetch CrossOver source $VER"
@@ -54,24 +54,11 @@ echo "==> Build CrossOver's GStreamer $(sed -n "s/^ *version *: *'\([0-9.]*\)'.*
 GST_PREFIX="$WORK/gst/prefix"
 GST_STACK="$(ls -d "$ROOT"/dist/gstreamer-*/lib64 | sort -V | tail -1)"
 
-echo "==> Pinned PE cross toolchain: mstorsjo/llvm-mingw $LLVM_MINGW_VERSION (clang)"
-# Wine's Windows-side DLLs used to be compiled by whatever Homebrew's mingw-w64 happened to ship — GCC 16.1 on
-# 2026-09-29, while CrossOver 26.3 uses GCC 13.2 — so a runtime built in CI could differ from the one tested
-# here. The same llvm-mingw build-dxmt.sh already pins (versions.env), universal, fetched from its release.
-MINGW_DIR="llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-macos-universal"
-MINGW="$WORK/toolchains/$MINGW_DIR"
-if [ ! -x "$MINGW/bin/x86_64-w64-mingw32-clang" ]; then
-  mkdir -p "$WORK/toolchains"
-  curl -fL "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VERSION}/${MINGW_DIR}.tar.xz" \
-    -o "$WORK/toolchains/llvm-mingw.tar.xz"
-  tar -xf "$WORK/toolchains/llvm-mingw.tar.xz" -C "$WORK/toolchains" && rm "$WORK/toolchains/llvm-mingw.tar.xz"
-fi
-[ -x "$MINGW/bin/x86_64-w64-mingw32-clang" ] && [ -x "$MINGW/bin/i686-w64-mingw32-clang" ] \
-  || { echo "ERROR: unexpected llvm-mingw layout under $MINGW"; exit 1; }
+echo "==> Pinned PE cross toolchain (Scripts/pin-mingw-w64.sh)"
+MINGW="$("$ROOT/Scripts/pin-mingw-w64.sh" "$WORK/toolchains" | tail -1)"
 # configure takes the compiler from x86_64_CC / i386_CC below, but winegcc LINKS through the target-named driver
-# it finds on PATH (i686-w64-mingw32-gcc) — measured: it picked Homebrew's GCC from /usr/local/bin, which
-# rejects clang's --no-default-config. So put ONLY llvm-mingw's *-w64-mingw32-* tools first on PATH: the
-# whole bin/ would also shadow the system clang the Unix side is built with (build-dxmt.sh notes the same).
+# it finds on PATH (i686-w64-mingw32-gcc) — measured: without this it picked the system-wide Homebrew one. So put
+# ONLY the pinned toolchain's *-w64-mingw32-* tools first on PATH.
 MINGW_SHIM="$WORK/toolchains/mingw-shim"
 rm -rf "$MINGW_SHIM" && mkdir -p "$MINGW_SHIM"
 ln -s "$MINGW"/bin/*-w64-mingw32-* "$MINGW_SHIM"/
@@ -137,7 +124,7 @@ $ARCH env CFLAGS="-fvisibility=default -O2" CROSSCFLAGS="-fvisibility=default -O
   "$WORK/$WINE_SRC/configure" --prefix="$WORK/install" \
   --enable-archs=i386,x86_64 --disable-tests --without-x \
   --with-freetype --with-gstreamer --with-gnutls --with-sdl \
-  x86_64_CC="$MINGW/bin/x86_64-w64-mingw32-clang" i386_CC="$MINGW/bin/i686-w64-mingw32-clang"
+  x86_64_CC="$MINGW/bin/x86_64-w64-mingw32-gcc" i386_CC="$MINGW/bin/i686-w64-mingw32-gcc"
 # /usr/bin/make explicitly: it's universal, while Xcode 27's own make (first on PATH in an Xcode-launched
 # shell) is arm64-only, so `arch -x86_64 make` failed with "Bad CPU type in executable".
 $ARCH /usr/bin/make -j"$(sysctl -n hw.ncpu)"
@@ -146,7 +133,7 @@ $ARCH /usr/bin/make install
 echo "==> Build the steamwebhelper wrapper (forces CEF --in-process-gpu + software GL so Steam's UI paints)"
 mkdir -p "$WORK/install/share/silo"
 WRAPPER="$WORK/install/share/silo/steamwebhelper-wrapper.exe"
-"$MINGW/bin/x86_64-w64-mingw32-clang" -O2 -municode -mwindows \
+"$MINGW/bin/x86_64-w64-mingw32-gcc" -O2 -municode -mwindows \
   -o "$WRAPPER" "$ROOT/Scripts/steamwebhelper-wrapper.c"
 # The wrapper is load-bearing — fail the build if its CEF flags are wrong (shared check, also run in CI).
 python3 "$ROOT/Scripts/check-webhelper-wrapper.py" "$WRAPPER"
