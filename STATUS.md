@@ -48,7 +48,13 @@
   verifies it and `brew install`s the file (brew must pour it — hand-unpacking gave a compiler with the wrong ld
   and a 4-byte-different crt2.o); then checks `-dumpfullversion` = 16.1.0 and compiles a probe for both ABIs.
   Homebrew's current revision is 14.0.0_3 = GCC 16.2.0, so an unpinned CI would already differ. llvm-mingw
-  reverted to DXMT-only. Verified here (installed-revision path); the fetch-and-install path is untested; then `apple_gptk`
+  reverted to DXMT-only. Verified here (installed-revision path); the fetch-and-install path is untested.
+  **✅ Full build with the pin (2026-09-29, runtime `wine-cx-26.3.0-gcc16`: PE DLLs report GCC 16.1.0, 0002 in,
+  0001 out, 19 plugins) verified in game by the user:** Steam signs in; DMC5 + History of DMC play; TEKKEN 8
+  (SteamBottle, 20:29) and SoulCalibur VI (**SteamBottleMF**, 20:31 — it had the same exit popup) start and exit
+  with NO error popup, no new crash dirs; both launches carry CX_APPLEGPTK_LIBD3DSHARED_PATH. Steam showed ONE Dock
+  tile on this build too — so the tile count is NOT the PE compiler (same GCC as `-cfgmgr`); cause open (compare a
+  `-cfgmgr` start). `-gcc16` is the candidate to replace `-cfgmgr`; then `apple_gptk`
   (Silo overlays GPTK from the user's .dmg, and D3DMetal games already render on the from-source runtime — likely
   covered, confirm) and `CX_HOME`/cxcompatdb; (4) CI `build-wine.yml` updated for the
   GStreamer stack but never run; x86_64-Homebrew risk (see below).
