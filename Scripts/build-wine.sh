@@ -68,6 +68,14 @@ if [ ! -x "$MINGW/bin/x86_64-w64-mingw32-clang" ]; then
 fi
 [ -x "$MINGW/bin/x86_64-w64-mingw32-clang" ] && [ -x "$MINGW/bin/i686-w64-mingw32-clang" ] \
   || { echo "ERROR: unexpected llvm-mingw layout under $MINGW"; exit 1; }
+# configure takes the compiler from x86_64_CC / i386_CC below, but winegcc LINKS through the target-named driver
+# it finds on PATH (i686-w64-mingw32-gcc) — measured: it picked Homebrew's GCC from /usr/local/bin, which
+# rejects clang's --no-default-config. So put ONLY llvm-mingw's *-w64-mingw32-* tools first on PATH: the
+# whole bin/ would also shadow the system clang the Unix side is built with (build-dxmt.sh notes the same).
+MINGW_SHIM="$WORK/toolchains/mingw-shim"
+rm -rf "$MINGW_SHIM" && mkdir -p "$MINGW_SHIM"
+ln -s "$MINGW"/bin/*-w64-mingw32-* "$MINGW_SHIM"/
+export PATH="$MINGW_SHIM:$PATH"
 
 echo "==> Build pinned SDL $SDL_VERSION (x86_64) — winebus's game-controller backend dlopens libSDL2"
 # Build the EXACT SDL CrossOver ships (versions.env) from libsdl-org source, x86_64 to match Wine. This
