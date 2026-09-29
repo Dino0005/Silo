@@ -3,7 +3,11 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
-- **▶️ RESUME HERE (next session, from 2026-09-29).** The from-source runtime `wine-cx-26.3.0-gst` is the user's
+- **▶️ RESUME HERE (updated end of 2026-09-29).** Live from-source runtime = `wine-cx-26.3.0-gcc16` (pinned GCC
+  16.1.0 via `Scripts/pin-mingw-w64.sh`, patch 0002, GStreamer 1.24.4 stack, CX_APPLEGPTK fix) — verified on Steam,
+  DMC5, TEKKEN 8, SoulCalibur VI (MF bottle). Next: `CX_HOME`/cxcompatdb; then run CI `build-wine.yml` once (the
+  pin's fetch-and-install path and the yml changes are untested). Details in the entries below.
+- **(older resume note, 2026-09-29 morning).** The from-source runtime `wine-cx-26.3.0-gst` is the user's
   live runtime and works (DMC5 incl. VC-1 movies, Steam stays up after games). Open items, in order:
   (1) ✅ DONE 2026-09-29: patch 0001 + all `SILO_LOADER_LINK_DIR` plumbing removed (`LaunchOrchestrator.makePlan`
   param/env, `GameLibraryViewModel.hostLoaderLinkDir` — a redundant second write of the bundle the alt loader
