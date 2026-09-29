@@ -5,8 +5,17 @@
 ## Now
 - **▶️ RESUME HERE (updated end of 2026-09-29).** Live from-source runtime = `wine-cx-26.3.0-gcc16` (pinned GCC
   16.1.0 via `Scripts/pin-mingw-w64.sh`, patch 0002, GStreamer 1.24.4 stack, CX_APPLEGPTK fix) — verified on Steam,
-  DMC5, TEKKEN 8, SoulCalibur VI (MF bottle). Next: `CX_HOME`/cxcompatdb; then run CI `build-wine.yml` once (the
-  pin's fetch-and-install path and the yml changes are untested). Details in the entries below.
+  DMC5, TEKKEN 8, SoulCalibur VI (MF bottle). Next: run CI `build-wine.yml` once (the pin's fetch-and-install path
+  and the yml changes are untested). Details in the entries below.
+  **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
+  `dlls/ntdll/unix/loader.c:2246` ("CW Hack 24067") `dlopen`s `<ntdll_dir>/cxcompatdb.so` if present, else a WARN.
+  `cxcompatdb.so` itself is a proprietary CodeWeavers binary with no source: present in the imported
+  `wine-crossover-26.3` (`lib/wine/x86_64-unix/`), absent from `wine-cx-26.3.0-gcc16`. Its strings: reads
+  `CX_ROOT` + `CX_HOME`, loads `%s/compatdb-%d.dat` (JSON rules) checked against a signature + private key, applies
+  per-game rules (e.g. "HACK: replacing exe path"); it is what logs "couldn't get path to JSON database". So the
+  from-source runtime can't have it (no source; copying CrossOver's .so would break constraint #7) — its hook
+  just finds nothing. Remaining, optional, IMPORTED runtime only: set `CX_HOME=~/Library/Application Support/
+  CrossOver` so it finds the user's own licensed compat DB (read in place, never copied); effect unmeasured.
 - **(older resume note, 2026-09-29 morning).** The from-source runtime `wine-cx-26.3.0-gst` is the user's
   live runtime and works (DMC5 incl. VC-1 movies, Steam stays up after games). Open items, in order:
   (1) ✅ DONE 2026-09-29: patch 0001 + all `SILO_LOADER_LINK_DIR` plumbing removed (`LaunchOrchestrator.makePlan`
