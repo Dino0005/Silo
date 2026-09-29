@@ -24,7 +24,8 @@ echo "==> Rosetta + x86_64 Homebrew dependencies"
 # NB: sdl2 is NOT installed from Homebrew — we build the pinned SDL_VERSION from source below (a generic
 # Homebrew libSDL2 aborted Wine off the main thread; the pinned CrossOver version does not). cmake builds it.
 # No Homebrew gstreamer: GStreamer is built from the CrossOver source below (build-gst-libav.sh).
-"$ROOT/Scripts/bootstrap-x86-brew.sh" bison mingw-w64 freetype gnutls molten-vk cmake pkgconf
+# No Homebrew mingw-w64 either: the PE cross compiler is the pinned llvm-mingw fetched below.
+"$ROOT/Scripts/bootstrap-x86-brew.sh" bison freetype gnutls molten-vk cmake pkgconf
 
 echo "==> Fetch CrossOver source $VER"
 mkdir -p "$WORK" && cd "$WORK"
@@ -52,6 +53,21 @@ echo "==> Build CrossOver's GStreamer $(sed -n "s/^ *version *: *'\([0-9.]*\)'.*
 "$ROOT/Scripts/build-gst-libav.sh"
 GST_PREFIX="$WORK/gst/prefix"
 GST_STACK="$(ls -d "$ROOT"/dist/gstreamer-*/lib64 | sort -V | tail -1)"
+
+echo "==> Pinned PE cross toolchain: mstorsjo/llvm-mingw $LLVM_MINGW_VERSION (clang)"
+# Wine's Windows-side DLLs used to be compiled by whatever Homebrew's mingw-w64 happened to ship — GCC 16.1 on
+# 2026-09-29, while CrossOver 26.3 uses GCC 13.2 — so a runtime built in CI could differ from the one tested
+# here. The same llvm-mingw build-dxmt.sh already pins (versions.env), universal, fetched from its release.
+MINGW_DIR="llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-macos-universal"
+MINGW="$WORK/toolchains/$MINGW_DIR"
+if [ ! -x "$MINGW/bin/x86_64-w64-mingw32-clang" ]; then
+  mkdir -p "$WORK/toolchains"
+  curl -fL "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VERSION}/${MINGW_DIR}.tar.xz" \
+    -o "$WORK/toolchains/llvm-mingw.tar.xz"
+  tar -xf "$WORK/toolchains/llvm-mingw.tar.xz" -C "$WORK/toolchains" && rm "$WORK/toolchains/llvm-mingw.tar.xz"
+fi
+[ -x "$MINGW/bin/x86_64-w64-mingw32-clang" ] && [ -x "$MINGW/bin/i686-w64-mingw32-clang" ] \
+  || { echo "ERROR: unexpected llvm-mingw layout under $MINGW"; exit 1; }
 
 echo "==> Build pinned SDL $SDL_VERSION (x86_64) — winebus's game-controller backend dlopens libSDL2"
 # Build the EXACT SDL CrossOver ships (versions.env) from libsdl-org source, x86_64 to match Wine. This
@@ -112,7 +128,8 @@ $ARCH env CFLAGS="-fvisibility=default -O2" CROSSCFLAGS="-fvisibility=default -O
   PKG_CONFIG_PATH="$PKG_CONFIG_PATH" LDFLAGS="$LDFLAGS" CPPFLAGS="$CPPFLAGS" \
   "$WORK/$WINE_SRC/configure" --prefix="$WORK/install" \
   --enable-archs=i386,x86_64 --disable-tests --without-x \
-  --with-freetype --with-gstreamer --with-gnutls --with-sdl
+  --with-freetype --with-gstreamer --with-gnutls --with-sdl \
+  x86_64_CC="$MINGW/bin/x86_64-w64-mingw32-clang" i386_CC="$MINGW/bin/i686-w64-mingw32-clang"
 # /usr/bin/make explicitly: it's universal, while Xcode 27's own make (first on PATH in an Xcode-launched
 # shell) is arm64-only, so `arch -x86_64 make` failed with "Bad CPU type in executable".
 $ARCH /usr/bin/make -j"$(sysctl -n hw.ncpu)"
@@ -121,7 +138,7 @@ $ARCH /usr/bin/make install
 echo "==> Build the steamwebhelper wrapper (forces CEF --in-process-gpu + software GL so Steam's UI paints)"
 mkdir -p "$WORK/install/share/silo"
 WRAPPER="$WORK/install/share/silo/steamwebhelper-wrapper.exe"
-"$($ARCH "$BREW" --prefix mingw-w64)/bin/x86_64-w64-mingw32-gcc" -O2 -municode -mwindows \
+"$MINGW/bin/x86_64-w64-mingw32-clang" -O2 -municode -mwindows \
   -o "$WRAPPER" "$ROOT/Scripts/steamwebhelper-wrapper.c"
 # The wrapper is load-bearing — fail the build if its CEF flags are wrong (shared check, also run in CI).
 python3 "$ROOT/Scripts/check-webhelper-wrapper.py" "$WRAPPER"
