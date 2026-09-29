@@ -27,8 +27,10 @@
   — the patch-0002 fix confirmed too). **Fix in Silo:** `Silo.wineEnvironment` falls back to
   `<root>/lib/external/libd3dshared.dylib` (Silo's GPTK overlay); `lib64/apple_gptk` still wins; +2 tests (708
   green). This was the `apple_gptk` checklist item. Side note: with CrossOver's PE DLLs on our unix side, Steam
-  showed ONE Dock tile instead of two. Pending: rebuild `dist/Silo.app`, drop the hand-made
-  `lib64/apple_gptk/external/libd3dshared.dylib` symlink in `wine-cx-26.3.0-gst-cfgmgr`, re-test via the code path; then `apple_gptk`
+  showed ONE Dock tile instead of two. **✅ Verified via the code path (15:05, `dist/Silo.app` 202609291501,
+  hand-made symlink + the `lib64/apple_gptk` tree GraphicsLinker had filled because of it both removed):** env
+  pointed at `lib/external/libd3dshared.dylib`; TEKKEN 8 ran 15:05:16–15:06:44 and exited with NO new UECC dir
+  (64 before and after). Patch 0002 and the env fix both confirmed on the from-source runtime; then `apple_gptk`
   (Silo overlays GPTK from the user's .dmg, and D3DMetal games already render on the from-source runtime — likely
   covered, confirm) and `CX_HOME`/cxcompatdb; (4) CI `build-wine.yml` updated for the
   GStreamer stack but never run; x86_64-Homebrew risk (see below).
