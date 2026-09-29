@@ -77,13 +77,6 @@ struct GameHostBundleTests {
         #expect(a != b)
     }
 
-    @Test func loaderLinkDirIsTheBundlesMacOSDir() {
-        let root = URL(fileURLWithPath: "/tmp/hosts", isDirectory: true)
-        let bundle = GameHostBundle(name: "Doom", id: "1")
-        #expect(bundle.loaderLinkDir(in: root).path
-                == bundle.bundleURL(in: root).appendingPathComponent("Contents/MacOS").path)
-    }
-
     // MARK: - ICO → ICNS
 
     @Test func icnsConversionRejectsGarbage() {
@@ -116,17 +109,17 @@ struct GameHostBundleTests {
 
     // MARK: - write()
 
-    @Test func writeCreatesTheBundleAndReturnsTheLinkDir() throws {
+    @Test func writeCreatesTheBundleAndReturnsItsMacOSDir() throws {
         let root = try Self.tempDir()
         defer { try? FileManager.default.removeItem(at: root) }
         let bundle = GameHostBundle(name: "Doom", id: "42")
 
-        let linkDir = try bundle.write(into: root)
+        let macOS = try bundle.write(into: root)
 
-        #expect(linkDir == bundle.loaderLinkDir(in: root))
-        // Contents/MacOS must exist and be EMPTY: Wine puts the loader links in it.
-        #expect(FileManager.default.fileExists(atPath: linkDir.path))
-        #expect(try FileManager.default.contentsOfDirectory(atPath: linkDir.path).isEmpty)
+        #expect(macOS.path == bundle.bundleURL(in: root).appendingPathComponent("Contents/MacOS").path)
+        // Contents/MacOS exists, and holds nothing when no host binary was asked for.
+        #expect(FileManager.default.fileExists(atPath: macOS.path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: macOS.path).isEmpty)
         let plist = bundle.bundleURL(in: root).appendingPathComponent("Contents/Info.plist")
         #expect(FileManager.default.fileExists(atPath: plist.path))
     }
@@ -250,8 +243,7 @@ struct GameHostBundleTests {
         #expect(try Data(contentsOf: installed) == Data("a-much-newer-build".utf8))
     }
 
-    /// Without a host binary the directory stays empty — that is the `SILO_LOADER_LINK_DIR` route, where
-    /// Wine hard-links its own loader in here instead.
+    /// Without a host binary nothing is installed in `Contents/MacOS` — the bundle is just Info.plist + icon.
     @Test func writeWithoutAHostBinaryLeavesTheDirectoryEmpty() throws {
         let root = try Self.tempDir()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -5,8 +5,11 @@
 ## Now
 - **▶️ RESUME HERE (next session, from 2026-09-29).** The from-source runtime `wine-cx-26.3.0-gst` is the user's
   live runtime and works (DMC5 incl. VC-1 movies, Steam stays up after games). Open items, in order:
-  (1) remove `Scripts/patches/0001-loader-bundle-link-dir.patch` + the `SILO_LOADER_LINK_DIR` plumbing in Silo
-  (keep `GameHostBundle`) — the host works without it, and with it DMC5 could not start; (2) Kerberos missing
+  (1) ✅ DONE 2026-09-29: patch 0001 + all `SILO_LOADER_LINK_DIR` plumbing removed (`LaunchOrchestrator.makePlan`
+  param/env, `GameLibraryViewModel.hostLoaderLinkDir` — a redundant second write of the bundle the alt loader
+  already writes WITH host + icon — `GameHostBundle.loaderLinkDir(in:)`, 3 tests; a test still guards that the
+  variable is never set). `GameHostBundle` + alt loader untouched. Leftover loader links from the failed patched
+  run deleted from `HostApps/601150/…/Contents/MacOS`. 706 tests green. (2) Kerberos missing
   in the build (`err:kerberos … no Kerberos support`; configure found no krb5) — parity gap; (3) rest of the
   parity checklist: `apple_gptk`, `CX_HOME`/cxcompatdb, cfgmgr32 patch; (4) CI `build-wine.yml` updated for the
   GStreamer stack but never run; x86_64-Homebrew risk (see below).

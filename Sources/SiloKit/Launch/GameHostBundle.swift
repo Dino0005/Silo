@@ -11,10 +11,16 @@ import ImageIO
 /// `steam.exe` measures identically (`bundleIdentifier = nil`, generic icon) and only looks right because
 /// a separate bundled app owns its window.
 ///
-/// So Silo hands Wine a directory to put its loader link in — `Contents/MacOS` of one of these bundles,
-/// via `SILO_LOADER_LINK_DIR` (`Scripts/patches/0001-loader-bundle-link-dir.patch`, which only widens a
-/// mechanism CrossOver's FOSS source already has). Wine hard-links its loader there under the running
-/// exe's name and execs it, so the window-owning process runs from inside a real bundle.
+/// So a bundled app owns the window, as in CrossOver: LaunchServices starts the host
+/// (`Contents/MacOS/SiloGameHost`, written by `write(into:hostBinary:…)`), which adopts the Wine process
+/// handed to it over `CX_ALT_LOADER_SOCKET` (`AltLoaderSession`) and becomes it — inside a real bundle,
+/// with this bundle's icon and name. Works with both runtime kinds, since the hand-over is in Wine's FOSS
+/// source.
+///
+/// *(Removed 2026-09-29: the earlier route, `Scripts/patches/0001-loader-bundle-link-dir.patch` +
+/// `SILO_LOADER_LINK_DIR`, had Wine hard-link its loader into `Contents/MacOS` instead. Measured on a
+/// from-source runtime it broke launches — the `ntdll.so` link it made pointed at the nonexistent
+/// `lib/wine/i386-unix` and was never replaced — while the host alone gave the same result.)*
 ///
 /// **One bundle serves every process the game spawns.** Measured: an executable inside a bundle reports
 /// that bundle's identity, icon and `CFBundleName` even when its file name does NOT match
@@ -80,9 +86,6 @@ public struct GameHostBundle: Sendable {
     /// **actual host** copied here by `write(into:hostBinary:…)`: the binary LaunchServices starts, which
     /// then adopts the Wine process handed to it over `CX_ALT_LOADER_SOCKET` and becomes it.
     ///
-    /// *(Under the older `SILO_LOADER_LINK_DIR` patch route this named a file that was never written —
-    /// Wine hard-linked its loader in here instead. That still works: macOS resolves the bundle from the
-    /// *running* executable's path, whatever its file name, so both routes can share one bundle.)*
     static let executableName = "SiloGameHost"
     /// Base name of the `.icns` in `Contents/Resources`, matching `CFBundleIconFile`.
     static let iconName = "AppIcon"
@@ -106,11 +109,6 @@ public struct GameHostBundle: Sendable {
         directory
             .appendingPathComponent(bundleSafe(id), isDirectory: true)
             .appendingPathComponent("\(fileSafeName).app", isDirectory: true)
-    }
-
-    /// The value for `SILO_LOADER_LINK_DIR` — the `Contents/MacOS` Wine hard-links its loader into.
-    public func loaderLinkDir(in directory: URL) -> URL {
-        bundleURL(in: directory).appendingPathComponent("Contents/MacOS", isDirectory: true)
     }
 
     // MARK: - Icon conversion
@@ -179,8 +177,7 @@ public struct GameHostBundle: Sendable {
     /// Create (or refresh) the bundle under `directory` and return its `Contents/MacOS`.
     ///
     /// - `hostBinary`: the alt-loader host to install as `Contents/MacOS/SiloGameHost` — the executable
-    ///   LaunchServices launches. `nil` leaves `Contents/MacOS` empty, which is what the
-    ///   `SILO_LOADER_LINK_DIR` route wants (Wine populates it itself).
+    ///   LaunchServices launches. `nil` writes the bundle without it (Info.plist and icon only).
     /// - `iconICO`: the game exe's icon as `PEIcon` extracts it; `nil` — or an icon we can't convert —
     ///   just means no `.icns`, which still leaves the process *named* after the game.
     ///
@@ -200,7 +197,7 @@ public struct GameHostBundle: Sendable {
         }
         do {
             // Refresh in place rather than delete-and-recreate: a relaunch while the previous run is still
-            // up must not pull the loader hard links out from under a running process.
+            // up must not pull the bundle out from under a running host.
             try fileManager.createDirectory(at: macOS, withIntermediateDirectories: true)
             try Data(infoPlist().utf8).write(
                 to: bundle.appendingPathComponent("Contents/Info.plist"), options: .atomic)
