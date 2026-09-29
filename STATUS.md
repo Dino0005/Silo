@@ -9,9 +9,13 @@
   param/env, `GameLibraryViewModel.hostLoaderLinkDir` — a redundant second write of the bundle the alt loader
   already writes WITH host + icon — `GameHostBundle.loaderLinkDir(in:)`, 3 tests; a test still guards that the
   variable is never set). `GameHostBundle` + alt loader untouched. Leftover loader links from the failed patched
-  run deleted from `HostApps/601150/…/Contents/MacOS`. 706 tests green. (2) Kerberos missing
-  in the build (`err:kerberos … no Kerberos support`; configure found no krb5) — parity gap; (3) rest of the
-  parity checklist: `apple_gptk`, `CX_HOME`/cxcompatdb, cfgmgr32 patch; (4) CI `build-wine.yml` updated for the
+  run deleted from `HostApps/601150/…/Contents/MacOS`. 706 tests green. (2) ✅ NOT a gap (checked 2026-09-29): `err:kerberos … no Kerberos support` appears 7–8× per Steam session on the
+  imported CrossOver runtime too (e.g. the 20:53 `wine-crossover-26.3` session) — CrossOver builds without krb5
+  as well (its kerberos.so references no krb5 library). Ours: header found, soname not (the SDK's libkrb5 has no
+  versioned install name). Leave it. (3) cfgmgr32: `Scripts/patches/0002-cfgmgr32-deviceinstance-notification.patch`
+  WRITTEN 2026-09-29 (dry-run applies to 26.3.0) — build + TEKKEN 8 clean-exit check pending; then `apple_gptk`
+  (Silo overlays GPTK from the user's .dmg, and D3DMetal games already render on the from-source runtime — likely
+  covered, confirm) and `CX_HOME`/cxcompatdb; (4) CI `build-wine.yml` updated for the
   GStreamer stack but never run; x86_64-Homebrew risk (see below).
 - **✅ Parity step 2 (2026-09-28): the from-source runtime ships CrossOver's OWN GStreamer — 1.24.4 / glib 2.78
   from the FOSS tarball, CrossOver's 17 plugins + libav + matroska — no Homebrew GStreamer anywhere.**

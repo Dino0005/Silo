@@ -1,0 +1,54 @@
+Silo patch 0002 — cfgmgr32: inert CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE notifications
+
+Symptom: TEKKEN 8 (and other Steam games) crash on EVERY exit — Unreal's "Fatal error!" dialog, a new
+Saved/Crashes/UECC-* directory each time. Diagnosed 2026-09-26: the crash is in SteamAPI_Shutdown →
+steamclient64 → CM_Unregister_Notification → sechost!I_ScUnregisterDeviceNotification, with a handle that
+points into steamclient64's .rdata. The same crash happens in CrossOver 26.3's own bottle (29 of 34 crash
+reports), so it is upstream behaviour, not Silo's.
+
+Cause: create_notify_context() returns CR_CALL_NOT_IMPLEMENTED for CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE
+WITHOUT writing *notify_handle, and steamclient64 doesn't check the return value: it later unregisters
+whatever garbage was in its variable.
+
+Fix (minimal, two lines of behaviour):
+  * CM_Register_Notification() sets *notify_context = NULL up front, so no failure path leaves it
+    uninitialised (unregistering NULL returns CR_INVALID_DATA cleanly);
+  * DEVICEINSTANCE returns CR_SUCCESS with a context that has no registration (ctx->notify == NULL): it never
+    fires, and CM_Unregister_Notification frees it safely — I_ScUnregisterDeviceNotification(NULL) returns
+    FALSE immediately. Windows supports this filter type, so "succeeds, delivers no events" is closer to
+    Windows than an error nobody checks.
+
+Verify: clean exit from TEKKEN 8 on a runtime built with this patch — no new Saved/Crashes/UECC-* directory
+(WINEDEBUG=+setupapi shows the FIXME line instead of the crash).
+
+--- a/dlls/cfgmgr32/main.c	2026-09-29 13:46:46
++++ b/dlls/cfgmgr32/main.c	2026-09-29 13:46:46
+@@ -199,8 +199,17 @@
+         notify_filter.handle.dbch_handle = filter->u.DeviceHandle.hTarget;
+         break;
+     case CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE:
+-        FIXME( "CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE is not supported!\n" );
+-        return CR_CALL_NOT_IMPLEMENTED;
++        /* SILO PATCH: not implemented, but hand back a real, inert context instead of an error. Steam's
++         * steamclient64 ignores this return value and later passes whatever is in *notify_handle to
++         * CM_Unregister_Notification — which crashed TEKKEN 8 on every exit. A context with no
++         * registration never fires, and unregistering it is safe (I_ScUnregisterDeviceNotification(NULL)
++         * returns FALSE without touching anything). */
++        FIXME( "CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE is not supported, returning an inert notification\n" );
++        if (!(ctx = calloc( 1, sizeof(*ctx) ))) return CR_OUT_OF_MEMORY;
++        ctx->user_data = user_data;
++        ctx->callback = callback;
++        *notify_handle = ctx;
++        return CR_SUCCESS;
+     default:
+         return CR_INVALID_DATA;
+     }
+@@ -232,6 +241,8 @@
+     TRACE( "(%s %p %p %p)\n", debugstr_CM_NOTIFY_FILTER( filter ), context, callback, notify_context );
+ 
+     if (!notify_context) return CR_FAILURE;
++    /* SILO PATCH: never leave the caller's handle uninitialised on a failure path. */
++    *notify_context = NULL;
+     if (!filter || !callback || filter->cbSize != sizeof(*filter)) return CR_INVALID_DATA;
+ 
+     return create_notify_context( filter, notify_context, callback, context );
