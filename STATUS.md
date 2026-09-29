@@ -56,8 +56,12 @@
   tile on this build too, and so did `-cfgmgr` on a later start (it had shown two on 2026-09-28) — the tile count
   varies; it is NOT the compiler nor the build (my earlier attribution was wrong). Now ONE tile also on the stock
   CrossOver runtime `wine-crossover-26.3.0-libav` — the two-tile sightings on imported runtimes were most likely
-  with `/Applications/Silo.app` 0.6.4, so the suspect is the APP (dist builds since 2026-09-28), not Wine. Check if
-  wanted: 0.6.4 + `wine-crossover-26.3`. Cosmetic. **Decision (user): keep `wine-cx-26.3.0-gcc16` as THE
+  with `/Applications/Silo.app` 0.6.4, so the suspect was the APP — **disproved (2026-09-29): dist app +
+  `wine-crossover-26.3.0-libav` showed TWO tiles on the next start.** `lsappinfo` with two tiles: six Steam "wine"
+  processes, two `Foreground` = `steam.exe` + the main `steamwebhelper.exe`, the rest `BackgroundOnly`. winemac
+  makes a process Foreground when it shows/activates a window; `steam.exe` only has a hidden 500×500 window, so
+  whether it gets promoted depends on start-up timing → one or two tiles, same app, same runtime. Closed: Steam
+  behaviour, not a Silo or Wine-build difference. **Decision (user): keep `wine-cx-26.3.0-gcc16` as THE
   from-source runtime; `-cfgmgr` deleted** (`wine-crossover-26.3.0-libav` kept). **MF bottle still needed (tested 2026-09-29):** SoulCalibur VI in the normal bottle on
   `-gcc16` (libav present) shows no menu videos; its log stops at Wine mfplat `topology_loader_Load … stub!` — an
   unimplemented Media Foundation piece (topology loader), not a missing codec, so GStreamer additions can't help.
