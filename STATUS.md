@@ -54,9 +54,11 @@
   (SteamBottle, 20:29) and SoulCalibur VI (**SteamBottleMF**, 20:31 — it had the same exit popup) start and exit
   with NO error popup, no new crash dirs; both launches carry CX_APPLEGPTK_LIBD3DSHARED_PATH. Steam showed ONE Dock
   tile on this build too, and so did `-cfgmgr` on a later start (it had shown two on 2026-09-28) — the tile count
-  varies between starts; it is NOT the compiler nor the build (my earlier attribution was wrong). Cosmetic; next
-  time two appear, identify the second one's process with `lsappinfo` while Steam is up. `-gcc16` is the candidate
-  to replace `-cfgmgr`. **MF bottle still needed (tested 2026-09-29):** SoulCalibur VI in the normal bottle on
+  varies; it is NOT the compiler nor the build (my earlier attribution was wrong). Now ONE tile also on the stock
+  CrossOver runtime `wine-crossover-26.3.0-libav` — the two-tile sightings on imported runtimes were most likely
+  with `/Applications/Silo.app` 0.6.4, so the suspect is the APP (dist builds since 2026-09-28), not Wine. Check if
+  wanted: 0.6.4 + `wine-crossover-26.3`. Cosmetic. **Decision (user): keep `wine-cx-26.3.0-gcc16` as THE
+  from-source runtime; `-cfgmgr` deleted** (`wine-crossover-26.3.0-libav` kept). **MF bottle still needed (tested 2026-09-29):** SoulCalibur VI in the normal bottle on
   `-gcc16` (libav present) shows no menu videos; its log stops at Wine mfplat `topology_loader_Load … stub!` — an
   unimplemented Media Foundation piece (topology loader), not a missing codec, so GStreamer additions can't help.
   MF-flagged games: SoulCalibur VI (544750), FATAL FURY: City of the Wolves (2492040); then `apple_gptk`
