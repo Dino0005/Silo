@@ -59,7 +59,10 @@
   Found by that build: Wine's build tool `sfnt2fon` links freetype and resolves it via the runtime rpath
   `@loader_path/../../../lib64` — with our @rpath ids (Homebrew's were absolute) make aborted on `courer.fon`.
   Fix: a temporary `$WORK/lib64` → deps/lib symlink during make (CI: `$GITHUB_WORKSPACE/lib64`), commit 4629447.
-  **Next:** push (user's OK), then the draft CI run (user dispatches from the web UI), then DXMT.
+  **✅ CI green (2026-09-30):** pushed (49f1fd1..fa59e9e); `build-wine.yml` run 36740839070 on macos-26 succeeded
+  first time, ~1 h 30 (GStreamer 7 min, build-deps incl. MoltenVK 39 min, Wine 40 min, package 3 min) → DRAFT
+  release `wine-cx-26.3.0` on Dino0005/Silo. Not yet: test of the CI asset itself, publishing the draft (DXMT's CI
+  needs a published tag), and the app still lists runtimes from `SILO_GITHUB_REPO=mikaelhug/Silo`, not the fork.
   **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
   `dlls/ntdll/unix/loader.c:2246` ("CW Hack 24067") `dlopen`s `<ntdll_dir>/cxcompatdb.so` if present, else a WARN.
   `cxcompatdb.so` itself is a proprietary CodeWeavers binary with no source: present in the imported

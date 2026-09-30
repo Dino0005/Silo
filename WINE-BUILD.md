@@ -105,8 +105,8 @@ so users can update on their own schedule.
   Steam sign-in, Devil May Cry 5 (VC-1 movies), TEKKEN 8 and SoulCalibur VI start and exit cleanly.
   `wine-cx-26.3.0-nobrew` (2026-09-30, **this** recipe, built locally): Steam sign-in, DMC5 (story video),
   TEKKEN 8, Spider-Man.
-- **CI not yet run with this recipe** — the first run should be a draft. The compiler install from a clean state
-  (no mingw-w64 installed, no tap) was tested locally; on a runner it hasn't run yet.
+- **CI validated (2026-09-30, run 36740839070, macos-26):** the whole recipe ran green on a clean runner in ~1 h 30
+  (GStreamer 7 min, shipped libraries 39 min, Wine 40 min) and published `wine-cx-26.3.0` as a draft release.
 - DXMT's build (`Scripts/build-dxmt.sh`) still uses the x86_64 Homebrew (`bootstrap-x86-brew.sh`) — next to fix.
 - Games that need Windows' own Media Foundation (Wine's MF topology loader is a stub) still need the MF
   bottle — GStreamer additions can't replace it.
