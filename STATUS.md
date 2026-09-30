@@ -29,9 +29,18 @@
   missing their generated build files (nettle's top-level Makefile.in, freetype's builds/unix/configure), so they
   come from the official releases at the SAME versions, sha256-pinned in versions.env; diffed, every common file
   identical. gmp and gnutls are built from the tarball as-is. Two gotchas: `cp -Rp` (mtimes, or make re-runs
-  automake), and static hogweed needs `HOGWEED_LIBS="-lhogweed -lgmp"`. NOT yet wired into build-wine.sh / the yml /
-  the bundler (`DLOPEN_PACKAGES` still seeds from Homebrew). Still open: MoltenVK (user's call — the tarball's
-  1.2.10 needs fetchDependencies + xcodebuild), host tools + arm64 mingw bottle.
+  automake), and static hogweed needs `HOGWEED_LIBS="-lhogweed -lgmp"`.
+  **Step 2 done — MoltenVK from the tarball (user's choice, 2026-09-30):** `Scripts/build-moltenvk.sh` (run at the
+  end of build-deps.sh, ~2.5 min) builds the tarball's `sources/moltenvk` 1.2.10 with xcodebuild (runtime build
+  only). SPIRV-Cross = the tarball's copy (`--spirv-cross-root` — an OPTION, not an env var); cereal/Vulkan-Headers/
+  glslang/Vulkan-Tools/Volk cloned by `fetchDependencies` at the tarball's `ExternalRevisions/` commits. Current
+  Xcode refuses the projects' 10.15 target → `XCODE_XCCONFIG_FILE` override (12.0, `ARCHS = x86_64`); the autotools
+  `CC`/`CFLAGS` from build-deps.sh must be unset or xcodebuild tries to spawn "$CC" as one binary. Result matches
+  CrossOver's: 1.2.10, x86_64, identical system-framework deps, `@rpath` id; `strip -x` → 966 symbols vs its 967
+  (all four libs are stripped the same way now; sizes within a few % of CrossOver's). Full `build-deps.sh` ≈ 9 min.
+  **Next:** wire `.wine-build/deps/prefix` into build-wine.sh / build-wine.yml / the bundler (`DLOPEN_PACKAGES` still
+  seeds from Homebrew — switch to SILO_DEPS_PREFIX), host tools from arm64 Homebrew, mingw-w64 arm64 bottle, then a
+  full Wine build + game re-test, then the draft CI run.
   **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
   `dlls/ntdll/unix/loader.c:2246` ("CW Hack 24067") `dlopen`s `<ntdll_dir>/cxcompatdb.so` if present, else a WARN.
   `cxcompatdb.so` itself is a proprietary CodeWeavers binary with no source: present in the imported

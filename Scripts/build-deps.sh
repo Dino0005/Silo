@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the third-party libraries Silo's Wine runtime SHIPS (x86_64) from source instead of x86_64 Homebrew:
-# gmp, nettle (static), gnutls, freetype — the versions in the CrossOver FOSS tarball.
+# gmp, nettle (static), gnutls, freetype — the versions in the CrossOver FOSS tarball — then MoltenVK
+# (Scripts/build-moltenvk.sh, needs full Xcode).
 #
 # Why: Homebrew's installer now refuses an x86_64 install on macOS ("Homebrew on macOS is only supported on
 # Apple Silicon processors!" — measured on the CI runner, 2026-09-29), and x86_64 bottles are disappearing,
@@ -88,10 +89,12 @@ for f in "$PREFIX"/lib/*.dylib; do
   for ref in $(otool -L "$f" | awk 'NR>1 {print $1}' | grep "^$PREFIX/" || true); do
     install_name_tool -change "$ref" "@rpath/$(basename "$ref")" "$f"
   done
+  strip -x "$f" 2>/dev/null   # local symbols out, like CrossOver's
   codesign --force --sign "${SILO_SIGN_IDENTITY:--}" "$f" 2>/dev/null
   bad="$(otool -L "$f" | awk 'NR>1 {print $1}' | grep -vE '^(@rpath/|/usr/lib/|/System/)' || true)"
   [ -z "$bad" ] || { echo "ERROR: $(basename "$f") still references: $bad"; exit 1; }
   [ "$(lipo -archs "$f")" = "x86_64" ] || { echo "ERROR: $(basename "$f") is not x86_64-only"; exit 1; }
 done
 ls "$PREFIX/lib" | grep -E '\.dylib$' | tr '\n' ' '; echo
+"$ROOT/Scripts/build-moltenvk.sh"
 echo "Built: $PREFIX"
