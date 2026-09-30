@@ -76,7 +76,11 @@
   supported yet` (dlls/ntdll/signal_x86_64.c:121 — unwinding through HOST code with a personality routine) and
   `stack overflow` in ntdll. Measured the same with: nobrew Wine + new DXMT, nobrew + OLD DXMT (July CI build),
   nobrew + CrossOver's MoltenVK 1.2.10 swapped in, and `wine-cx-26.3.0-gcc16` + old DXMT. Works on the imported
-  `wine-crossover-26.3-dxmt` (2026-09-25 log). Untested hypothesis: a cxcompatdb rule (CrossOver-only).
+  `wine-crossover-26.3-dxmt` (2026-09-25 log) and `wine-crossover-26.3.0-libav-dxmt` (2026-09-30, twice).
+  NOT cxcompatdb: the working imported run logs `couldn't get path to JSON database` too (CX_HOME unset).
+  Same env (WINEDLLOVERRIDES, DXMT_*, ROSETTA_ADVERTISE_AVX, WINEMSYNC) and same DLLs (dxgi/d3d11/d3d12 builtin);
+  the imported Wine logs NO `virtual_unwind` at all. So it's a difference between CrossOver's binaries and ours
+  from the same source (build flags? unwind info of the unix side?) — separate investigation, next to pick up.
   **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
   `dlls/ntdll/unix/loader.c:2246` ("CW Hack 24067") `dlopen`s `<ntdll_dir>/cxcompatdb.so` if present, else a WARN.
   `cxcompatdb.so` itself is a proprietary CodeWeavers binary with no source: present in the imported
