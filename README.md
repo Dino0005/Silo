@@ -101,7 +101,8 @@ raytracing — and launch options). Settings (⌘,) manages Wine/GPTK/DXMT runti
 
 ## Build from source
 
-Requires a Swift 6 toolchain — **Command Line Tools are sufficient, no Xcode needed**.
+Requires a Swift 6 toolchain — **Command Line Tools are sufficient for the app, no Xcode needed**
+(building the Wine or DXMT runtime does need full Xcode; see below).
 
 ```sh
 swift build              # compile
@@ -119,9 +120,14 @@ swift build              # compile
 Pushing only powers the CI Wine build. To exercise the whole app locally:
 
 ```sh
-./Scripts/build-wine.sh 26.2.0                # ~30–60 min, from CrossOver source
-./Scripts/install-local-wine.sh .wine-build/install wine-cx-26.2.0
+./Scripts/build-wine.sh                       # ~1 h; CrossOver source version from versions.env
+./Scripts/install-local-wine.sh .wine-build/install wine-cx-26.3.0
 ```
+
+The Wine build needs an Apple-silicon Mac with Rosetta, full Xcode (MoltenVK is built with `xcodebuild`), and
+the native Homebrew for a few build-time tools (bison, cmake, pkgconf, and the pinned mingw-w64 compiler) —
+**no x86_64 Homebrew**. Everything the runtime ships (GStreamer, gnutls, freetype, MoltenVK, SDL) is compiled
+from source; see [WINE-BUILD.md](WINE-BUILD.md).
 
 If CrossOver is already installed, there's a shortcut that skips the compile entirely:
 
@@ -129,11 +135,11 @@ If CrossOver is already installed, there's a shortcut that skips the compile ent
 ./Scripts/install-local-crossover-wine.sh      # defaults to /Applications/CrossOver.app
 ```
 
-It copies CrossOver's own Wine tree into `Runtimes/` and bundles its dependency dylibs, naming the
+It copies CrossOver's own Wine tree into `Runtimes/` as is (its `lib64` already carries every dependency), naming the
 runtime `wine-crossover-<version>` from CrossOver's `Info.plist` — so re-running after a CrossOver
 update installs alongside the old one instead of overwriting it. (`bin/wine64` is symlinked to
-`wineloader`: CrossOver's top-level `wine` is a Perl wrapper, not a Mach-O binary, which Silo's runtime
-discovery and dylib bundling both need.)
+`wineloader`: CrossOver's top-level `wine` is a Perl wrapper, not the Mach-O binary Silo's runtime
+discovery needs.)
 
 Such a runtime also carries CrossOver's `lib64/apple_gptk` tree, which Silo detects and wires up
 (`CX_ROOT`, `CX_APPLEGPTK_LIBD3DSHARED_PATH`, GStreamer). Note that **changing the Wine runtime under an
@@ -142,7 +148,7 @@ Foundation bottle records the runtime it was built with and asks to be rebuilt w
 
 Then in the app: Settings → **Wine** → Set default, **GPTK** → import your `.dmg`, and the
 Library onboarding's **Set up Steam bottle** runs everything else locally. Building DXMT
-additionally needs full Xcode's Metal toolchain — see `Scripts/build-dxmt.sh`.
+additionally needs full Xcode's Metal toolchain and, for now, an x86_64 Homebrew — see `Scripts/build-dxmt.sh`.
 
 CI runs build + test on every push; tagging `v*` publishes an ad-hoc-signed `Silo.zip` (with its
 `.sha256`) via `release.yml`. Every version number lives in one file, `versions.env`.
@@ -150,7 +156,9 @@ CI runs build + test on every push; tagging `v*` publishes an ad-hoc-signed `Sil
 ## Wine sourcing
 
 Silo's Wine is compiled **from CrossOver's open (LGPL) sources in Silo's own CI** and published to
-its Releases — no third-party prebuilt dependency, reproducible from `versions.env`. DXMT is built
+its Releases — no third-party prebuilt dependency, reproducible from `versions.env`. It ships in CrossOver's
+own layout, with CrossOver's GStreamer 1.24.4 (plus LGPL FFmpeg decoders for VC-1/WMV movies) and every other
+library built from source too. DXMT is built
 from its upstream (`3Shain/dxmt`), pinned in `versions.env`, against that same Wine. Apple's D3DMetal
 is imported from the user's GPTK `.dmg` (Apple-login-gated, so it is never auto-downloaded). See
 [WINE-BUILD.md](WINE-BUILD.md).
