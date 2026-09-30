@@ -89,7 +89,8 @@ so users can update on their own schedule.
 
 ## Status / caveats
 - **Local build validated in game (2026-09-29, runtime `wine-cx-26.3.0-gcc16`):** Steam sign-in, Devil May Cry
-  5 (VC-1 movies), TEKKEN 8 and SoulCalibur VI start and exit cleanly.
+  5 (VC-1 movies), TEKKEN 8 and SoulCalibur VI start and exit cleanly. **Re-validated with the no-Homebrew recipe
+  (2026-09-30, `wine-cx-26.3.0-nobrew`):** Steam sign-in, DMC5 (story video), TEKKEN 8, Spider-Man.
 - **CI not yet run with this recipe** — the first run should be a draft. The pinned-compiler step's
   fetch-and-install branch (a runner without that mingw-w64 revision) is untested.
 - **No x86_64 Homebrew any more** (its installer refuses Intel installs on current macOS — the first CI run failed

@@ -53,8 +53,13 @@
   `@rpath` ids don't change what Wine dlopen()s. build-wine.sh + yml: PKG_CONFIG_LIBDIR limited to our 3 prefixes
   (native pkgconf's default = arm64 .pc files), `-isysroot $SDK` in CC (no /usr/local leakage — local = CI), cmake
   native with both Homebrew roots ignored, `/usr/bin/make`, ccache dropped from CI (was x86 Homebrew). 708 tests.
-  **Next (user will decide):** full `Scripts/build-wine.sh` + game re-test (Steam sign-in, DMC5, TEKKEN 8 — the PE
-  compiler is now the arm64 build of the same GCC, so re-verify), then the draft CI run.
+  **✅ Verified in game (2026-09-30), runtime `wine-cx-26.3.0-nobrew`** (full local build of this recipe; resumed at
+  `make` after the fix below, configure was already the new one): Steam sign-in, DMC5 (story video), TEKKEN 8,
+  Spider-Man — all OK (user). No Homebrew reference in any Mach-O of the tree; `wine --version` = wine-11.0.
+  Found by that build: Wine's build tool `sfnt2fon` links freetype and resolves it via the runtime rpath
+  `@loader_path/../../../lib64` — with our @rpath ids (Homebrew's were absolute) make aborted on `courer.fon`.
+  Fix: a temporary `$WORK/lib64` → deps/lib symlink during make (CI: `$GITHUB_WORKSPACE/lib64`), commit 4629447.
+  **Next:** push (user's OK), then the draft CI run (user dispatches from the web UI), then DXMT.
   **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
   `dlls/ntdll/unix/loader.c:2246` ("CW Hack 24067") `dlopen`s `<ntdll_dir>/cxcompatdb.so` if present, else a WARN.
   `cxcompatdb.so` itself is a proprietary CodeWeavers binary with no source: present in the imported
