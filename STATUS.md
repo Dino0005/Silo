@@ -63,6 +63,20 @@
   first time, ~1 h 30 (GStreamer 7 min, build-deps incl. MoltenVK 39 min, Wine 40 min, package 3 min) → DRAFT
   release `wine-cx-26.3.0` on Dino0005/Silo. Not yet: test of the CI asset itself, publishing the draft (DXMT's CI
   needs a published tag), and the app still lists runtimes from `SILO_GITHUB_REPO=mikaelhug/Silo`, not the fork.
+  **DXMT without x86_64 Homebrew (2026-09-30, commit ff2821d):** `Scripts/build-llvm15.sh` (LLVM 15.0.7 from the
+  official tarball, DXMT configure.sh's recipe but assertions OFF like Homebrew's llvm@15 — on, winemetal.so was
+  31.8 MB; off 23.4 MB vs CrossOver's 24.2), meson/ninja from a universal /usr/bin/python3 venv (runs under arch
+  -x86_64 like the x86 Homebrew meson), `Scripts/dxmt-patches/0001` = backport of upstream 06065754af (v0.72's
+  air_tessellation.metal doesn't compile with Xcode 27's Metal toolchain), `Scripts/fix-winemetal-rpath.sh`
+  (winemetal.so's LC_ID_DYLIB was winemac.so's absolute runner path → @rpath/winemetal.so + rpath @loader_path/,
+  as CrossOver's). CI: LLVM cached, `draft` input. Built locally, installed as `dxmt-v0.72-cx26.3.0-nobrew`.
+  **❗ Open, NOT caused by this work — Fatal Fury: City of the Wolves (2492040, DXMT, MF bottle) crashes on
+  every from-source Wine:** UE "Fatal error!" right after its D3D12 probe (d3d12 → wined3d/vkd3d → MoltenVK,
+  winevulkan unloaded), then `fixme:seh:virtual_unwind calling personality routine in system library not
+  supported yet` (dlls/ntdll/signal_x86_64.c:121 — unwinding through HOST code with a personality routine) and
+  `stack overflow` in ntdll. Measured the same with: nobrew Wine + new DXMT, nobrew + OLD DXMT (July CI build),
+  nobrew + CrossOver's MoltenVK 1.2.10 swapped in, and `wine-cx-26.3.0-gcc16` + old DXMT. Works on the imported
+  `wine-crossover-26.3-dxmt` (2026-09-25 log). Untested hypothesis: a cxcompatdb rule (CrossOver-only).
   **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
   `dlls/ntdll/unix/loader.c:2246` ("CW Hack 24067") `dlopen`s `<ntdll_dir>/cxcompatdb.so` if present, else a WARN.
   `cxcompatdb.so` itself is a proprietary CodeWeavers binary with no source: present in the imported
