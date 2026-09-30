@@ -1,6 +1,19 @@
 # Wine sourcing strategy
 
-## Decision (2026-06-26)
+> **This is a fork** (`Dino0005/Silo`, from `mikaelhug/Silo`). The decision below is upstream's and still holds;
+> the recipe from "Pipeline" on is this fork's, rewritten 2026-09-28 → 2026-09-30.
+
+## This fork (2026-09-30)
+- **Same base:** the Wine Silo builds and ships is compiled only from CrossOver's FOSS tarball, plus
+  `Scripts/patches/`.
+- **Parity with CrossOver's own Wine:** CrossOver's GStreamer 1.24.4 (plus libav + matroska), and every shipped
+  library built from source with the versions and dependency shape of CrossOver's `lib64`.
+- **No x86_64 Homebrew** anywhere in the Wine or DXMT build — its installer refuses Intel installs now.
+- **The imported CrossOver Wine** (`CrossOverWineImporter`, from the user's own licensed CrossOver) is the first
+  alternative here, not a forbidden one: it is what the user runs day to day while the from-source build reaches
+  parity. Its binaries are never shipped or copied into Silo (CLAUDE.md, constraint #7).
+
+## Decision (upstream, 2026-06-26)
 
 Silo's game Wine is the **CrossOver-based Wine, built from open source in our own CI and hosted on
 our own GitHub Releases** — not a third-party prebuilt that can go stale.
