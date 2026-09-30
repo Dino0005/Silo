@@ -19,6 +19,19 @@
   nettle}, moltenvk), the way build-gst-libav.sh does GStreamer. Then full build + game re-test, then the draft CI
   run. After that: DXMT the same way (build-dxmt.yml downloads the wine-cx-* release by tag, so Wine's release
   must be PUBLISHED first — a draft has no tag yet; add the same `draft` input to build-dxmt.yml).
+  **Progress 2026-09-30 — step 1 of that plan done: `Scripts/build-deps.sh`** builds gmp (shared), nettle 3.10
+  (static), gnutls 3.8.3, freetype 2.13.3 for x86_64 into `.wine-build/deps/prefix`, `@rpath` names, no Homebrew.
+  Measured against stock CrossOver 26.3.0's lib64 and matched: gnutls → only `@rpath/libgmp.10` + Security/
+  CoreFoundation (same 68.1.0 version; `--without-zlib`, included libtasn1/unistring, no p11-kit/idn/NLS);
+  freetype → only `/usr/lib/libbz2` (same 27.2.0; zlib built in). **Correction:** CrossOver ships NO libpng (an
+  earlier note said libpng16.16.56 — wrong), and no libidn2/libintl/libp11-kit/libtasn1/libunistring/libnettle
+  either: those were Homebrew artefacts in our lib64. **Found:** the tarball's nettle and freetype are git exports
+  missing their generated build files (nettle's top-level Makefile.in, freetype's builds/unix/configure), so they
+  come from the official releases at the SAME versions, sha256-pinned in versions.env; diffed, every common file
+  identical. gmp and gnutls are built from the tarball as-is. Two gotchas: `cp -Rp` (mtimes, or make re-runs
+  automake), and static hogweed needs `HOGWEED_LIBS="-lhogweed -lgmp"`. NOT yet wired into build-wine.sh / the yml /
+  the bundler (`DLOPEN_PACKAGES` still seeds from Homebrew). Still open: MoltenVK (user's call — the tarball's
+  1.2.10 needs fetchDependencies + xcodebuild), host tools + arm64 mingw bottle.
   **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
   `dlls/ntdll/unix/loader.c:2246` ("CW Hack 24067") `dlopen`s `<ntdll_dir>/cxcompatdb.so` if present, else a WARN.
   `cxcompatdb.so` itself is a proprietary CodeWeavers binary with no source: present in the imported
