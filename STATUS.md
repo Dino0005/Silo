@@ -3,7 +3,14 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
-- **▶️ RESUME HERE (updated end of 2026-09-29).** Live from-source runtime = `wine-cx-26.3.0-gcc16` (pinned GCC
+- **▶️ RESUME HERE (2026-09-30 evening) — NEXT: the D3D12-probe crash on from-source Wine** (entries below:
+  "❗ Open … Fatal Fury"). Everything suspected so far is ruled out (new DXMT, our MoltenVK, the no-Homebrew work,
+  cxcompatdb, patch 0002); left: how our Wine binaries differ from CrossOver's. First step: get a BACKTRACE into
+  the log (winedbg's window dies with the host) to see who calls address 0 after d3d12.dll. Agreed order with the
+  user: fix it → rebuild Wine in CI → game re-test → PUBLISH `wine-cx-26.3.0` (still a DRAFT on purpose — don't
+  publish before) → DXMT CI (needs the published tag) → move `SILO_GITHUB_REPO` to the fork. Both builds are now
+  x86_64-Homebrew-free and verified (Wine CI green; DXMT verified on the imported Wine).
+- **(previous resume note, end of 2026-09-29).** Live from-source runtime = `wine-cx-26.3.0-gcc16` (pinned GCC
   16.1.0 via `Scripts/pin-mingw-w64.sh`, patch 0002, GStreamer 1.24.4 stack, CX_APPLEGPTK fix) — verified on Steam,
   DMC5, TEKKEN 8, SoulCalibur VI (MF bottle). Details in the entries below.
   **❗ NEXT TASK — drop x86_64 Homebrew from the Wine build (CI can't run otherwise).** First CI run of
