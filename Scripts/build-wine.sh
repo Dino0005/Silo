@@ -136,8 +136,14 @@ $ARCH env CFLAGS="-fvisibility=default -O2" CROSSCFLAGS="-fvisibility=default -O
   x86_64_CC="$MINGW/bin/x86_64-w64-mingw32-gcc" i386_CC="$MINGW/bin/i686-w64-mingw32-gcc"
 # /usr/bin/make explicitly: it's universal, while Xcode 27's own make (first on PATH in an Xcode-launched
 # shell) is arm64-only, so `arch -x86_64 make` failed with "Bad CPU type in executable".
+# Wine's build tools run during make, and those that link a shipped library (sfnt2fon → freetype) find it
+# through the same rpath as the runtime, @loader_path/../../../lib64 — from build/tools/<tool>/ that is
+# $WORK/lib64. Our libraries have @rpath ids (Homebrew's had absolute paths, so this never came up), so point
+# $WORK/lib64 at them for the build only.
+ln -sfn "$DEPS_PREFIX/lib" "$WORK/lib64"
 $ARCH /usr/bin/make -j"$(sysctl -n hw.ncpu)"
 $ARCH /usr/bin/make install
+rm -f "$WORK/lib64"
 
 echo "==> Build the steamwebhelper wrapper (forces CEF --in-process-gpu + software GL so Steam's UI paints)"
 mkdir -p "$WORK/install/share/silo"

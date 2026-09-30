@@ -181,8 +181,12 @@ jobs:
           # --with-sdl: winebus's SDL controller backend; dlopens the pinned libSDL2 bundled below (Map Controllers → XInput).
           # x86_64_CC / i386_CC: the pinned mingw-w64 (step above).
           # /usr/bin/make: universal (an Xcode-provided make can be arm64-only → "Bad CPU type" under arch).
+          # Build tools that link a shipped library (sfnt2fon → freetype) resolve it through the runtime's
+          # rpath @loader_path/../../../lib64 = $GITHUB_WORKSPACE/lib64 from build/tools/<tool>/ (see build-wine.sh).
+          ln -sfn "$DEPS_PREFIX/lib" "$GITHUB_WORKSPACE/lib64"
           $ARCH_PREFIX /usr/bin/make -j"$(sysctl -n hw.ncpu)"
           $ARCH_PREFIX /usr/bin/make install
+          rm -f "$GITHUB_WORKSPACE/lib64"
           test -x "$GITHUB_WORKSPACE/wine-install/bin/wine64" || test -x "$GITHUB_WORKSPACE/wine-install/bin/wine"
           # steamwebhelper wrapper (forces CEF --in-process-gpu + software GL so Steam's UI paints) — shipped in the runtime.
           mkdir -p "$GITHUB_WORKSPACE/wine-install/share/silo"
