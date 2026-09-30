@@ -28,3 +28,4 @@ dist/
 
 # prototipo alt-loader: il binario compilato non si versiona
 Scripts/altloader-host/host
+.dxmt-llvm/

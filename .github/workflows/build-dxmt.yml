@@ -34,6 +34,10 @@ on:
         description: "Override the published release tag (blank = dxmt-<DXMT_VERSION>-cx<wine version>)"
         required: false
         default: ""
+      draft:
+        description: "Create the release as a DRAFT (visible only to the repo's maintainers) — for test runs"
+        type: boolean
+        default: true
   workflow_call:
     # Chained from wine-autoupdate.yml after a new wine-cx-* is published, so DXMT is rebuilt against it
     # (DXMT's winemetal.so ABI-links a specific wine — keep the pairing fresh).
@@ -54,6 +58,10 @@ on:
         required: false
         type: string
         default: ""
+      draft:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -98,6 +106,7 @@ jobs:
             echo "MINGW_DIR=llvm-mingw-$MINGW_VER-ucrt-macos-universal"
             echo "WINE_TAG=$WINE_TAG"
             echo "REL_TAG=$REL_TAG"
+            echo "DXMT_LLVM_VERSION=$DXMT_LLVM_VERSION"
           } >> "$GITHUB_ENV"
           echo "Building $DXMT_REPO@$DXMT_VER against $WINE_TAG → publishing $REL_TAG"
 
@@ -117,35 +126,30 @@ jobs:
           printf 'kernel void _p() {}' > "$RUNNER_TEMP/p.metal"
           xcrun -sdk macosx metal -c "$RUNNER_TEMP/p.metal" -o "$RUNNER_TEMP/p.air"   # hard-fail if Metal can't compile
 
-      - name: Install Rosetta 2
-        run: softwareupdate --install-rosetta --agree-to-license || true
-
-      - name: Build dependencies (x86_64 Homebrew)
+      - name: Build tools (native Homebrew + universal meson/ninja venv) + Rosetta
         run: |
           set -eo pipefail
-          # x86_64 Homebrew under Rosetta so llvm@15 + meson match the x86_64 DXMT we build.
-          # shellcheck disable=SC2016  # the $(...) must run in the spawned bash, not expand here
-          if [ ! -x /usr/local/bin/brew ]; then
-            $ARCH_PREFIX /bin/bash -c '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-          fi
-          BREW=/usr/local/bin/brew
-          test -x "$BREW"
-          export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ENV_HINTS=1
-          # The runner pre-seeds /usr/local/bin with macOS Python.framework shims that block Homebrew's
-          # python keg-link (meson pulls python). Remove just those shims so the install is error-free.
-          for shim in /usr/local/bin/*; do
-            if [ -L "$shim" ] && readlink "$shim" 2>/dev/null | grep -q "Python.framework"; then
-              sudo rm -f "$shim"
-            fi
-          done
-          $ARCH_PREFIX "$BREW" install llvm@15 meson ninja || true
-          missing=""
-          for f in llvm@15 meson ninja; do
-            $ARCH_PREFIX "$BREW" --prefix "$f" >/dev/null 2>&1 || missing="$missing $f"
-          done
-          if [ -n "$missing" ]; then echo "::error::required brew formulae failed to install:$missing"; exit 1; fi
-          echo "BREW=$BREW" >> "$GITHUB_ENV"
-          echo "LLVM15=$($ARCH_PREFIX "$BREW" --prefix llvm@15)" >> "$GITHUB_ENV"
+          # Same as Scripts/build-dxmt.sh. No x86_64 Homebrew: its installer refuses Intel installs now
+          # ("only supported on Apple Silicon" — the Wine workflow's first run failed on it, 2026-09-29).
+          ./Scripts/host-tools.sh | tail -1 | tr ':' '\n' >> "$GITHUB_PATH"   # cmake (+ Rosetta)
+          # /usr/bin/python3 is universal, so this meson runs under `arch -x86_64` like the x86_64 Homebrew one
+          # did — meson then sees an x86_64 build machine, which DXMT's native (darwin) parts rely on.
+          /usr/bin/python3 -m venv "$GITHUB_WORKSPACE/.dxmt-llvm/venv"
+          "$GITHUB_WORKSPACE/.dxmt-llvm/venv/bin/pip" install -q meson ninja
+          echo "$GITHUB_WORKSPACE/.dxmt-llvm/venv/bin" >> "$GITHUB_PATH"
+
+      - name: Cache LLVM ${{ env.DXMT_LLVM_VERSION }} (x86_64, static — ~1 h to build on a runner)
+        uses: actions/cache@v6
+        with:
+          path: .dxmt-llvm/llvm-${{ env.DXMT_LLVM_VERSION }}
+          key: dxmt-llvm-${{ env.DXMT_LLVM_VERSION }}-${{ hashFiles('Scripts/build-llvm15.sh') }}
+
+      - name: Build LLVM for the airconv shader compiler (from source, DXMT's recipe)
+        run: |
+          set -eo pipefail
+          # Same script as Scripts/build-dxmt.sh; a no-op when the cache above restored it. This LLVM ships
+          # (statically, inside winemetal.so), so it's built from the official release — was Homebrew's llvm@15.
+          echo "LLVM15=$(./Scripts/build-llvm15.sh | tail -1)" >> "$GITHUB_ENV"
 
       - name: Download the CrossOver Wine to build against
         run: |
@@ -165,6 +169,13 @@ jobs:
           # Keep .git so meson stamps the version from the tag (vcs_tag → version.h).
           git clone --depth 1 --branch "$DXMT_VER" --recurse-submodules --shallow-submodules \
             "https://github.com/${DXMT_REPO}.git" "$RUNNER_TEMP/dxmt"
+          # Silo's backports on top of the tag — same loop as Scripts/build-dxmt.sh, each required to apply.
+          for p in "$GITHUB_WORKSPACE"/Scripts/dxmt-patches/*.patch; do
+            [ -e "$p" ] || break
+            echo "==> Apply $(basename "$p")"
+            ( cd "$RUNNER_TEMP/dxmt" && patch -p1 --forward < "$p" ) \
+              || { echo "::error::$(basename "$p") did not apply to DXMT $DXMT_VER — rebase or drop it"; exit 1; }
+          done
           # The cross toolchain DXMT's build-win64.txt pins, placed where @GLOBAL_SOURCE_ROOT@ expects it.
           mkdir -p "$RUNNER_TEMP/dxmt/toolchains"
           curl -fL "https://github.com/mstorsjo/llvm-mingw/releases/download/${MINGW_VER}/${MINGW_DIR}.tar.xz" -o "$RUNNER_TEMP/llvm-mingw.tar.xz"
@@ -177,15 +188,17 @@ jobs:
           set -eo pipefail
           cd "$DXMT_SRC"
           # Native (macOS) toolchain for winemetal.so + airconv: pin the SYSTEM clang by ABSOLUTE path,
-          # x86_64. Load-bearing — llvm-mingw AND llvm@15 each ship a bare `clang` that would shadow the
-          # Apple clang on PATH and can't link macOS binaries (ld: library 'System' not found). echo (not a
-          # heredoc) so YAML block indentation can't leak into the meson file.
+          # x86_64. Load-bearing — llvm-mingw ships a bare `clang` that would shadow the Apple clang on PATH
+          # and can't link macOS binaries (ld: library 'System' not found). -isysroot: no default /usr/local
+          # search paths (see Scripts/build-dxmt.sh). echo (not a heredoc) so YAML block indentation can't
+          # leak into the meson file.
+          SDK="$(xcrun --show-sdk-path)"
           {
             echo "[binaries]"
-            echo "c = ['/usr/bin/clang', '-arch', 'x86_64']"
-            echo "cpp = ['/usr/bin/clang++', '-arch', 'x86_64']"
+            echo "c = ['/usr/bin/clang', '-arch', 'x86_64', '-isysroot', '$SDK']"
+            echo "cpp = ['/usr/bin/clang++', '-arch', 'x86_64', '-isysroot', '$SDK']"
           } > silo-osx.txt
-          # Cross toolchain (llvm-mingw) is absolute in build-win64.txt and llvm@15 is via
+          # Cross toolchain (llvm-mingw) is absolute in build-win64.txt and LLVM 15 is via
           # -Dnative_llvm_path, so keep them AFTER the system dirs on PATH (system clang/ld/ar win).
           export PATH="$PATH:$DXMT_SRC/toolchains/$MINGW_DIR/bin:$LLVM15/bin"
           # -Dwine_builtin_dll=true: all dlls (d3d + winemetal) install to <arch>-windows as BUILTIN — the
@@ -219,6 +232,8 @@ jobs:
           done
           test -e "$unix/winemetal.so" || { echo "::error::missing artifact $unix/winemetal.so"; exit 1; }
           file "$unix/winemetal.so" | grep -q x86_64 || { echo "::error::winemetal.so is not x86_64"; exit 1; }
+          # Install name + references + rpath as CrossOver's own winemetal.so (shared with build-dxmt.sh).
+          "$GITHUB_WORKSPACE/Scripts/fix-winemetal-rpath.sh" "$unix/winemetal.so"
 
       - name: Package dxmt.tar.xz
         run: |
@@ -236,6 +251,8 @@ jobs:
         with:
           tag_name: ${{ env.REL_TAG }}
           name: ${{ env.REL_TAG }}
+          # Manual runs default to a draft: nothing is public until someone presses "Publish" on GitHub.
+          draft: ${{ inputs.draft }}
           files: |
             dxmt.tar.xz
             dxmt.tar.xz.sha256

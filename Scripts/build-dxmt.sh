@@ -22,7 +22,10 @@
 #   2. FULL Xcode with the Metal toolchain (`xcrun -sdk macosx metal`). Command Line Tools alone is NOT
 #      enough — the build compiles .metal shaders. Install Xcode, then
 #      `sudo xcode-select -s /Applications/Xcode.app`.
-#   3. x86_64 Homebrew (the build is x86_64, matching the x86_64 CrossOver Wine + winemetal.so).
+#   3. The native (arm64) Homebrew for host tools only (Scripts/host-tools.sh: cmake). No x86_64 Homebrew:
+#      its installer refuses Intel installs now. meson/ninja come from a universal Python venv (they run under
+#      Rosetta, so meson sees an x86_64 build machine), and the LLVM 15 that winemetal.so links statically is
+#      built from source by Scripts/build-llvm15.sh (was Homebrew's llvm@15).
 #
 # Usage: Scripts/build-dxmt.sh [--wine <wine-install-dir>] [dxmt_version] [release_tag]
 #   e.g. Scripts/build-dxmt.sh                          # version + paths from versions.env / defaults
@@ -35,7 +38,6 @@ set -a
 . "$ROOT/versions.env"
 set +a
 ARCH="arch -x86_64"          # DXMT must be x86_64 to match the x86_64 CrossOver Wine (Rosetta)
-BREW=/usr/local/bin/brew     # x86_64 Homebrew (so llvm@15 etc. are x86_64, like build-wine.sh)
 
 # --- args (a --wine flag, then optional positional version + tag) ---
 WINE_INSTALL="$ROOT/.wine-build/install"   # default: where build-wine.sh installs
@@ -81,9 +83,15 @@ echo "    Metal toolchain: OK"
 }
 WINE_INSTALL="$(cd "$WINE_INSTALL" && pwd)"   # absolute (meson needs it)
 echo "    Wine install: $WINE_INSTALL"
-echo "==> Rosetta + x86_64 Homebrew deps (llvm@15 for the airconv shader compiler, meson, ninja)"
-"$ROOT/Scripts/bootstrap-x86-brew.sh" llvm@15 meson ninja
-LLVM15="$($ARCH "$BREW" --prefix llvm@15)"   # = /usr/local/opt/llvm@15 (meson's default native_llvm_path)
+echo "==> Build tools: host tools (native Homebrew) + meson/ninja (universal venv) + Rosetta"
+export PATH="$("$ROOT/Scripts/host-tools.sh" | tail -1):$PATH"
+# /usr/bin/python3 is universal, so the venv's meson runs under `arch -x86_64` exactly like the x86_64
+# Homebrew meson did — meson then sees an x86_64 build machine, which DXMT's native (darwin) parts rely on.
+VENV="$ROOT/.dxmt-llvm/venv"
+[ -x "$VENV/bin/meson" ] || { /usr/bin/python3 -m venv "$VENV" && "$VENV/bin/pip" install -q meson ninja; }
+export PATH="$VENV/bin:$PATH"
+echo "==> LLVM $DXMT_LLVM_VERSION for the airconv shader compiler (Scripts/build-llvm15.sh — from source)"
+LLVM15="$("$ROOT/Scripts/build-llvm15.sh" | tail -1)"
 
 echo "==> Fetch DXMT $VER ($DXMT_REPO) + submodules (directx headers, nvapi)"
 rm -rf "$WORK"; mkdir -p "$WORK"
@@ -91,6 +99,13 @@ rm -rf "$WORK"; mkdir -p "$WORK"
 git clone --depth 1 --branch "$VER" --recurse-submodules --shallow-submodules \
   "https://github.com/${DXMT_REPO}.git" "$SRC"
 cd "$SRC"
+# Silo's patches on top of DXMT's tag (backports, each with its rationale in its header). Required to apply,
+# like Scripts/patches/ for Wine: a silently-skipped one would ship a DXMT that looks patched but isn't.
+for p in "$ROOT"/Scripts/dxmt-patches/*.patch; do
+  [ -e "$p" ] || break
+  echo "==> Apply $(basename "$p")"
+  patch -p1 --forward < "$p" || { echo "ERROR: $(basename "$p") did not apply to DXMT $VER — rebase or drop it"; exit 1; }
+done
 
 echo "==> Fetch the cross toolchain (mstorsjo/llvm-mingw $LLVM_MINGW_VERSION) DXMT's cross-file pins"
 # build-win64.txt references @GLOBAL_SOURCE_ROOT@/toolchains/$MINGW_DIR — so it must live in the source tree.
@@ -104,15 +119,18 @@ rm llvm-mingw.tar.xz
 
 echo "==> Configure + build (x86_64, release) against the Wine install — compiles Metal shaders + airconv"
 # Native (macOS) toolchain for winemetal.so + airconv: pin the SYSTEM clang by ABSOLUTE path, x86_64. This
-# is load-bearing — llvm-mingw AND llvm@15 each ship a bare `clang` on PATH that would otherwise shadow the
+# is load-bearing — llvm-mingw (and an LLVM with tools) each ship a bare `clang` on PATH that would otherwise shadow the
 # Apple clang; those can't link macOS binaries (you get `ld: library 'System' not found`). Overrides DXMT's
 # build-osx.txt (which uses a bare `clang`).
-cat > silo-osx.txt <<'EOF'
+# -isysroot (the default SDK, made explicit): no default /usr/local search paths, so a leftover x86_64
+# Homebrew can't leak headers or libraries in (same as build-wine.sh).
+SDK="$(xcrun --show-sdk-path)"
+cat > silo-osx.txt <<EOF
 [binaries]
-c = ['/usr/bin/clang', '-arch', 'x86_64']
-cpp = ['/usr/bin/clang++', '-arch', 'x86_64']
+c = ['/usr/bin/clang', '-arch', 'x86_64', '-isysroot', '$SDK']
+cpp = ['/usr/bin/clang++', '-arch', 'x86_64', '-isysroot', '$SDK']
 EOF
-# Cross toolchain (llvm-mingw) is referenced by ABSOLUTE path in build-win64.txt, and llvm@15 via
+# Cross toolchain (llvm-mingw) is referenced by ABSOLUTE path in build-win64.txt, and LLVM 15 via
 # -Dnative_llvm_path — so keep them AFTER the system dirs on PATH (system clang/ld/ar win for bare names).
 export PATH="$PATH:$SRC/toolchains/$MINGW_DIR/bin:$LLVM15/bin"
 rm -rf build build32 install
@@ -154,6 +172,11 @@ echo "    all present: {x86_64,i386}-windows d3d11/dxgi/d3d10core/winemetal.dll 
 # winemetal.so MUST be x86_64 or it won't load in the x86_64 CrossOver Wine.
 file "$UNIXDIR/winemetal.so" | grep -q "x86_64" \
   || { echo "ERROR: winemetal.so is not x86_64 — it can't load in the x86_64 CrossOver Wine."; exit 1; }
+# It links Wine's winemac.so + ntdll.so by their install names — @rpath/… in Silo's Wine, as in CrossOver's —
+# and is overlaid next to them in lib/wine/x86_64-unix, so it needs the rpath CrossOver's own winemetal.so
+# carries (@loader_path/). An older Wine with an ABSOLUTE winemac.so id (a build-machine path like
+# /Users/runner/work/…) is rewritten to the same @rpath form.
+"$ROOT/Scripts/fix-winemetal-rpath.sh" "$UNIXDIR/winemetal.so"
 
 echo "==> Package"
 mkdir -p "$ROOT/dist"

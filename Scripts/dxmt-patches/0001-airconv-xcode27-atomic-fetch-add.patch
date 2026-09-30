@@ -1,0 +1,22 @@
+Backport of upstream DXMT commit 06065754af (2026-06-20, on main after v0.72):
+"fix(airconv): fix compile metal shader with toolchain from XCode 27 beta 1".
+
+v0.72 calls the compiler-internal builtin __metal_atomic_fetch_add_explicit with 4 arguments; Xcode 27's
+Metal toolchain added a 5th (memory flags), so air_tessellation.metal fails to compile ("too few arguments
+to function call, expected 5, have 4" — measured with Xcode 27.0 / MetalToolchain 27.1). Upstream switched to
+the public atomic_fetch_add_explicit, which compiles with every Xcode. Drop this patch once DXMT_VERSION
+includes that commit.
+
+diff --git a/src/airconv/shaders/air_tessellation.metal b/src/airconv/shaders/air_tessellation.metal
+index 56ba86e93..e6705d8f3 100644
+--- a/src/airconv/shaders/air_tessellation.metal
++++ b/src/airconv/shaders/air_tessellation.metal
+@@ -150,7 +150,7 @@ struct TessMeshWorkload {
+ 
+ int
+ get_next_index(threadgroup int *out_count) {
+-  return __metal_atomic_fetch_add_explicit(out_count, 1, int(memory_order_relaxed), __METAL_MEMORY_SCOPE_THREADGROUP__);
++  return atomic_fetch_add_explicit(reinterpret_cast<threadgroup atomic_int *>(out_count), 1, memory_order_relaxed);
+ }
+ 
+ template <partitioning partition>
