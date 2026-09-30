@@ -11,6 +11,8 @@
   runtime; `wine-crossover-26.3.0-libav` was made by hand with `Scripts/add-gst-libav.sh`. To do: publish the
   add-on (dist/gst-libav-1.24.4, our LGPL FFmpeg build) as a release on the fork and have the importer fetch +
   add it when CrossOver's GStreamer minor matches (the script's own check). No CodeWeavers binary involved.
+  DECIDED (user, 2026-09-30): download it from a release on the fork (not bundled in Silo.app). Order: (1) wrapper
+  fix → (2) D3D12 crash → (3) this importer add-on → then Wine CI/publish, DXMT CI, SILO_GITHUB_REPO to the fork.
   (2) **the D3D12-probe crash on from-source Wine** (entries below:
   "❗ Open … Fatal Fury"). Everything suspected so far is ruled out (new DXMT, our MoltenVK, the no-Homebrew work,
   cxcompatdb, patch 0002); left: how our Wine binaries differ from CrossOver's. First step: get a BACKTRACE into
