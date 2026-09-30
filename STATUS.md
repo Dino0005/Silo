@@ -13,6 +13,14 @@
   Also open (minor, user 2026-09-30): on the from-source Wine, quitting Steam shows NO "shutting down" window (the
   imported one does). Steam still exits cleanly per the log (notifications unregistered, no fault/unwind) — only
   the CEF shutdown dialog is missing. Not yet known whether -gcc16 behaved the same.
+  → CAUSE FOUND (2026-09-30): Silo's steamwebhelper WRAPPER. The user then saw it missing on -gcc16 AND on the
+  imported Wine too; Steam's client hasn't updated (1788652215 since ≥09-26). The imported runtime ships no
+  wrapper, so `installWebHelperWrapper` is a no-op and the bottle keeps the one the last from-source runtime put
+  there. With the ORIGINAL steamwebhelper restored in SteamBottle + the imported Wine: UI paints fine, and the
+  shutdown dialog appears (2 of 3 quits; the 1st quit was instant). Fix to make (Silo code): when the runtime ships
+  no wrapper, UNWRAP (put `steamwebhelper_orig.exe` back); from-source Wine would still lack the dialog (the
+  wrapper's software-GL/--in-process-gpu) — separate. SteamBottle is left unwrapped now; a from-source launch
+  re-wraps it automatically.
 - **(previous resume note, end of 2026-09-29).** Live from-source runtime = `wine-cx-26.3.0-gcc16` (pinned GCC
   16.1.0 via `Scripts/pin-mingw-w64.sh`, patch 0002, GStreamer 1.24.4 stack, CX_APPLEGPTK fix) — verified on Steam,
   DMC5, TEKKEN 8, SoulCalibur VI (MF bottle). Details in the entries below.
