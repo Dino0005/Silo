@@ -3,7 +3,10 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
-- **▶️ RESUME HERE (2026-09-30 evening) — NEXT: the D3D12-probe crash on from-source Wine** (entries below:
+- **▶️ RESUME HERE (2026-09-30 evening).** Two tasks, user's order: (1) small Silo fix — `installWebHelperWrapper`
+  must UNWRAP (restore `steamwebhelper_orig.exe`) when the runtime ships no wrapper (imported CrossOver Wine), so
+  Steam's shutdown dialog comes back there (cause measured, see "Also open" below); with tests + app build + try.
+  (2) **the D3D12-probe crash on from-source Wine** (entries below:
   "❗ Open … Fatal Fury"). Everything suspected so far is ruled out (new DXMT, our MoltenVK, the no-Homebrew work,
   cxcompatdb, patch 0002); left: how our Wine binaries differ from CrossOver's. First step: get a BACKTRACE into
   the log (winedbg's window dies with the host) to see who calls address 0 after d3d12.dll. Agreed order with the
