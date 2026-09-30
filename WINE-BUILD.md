@@ -107,7 +107,13 @@ so users can update on their own schedule.
   TEKKEN 8, Spider-Man.
 - **CI validated (2026-09-30, run 36740839070, macos-26):** the whole recipe ran green on a clean runner in ~1 h 30
   (GStreamer 7 min, shipped libraries 39 min, Wine 40 min) and published `wine-cx-26.3.0` as a draft release.
-- DXMT's build (`Scripts/build-dxmt.sh`) still uses the x86_64 Homebrew (`bootstrap-x86-brew.sh`) — next to fix.
+- **DXMT without x86_64 Homebrew too (2026-09-30):** `Scripts/build-dxmt.sh` / `build-dxmt.yml` build the LLVM 15.0.7
+  that winemetal.so links statically from source (`Scripts/build-llvm15.sh`, DXMT's recipe, assertions off), take
+  meson/ninja from a universal Python venv, and apply `Scripts/dxmt-patches/` (a backport so v0.72 compiles with
+  Xcode 27). Verified in game: Fatal Fury on the imported CrossOver Wine + `dxmt-v0.72-cx26.3.0-nobrew`.
+- **Open — D3D12 probe on from-source Wine:** DXMT games that probe D3D12 (Fatal Fury, DMC5 forced to DXMT) crash
+  on every from-source Wine (Wine's own d3d12 → `virtual_unwind … system library` → call to address 0); the same
+  games run on the imported CrossOver Wine. Not caused by the no-Homebrew work (measured on the older build too).
 - Games that need Windows' own Media Foundation (Wine's MF topology loader is a stub) still need the MF
   bottle — GStreamer additions can't replace it.
 

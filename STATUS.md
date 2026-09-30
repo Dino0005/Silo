@@ -39,7 +39,7 @@
   CrossOver's: 1.2.10, x86_64, identical system-framework deps, `@rpath` id; `strip -x` → 966 symbols vs its 967
   (all four libs are stripped the same way now; sizes within a few % of CrossOver's). Full `build-deps.sh` ≈ 9 min.
   **Steps 3+4 done (2026-09-30) — wired in, no x86_64 Homebrew left in the Wine build** (build-dxmt.sh still uses
-  `bootstrap-x86-brew.sh`: the DXMT task). `Scripts/host-tools.sh` (shared): bison/cmake/pkgconf from the native
+  `bootstrap-x86-brew.sh` then; since removed — DXMT is done too). `Scripts/host-tools.sh` (shared): bison/cmake/pkgconf from the native
   Homebrew, prints the PATH dirs. `pin-mingw-w64.sh`: the arm64_tahoe bottle of the SAME 14.0.0_1 (GCC 16.1.0).
   **brew 6 can't install a bottle FILE** ("No available formula … requires the tap /tmp") — the old fetch branch
   had never actually run (the Cellar was already there). Now: the formula from homebrew-core at
@@ -81,6 +81,11 @@
   Same env (WINEDLLOVERRIDES, DXMT_*, ROSETTA_ADVERTISE_AVX, WINEMSYNC) and same DLLs (dxgi/d3d11/d3d12 builtin);
   the imported Wine logs NO `virtual_unwind` at all. So it's a difference between CrossOver's binaries and ours
   from the same source (build flags? unwind info of the unix side?) — separate investigation, next to pick up.
+  DMC5 forced to DXMT on nobrew hits the SAME thing right after loading d3d12.dll (then `Unhandled page fault on
+  read access to 0 at address 0` — a call through a NULL pointer), so it's the D3D12 probe of any DXMT game on a
+  from-source Wine. (Getting a backtrace: winedbg's window closes with the host; make winedbg write to the log.)
+  **✅ New DXMT verified (2026-09-30):** imported `wine-crossover-26.3.0-libav` + `dxmt-v0.72-cx26.3.0-nobrew` →
+  Fatal Fury starts (user). `Scripts/bootstrap-x86-brew.sh` removed — nothing uses an x86_64 Homebrew any more.
   **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
   `dlls/ntdll/unix/loader.c:2246` ("CW Hack 24067") `dlopen`s `<ntdll_dir>/cxcompatdb.so` if present, else a WARN.
   `cxcompatdb.so` itself is a proprietary CodeWeavers binary with no source: present in the imported

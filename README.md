@@ -148,7 +148,8 @@ Foundation bottle records the runtime it was built with and asks to be rebuilt w
 
 Then in the app: Settings → **Wine** → Set default, **GPTK** → import your `.dmg`, and the
 Library onboarding's **Set up Steam bottle** runs everything else locally. Building DXMT
-additionally needs full Xcode's Metal toolchain and, for now, an x86_64 Homebrew — see `Scripts/build-dxmt.sh`.
+additionally needs full Xcode's Metal toolchain (and, like Wine, no x86_64 Homebrew: the LLVM its shader converter
+links is built from source by `Scripts/build-llvm15.sh`) — see `Scripts/build-dxmt.sh`.
 
 CI runs build + test on every push; tagging `v*` publishes an ad-hoc-signed `Silo.zip` (with its
 `.sha256`) via `release.yml`. Every version number lives in one file, `versions.env`.
