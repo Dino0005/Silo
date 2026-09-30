@@ -6,6 +6,11 @@
 - **▶️ RESUME HERE (2026-09-30 evening).** Two tasks, user's order: (1) small Silo fix — `installWebHelperWrapper`
   must UNWRAP (restore `steamwebhelper_orig.exe`) when the runtime ships no wrapper (imported CrossOver Wine), so
   Steam's shutdown dialog comes back there (cause measured, see "Also open" below); with tests + app build + try.
+  Later (user asked 2026-09-30): the in-app CrossOver import (`CrossOverWineImporter`) copies CrossOver's tree
+  as is — stock GStreamer 1.24.4, NO libav/matroska — so DMC5's VC-1 movies won't play on a freshly imported
+  runtime; `wine-crossover-26.3.0-libav` was made by hand with `Scripts/add-gst-libav.sh`. To do: publish the
+  add-on (dist/gst-libav-1.24.4, our LGPL FFmpeg build) as a release on the fork and have the importer fetch +
+  add it when CrossOver's GStreamer minor matches (the script's own check). No CodeWeavers binary involved.
   (2) **the D3D12-probe crash on from-source Wine** (entries below:
   "❗ Open … Fatal Fury"). Everything suspected so far is ruled out (new DXMT, our MoltenVK, the no-Homebrew work,
   cxcompatdb, patch 0002); left: how our Wine binaries differ from CrossOver's. First step: get a BACKTRACE into
