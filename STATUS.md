@@ -84,6 +84,8 @@
   DMC5 forced to DXMT on nobrew hits the SAME thing right after loading d3d12.dll (then `Unhandled page fault on
   read access to 0 at address 0` — a call through a NULL pointer), so it's the D3D12 probe of any DXMT game on a
   from-source Wine. (Getting a backtrace: winedbg's window closes with the host; make winedbg write to the log.)
+  NOT patch 0002 either (2026-09-30): an unpatched cfgmgr32.dll (rebuilt from the same tree) swapped into the
+  -dxmt clone → Fatal Fury still "Fatal error!" (the log showed Wine's original "…is not supported!" FIXME).
   **✅ New DXMT verified (2026-09-30):** imported `wine-crossover-26.3.0-libav` + `dxmt-v0.72-cx26.3.0-nobrew` →
   Fatal Fury starts (user). `Scripts/bootstrap-x86-brew.sh` removed — nothing uses an x86_64 Homebrew any more.
   **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
