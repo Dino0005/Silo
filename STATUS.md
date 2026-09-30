@@ -38,9 +38,23 @@
   `CC`/`CFLAGS` from build-deps.sh must be unset or xcodebuild tries to spawn "$CC" as one binary. Result matches
   CrossOver's: 1.2.10, x86_64, identical system-framework deps, `@rpath` id; `strip -x` → 966 symbols vs its 967
   (all four libs are stripped the same way now; sizes within a few % of CrossOver's). Full `build-deps.sh` ≈ 9 min.
-  **Next:** wire `.wine-build/deps/prefix` into build-wine.sh / build-wine.yml / the bundler (`DLOPEN_PACKAGES` still
-  seeds from Homebrew — switch to SILO_DEPS_PREFIX), host tools from arm64 Homebrew, mingw-w64 arm64 bottle, then a
-  full Wine build + game re-test, then the draft CI run.
+  **Steps 3+4 done (2026-09-30) — wired in, no x86_64 Homebrew left in the Wine build** (build-dxmt.sh still uses
+  `bootstrap-x86-brew.sh`: the DXMT task). `Scripts/host-tools.sh` (shared): bison/cmake/pkgconf from the native
+  Homebrew, prints the PATH dirs. `pin-mingw-w64.sh`: the arm64_tahoe bottle of the SAME 14.0.0_1 (GCC 16.1.0).
+  **brew 6 can't install a bottle FILE** ("No available formula … requires the tap /tmp") — the old fetch branch
+  had never actually run (the Cellar was already there). Now: the formula from homebrew-core at
+  `MINGW_W64_FORMULA_COMMIT` (46205951, whose bottle block lists our digest) in a local no-git tap `silo/pinned`,
+  with `root_url` → homebrew-core's ghcr; brew downloads + verifies + pours it. Tested from a clean state (untap +
+  uninstall), both ABIs compile. Never `brew tap silo/pinned` (would clone from GitHub). Bundler: `SILO_DEPS_PREFIX`
+  seeds the dlopen libs from the deps prefix; a Homebrew library in the closure is then an ERROR; `@rpath` refs of a
+  library with no LC_RPATH resolve to siblings. Tested on a clone of `wine-cx-26.3.0-gcc16`: lib64 = MoltenVK, SDL2,
+  freetype, gnutls, gmp + the GStreamer stack — the Homebrew extras (idn2, intl, p11-kit, png, tasn1, unistring,
+  nettle, hogweed, gnutlsxx) gone. Wine's SONAME is the leaf after the last `/` (aclocal WINE_CHECK_SONAME), so
+  `@rpath` ids don't change what Wine dlopen()s. build-wine.sh + yml: PKG_CONFIG_LIBDIR limited to our 3 prefixes
+  (native pkgconf's default = arm64 .pc files), `-isysroot $SDK` in CC (no /usr/local leakage — local = CI), cmake
+  native with both Homebrew roots ignored, `/usr/bin/make`, ccache dropped from CI (was x86 Homebrew). 708 tests.
+  **Next (user will decide):** full `Scripts/build-wine.sh` + game re-test (Steam sign-in, DMC5, TEKKEN 8 — the PE
+  compiler is now the arm64 build of the same GCC, so re-verify), then the draft CI run.
   **`cxcompatdb` — NOT a from-source parity item (checked 2026-09-30).** The FOSS tarball has only the hook:
   `dlls/ntdll/unix/loader.c:2246` ("CW Hack 24067") `dlopen`s `<ntdll_dir>/cxcompatdb.so` if present, else a WARN.
   `cxcompatdb.so` itself is a proprietary CodeWeavers binary with no source: present in the imported

@@ -23,7 +23,7 @@
 # devices and networking are off — decoding is all Wine asks of it.
 #
 # Tools: meson + ninja in a Python venv (native), nasm from source (native); everything they produce is
-# x86_64. bison >= 2.4 comes from the x86_64 Homebrew the Wine build already requires.
+# x86_64. bison >= 2.4 and pkgconf are host tools from the native Homebrew (Scripts/host-tools.sh).
 #
 # Usage: Scripts/build-gst-libav.sh
 set -euo pipefail
@@ -34,8 +34,10 @@ WORK="$ROOT/.wine-build/gst"
 SRC="${SILO_CX_SOURCES:-$ROOT/.wine-build/src/sources}"   # CI extracts the tarball elsewhere
 PREFIX="$WORK/prefix"
 JOBS="$(sysctl -n hw.ncpu)"
-BISON="$(arch -x86_64 /usr/local/bin/brew --prefix bison 2>/dev/null)/bin"
-[ -x "$BISON/bison" ] || { echo "ERROR: x86_64 Homebrew bison not found (Scripts/bootstrap-x86-brew.sh bison)"; exit 1; }
+BISON="$(/opt/homebrew/bin/brew --prefix bison 2>/dev/null)/bin"
+[ -x "$BISON/bison" ] || { echo "ERROR: Homebrew bison not found (Scripts/host-tools.sh)"; exit 1; }
+PKGCONF="$(/opt/homebrew/bin/brew --prefix pkgconf 2>/dev/null)/bin/pkgconf"
+[ -x "$PKGCONF" ] || { echo "ERROR: Homebrew pkgconf not found (Scripts/host-tools.sh)"; exit 1; }
 
 mkdir -p "$WORK" && cd "$WORK"
 
@@ -98,7 +100,7 @@ objc = ['clang', '-arch', 'x86_64']
 objcpp = ['clang++', '-arch', 'x86_64']
 ar = 'ar'
 strip = 'strip'
-pkg-config = '/usr/local/bin/pkgconf'
+pkg-config = '$PKGCONF'
 
 [built-in options]
 c_args = ['-mmacosx-version-min=11.0', '-isysroot', '$SDK']

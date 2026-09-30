@@ -30,8 +30,8 @@ JOBS="$(sysctl -n hw.ncpu)"
 ARCH="arch -x86_64"
 SDK="$(xcrun --show-sdk-path)"
 [ -d "$SRC/gnutls" ] && [ -d "$SRC/freetype" ] || { echo "ERROR: CrossOver sources not found at $SRC"; exit 1; }
-PKGCONF="$(command -v pkgconf || command -v pkg-config || true)"
-[ -n "$PKGCONF" ] || { echo "ERROR: no pkg-config on PATH (brew install pkgconf — the native one is fine)"; exit 1; }
+PKGCONF="$(/opt/homebrew/bin/brew --prefix pkgconf 2>/dev/null)/bin/pkgconf"
+[ -x "$PKGCONF" ] || { echo "ERROR: Homebrew pkgconf not found (Scripts/host-tools.sh)"; exit 1; }
 
 # x86_64 code, the SDK made explicit so clang's default /usr/local search paths (x86_64 Homebrew, if any)
 # can never leak in, and @rpath install names so the bundler has nothing to rewrite.

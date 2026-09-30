@@ -18,14 +18,15 @@ VER="${1:-$CROSSOVER_VERSION}"
 TAG="${2:-wine-cx-$VER}"
 WORK="$ROOT/.wine-build"
 ARCH="arch -x86_64"   # CrossOver is x86_64; runs on Apple Silicon via Rosetta
-BREW=/usr/local/bin/brew
+SDK="$(xcrun --show-sdk-path)"
 
-echo "==> Rosetta + x86_64 Homebrew dependencies"
-# NB: sdl2 is NOT installed from Homebrew — we build the pinned SDL_VERSION from source below (a generic
-# Homebrew libSDL2 aborted Wine off the main thread; the pinned CrossOver version does not). cmake builds it.
-# No Homebrew gstreamer: GStreamer is built from the CrossOver source below (build-gst-libav.sh).
-# mingw-w64 is NOT taken at "whatever brew installs": the PE cross compiler is one pinned bottle (below).
-"$ROOT/Scripts/bootstrap-x86-brew.sh" bison freetype gnutls molten-vk cmake pkgconf
+echo "==> Host tools (native Homebrew: bison, cmake, pkgconf) + Rosetta"
+# No x86_64 Homebrew anywhere (its installer refuses Intel now — the CI failed on it, 2026-09-29): the tools
+# only run here, and every x86_64 library the runtime ships is built from source below — freetype, gnutls,
+# MoltenVK (build-deps.sh), GStreamer (build-gst-libav.sh), SDL (pinned, here). The PE cross compiler is one
+# pinned mingw-w64 bottle (pin-mingw-w64.sh).
+export PATH="$("$ROOT/Scripts/host-tools.sh" | tail -1):$PATH"
+PKGCONF="$(command -v pkgconf)"
 
 echo "==> Fetch CrossOver source $VER"
 mkdir -p "$WORK" && cd "$WORK"
@@ -54,6 +55,12 @@ echo "==> Build CrossOver's GStreamer $(sed -n "s/^ *version *: *'\([0-9.]*\)'.*
 GST_PREFIX="$WORK/gst/prefix"
 GST_STACK="$(ls -d "$ROOT"/dist/gstreamer-*/lib64 | sort -V | tail -1)"
 
+echo "==> Build the shipped libraries from source (Scripts/build-deps.sh: gmp, nettle, gnutls, freetype, MoltenVK)"
+# The same versions and dependency shape as CrossOver's own lib64 (measured). Wine's configure finds them
+# through DEPS_PREFIX below; the bundler ships them from there.
+"$ROOT/Scripts/build-deps.sh"
+DEPS_PREFIX="$WORK/deps/prefix"
+
 echo "==> Pinned PE cross toolchain (Scripts/pin-mingw-w64.sh)"
 MINGW="$("$ROOT/Scripts/pin-mingw-w64.sh" "$WORK/toolchains" | tail -1)"
 # configure takes the compiler from x86_64_CC / i386_CC below, but winegcc LINKS through the target-named driver
@@ -69,43 +76,45 @@ echo "==> Build pinned SDL $SDL_VERSION (x86_64) — winebus's game-controller b
 # gives Wine's configure the SDL2 headers (so winebus compiles its SDL backend) AND the runtime dylib we
 # bundle. A generic Homebrew libSDL2 aborted Wine off the main thread; this pinned build does not.
 SDL_PREFIX="$WORK/sdl-install"
-export PATH="$($ARCH "$BREW" --prefix cmake)/bin:$($ARCH "$BREW" --prefix bison)/bin:$PATH"
 curl -fL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL_VERSION}/SDL2-${SDL_VERSION}.tar.gz" -o sdl.tar.gz
 rm -rf sdl-src sdl-build "$SDL_PREFIX" && mkdir sdl-src && tar -xzf sdl.tar.gz -C sdl-src --strip-components=1
-$ARCH cmake -S sdl-src -B sdl-build -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+# cmake itself is native (host tool); CMAKE_OSX_ARCHITECTURES makes the code x86_64. Its default search
+# prefixes include its own install prefix — the arm64 Homebrew — so both Homebrew roots are ignored.
+cmake -S sdl-src -B sdl-build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 -DCMAKE_OSX_SYSROOT="$SDK" \
+  -DCMAKE_IGNORE_PREFIX_PATH="/opt/homebrew;/usr/local" \
   -DCMAKE_INSTALL_PREFIX="$SDL_PREFIX" -DSDL_SHARED=ON -DSDL_STATIC=OFF
-$ARCH cmake --build sdl-build -j"$(sysctl -n hw.ncpu)"
-$ARCH cmake --install sdl-build
+cmake --build sdl-build -j"$(sysctl -n hw.ncpu)"
+cmake --install sdl-build
 test -f "$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" || { echo "ERROR: SDL build produced no libSDL2-2.0.0.dylib"; exit 1; }
 
 echo "==> Configure + build (x86_64, wow64) — this takes ~30–60 min"
-export PATH="$($ARCH "$BREW" --prefix bison)/bin:$PATH"
-# The x86_64 Homebrew prefix (normally /usr/local on Apple Silicon under Rosetta). macOS's linker, unlike
-# Linux's, does NOT search /usr/local/lib by default, so configure's AC_CHECK_LIB(gnutls, ...) / dbus /
-# similar link-time checks silently report "not found" without an explicit -L — even though pkg-config
-# and the plain header check (which DOES pick up /usr/local/include via the toolchain's default search
-# path) succeed. Computing these here — instead of relying on a caller's shell-exported LDFLAGS, which
-# does not reliably survive the arch -x86_64 + env nesting below — makes the build reproducible regardless
-# of the invoking shell's environment. SDL_PREFIX is prepended so --with-sdl below finds its headers.
-BREW_PREFIX="$($ARCH "$BREW" --prefix)"
-# The GStreamer prefix FIRST, on both search paths: LDFLAGS precede pkg-config's -L on the link line, so
-# with /usr/local/lib ahead of it `-lglib-2.0` would bind Homebrew's glib instead of the stack's.
-export PKG_CONFIG_PATH="$GST_PREFIX/lib/pkgconfig:$SDL_PREFIX/lib/pkgconfig:$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig:$($ARCH "$BREW" --prefix gnutls)/lib/pkgconfig"
+# Only Silo's own prefixes are visible, on every search path. LDFLAGS come before pkg-config's -L on the link
+# line, so the GStreamer prefix goes FIRST (else `-lglib-2.0` could bind another glib). pkg-config is the
+# native one with its default search path replaced (PKG_CONFIG_LIBDIR): its default is the arm64 Homebrew's
+# .pc files, which describe arm64 libraries. SDL_PREFIX is there so --with-sdl finds its headers; DEPS_PREFIX
+# carries gnutls/freetype/MoltenVK (macOS's linker doesn't search anything by default, so configure's
+# link-time checks need these -L's).
+export PKG_CONFIG="$PKGCONF"
+export PKG_CONFIG_LIBDIR="$GST_PREFIX/lib/pkgconfig:$SDL_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib/pkgconfig"
+export PKG_CONFIG_PATH=
 # The rpath is CrossOver's own (measured on its winegstreamer.so / ntdll.so): from lib/wine/x86_64-unix it
 # reaches <root>/lib64, where bundle-wine-dylibs.sh puts every third-party dylib with an @rpath install name
 # — link-time references AND Wine's leaf-name dlopen()s (freetype, gnutls, SDL) resolve through it, with no
 # DYLD_* variable. headerpad leaves room for the bundler's install_name_tool rewrites.
-export LDFLAGS="-L$GST_PREFIX/lib -L$SDL_PREFIX/lib -L$BREW_PREFIX/lib -Wl,-rpath,@loader_path/../../../lib64 -Wl,-headerpad_max_install_names"
-export CPPFLAGS="-I$SDL_PREFIX/include -I$BREW_PREFIX/include"
+export LDFLAGS="-L$GST_PREFIX/lib -L$SDL_PREFIX/lib -L$DEPS_PREFIX/lib -Wl,-rpath,@loader_path/../../../lib64 -Wl,-headerpad_max_install_names"
+export CPPFLAGS="-I$SDL_PREFIX/include -I$DEPS_PREFIX/include"
 # CRITICAL: `arch -x86_64` only picks which slice of the (universal) clang/gcc DRIVER BINARY runs under
 # Rosetta — it does NOT tell clang which architecture to GENERATE CODE FOR. Without an explicit `-arch
 # x86_64`, clang defaults to the host's native arch (arm64 on Apple Silicon), so configure's link checks
 # (e.g. AC_CHECK_LIB against gnutls) produce an arm64 conftest that can't link against the x86_64-only
-# Homebrew libraries under /usr/local — "ld: ... found architecture 'x86_64', required architecture
-# 'arm64'". Matches .github/workflows/build-wine.yml, which already sets this for CI.
-export CC="clang -arch x86_64"
-export CXX="clang++ -arch x86_64"
+# libraries in DEPS_PREFIX — "ld: ... found architecture 'x86_64', required architecture 'arm64'".
+# Matches .github/workflows/build-wine.yml.
+# -isysroot (the default SDK, made explicit): it removes clang's DEFAULT /usr/local search paths, so an
+# x86_64 Homebrew still present on a dev box can't leak headers or libraries in — the local build sees what
+# the CI runner sees (build-gst-libav.sh does the same; glib had linked Homebrew's libintl that way).
+export CC="clang -arch x86_64 -isysroot $SDK"
+export CXX="clang++ -arch x86_64 -isysroot $SDK"
 rm -rf build install && mkdir build install && cd build
 # -fvisibility=default: build Wine with all symbols visible so winemac.drv ('macdrv') exposes its
 # Metal/window-surface helpers via dlsym — this is what lets **GPTK/D3DMetal GAMES** present correctly
@@ -120,7 +129,7 @@ rm -rf build install && mkdir build install && cd build
 # "controllers just work" behaviour. An earlier --without-sdl was a workaround for a generic Homebrew
 # libSDL2 aborting Wine off the main thread; the pinned SDL_VERSION (= CrossOver's) doesn't, so SDL is on.
 $ARCH env CFLAGS="-fvisibility=default -O2" CROSSCFLAGS="-fvisibility=default -O2" \
-  PKG_CONFIG_PATH="$PKG_CONFIG_PATH" LDFLAGS="$LDFLAGS" CPPFLAGS="$CPPFLAGS" \
+  PKG_CONFIG="$PKG_CONFIG" PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR" PKG_CONFIG_PATH= LDFLAGS="$LDFLAGS" CPPFLAGS="$CPPFLAGS" \
   "$WORK/$WINE_SRC/configure" --prefix="$WORK/install" \
   --enable-archs=i386,x86_64 --disable-tests --without-x \
   --with-freetype --with-gstreamer --with-gnutls --with-sdl \
@@ -139,9 +148,10 @@ WRAPPER="$WORK/install/share/silo/steamwebhelper-wrapper.exe"
 python3 "$ROOT/Scripts/check-webhelper-wrapper.py" "$WRAPPER"
 
 echo "==> Bundle dependency dylibs + GStreamer into lib64 (self-contained, CrossOver's layout)"
-# SILO_SDL_DYLIB tells the bundler to ship our pinned libSDL2 (winebus dlopens it by leaf name, resolved
+# SILO_DEPS_PREFIX: the libraries Wine dlopen()s come from build-deps.sh's prefix (and a Homebrew one in the
+# closure is an error). SILO_SDL_DYLIB tells the bundler to ship our pinned libSDL2 (winebus dlopens it by leaf name, resolved
 # through the lib64 rpath above).
-SILO_GST_STACK="$GST_STACK" SILO_SDL_DYLIB="$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" \
+SILO_DEPS_PREFIX="$DEPS_PREFIX" SILO_GST_STACK="$GST_STACK" SILO_SDL_DYLIB="$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" \
   "$ROOT/Scripts/bundle-wine-dylibs.sh" "$WORK/install"
 
 # Sign every Mach-O in the tree (wine64, wineserver, winemac.so, and all other PE/Unix-side .so's

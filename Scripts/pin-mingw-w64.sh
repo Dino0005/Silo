@@ -8,43 +8,52 @@
 # could differ from the one tested. The tested one is GCC 16.1.0 (DMC5 + TEKKEN 8 verified); llvm-mingw
 # 20231017 was tried and broke Steam's sign-in.
 #
+# Native (arm64) Homebrew, the arm64 bottle of that SAME revision (same GCC 16.1.0, same target code): an x86_64
+# Homebrew can no longer be installed on a fresh Mac ("only supported on Apple Silicon", measured on the CI runner
+# 2026-09-29). The compiler runs on the host; what it produces is Windows PE code either way.
+#
 # Usage: Scripts/pin-mingw-w64.sh <scratch-dir>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 set -a; . "$ROOT/versions.env"; set +a
 TOOLS="${1:?usage: pin-mingw-w64.sh <scratch-dir>}"
-ARCH="arch -x86_64"
-BREW=/usr/local/bin/brew
+BREW=/opt/homebrew/bin/brew
+[ -x "$BREW" ] || { echo "ERROR: native Homebrew not found at $BREW (https://brew.sh)"; exit 1; }
 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ENV_HINTS=1 HOMEBREW_NO_INSTALL_UPGRADE=1
 echo "==> mingw-w64 $MINGW_W64_BOTTLE (GCC $MINGW_GCC_VERSION)" >&2
-# Wine's Windows-side DLLs used to be compiled by whatever mingw-w64 Homebrew happened to have installed, so a
-# runtime built elsewhere (CI) could differ from the one tested here. Pinned to one exact bottle. brew must pour
-# it itself: a bottle carries /usr/local/Cellar/… paths and @@HOMEBREW_…@@ placeholders that brew rewrites on
-# install, even inside object files (crt2.o differs by 4 bytes before/after) — measured, unpacking it by hand
-# gave a compiler that picked the wrong ld and rejected its own crt2.o. So: if that revision isn't the one
-# installed, fetch its bottle by digest from Homebrew's registry, verify it, and `brew install` the file.
-BREW_PFX="$($ARCH "$BREW" --prefix)"
+# brew must pour the bottle itself: a bottle carries Cellar paths and @@HOMEBREW_…@@ placeholders that brew
+# rewrites on install, even inside object files (crt2.o differs by 4 bytes before/after) — measured, unpacking
+# it by hand gave a compiler that picked the wrong ld and rejected its own crt2.o. And brew 6 no longer installs
+# a bottle FILE ("No available formula"). So: the formula exactly as homebrew-core had it at
+# MINGW_W64_FORMULA_COMMIT (its bottle block lists our digest), in a local tap, with root_url pointing back at
+# homebrew-core's registry — brew then downloads that bottle, checks its sha256 and pours it (measured
+# 2026-09-30). Only mingw-w64 itself is pinned; its runtime deps (gmp, mpfr, isl…) are current bottles.
+BREW_PFX="$("$BREW" --prefix)"
 MINGW="$BREW_PFX/Cellar/mingw-w64/$MINGW_W64_BOTTLE"
 if [ ! -x "$MINGW/bin/x86_64-w64-mingw32-gcc" ]; then
   mkdir -p "$TOOLS"
-  BOTTLE="$TOOLS/mingw-w64--$MINGW_W64_BOTTLE.x86_64.bottle.tar.gz"
-  TOKEN="$(curl -fsSL "https://ghcr.io/token?scope=repository:homebrew/core/mingw-w64:pull" \
-    | python3 -c 'import sys,json; print(json.load(sys.stdin)["token"])')"
-  curl -fsSL -H "Authorization: Bearer $TOKEN" \
-    "https://ghcr.io/v2/homebrew/core/mingw-w64/blobs/sha256:$MINGW_W64_BOTTLE_SHA256" -o "$BOTTLE"
-  echo "$MINGW_W64_BOTTLE_SHA256  $BOTTLE" | shasum -a 256 -c - >&2 || { echo "ERROR: mingw-w64 bottle digest mismatch"; exit 1; }
-  if $ARCH "$BREW" list --versions mingw-w64 >/dev/null 2>&1; then $ARCH "$BREW" unlink mingw-w64 || true; fi
-  $ARCH "$BREW" install "$BOTTLE" >&2
+  FORMULA="$TOOLS/mingw-w64.rb"
+  curl -fsSL "https://raw.githubusercontent.com/Homebrew/homebrew-core/$MINGW_W64_FORMULA_COMMIT/Formula/m/mingw-w64.rb" \
+    -o "$FORMULA"
+  grep -q "arm64_tahoe: *\"$MINGW_W64_BOTTLE_SHA256\"" "$FORMULA" \
+    || { echo "ERROR: formula at $MINGW_W64_FORMULA_COMMIT doesn't list bottle $MINGW_W64_BOTTLE_SHA256"; exit 1; }
+  # Never `brew tap silo/pinned`: for a tap that isn't there it would clone github.com/silo/homebrew-pinned.
+  TAP="$("$BREW" --repository)/Library/Taps/silo/homebrew-pinned"
+  [ -d "$TAP" ] || "$BREW" tap-new --no-git silo/pinned >&2
+  mkdir -p "$TAP/Formula"
+  sed 's|^  bottle do$|  bottle do\n    root_url "https://ghcr.io/v2/homebrew/core"|' "$FORMULA" > "$TAP/Formula/mingw-w64.rb"
+  if "$BREW" list --versions mingw-w64 >/dev/null 2>&1; then "$BREW" unlink mingw-w64 >&2 || true; fi
+  "$BREW" install --force-bottle silo/pinned/mingw-w64 >&2
 fi
 [ -x "$MINGW/bin/x86_64-w64-mingw32-gcc" ] || { echo "ERROR: mingw-w64 $MINGW_W64_BOTTLE not at $MINGW"; exit 1; }
 mkdir -p "$TOOLS"
 for t in x86_64 i686; do
-  v="$($ARCH "$MINGW/bin/$t-w64-mingw32-gcc" -dumpfullversion)"
+  v="$("$MINGW/bin/$t-w64-mingw32-gcc" -dumpfullversion)"
   [ "$v" = "$MINGW_GCC_VERSION" ] \
     || { echo "ERROR: $t-w64-mingw32-gcc is GCC $v, expected $MINGW_GCC_VERSION (versions.env)"; exit 1; }
   # …and it must actually compile (a missing compiler-internal library only shows up here).
   echo 'int main(void){return 0;}' > "$TOOLS/probe.c"
-  $ARCH "$MINGW/bin/$t-w64-mingw32-gcc" "$TOOLS/probe.c" -o "$TOOLS/probe-$t.exe" \
+  "$MINGW/bin/$t-w64-mingw32-gcc" "$TOOLS/probe.c" -o "$TOOLS/probe-$t.exe" \
     || { echo "ERROR: the pinned $t-w64-mingw32-gcc cannot compile"; exit 1; }
 done
 echo "$MINGW"

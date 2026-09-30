@@ -44,13 +44,19 @@ manual `workflow_dispatch`: CrossOver version + release tag + `draft`, default *
    same tarball with CrossOver's 17 plugins **plus libav + matroska** (FFmpeg 6.1, LGPL, decoders only — VC-1/WMV/
    WMA, e.g. Devil May Cry 5's movies). Wine is configured against that prefix (it must be: winegstreamer built
    against a newer glib needs symbols 2.78 lacks).
-4. **Pinned PE compiler:** `Scripts/pin-mingw-w64.sh` provides the exact Homebrew mingw-w64 bottle
-   (`versions.env`: `MINGW_W64_BOTTLE`, digest, `MINGW_GCC_VERSION` = GCC 16.1.0 — the one the tested runtime was
-   built with), verifying version and a probe compile. llvm-mingw was tried and broke Steam's sign-in.
-5. **Configure + make:** x86_64 under Rosetta (CrossOver is Intel code), `--enable-archs=i386,x86_64`.
-6. **Self-contained, CrossOver's layout:** `Scripts/bundle_wine_dylibs.py` puts every third-party dylib in
+4. **Shipped libraries from source:** `Scripts/build-deps.sh` builds gmp, nettle, gnutls, freetype and (via
+   `Scripts/build-moltenvk.sh`, xcodebuild) MoltenVK for x86_64 — the versions in the tarball and the same
+   dependency shape as CrossOver's own lib64 (gnutls → only libgmp; freetype → only the system's libbz2). nettle and
+   freetype come from their official releases at the tarball's versions (its copies lack their generated build
+   files), sha256-pinned in `versions.env`.
+5. **Pinned PE compiler:** `Scripts/pin-mingw-w64.sh` provides the exact Homebrew mingw-w64 revision
+   (`versions.env`: `MINGW_W64_BOTTLE` 14.0.0_1, its arm64 bottle digest, the homebrew-core formula commit,
+   `MINGW_GCC_VERSION` = GCC 16.1.0 — the compiler the tested runtime was built with), installed from a local tap
+   and checked by version and a probe compile. llvm-mingw was tried and broke Steam's sign-in.
+6. **Configure + make:** x86_64 under Rosetta (CrossOver is Intel code), `--enable-archs=i386,x86_64`.
+7. **Self-contained, CrossOver's layout:** `Scripts/bundle_wine_dylibs.py` puts every third-party dylib in
    `lib64/` with `@rpath` names and the GStreamer stack in `lib64/gstreamer-1.0` — no Homebrew path left, no
-   `DYLD_*` needed. Then `wine.tar.xz` + `.sha256`, published as a `wine-cx-*` Release (a draft when asked).
+   `DYLD_*` needed (with `SILO_DEPS_PREFIX` a Homebrew library anywhere in the closure fails the build). Then `wine.tar.xz` + `.sha256`, published as a `wine-cx-*` Release (a draft when asked).
 
 - The app's Wine tab / onboarding pulls Wine from `Silo.wineRepo` (`SILO_GITHUB_REPO`); `RuntimeManager`
   downloads + extracts the tarball and finds `bin/wine64`.
@@ -86,8 +92,9 @@ so users can update on their own schedule.
   5 (VC-1 movies), TEKKEN 8 and SoulCalibur VI start and exit cleanly.
 - **CI not yet run with this recipe** — the first run should be a draft. The pinned-compiler step's
   fetch-and-install branch (a runner without that mingw-w64 revision) is untested.
-- The build still relies on x86_64 Homebrew (bison, freetype, gnutls, MoltenVK…), which is Tier 3 on recent
-  macOS and losing bottles; macOS 27 already warns that Intel-only executables won't open in macOS 28.
+- **No x86_64 Homebrew any more** (its installer refuses Intel installs on current macOS — the first CI run failed
+  on it). Host tools (bison, cmake, pkgconf; `Scripts/host-tools.sh`) and mingw-w64 come from the native arm64
+  Homebrew; everything x86_64 that ships is built from source. Needs full Xcode (MoltenVK, like DXMT).
 - Games that need Windows' own Media Foundation (Wine's MF topology loader is a stub) still need the MF
   bottle — GStreamer additions can't replace it.
 

@@ -6,8 +6,9 @@ its GStreamer plugins in `<root>/lib64/gstreamer-1.0`, and gives each of Wine's 
 `@loader_path/../../../lib64` (lib/wine/x86_64-unix → <root>/lib64). Nothing references an absolute
 Homebrew path and no DYLD_* variable is needed: dyld resolves link-time `@rpath/` references AND Wine's
 leaf-name dlopen()s ("libfreetype.6.dylib", "libgnutls.30.dylib", "libSDL2-2.0.0.dylib", …) through the
-caller's LC_RPATH (measured on macOS 27). This script produces exactly that from the x86_64 Homebrew the
-build links against:
+caller's LC_RPATH (measured on macOS 27). This script produces exactly that from the libraries the build
+links against — Silo's own from-source prefix (SILO_DEPS_PREFIX, what build-wine.sh / build-wine.yml use) or,
+legacy, an x86_64 Homebrew:
 
   * copies the transitive closure of every non-system dylib Wine's Mach-O files reference, plus the libs
     Wine dlopen()s by leaf name (freetype, gnutls, MoltenVK, the pinned SDL), into lib64/;
@@ -39,7 +40,10 @@ GStreamer — two sources:
   * unset (legacy): Homebrew's GStreamer and its plugins, minus DENIED_PLUGINS.
 
 Usage: bundle_wine_dylibs.py <wine-install-dir>
-Env:   SILO_GST_STACK      — dist/gstreamer-<ver>/lib64 from Scripts/build-gst-libav.sh (see above)
+Env:   SILO_DEPS_PREFIX    — .wine-build/deps/prefix from Scripts/build-deps.sh: the libs Wine dlopen()s
+                             (freetype, gnutls + gmp, MoltenVK) come from its lib/ instead of Homebrew, and
+                             any Homebrew library reaching the tree is an error
+       SILO_GST_STACK      — dist/gstreamer-<ver>/lib64 from Scripts/build-gst-libav.sh (see above)
        SILO_SDL_DYLIB      — the pinned libSDL2 to ship (built by build-wine.sh / build-wine.yml)
        SILO_SIGN_IDENTITY  — codesign identity for modified files (default: ad-hoc "-")
 """
@@ -52,7 +56,8 @@ BREW_ROOTS = ("/usr/local/", "/opt/homebrew/")
 SYSTEM_ROOTS = ("/usr/lib/", "/System/")
 MARKER = ".silo-relocated"
 
-# Libraries Wine dlopen()s by leaf name — invisible to otool, so seeded explicitly.
+# Libraries Wine dlopen()s by leaf name — invisible to otool, so seeded explicitly: every dylib in
+# SILO_DEPS_PREFIX/lib, or (legacy, no SILO_DEPS_PREFIX) these Homebrew formulae.
 DLOPEN_PACKAGES = ("freetype", "gnutls", "molten-vk")
 
 # Plugins that would pull a whole toolkit or interpreter into a game process for nothing: GTK video sinks
@@ -134,7 +139,10 @@ class MachO:
                 cand = os.path.join(rp, leaf)
                 if os.path.exists(cand):
                     return os.path.realpath(cand)
-            return None
+            # A library with no rpath of its own (build-deps.sh's: gnutls -> @rpath/libgmp.10.dylib) means a
+            # sibling — once in lib64 its rpath is @loader_path, which is exactly that.
+            cand = os.path.join(base, leaf)
+            return os.path.realpath(cand) if not self.rpaths and os.path.exists(cand) else None
         if ref.startswith("@"):
             return None
         return os.path.realpath(ref) if os.path.exists(ref) else None
@@ -159,6 +167,9 @@ class Bundler:
         self.leaf_of = {}      # real source path -> canonical leaf in lib64
         self.source_of = {}    # canonical leaf -> real source path (collision check)
         self.denied = set()    # plugins skipped, for the summary
+        self.deps = os.environ.get("SILO_DEPS_PREFIX") or None
+        if self.deps and not os.path.isdir(os.path.join(self.deps, "lib")):
+            sys.exit(f"ERROR: SILO_DEPS_PREFIX={self.deps} has no lib/ (run Scripts/build-deps.sh)")
         self.stack = os.environ.get("SILO_GST_STACK") or None
         self.stack_leafs, self.stack_renames = set(), {}
         if self.stack:
@@ -218,6 +229,9 @@ class Bundler:
                     continue
                 if not is_foreign(real) or self.inside(real) or real in seen:
                     continue
+                if self.deps and real.startswith(BREW_ROOTS):
+                    sys.exit(f"ERROR: {m.path} pulls in Homebrew's {real} but SILO_DEPS_PREFIX is set — the runtime "
+                             "must ship only libraries built from source (Scripts/build-deps.sh)")
                 if self.arch not in archs(real):
                     sys.exit(f"ERROR: {real} (needed by {m.path}) has no {self.arch} slice")
                 seen.add(real)
@@ -316,11 +330,13 @@ class Bundler:
             libs |= self.closure(f)
 
         aliases = {}   # extra names Wine may dlopen -> real path
-        for pkg in DLOPEN_PACKAGES:
+        libdirs = [os.path.join(self.deps, "lib")] if self.deps else []
+        for pkg in () if self.deps else DLOPEN_PACKAGES:
             prefix = self.brew_prefix(pkg)
             if not prefix:
                 sys.exit(f"ERROR: Homebrew formula '{pkg}' ({self.arch}) not found — install it first")
-            libdir = os.path.join(prefix, "lib")
+            libdirs.append(os.path.join(prefix, "lib"))
+        for libdir in libdirs:
             for name in sorted(os.listdir(libdir)):
                 p = os.path.join(libdir, name)
                 if name.endswith(".dylib") and self.arch in archs(p):
