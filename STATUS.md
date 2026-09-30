@@ -10,6 +10,9 @@
   user: fix it → rebuild Wine in CI → game re-test → PUBLISH `wine-cx-26.3.0` (still a DRAFT on purpose — don't
   publish before) → DXMT CI (needs the published tag) → move `SILO_GITHUB_REPO` to the fork. Both builds are now
   x86_64-Homebrew-free and verified (Wine CI green; DXMT verified on the imported Wine).
+  Also open (minor, user 2026-09-30): on the from-source Wine, quitting Steam shows NO "shutting down" window (the
+  imported one does). Steam still exits cleanly per the log (notifications unregistered, no fault/unwind) — only
+  the CEF shutdown dialog is missing. Not yet known whether -gcc16 behaved the same.
 - **(previous resume note, end of 2026-09-29).** Live from-source runtime = `wine-cx-26.3.0-gcc16` (pinned GCC
   16.1.0 via `Scripts/pin-mingw-w64.sh`, patch 0002, GStreamer 1.24.4 stack, CX_APPLEGPTK fix) — verified on Steam,
   DMC5, TEKKEN 8, SoulCalibur VI (MF bottle). Details in the entries below.
