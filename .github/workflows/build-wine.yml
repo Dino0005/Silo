@@ -16,10 +16,10 @@ on:
   workflow_dispatch:
     inputs:
       crossover_version:
-        description: "CrossOver source version, e.g. 26.2.0 (must exist at media.codeweavers.com/pub/crossover/source/)"
+        description: "CrossOver source version, e.g. 26.3.0 (must exist at media.codeweavers.com/pub/crossover/source/)"
         required: true
       release_tag:
-        description: "Release tag to publish, e.g. wine-cx-26.2.0"
+        description: "Release tag to publish, e.g. wine-cx-26.3.0"
         required: true
       draft:
         description: "Create the release as a DRAFT (visible only to the repo's maintainers) — for test runs"

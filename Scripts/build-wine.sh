@@ -8,7 +8,7 @@
 # We build Wine ONLY. GPTK/D3DMetal is Apple-licensed and is imported in-app from the user's .dmg.
 #
 # Usage: Scripts/build-wine.sh [crossover_version] [release_tag]
-#   e.g. Scripts/build-wine.sh 26.2.0 wine-cx-26.2.0
+#   e.g. Scripts/build-wine.sh 26.3.0 wine-cx-26.3.0
 #   With no version, defaults to CROSSOVER_VERSION from versions.env (the single source of truth).
 set -euo pipefail
 
