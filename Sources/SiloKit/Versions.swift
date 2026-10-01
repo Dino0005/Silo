@@ -6,7 +6,7 @@ public enum Versions {
     /// Silo release (marketing) version. Mirrors `Info.plist` `CFBundleShortVersionString`.
     public static let silo = "0.6.4"
     /// GitHub repo (owner/name) — app releases (updater) + wine-cx-* runtime builds.
-    public static let githubRepo = "mikaelhug/Silo"
+    public static let githubRepo = "Dino0005/Silo"
     /// CrossOver FOSS source version the Wine runtime is built from (CI/build input only — the app
     /// downloads the latest published wine-cx-* release at runtime).
     public static let crossoverVersion = "26.3.0"

@@ -36,6 +36,10 @@ struct VersionsTests {
     @Test("updateRepo is pinned to this fork, deliberately independent of Versions.githubRepo — see the doc comment on Silo.updateRepo")
     func updateRepoPointsAtFork() {
         #expect(Silo.updateRepo == "Dino0005/Silo")
-        #expect(Silo.updateRepo != Silo.wineRepo)   // the whole point of the split
+    }
+
+    @Test("Runtimes come from this fork's releases (wine-cx-*, dxmt-*, gst-libav-*) since 2026-10-01")
+    func wineRepoPointsAtFork() {
+        #expect(Silo.wineRepo == "Dino0005/Silo")
     }
 }

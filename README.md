@@ -86,7 +86,7 @@ The Library shows a guided setup until the pieces are in place:
    ([developer.apple.com/games](https://developer.apple.com/games/game-porting-toolkit/), free
    Apple ID required); Silo mounts it and extracts the D3DMetal layer.
 2. **Set up** — one click chains the rest: download Wine (~250 MB) and the DXMT runtime from
-   [Releases](https://github.com/mikaelhug/Silo/releases), install Windows Steam into the shared bottle
+   [Releases](https://github.com/Dino0005/Silo/releases), install Windows Steam into the shared bottle
    (with its fonts and VC++ runtimes), then launch Steam and sign in once — Steam caches the login.
 
 Then hit **Play**. Steam games default to **Automatic** graphics (GPTK/DXMT chosen per game, overridable in
