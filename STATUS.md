@@ -11,13 +11,28 @@
   **Correction to the 09-30 hypothesis:** the shutdown dialog appeared on nobrew WITH the wrapper too (2026-10-01),
   and on the real webhelper only 2 of 3 times — it looks intermittent (probably shown only when Steam has shutdown
   work, e.g. a cloud sync), not caused by the wrapper. The fix stands on its own (stock webhelper on the imported
-  Wine, as before 09-28) but isn't proven to be what brings the dialog back. (2) NEXT: the D3D12 crash, below.
+  Wine, as before 09-28) but isn't proven to be what brings the dialog back.
+  (2) ✅ SOLVED (658d883) — the "D3D12-probe crash on from-source Wine" was a SILO bug, not Wine: the DXMT clone
+  (`RuntimeVariants`) copies the base runtime as it is, and once the base had the GPTK overlay the clone carried
+  D3DMetal's `d3d12.dll`/`d3d10.dll` (+ nvapi64/nvngx/atidxx64 and `.so` bridges to libd3dshared) beside DXMT's
+  dxgi. Unreal probes D3D12 even under `-d3d11` → loaded D3DMetal's d3d12 → call to address 0. The imported Wine's
+  clone happened to predate its GPTK overlay, so it had Wine's own d3d12 (018c8c5f, = CrossOver.app's) — that's
+  the whole "works on CrossOver's Wine" difference. Proof: Wine's d3d12/d3d10 copied into the nobrew clone →
+  Fatal Fury starts (MF bottle, videos OK). Fix: `overlayGPTK` keeps Wine's originals once, only on a runtime GPTK
+  never touched (no `.so` → libd3dshared bridge yet), in `lib/wine/silo-wine-originals` + `touched.txt`; every
+  `prepare(.dxmt)` restores them from the BASE (except DXMT's own names), drops GPTK-only modules and every
+  bridge. A base overlaid BEFORE this has no originals (can't tell Wine's from D3DMetal's) → reinstall that
+  runtime once; nobrew's were seeded by hand from .wine-build/install. Verified in the app: clone deleted →
+  recreated with d3d12 f619d4dd / d3d10 26a2b68a (Wine's), DXMT d3d11/dxgi, no GPTK module/bridge → Fatal Fury
+  starts with videos. 2 tests (713). **No Wine rebuild needed** — the CI's draft `wine-cx-26.3.0` stands.
   **Does from-source Wine still need the wrapper? YES (measured 2026-10-01):** wrapper disabled in the nobrew
   runtime (renamed) → bottle unwrapped by the new code → Steam's window BLACK. CrossOver needs none: every bottle in
   ~/Library/Application Support/CrossOver/Bottles has the stock webhelper (no `_orig`), and the FOSS source has no
   Steam/CEF hack (only libcef binary patches for Rockstar/BeamNG/Wizard101, which ours has too). So the stock CEF
   GPU-process path (Chromium's D3D/ANGLE) paints on CrossOver's binaries and not on ours — the same family as the
   D3D12-probe crash (graphics through Wine's D3D on our build). Clue for (2): look for ONE cause behind both.
+  → Not the same cause after all: the D3D12 crash was Silo's DXMT clone (above). Why our Wine still needs the
+  wrapper for Steam's CEF is still open (minor — the wrapper works).
   Later (user asked 2026-09-30): the in-app CrossOver import (`CrossOverWineImporter`) copies CrossOver's tree
   as is — stock GStreamer 1.24.4, NO libav/matroska — so DMC5's VC-1 movies won't play on a freshly imported
   runtime; `wine-crossover-26.3.0-libav` was made by hand with `Scripts/add-gst-libav.sh`. To do: publish the

@@ -124,9 +124,11 @@ so users can update on their own schedule.
   that winemetal.so links statically from source (`Scripts/build-llvm15.sh`, DXMT's recipe, assertions off), take
   meson/ninja from a universal Python venv, and apply `Scripts/dxmt-patches/` (a backport so v0.72 compiles with
   Xcode 27). Verified in game: Fatal Fury on the imported CrossOver Wine + `dxmt-v0.72-cx26.3.0-nobrew`.
-- **Open — D3D12 probe on from-source Wine:** DXMT games that probe D3D12 (Fatal Fury, DMC5 forced to DXMT) crash
-  on every from-source Wine (Wine's own d3d12 → `virtual_unwind … system library` → call to address 0); the same
-  games run on the imported CrossOver Wine. Not caused by the no-Homebrew work (measured on the older build too).
+- **Fixed in Silo, not in Wine (2026-10-01):** DXMT games that probe D3D12 (Fatal Fury, DMC5 forced to DXMT) crashed
+  on from-source Wine because Silo's DXMT clone inherited D3DMetal's `d3d12.dll` from the GPTK-overlaid base runtime;
+  the clone now gets Wine's own modules back. Verified: Fatal Fury on `wine-cx-26.3.0-nobrew` + the new DXMT.
+- Steam's CEF UI on from-source Wine still needs Silo's steamwebhelper wrapper (black window without it); CrossOver's
+  binaries don't. Cause unknown; the wrapper works.
 - Games that need Windows' own Media Foundation (Wine's MF topology loader is a stub) still need the MF
   bottle — GStreamer additions can't replace it.
 
