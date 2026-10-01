@@ -3,9 +3,15 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
-- **▶️ RESUME HERE (2026-09-30 evening).** Two tasks, user's order: (1) small Silo fix — `installWebHelperWrapper`
-  must UNWRAP (restore `steamwebhelper_orig.exe`) when the runtime ships no wrapper (imported CrossOver Wine), so
-  Steam's shutdown dialog comes back there (cause measured, see "Also open" below); with tests + app build + try.
+- **▶️ RESUME HERE (2026-10-01).** (1) ✅ DONE (b7297f5): `installWebHelperWrapper` on a runtime with NO wrapper
+  (imported CrossOver Wine) now restores the real webhelper (`restoreRealWebHelpers`: only Silo's own wrapper —
+  recognised by the UTF-16 "steamwebhelper_orig.exe" it launches — is replaced, so a newer real one from a Steam
+  update is never overwritten; `replaceItemAt` moves `_orig` back). 3 tests, 711 green. Measured in the app:
+  nobrew launch → wrapped (3 cef dirs, `_orig` kept); imported launch → all 3 real, no `_orig` left.
+  **Correction to the 09-30 hypothesis:** the shutdown dialog appeared on nobrew WITH the wrapper too (2026-10-01),
+  and on the real webhelper only 2 of 3 times — it looks intermittent (probably shown only when Steam has shutdown
+  work, e.g. a cloud sync), not caused by the wrapper. The fix stands on its own (stock webhelper on the imported
+  Wine, as before 09-28) but isn't proven to be what brings the dialog back. (2) NEXT: the D3D12 crash, below.
   Later (user asked 2026-09-30): the in-app CrossOver import (`CrossOverWineImporter`) copies CrossOver's tree
   as is — stock GStreamer 1.24.4, NO libav/matroska — so DMC5's VC-1 movies won't play on a freshly imported
   runtime; `wine-crossover-26.3.0-libav` was made by hand with `Scripts/add-gst-libav.sh`. To do: publish the
