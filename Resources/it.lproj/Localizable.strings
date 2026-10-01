@@ -325,6 +325,14 @@
 "Importing from CrossOver…" = "Importazione da CrossOver…";
 "Imported %@ from CrossOver." = "Importato %@ da CrossOver.";
 "Couldn't import from CrossOver: %@" = "Impossibile importare da CrossOver: %@";
+"Imported %@ from CrossOver. Adding the libav video decoders…" = "Importato %@ da CrossOver. Aggiunta dei decoder video libav…";
+"Imported %@ from CrossOver, with %@." = "Importato %@ da CrossOver, con %@.";
+"Imported %@ from CrossOver, but without the libav video decoders: %@" = "Importato %@ da CrossOver, ma senza i decoder video libav: %@";
+"This runtime has no GStreamer in lib64." = "Questo runtime non ha GStreamer in lib64.";
+"Its GStreamer is 1.%lld, the libav add-on is built for %@." = "Il suo GStreamer è 1.%lld, il pacchetto libav è compilato per %@.";
+"No libav add-on is published for GStreamer 1.%lld." = "Nessun pacchetto libav pubblicato per GStreamer 1.%lld.";
+"The libav add-on package isn't laid out as expected." = "Il pacchetto libav non ha la struttura prevista.";
+"%@ already exists in the runtime and differs — not overwriting it." = "%@ esiste già nel runtime ed è diverso: non lo sovrascrivo.";
 "CrossOver isn't installed at %@." = "CrossOver non è installato in %@.";
 "That doesn't look like a CrossOver app bundle." = "Questo non sembra un pacchetto applicativo di CrossOver.";
 "Couldn't read CrossOver's version." = "Impossibile leggere la versione di CrossOver.";

@@ -101,6 +101,14 @@ jobs:
           SILO_CX_SOURCES="$GITHUB_WORKSPACE/$(dirname "$WINE_SRC")" ./Scripts/build-gst-libav.sh
           echo "GST_PREFIX=$GITHUB_WORKSPACE/.wine-build/gst/prefix" >> "$GITHUB_ENV"
           echo "GST_STACK=$(ls -d "$GITHUB_WORKSPACE"/dist/gstreamer-*/lib64 | sort -V | tail -1)" >> "$GITHUB_ENV"
+          # The libav + matroska add-on on its own, for a Wine imported from CrossOver (whose GStreamer lacks
+          # them): Silo's importer fetches the `gst-libav-<gstreamer version>` release matching the import's
+          # GStreamer (GStreamerAddOn). Same package Scripts/add-gst-libav.sh adds by hand.
+          ADDON="$(ls -d "$GITHUB_WORKSPACE"/dist/gst-libav-* | sort -V | tail -1)"
+          GST_ADDON_VER="$(cat "$ADDON/GSTREAMER_VERSION")"
+          tar -cJf "$GITHUB_WORKSPACE/gst-libav-$GST_ADDON_VER.tar.xz" -C "$ADDON" .
+          ( cd "$GITHUB_WORKSPACE" && shasum -a 256 "gst-libav-$GST_ADDON_VER.tar.xz" > "gst-libav-$GST_ADDON_VER.tar.xz.sha256" )
+          echo "GST_ADDON_VER=$GST_ADDON_VER" >> "$GITHUB_ENV"
 
       - name: Build the shipped libraries from source (gmp, nettle, gnutls, freetype, MoltenVK)
         run: |
@@ -212,6 +220,17 @@ jobs:
           ( cd wine-install && tar -cJf "$GITHUB_WORKSPACE/wine.tar.xz" . )
           shasum -a 256 wine.tar.xz > wine.tar.xz.sha256   # the app verifies this before extracting
           ls -la wine.tar.xz wine.tar.xz.sha256
+
+      - name: Publish the libav add-on (gst-libav-<gstreamer version>, for imported CrossOver Wine)
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: gst-libav-${{ env.GST_ADDON_VER }}
+          name: gst-libav-${{ env.GST_ADDON_VER }}
+          draft: ${{ inputs.draft }}
+          files: |
+            gst-libav-${{ env.GST_ADDON_VER }}.tar.xz
+            gst-libav-${{ env.GST_ADDON_VER }}.tar.xz.sha256
+          body: "gst-libav + matroska (FFmpeg decoders, LGPL) for GStreamer ${{ env.GST_ADDON_VER }} — CrossOver's own. Silo adds it to a Wine imported from CrossOver. See WINE-BUILD.md."
 
       - name: Publish release
         uses: softprops/action-gh-release@v3

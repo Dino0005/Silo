@@ -153,11 +153,28 @@ public final class RuntimeViewModel {
                 setDefault(new)
             }
             statusMessage = String(localized: "Imported \(name) from CrossOver.")
+            if component == .wine { await addGStreamerAddOn(to: name) }
             return true
         } catch {
             statusMessage = String(localized:
                 "Couldn't import from CrossOver: \((error as NSError).localizedDescription)")
             return false
+        }
+    }
+
+    /// CrossOver ships GStreamer without libav/matroska, so an imported Wine can't play VC-1/WMV movies (Devil
+    /// May Cry 5's) until the add-on is in. Best-effort: the import itself already succeeded, so a failure here
+    /// is reported, never turned into a failed import.
+    private func addGStreamerAddOn(to name: String) async {
+        statusMessage = String(localized: "Imported \(name) from CrossOver. Adding the libav video decoders…")
+        do {
+            let tag = try await manager.addGStreamerAddOn(
+                toRuntime: name, repo: repo, requireDigest: repo == Silo.wineRepo)
+            statusMessage = tag.map { String(localized: "Imported \(name) from CrossOver, with \($0).") }
+                ?? String(localized: "Imported \(name) from CrossOver.")
+        } catch {
+            statusMessage = String(localized:
+                "Imported \(name) from CrossOver, but without the libav video decoders: \((error as NSError).localizedDescription)")
         }
     }
 

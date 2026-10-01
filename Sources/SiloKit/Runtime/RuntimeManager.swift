@@ -51,6 +51,35 @@ public actor RuntimeManager {
         try await CrossOverWineImporter(runner: runner).install(component, into: paths.runtimesDir)
     }
 
+    /// Add the libav + matroska add-on (`GStreamerAddOn`) to an installed runtime in CrossOver's lib64 layout —
+    /// what an imported CrossOver Wine lacks for VC-1/WMV movies. Finds the `gst-libav-1.<minor>.*` release
+    /// matching the runtime's own GStreamer in `repo`, downloads it through the same verified engine as a
+    /// runtime (`install`, into a hidden `.addon-<tag>` dir that never lists as a runtime), merges it, then
+    /// removes the download. Returns the add-on's tag, or nil when the runtime already had it.
+    @discardableResult
+    public func addGStreamerAddOn(toRuntime name: String, repo: String, requireDigest: Bool) async throws -> String? {
+        let runtime = paths.runtimesDir.appendingPathComponent(try Self.requireSafeComponent(name), isDirectory: true)
+        if GStreamerAddOn.isInstalled(inRuntime: runtime) { return nil }
+        guard let minor = GStreamerAddOn.gstreamerMinor(ofRuntime: runtime) else { throw GStreamerAddOn.AddOnError.noGStreamer }
+
+        var release: GitHubRelease?
+        for page in 1...5 {   // add-on tags sit among the app and runtime releases (see availableReleases)
+            let batch = try await availableReleases(repo: repo, limit: 30, page: page)
+            if batch.isEmpty { break }
+            if let found = GStreamerAddOn.release(in: batch, forMinor: minor) { release = found; break }
+        }
+        guard let release, let asset = Self.preferredAsset(release) else {
+            throw GStreamerAddOn.AddOnError.noRelease(minor: minor)
+        }
+        let scratch = ".addon-\(release.tagName)"
+        try await install(name: scratch, from: asset.browserDownloadUrl, requireDigest: requireDigest)
+        let extracted = paths.runtimesDir.appendingPathComponent(scratch, isDirectory: true)
+        defer { try? fileManager.removeItem(at: extracted) }
+        guard let package = GStreamerAddOn.packageRoot(in: extracted) else { throw GStreamerAddOn.AddOnError.badPackage }
+        try GStreamerAddOn.merge(package: package, intoRuntime: runtime, runtimeMinor: minor)
+        return release.tagName
+    }
+
     /// The latest `limit` releases of `repo` (newest first) — for the Heroic-style Wine list.
     ///
     /// - Parameter page: 1-based page of the release list. **Load-bearing:** the runtime repo interleaves
@@ -58,9 +87,9 @@ public actor RuntimeManager {
     ///   of a given kind steadily sinks as app releases are published. Fetching only page 1 meant that once
     ///   enough releases stacked above it, `pickRelease` found nothing and onboarding died with
     ///   "No Wine build published yet." — on a repo that has Wine published all along. Callers page until
-    ///   they find their kind (see `RuntimeViewModel.installLatest`). NOTE for this fork: `Silo.updateRepo`
-    ///   points at Dino0005/Silo, but `Silo.wineRepo` is still upstream — this is the repo where the
-    ///   runtime tags sink under the app releases, so the fix applies here unchanged.
+    ///   they find their kind (see `RuntimeViewModel.installLatest`). On this fork both `Silo.wineRepo` and
+    ///   `Silo.updateRepo` are Dino0005/Silo, where the runtime tags sink under the app's `v*` releases just
+    ///   the same, so the paging applies unchanged.
     public func availableReleases(repo: String, limit: Int = 3, page: Int = 1) async throws -> [GitHubRelease] {
         let url = URL(string: "https://api.github.com/repos/\(repo)/releases?per_page=\(limit)&page=\(page)")!
         try DownloadGuard.requireHTTPS(url)   // defense-in-depth: every remote fetch goes through the guard
