@@ -556,10 +556,11 @@ public struct SteamBottle: Sendable {
     /// Replace the bottle's `steamwebhelper.exe` with Silo's CEF wrapper so the UI paints. Idempotent and
     /// safe to call before every launch: handles a fresh install, a Steam update that restored the stock
     /// binary, AND a wrapper-VERSION change (e.g. new CEF flags) without corrupting the preserved original.
-    /// No-op if the wine runtime doesn't ship the wrapper (older build) or Steam isn't installed yet.
+    /// A runtime that ships NO wrapper (a CrossOver-imported Wine, an older build) gets the real webhelper
+    /// back instead — see `restoreRealWebHelpers`. No-op if Steam isn't installed yet.
     public func installWebHelperWrapper(wine: URL) throws {
         let wrapper = WineRuntimeLayout(wineBinary: wine).wrapperExe
-        guard fileManager.fileExists(atPath: wrapper.path) else { return }
+        guard fileManager.fileExists(atPath: wrapper.path) else { return try restoreRealWebHelpers() }
         // Wrap EVERY CEF dir's webhelper, not just one: a Steam update can add a new dir (e.g. cef.win64)
         // alongside the old (cef.win7x64) and switch to it, stranding a single-dir wrapper in the unused
         // one while Steam runs the unwrapped binary → black window.
@@ -589,6 +590,27 @@ public struct SteamBottle: Sendable {
                 throw error
             }
         }
+    }
+
+    /// Undo the wrapper, for a runtime that doesn't ship one: put each preserved `steamwebhelper_orig.exe` back
+    /// as `steamwebhelper.exe`. Without this the bottle kept the wrapper the last from-source runtime installed,
+    /// and its software-GL/`--in-process-gpu` flags hid Steam's "shutting down" window even on the imported
+    /// CrossOver Wine, which paints Steam's UI fine on the real webhelper (measured 2026-09-30).
+    /// Only Silo's own wrapper is replaced (`isSiloWebHelperWrapper`): if a Steam update has put a newer real
+    /// webhelper in place, the older `_orig` must not overwrite it. The next from-source launch re-wraps.
+    func restoreRealWebHelpers() throws {
+        for helper in webHelpers() {
+            let real = helper.deletingLastPathComponent().appendingPathComponent("steamwebhelper_orig.exe")
+            guard fileManager.fileExists(atPath: real.path), Self.isSiloWebHelperWrapper(at: helper) else { continue }
+            _ = try fileManager.replaceItemAt(helper, withItemAt: real)   // moves `_orig` into place
+        }
+    }
+
+    /// Silo's wrapper names the binary it launches (`kRealExe` in Scripts/steamwebhelper-wrapper.c, a wide
+    /// string); Steam's real webhelper never contains it.
+    static func isSiloWebHelperWrapper(at url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return false }
+        return data.range(of: Data("steamwebhelper_orig.exe".utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] })) != nil
     }
 
     /// Every `steamwebhelper.exe` across the bottle's CEF dirs. The leaf name is Steam-version-dependent

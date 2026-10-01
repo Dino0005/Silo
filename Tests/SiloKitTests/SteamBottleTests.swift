@@ -264,6 +264,71 @@ struct SteamBottleTests {
         #expect(try String(contentsOf: cef2.appendingPathComponent("steamwebhelper_orig.exe"), encoding: .utf8) == "REAL2")
     }
 
+    /// Wrapper bytes as the real one has them: it names the binary it launches as a wide string.
+    private static let wrapperBytes: Data = {
+        var d = Data("MZ wrapper ".utf8)
+        d.append(contentsOf: "steamwebhelper_orig.exe".utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] })
+        return d
+    }()
+
+    @Test("A runtime without the wrapper (imported CrossOver Wine) puts the real webhelper back")
+    func webHelperUnwrapOnRuntimeWithoutWrapper() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (bottle, _, paths) = make(tmp)
+        let fromSource = tmp.url.appendingPathComponent("own/bin/wine64")
+        let shipped = tmp.url.appendingPathComponent("own/share/silo/steamwebhelper-wrapper.exe")
+        try FileManager.default.createDirectory(at: shipped.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Self.wrapperBytes.write(to: shipped)
+        let imported = tmp.url.appendingPathComponent("cx/bin/wine64")   // ships no wrapper
+        try FileManager.default.createDirectory(at: imported.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let helper = paths.steamBottleCEFDir.appendingPathComponent("cef.win64/steamwebhelper.exe")
+        let orig = helper.deletingLastPathComponent().appendingPathComponent("steamwebhelper_orig.exe")
+        try FileManager.default.createDirectory(at: helper.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "REAL".write(to: helper, atomically: true, encoding: .utf8)
+
+        try bottle.installWebHelperWrapper(wine: fromSource)          // wrapped, real one preserved
+        #expect(try Data(contentsOf: helper) == Self.wrapperBytes)
+
+        try bottle.installWebHelperWrapper(wine: imported)            // back to the real one
+        #expect(try String(contentsOf: helper, encoding: .utf8) == "REAL")
+        #expect(FileManager.default.fileExists(atPath: orig.path) == false)
+
+        try bottle.installWebHelperWrapper(wine: imported)            // idempotent
+        #expect(try String(contentsOf: helper, encoding: .utf8) == "REAL")
+
+        try bottle.installWebHelperWrapper(wine: fromSource)          // and wrapped again
+        #expect(try Data(contentsOf: helper) == Self.wrapperBytes)
+        #expect(try String(contentsOf: orig, encoding: .utf8) == "REAL")
+    }
+
+    @Test("Unwrapping never puts an older preserved webhelper over a newer real one from a Steam update")
+    func webHelperUnwrapKeepsNewerReal() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (bottle, _, paths) = make(tmp)
+        let imported = tmp.url.appendingPathComponent("cx/bin/wine64")
+        try FileManager.default.createDirectory(at: imported.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let helper = paths.steamBottleCEFDir.appendingPathComponent("cef.win64/steamwebhelper.exe")
+        let orig = helper.deletingLastPathComponent().appendingPathComponent("steamwebhelper_orig.exe")
+        try FileManager.default.createDirectory(at: helper.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "REAL-NEW".write(to: helper, atomically: true, encoding: .utf8)   // not Silo's wrapper
+        try "REAL-OLD".write(to: orig, atomically: true, encoding: .utf8)
+
+        try bottle.installWebHelperWrapper(wine: imported)
+        #expect(try String(contentsOf: helper, encoding: .utf8) == "REAL-NEW")
+        #expect(try String(contentsOf: orig, encoding: .utf8) == "REAL-OLD")
+    }
+
+    @Test("isSiloWebHelperWrapper recognises the wrapper by the wide name of the binary it launches")
+    func recognisesWrapper() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let wrapper = tmp.url.appendingPathComponent("w.exe"), real = tmp.url.appendingPathComponent("r.exe")
+        try Self.wrapperBytes.write(to: wrapper)
+        try Data("MZ steamwebhelper_orig.exe in ASCII only".utf8).write(to: real)
+        #expect(SteamBottle.isSiloWebHelperWrapper(at: wrapper))
+        #expect(!SteamBottle.isSiloWebHelperWrapper(at: real))
+        #expect(!SteamBottle.isSiloWebHelperWrapper(at: tmp.url.appendingPathComponent("missing.exe")))
+    }
+
     @Test("installCoreFonts runs the FIRST font user-guided (no /Q) and the rest silently, into Fonts")
     func installCoreFonts() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
