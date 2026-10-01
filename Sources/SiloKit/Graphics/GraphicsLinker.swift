@@ -85,6 +85,9 @@ public struct GraphicsLinker: Sendable {
         if witnessMatches(modules, in: wineWinDir) { return }
 
         try fileManager.createDirectory(at: wineExternal, withIntermediateDirectories: true)
+        // Keep Wine's own copies first (once, on a runtime GPTK hasn't touched yet): the DXMT clone of this
+        // runtime puts them back (`restoreWineModules`).
+        try preserveWineModules(modules, layout: wineLayout)
         // Each PE dll + its matching unix `.so` — GPTK's D3DMetal bridge (relative symlinks preserved).
         try copyModules(modules, unixSource: gptkUnixDir, toWin: wineWinDir, toUnix: wineUnixDir)
         // libd3dshared.dylib + D3DMetal.framework (the Metal backend the `.so` symlinks resolve against).
@@ -131,6 +134,86 @@ public struct GraphicsLinker: Sendable {
             try replace(item, in: external)
         }
         try linkD3DMetalFramework(unixDir: unixDir, externalDir: external)
+    }
+
+    // MARK: - Wine's own modules under the GPTK overlay
+
+    /// Where `overlayGPTK` keeps Wine's own copy of every module it replaces in `lib/wine/x86_64-windows`,
+    /// plus `touched.txt` naming every module it writes (incl. ones Wine doesn't ship: nvapi64, nvngx…).
+    static let wineOriginalsDirName = "silo-wine-originals"
+
+    private func wineOriginalsDir(_ layout: WineRuntimeLayout) -> URL {
+        layout.windowsModulesDir.deletingLastPathComponent()
+            .appendingPathComponent(Self.wineOriginalsDirName, isDirectory: true)
+    }
+
+    /// Every name `copyModules` writes for `modules` (the nvngx shim also lands under its plain name).
+    private func overlaidNames(_ modules: [URL]) -> [String] {
+        modules.flatMap { m in [m.lastPathComponent] + [Self.plainNVNGXName(for: m.lastPathComponent)].compactMap { $0 } }
+    }
+
+    /// Whether `unixDir/<stem>.so` is GPTK's bridge — a symlink into `libd3dshared.dylib`. Wine's own
+    /// d3d10/d3d11/d3d12/dxgi are PE-only and have no `.so` at all, so this marks a module GPTK replaced.
+    private func isGPTKBridge(_ moduleName: String, unixDir: URL) -> Bool {
+        let so = unixDir.appendingPathComponent((moduleName as NSString).deletingPathExtension + ".so")
+        guard let target = try? fileManager.destinationOfSymbolicLink(atPath: so.path) else { return false }
+        return target.hasSuffix("libd3dshared.dylib")
+    }
+
+    /// Save Wine's own copies of the modules GPTK is about to replace — once, and only on a runtime GPTK has
+    /// never touched (no module there is a GPTK bridge yet): on one overlaid before this existed, what sits
+    /// there is D3DMetal, and keeping THAT as "Wine's" would be wrong. Such a runtime gets no originals; it
+    /// regains them when reinstalled.
+    func preserveWineModules(_ modules: [URL], layout: WineRuntimeLayout) throws {
+        let dir = wineOriginalsDir(layout)
+        guard !fileManager.fileExists(atPath: dir.path) else { return }
+        let names = overlaidNames(modules)
+        guard !names.contains(where: { isGPTKBridge($0, unixDir: layout.unixModulesDir) }) else { return }
+        let staging = dir.deletingLastPathComponent().appendingPathComponent(".\(Self.wineOriginalsDirName).tmp")
+        try? fileManager.removeItem(at: staging)
+        let win = staging.appendingPathComponent("x86_64-windows", isDirectory: true)
+        try fileManager.createDirectory(at: win, withIntermediateDirectories: true)
+        for name in names {
+            let own = layout.windowsModulesDir.appendingPathComponent(name)
+            if fileManager.fileExists(atPath: own.path) { try fileManager.copyItem(at: own, to: win.appendingPathComponent(name)) }
+        }
+        try Data(names.joined(separator: "\n").utf8).write(to: staging.appendingPathComponent("touched.txt"))
+        try fileManager.moveItem(at: staging, to: dir)   // published complete, or not at all
+    }
+
+    /// Put Wine's own modules back into a variant runtime (the DXMT clone) wherever GPTK's overlay of the base
+    /// replaced them, reading the originals the BASE kept (`preserveWineModules`). Modules Wine doesn't ship
+    /// are removed, and every GPTK `.so` bridge goes. Names in `except` (the ones the variant's own
+    /// backend ships, e.g. DXMT's d3d11/dxgi) are left to that backend's overlay.
+    ///
+    /// Why: the clone copies the base as it is, so a clone made AFTER the base got GPTK carried D3DMetal's
+    /// `d3d12.dll`/`d3d10.dll` beside DXMT's dxgi — and a DXMT game probing D3D12 (Unreal does, even under
+    /// `-d3d11`) loaded D3DMetal there and crashed calling address 0 (Fatal Fury, DMC5 on DXMT — measured
+    /// 2026-10-01; with Wine's own d3d12 back it starts). A clone made BEFORE the overlay happened to work.
+    /// Idempotent; a no-op when the base has no originals (overlaid before they were kept).
+    public func restoreWineModules(into variantWine: URL, originalsFrom baseWine: URL, except: Set<String> = []) throws {
+        let dir = wineOriginalsDir(WineRuntimeLayout(wineBinary: baseWine))
+        guard let list = try? String(contentsOf: dir.appendingPathComponent("touched.txt"), encoding: .utf8) else { return }
+        let layout = WineRuntimeLayout(wineBinary: variantWine)
+        let skip = Set(except.map { $0.lowercased() })
+        for name in list.split(separator: "\n").map(String.init) {
+            // GPTK's `.so` bridge goes for every touched name, the variant backend's too (DXMT's PEs have none).
+            if isGPTKBridge(name, unixDir: layout.unixModulesDir) {
+                try fileManager.removeItem(at: layout.unixModulesDir.appendingPathComponent(
+                    (name as NSString).deletingPathExtension + ".so"))
+            }
+            guard !skip.contains(name.lowercased()) else { continue }
+            let dst = layout.windowsModulesDir.appendingPathComponent(name)
+            let own = dir.appendingPathComponent("x86_64-windows").appendingPathComponent(name)
+            if fileManager.fileExists(atPath: own.path) {
+                if !fileManager.contentsEqual(atPath: own.path, andPath: dst.path) {
+                    if fileManager.fileExists(atPath: dst.path) { try fileManager.removeItem(at: dst) }
+                    try fileManager.copyItem(at: own, to: dst)
+                }
+            } else if fileManager.fileExists(atPath: dst.path) {
+                try fileManager.removeItem(at: dst)   // GPTK-only (nvapi64, nvngx…): not Wine's
+            }
+        }
     }
 
     // MARK: - DXMT overlay

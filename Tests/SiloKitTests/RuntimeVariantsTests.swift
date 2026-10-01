@@ -40,6 +40,82 @@ struct RuntimeVariantsTests {
         return win
     }
 
+    /// A GPTK that, like the real one, also replaces Wine's d3d12/d3d10 and adds modules Wine doesn't ship.
+    private func makeFullGPTK(_ tmp: TempDir) throws -> URL {
+        let win = try makeGPTK(tmp)
+        let unix = tmp.url.appendingPathComponent("gptk/lib/wine/x86_64-unix")
+        for module in ["d3d12.dll", "d3d10.dll", "nvapi64.dll"] {
+            try tmp.write("gptk/lib/wine/x86_64-windows/\(module)", "GPTK:\(module)")
+            try FileManager.default.createSymbolicLink(
+                atPath: unix.appendingPathComponent((module as NSString).deletingPathExtension + ".so").path,
+                withDestinationPath: "../../external/libd3dshared.dylib")
+        }
+        return win
+    }
+
+    /// Wine's own PE-only Direct3D modules, as a clean runtime has them (no `.so`).
+    private func addWineD3D(_ tmp: TempDir) throws {
+        for module in ["d3d12.dll", "d3d10.dll", "d3d11.dll", "dxgi.dll"] {
+            try tmp.write("wine/lib/wine/x86_64-windows/\(module)", "WINE:\(module)")
+        }
+    }
+
+    private func read(_ tmp: TempDir, _ path: String) throws -> String {
+        try String(contentsOf: tmp.url.appendingPathComponent(path), encoding: .utf8)
+    }
+
+    @Test("A DXMT clone made AFTER the base got GPTK carries Wine's own d3d12/d3d10, not D3DMetal's")
+    func dxmtCloneAfterGPTKGetsWineModules() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let wine = try makeWine(tmp)
+        try addWineD3D(tmp)
+        let variants = RuntimeVariants()
+        _ = try variants.prepare(backend: .gptk, baseWine: wine, libDir: try makeFullGPTK(tmp))
+        #expect(try read(tmp, "wine/lib/wine/x86_64-windows/d3d12.dll") == "GPTK:d3d12.dll")   // base: GPTK
+
+        _ = try variants.prepare(backend: .dxmt, baseWine: wine, libDir: try makeDXMT(tmp))
+        let clone = "wine-dxmt/lib/wine"
+        #expect(try read(tmp, "\(clone)/x86_64-windows/d3d12.dll") == "WINE:d3d12.dll")   // Wine's again
+        #expect(try read(tmp, "\(clone)/x86_64-windows/d3d10.dll") == "WINE:d3d10.dll")
+        #expect(try read(tmp, "\(clone)/x86_64-windows/d3d11.dll") == "DXMT")             // DXMT's own
+        #expect(try read(tmp, "\(clone)/x86_64-windows/dxgi.dll") == "DXMT")
+        let fm = FileManager.default
+        #expect(!fm.fileExists(atPath: tmp.url.appendingPathComponent("\(clone)/x86_64-windows/nvapi64.dll").path))
+        for so in ["d3d12.so", "d3d10.so", "nvapi64.so", "d3d11.so", "dxgi.so"] {   // no D3DMetal bridge left
+            #expect((try? fm.destinationOfSymbolicLink(
+                atPath: tmp.url.appendingPathComponent("\(clone)/x86_64-unix/\(so)").path)) == nil)
+        }
+        #expect(try read(tmp, "wine/lib/wine/x86_64-windows/d3d12.dll") == "GPTK:d3d12.dll")   // base untouched
+
+        // Idempotent: a second launch changes nothing.
+        _ = try variants.prepare(backend: .dxmt, baseWine: wine, libDir: try makeDXMT(tmp))
+        #expect(try read(tmp, "\(clone)/x86_64-windows/d3d12.dll") == "WINE:d3d12.dll")
+        #expect(try read(tmp, "\(clone)/x86_64-windows/d3d11.dll") == "DXMT")
+    }
+
+    @Test("Wine's originals are kept once, from the clean runtime — never from one GPTK already overlaid")
+    func originalsOnlyFromCleanRuntime() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let wine = try makeWine(tmp)
+        try addWineD3D(tmp)
+        let linker = GraphicsLinker()
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: try makeFullGPTK(tmp))
+        let kept = "wine/lib/wine/\(GraphicsLinker.wineOriginalsDirName)"
+        #expect(try read(tmp, "\(kept)/x86_64-windows/d3d12.dll") == "WINE:d3d12.dll")
+        #expect(try read(tmp, "\(kept)/touched.txt").contains("nvapi64.dll"))
+
+        // A GPTK update overlays again: the originals stay Wine's, not the previous GPTK's.
+        try tmp.write("gptk/lib/wine/x86_64-windows/d3d11.dll", "GPTK2")
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: tmp.url.appendingPathComponent("gptk/lib/wine/x86_64-windows"))
+        #expect(try read(tmp, "\(kept)/x86_64-windows/d3d12.dll") == "WINE:d3d12.dll")
+
+        // A runtime overlaid BEFORE originals were kept (D3DMetal bridges already there): nothing is saved.
+        try FileManager.default.removeItem(at: tmp.url.appendingPathComponent(kept))
+        try tmp.write("gptk/lib/wine/x86_64-windows/d3d11.dll", "GPTK3")
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: tmp.url.appendingPathComponent("gptk/lib/wine/x86_64-windows"))
+        #expect(!FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent(kept).path))
+    }
+
     @Test("prepare(.gptk) overlays the BASE runtime in place and returns the base wine (no clone)")
     func prepareGPTK() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

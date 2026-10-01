@@ -8,8 +8,10 @@ import Darwin
 /// - **GPTK** overlays the installed base runtime *in place* — the proven path, left exactly as it was.
 /// - **DXMT** gets an APFS copy-on-write **clone** of the base runtime (`<root>-dxmt`), then DXMT overlaid.
 ///   The clone is near-free on APFS (only the handful of overlaid files diverge); on a non-APFS / cross-
-///   volume target it falls back to a deep copy. The DXMT override set (`GraphicsBackend.dxmt.dllOverrides`)
-///   forces D3D10/11 to DXMT's builtins, so any GPTK modules inherited by the clone stay dormant.
+///   volume target it falls back to a deep copy. The clone copies the base AS IT IS, so when the base already
+///   carries GPTK, the clone would inherit D3DMetal's `d3d12`/`d3d10`/NVIDIA modules — not dormant: a DXMT
+///   game probing D3D12 loaded D3DMetal's d3d12 beside DXMT's dxgi and crashed (measured 2026-10-01). So
+///   every prepare puts Wine's own modules back first (`GraphicsLinker.restoreWineModules`), then DXMT.
 ///
 /// Idempotent — safe to call before every launch: it re-overlays (a no-op if unchanged) and only clones the
 /// first time the variant is needed.
@@ -36,6 +38,10 @@ public struct RuntimeVariants: Sendable {
             return baseWine
         case .dxmt:
             let variantWine = try ensureClone(of: baseWine, backend: backend)
+            // DXMT's own modules are left to its overlay (restoring them would make it re-copy every launch).
+            let dxmtNames = Set(((try? fileManager.contentsOfDirectory(atPath: libDir.path)) ?? [])
+                .filter { GraphicsLinker.isDXMTModule($0) })
+            try linker.restoreWineModules(into: variantWine, originalsFrom: baseWine, except: dxmtNames)
             try linker.overlayDXMT(wineBinary: variantWine, dxmtLibDir: libDir)
             return variantWine
         }
