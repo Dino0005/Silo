@@ -25,6 +25,24 @@
   runtime once; nobrew's were seeded by hand from .wine-build/install. Verified in the app: clone deleted →
   recreated with d3d12 f619d4dd / d3d10 26a2b68a (Wine's), DXMT d3d11/dxgi, no GPTK module/bridge → Fatal Fury
   starts with videos. 2 tests (713). **No Wine rebuild needed** — the CI's draft `wine-cx-26.3.0` stands.
+  Published by the user (2026-10-01): `wine-cx-26.3.0`, `dxmt-v0.72-cx26.3.0` (DXMT CI run 36872903875, first try).
+  (3) ✅ DONE (55f743e): the CrossOver import adds libav + matroska by itself (`GStreamerAddOn` +
+  `RuntimeManager.addGStreamerAddOn`): GStreamer minor read from the Mach-O LC_ID_DYLIB compatibility version (no
+  otool), release `gst-libav-1.<minor>.*` from `Silo.wineRepo`, mandatory sha256, merge into lib64 that never
+  overwrites a differing file; failure keeps the import and says so. Wine CI now publishes `gst-libav-<ver>` too;
+  the first one (`gst-libav-1.24.4`, 7.1 MB) was uploaded by hand. 7 tests (721). Measured in the app: deleted
+  `wine-crossover-26.3` (the user's 1.28.6-patched import — backed up first as `wine-crossover-26.3-cxmf`) →
+  "Importato wine-crossover-26.3 da CrossOver, con gst-libav-1.24.4." → 2 plugins + 6 FFmpeg libs byte-identical
+  to the package, GStreamer 1.24.4 (2405), no scratch left. (4) ✅ `SILO_GITHUB_REPO=Dino0005/Silo` (62133c4):
+  runtimes now come from the fork; `Silo.updateRepo` stays pinned separately.
+  **✅ End to end from the fork (2026-10-01, user):** "Install the latest" downloaded `wine-cx-26.3.0` (built on the
+  fork's runner, Homebrew-free lib64) and `dxmt-v0.72-cx26.3.0` (`@rpath/winemetal.so`, 23.4 MB = the new build;
+  the July upstream one was deleted first, else the same name reads as "already installed"). Set as defaults by hand
+  (a download only becomes default when none is set). DMC5 OK, Fatal Fury (DXMT, MF bottle rebuilt) OK. On this
+  pristine runtime the fix worked unaided: `silo-wine-originals` saved at the first GPTK overlay, the DXMT clone got
+  Wine's d3d12/d3d10 back, no GPTK module in it. The user's local runtime set is now: `wine-cx-26.3.0`,
+  `wine-crossover-26.3` (import + libav), `wine-crossover-26.3-cxmf` (their 1.28.6 patch), `dxmt-v0.72-cx26.3.0`,
+  `dxmt-crossover-26.3`; nobrew/gcc16/-libav removed.
   **Does from-source Wine still need the wrapper? YES (measured 2026-10-01):** wrapper disabled in the nobrew
   runtime (renamed) → bottle unwrapped by the new code → Steam's window BLACK. CrossOver needs none: every bottle in
   ~/Library/Application Support/CrossOver/Bottles has the stock webhelper (no `_orig`), and the FOSS source has no
