@@ -7,6 +7,41 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.6.5
+
+### Added
+- **Silo's own Wine, built from CrossOver's source, is now what Silo downloads.** `wine-cx-26.3.0` comes from
+  this fork's releases and carries what used to make the imported CrossOver Wine the better choice:
+  CrossOver's own GStreamer 1.24.4 in its `lib64` layout, plus the libav and matroska plugins (FFmpeg decoders,
+  LGPL) that play VC-1/WMV movies — Devil May Cry 5's story videos. Every library it ships is built from source
+  with the versions CrossOver uses; the build needs no x86_64 Homebrew any more (its installer refuses Intel
+  installs). DXMT v0.72 (`dxmt-v0.72-cx26.3.0`) is built the same way, against it. `SILO_GITHUB_REPO` now points
+  at this fork, so the Wine and DXMT tabs list these.
+- **Importing Wine from CrossOver adds libav and matroska by itself.** CrossOver ships GStreamer without them;
+  the import now downloads the matching `gst-libav-<version>` package from this fork's releases (SHA-256
+  checked) and adds it, never overwriting a file that differs. If it can't, the import still succeeds and
+  says the video decoders are missing.
+- **The Steam button shows that it's working.** The icon turns into a spinner and the button disables itself
+  until Steam is ready, the status bar says *Starting Steam…* and then *Steam is open.* or why it failed, and a
+  click with Steam already open brings its window forward.
+
+### Fixed
+- **DXMT games that probe Direct3D 12 crashed** (Fatal Fury, Devil May Cry 5 switched to DXMT). The runtime
+  copy DXMT runs in inherited D3DMetal's `d3d12.dll` when it was made after the GPTK overlay, and Unreal Engine
+  probes D3D12 even under `-d3d11`. The copy now gets Wine's own modules back; GPTK's overlay keeps them for it.
+  A runtime that already had GPTK overlaid before 0.6.5 has no copy of them — remove and reinstall it once.
+- **TEKKEN 8 and SoulCalibur VI crashed on every exit** on Silo's own Wine: a Wine patch
+  (`0002-cfgmgr32-deviceinstance-notification`) answers the notification Steam's client asks for instead of
+  leaving it unset.
+- **D3D12 games crashed at start on Silo's own Wine** (TEKKEN 8): the CrossOver hook that routes D3DMetal's calls
+  into Wine is now armed from the GPTK overlay too (`CX_APPLEGPTK_LIBD3DSHARED_PATH`).
+- **A game started right after Steam could miss it.** Silo waited for Steam's process, not for the sign-in; it
+  now waits until Steam has signed in.
+- **Steam's interface reloaded after closing a game.** Silo's cleanup of a finished game's leftovers counted
+  Steam's renamed web helper (`steamwebhelper_orig.exe`) as one of them.
+- **On an imported CrossOver Wine, Steam ran on Silo's web-helper wrapper** left behind by a built Wine. A
+  runtime that doesn't ship the wrapper now gets Steam's original back.
+
 ## 0.6.4
 
 ### Added

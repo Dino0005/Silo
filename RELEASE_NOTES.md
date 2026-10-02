@@ -1,29 +1,40 @@
-# Silo 0.6.4
+# Silo 0.6.5
 
-A small release: desktop shortcuts look right again, and Silo can install Rosetta for you.
+Silo now has a Wine of its own that's as good as CrossOver's for the games it runs — and downloads it.
 
-## Shortcuts carry the game's own icon
+## Silo's own Wine, built from CrossOver's source
 
-Since 0.6.3, a shortcut made with *Create Shortcut* came out with the game's Steam cover instead of its
-icon. Silo reads which executable a game ran from its launch log, and the new launch path — the one that
-hands the game to its icon host — writes that line differently; the shortcut took part of it for the path
-and found no program there.
+Until now the better Wine was the one imported from an installed CrossOver: Silo's own build lacked the media
+stack that plays in-game videos. `wine-cx-26.3.0`, what *Install the latest Wine* downloads now, closes that gap.
+It's compiled from CrossOver's published source and carries CrossOver's own GStreamer, plus the decoders for the
+VC-1 and WMV formats that games like Devil May Cry 5 use for their story videos. DXMT is built the same way, to
+match it.
 
-The icon now also sits inside the shortcut the way it sits in the game's host app, so macOS draws it with
-the same rounded shape you see in the Dock. Before, it was stamped on as a Finder custom icon, which macOS
-shows exactly as it is: a Windows icon stayed square. Shortcuts made with 0.6.3 keep their old icon — create
-them again to get the new one.
+Both come from this fork's releases. Tested on Devil May Cry 5, TEKKEN 8, SoulCalibur VI, Marvel's Spider-Man
+Remastered and Fatal Fury: City of the Wolves.
 
-## Rosetta, installed from Silo
+## Imported CrossOver Wine plays those videos too
 
-Silo's Wine is Intel software, so it needs Rosetta — and a fresh macOS install, or a major upgrade, can
-leave a Mac without it. Silo already noticed that at startup and told you to run a command in Terminal. Now
-it offers to install Rosetta itself, using Apple's own installer, and *Set up* does it first on a new Mac.
-No password is needed.
+CrossOver ships its GStreamer without those decoders. *Import Wine from CrossOver* now adds them for you: it
+downloads the matching package from this fork's releases, checks it, and copies it in. Nothing of CrossOver's is
+overwritten.
 
-If Rosetta goes missing while Silo is open, a game that can't start now says so, instead of reporting a
-"Bad CPU type in executable".
+## DXMT games that crashed at start
 
-## Built with the macOS 27 SDK
+Fatal Fury, and other Unreal Engine games running on DXMT, could stop with a "Fatal error!" right at start. The
+copy of the runtime DXMT runs in had picked up D3DMetal's Direct3D 12 module, and these games look for Direct3D
+12 even when they don't use it. The copy now gets Wine's own module back.
 
-The published app is now compiled against the same SDK as the builds it's tested with.
+If a DXMT game still crashes like that, remove the Wine runtime in *Settings → Wine* and install it again once:
+a runtime set up before 0.6.5 has no copy of Wine's own module to put back.
+
+## Fewer crashes on exit, fewer surprises with Steam
+
+- TEKKEN 8 and SoulCalibur VI no longer crash when you quit them.
+- A game started while Steam is still signing in now waits for it, instead of starting without Steam.
+- Steam's window no longer reloads after you close a game.
+
+## The Steam button says what it's doing
+
+Clicking Steam in the toolbar turns its icon into a spinner until Steam is ready, and the status bar tells you
+it's starting — or that it's already open, in which case its window comes to the front.
