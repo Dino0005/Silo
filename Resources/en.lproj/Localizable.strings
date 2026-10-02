@@ -398,3 +398,7 @@
 "Latest %@ release has no installable archive." = "Latest %@ release has no installable archive.";
 "Downloading %@… %@" = "Downloading %@… %@";
 "Close Leftover Game Processes" = "Close Leftover Game Processes";
+"Steam is already open." = "Steam is already open.";
+"Starting Steam…" = "Starting Steam…";
+"Steam is open." = "Steam is open.";
+"Couldn't start Steam: %@" = "Couldn't start Steam: %@";

@@ -43,6 +43,11 @@
   Wine's d3d12/d3d10 back, no GPTK module in it. The user's local runtime set is now: `wine-cx-26.3.0`,
   `wine-crossover-26.3` (import + libav), `wine-crossover-26.3-cxmf` (their 1.28.6 patch), `dxmt-v0.72-cx26.3.0`,
   `dxmt-crossover-26.3`; nobrew/gcc16/-libav removed.
+  **Steam toolbar button feedback (2026-10-02, cacff77, user-tested):** spinner + disabled while a bring-up is in
+  flight (`SteamClientSession.isLaunching`, either bottle), sticky "Starting Steam…" then "Steam is open." / the
+  error; Steam already up → "Steam is already open." + `steam://open/main`. The spinner outlasts the window by 3-4 s
+  — readiness is sign-in (ActiveUser), the same gate games need; left as is (user). Possible later: a second
+  phase message "Signing in to Steam…" between the pid and ActiveUser.
   **Does from-source Wine still need the wrapper? YES (measured 2026-10-01):** wrapper disabled in the nobrew
   runtime (renamed) → bottle unwrapped by the new code → Steam's window BLACK. CrossOver needs none: every bottle in
   ~/Library/Application Support/CrossOver/Bottles has the stock webhelper (no `_orig`), and the FOSS source has no

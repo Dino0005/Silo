@@ -49,15 +49,23 @@ struct LibraryGridView: View {
                         Label {
                             Text("Open Steam")
                         } icon: {
-                            steamIcon
-                                .resizable()
-                                .interpolation(.high)
-                                .antialiased(true)
-                                .scaledToFit()
-                                .frame(width: 16, height: 16)
+                            // While Steam is starting the logo becomes a spinner, so the click visibly took —
+                            // a slow start after a runtime change otherwise looked like a missed click.
+                            if lib.isSteamLaunching {
+                                ProgressView().controlSize(.small).frame(width: 16, height: 16)
+                            } else {
+                                steamIcon
+                                    .resizable()
+                                    .interpolation(.high)
+                                    .antialiased(true)
+                                    .scaledToFit()
+                                    .frame(width: 16, height: 16)
+                            }
                         }
                     }
-                        .help("Open a Steam bottle to browse and install games")
+                        .disabled(lib.isSteamLaunching)   // a second click while it starts would do nothing anyway
+                        .help(lib.isSteamLaunching ? Text("Starting Steam…")
+                              : Text("Open a Steam bottle to browse and install games"))
                 }
                 ToolbarItem {
                     Button { showAddGame = true } label: { Label("Add Game", systemImage: "plus") }

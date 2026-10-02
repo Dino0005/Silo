@@ -216,10 +216,12 @@ public final class GameLibraryViewModel {
     /// Passing nil clears immediately.
     /// - Parameter actionable: use the longer window — for a status the user has to read and act on,
     ///   rather than a confirmation they can miss without consequence.
-    func setStatus(_ message: String?, actionable: Bool = false) {
+    /// `sticky`: a "…in progress" message, cleared by whatever reports the outcome rather than by a timer —
+    /// a slow Steam start (after a runtime change) can outlast any fixed duration.
+    func setStatus(_ message: String?, actionable: Bool = false, sticky: Bool = false) {
         statusDismissal?.cancel()
         statusMessage = message
-        guard message != nil else { statusDismissal = nil; return }
+        guard message != nil, !sticky else { statusDismissal = nil; return }
         let duration = actionable ? actionableStatusDuration : statusVisibleDuration
         statusDismissal = Task { [weak self] in
             try? await Task.sleep(for: duration)
@@ -306,9 +308,25 @@ public final class GameLibraryViewModel {
                       actionable: true)
             return
         }
-        // The normal bottle's own client needs no message: `ensureRunning` is already a silent no-op there.
-        await session.ensureRunning()
+        // Always say what the click did — it used to be silent, so a click on a slow start (or on a Steam
+        // already up) couldn't be told from a missed one. The toolbar spinner (`isSteamLaunching`) is the
+        // same signal at the button.
+        if session.isRunning {
+            setStatus(String(localized: "Steam is already open."))
+            try? await session.sendURL("steam://open/main")   // bring its window to the front
+            return
+        }
+        setStatus(String(localized: "Starting Steam…"), sticky: true)
+        if await session.ensureRunning() {
+            setStatus(String(localized: "Steam is open."))
+        } else {
+            setStatus(String(localized: "Couldn't start Steam: \(session.launchError ?? "")"), actionable: true)
+        }
     }
+
+    /// Whether either bottle's Steam is being brought up — the Library's Steam button shows a spinner (and
+    /// ignores further clicks) meanwhile. A Play that starts the client counts too: it's the same wait.
+    public var isSteamLaunching: Bool { session.isLaunching || mfSession.isLaunching }
 
     /// Ask the bottle's Steam to uninstall the game, then refresh. (Steam itself declines to uninstall a
     /// title that's running, so no separate guard is needed now that Silo doesn't track game PIDs.)

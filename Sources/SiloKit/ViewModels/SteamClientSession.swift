@@ -59,6 +59,10 @@ public final class SteamClientSession {
         SteamReadiness.isReady(prefix: bottle.prefix) && WineServerProbe.isLive(prefix: bottle.prefix)
     }
 
+    /// Whether a bring-up is in flight — from the click until Steam is ready (or the launch failed). What the
+    /// Library's Steam button shows as a spinner, so a click on a slow start never looks like it did nothing.
+    public var isLaunching: Bool { steamLaunch != nil }
+
     /// Bring the bottle's Steam client up (idempotent + coalesced): a no-op if it's already running, joins
     /// an in-flight launch, else launches it (re-applying the steamwebhelper wrapper) and tracks the PID.
     /// Returns whether the client is running after the call. Concurrent callers (two quick Play clicks, or

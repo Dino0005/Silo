@@ -983,4 +983,41 @@ struct GameLibraryViewModelTests {
         #expect(vm.steamBadges[220]?.mediaFoundation == true)
     }
 
+
+    // MARK: - Steam button feedback
+
+    @Test("Open Steam reports the outcome in the status bar, and the spinner state ends with the launch")
+    func openSteamReportsLaunch() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (vm, _, paths) = make(tmp)
+        try installSteam(paths)
+        #expect(!vm.isSteamLaunching)
+        await vm.openSteam()
+        #expect(vm.statusMessage == "Steam is open.")
+        #expect(!vm.isSteamLaunching)   // the spinner goes away once Steam is up
+    }
+
+    @Test("A failed Steam start says why instead of staying silent")
+    func openSteamReportsFailure() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (vm, _, paths) = make(tmp, wine: false)   // no Wine → the launch can't happen
+        try installSteam(paths)
+        await vm.openSteam()
+        #expect(vm.statusMessage?.hasPrefix("Couldn't start Steam:") == true)
+        #expect(!vm.isSteamLaunching)
+    }
+
+    @Test("An in-progress status stays up past the normal duration; a regular one clears itself")
+    func stickyStatus() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (vm, _, _) = make(tmp)
+        vm.statusVisibleDuration = .milliseconds(50)
+        vm.setStatus("Starting Steam…", sticky: true)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(vm.statusMessage == "Starting Steam…")
+        vm.setStatus("Steam is open.")
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(vm.statusMessage == nil)
+    }
+
 }
