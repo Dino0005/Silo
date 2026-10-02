@@ -3,6 +3,10 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Silo 0.6.5 RELEASED (2026-10-02)** — tag v0.6.5 (38580e5), release.yml run 36993083626 green, published on
+  the fork with `Silo.zip` (2.5 MB) + `Silo.zip.sha256`; the downloaded zip's sha256 matches (494a0cb9…) and its
+  Info.plist says 0.6.5. Open, minor and postponed by the user: why from-source Wine needs the steamwebhelper
+  wrapper; an optional two-phase Steam message ("signing in…" between window-up and ready).
 - **▶️ RESUME HERE (2026-10-01).** (1) ✅ DONE (b7297f5): `installWebHelperWrapper` on a runtime with NO wrapper
   (imported CrossOver Wine) now restores the real webhelper (`restoreRealWebHelpers`: only Silo's own wrapper —
   recognised by the UTF-16 "steamwebhelper_orig.exe" it launches — is replaced, so a newer real one from a Steam
