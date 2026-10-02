@@ -6,25 +6,25 @@
     <title>Silo - Windows Steam games on Apple Silicon</title>
     <meta
       name="description"
-      content="Silo is a native, open-source macOS launcher for your Windows Steam library. It runs games through Wine on Metal — automatically choosing Apple's GPTK/D3DMetal or DXMT per game — co-resident with a real Steam client so Steamworks and DRM work, plus isolated Wine bottles for non-Steam games."
+      content="Silo is a native, open-source macOS launcher for your Windows Steam library. It runs games through its own Wine, built from CrossOver's open sources, on Metal — automatically choosing Apple's GPTK/D3DMetal or DXMT per game — co-resident with a real Steam client so Steamworks and DRM work, with in-game video, per-game icons in the Dock and Mission Control, and isolated bottles for non-Steam games."
     >
     <meta name="theme-color" content="#0a0c10">
-    <link rel="canonical" href="https://mikaelhug.github.io/Silo/">
+    <link rel="canonical" href="https://dino0005.github.io/Silo/">
     <meta property="og:title" content="Silo - Windows Steam games on Apple Silicon">
     <meta
       property="og:description"
-      content="A native macOS launcher for Windows Steam games: Wine on Metal with an automatic GPTK/D3DMetal ⇄ DXMT backend per game, a co-resident Steam client so Steamworks and DRM work, and isolated bottles for non-Steam games."
+      content="A native macOS launcher for Windows Steam games: Wine built from CrossOver's sources, an automatic GPTK/D3DMetal ⇄ DXMT backend per game, a co-resident Steam client so Steamworks and DRM work, in-game video, and isolated bottles for non-Steam games."
     >
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://mikaelhug.github.io/Silo/">
-    <meta property="og:image" content="https://mikaelhug.github.io/Silo/images/dashboard.png">
+    <meta property="og:url" content="https://dino0005.github.io/Silo/">
+    <meta property="og:image" content="https://dino0005.github.io/Silo/images/dashboard.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Silo - Windows Steam games on Apple Silicon">
     <meta
       name="twitter:description"
       content="A native, open-source macOS launcher for Windows Steam games — Wine on Metal with an automatic GPTK/D3DMetal ⇄ DXMT backend and a real co-resident Steam client."
     >
-    <meta name="twitter:image" content="https://mikaelhug.github.io/Silo/images/dashboard.png">
+    <meta name="twitter:image" content="https://dino0005.github.io/Silo/images/dashboard.png">
     <link rel="stylesheet" href="styles.css">
     <script type="application/ld+json">
       {
@@ -33,12 +33,13 @@
         "name": "Silo",
         "applicationCategory": "GameApplication",
         "operatingSystem": "macOS 15+ on Apple Silicon",
-        "description": "A native, open-source macOS launcher for Windows Steam games via Wine, choosing a Metal graphics backend per game — Apple's Game Porting Toolkit (D3DMetal) or DXMT — with a co-resident Steam client so Steamworks and DRM work.",
-        "url": "https://mikaelhug.github.io/Silo/",
-        "downloadUrl": "https://github.com/mikaelhug/Silo/releases",
-        "codeRepository": "https://github.com/mikaelhug/Silo",
+        "description": "A native, open-source macOS launcher for Windows Steam games via Wine built from CrossOver's open sources, choosing a Metal graphics backend per game — Apple's Game Porting Toolkit (D3DMetal) or DXMT — with a co-resident Steam client so Steamworks and DRM work.",
+        "softwareVersion": "0.6.5",
+        "url": "https://dino0005.github.io/Silo/",
+        "downloadUrl": "https://github.com/Dino0005/Silo/releases",
+        "codeRepository": "https://github.com/Dino0005/Silo",
         "programmingLanguage": ["Swift"],
-        "screenshot": "https://mikaelhug.github.io/Silo/images/dashboard.png"
+        "screenshot": "https://dino0005.github.io/Silo/images/dashboard.png"
       }
     </script>
   </head>
@@ -63,7 +64,7 @@
           <a href="#graphics">Graphics</a>
           <a href="#install">Install</a>
           <!-- Total downloads + latest-release downloads, filled from stats.json at runtime; hidden until it loads. -->
-          <a class="nav-stat" id="nav-stat" href="https://github.com/mikaelhug/Silo/releases" aria-label="Downloads and latest release" hidden>
+          <a class="nav-stat" id="nav-stat" href="https://github.com/Dino0005/Silo/releases" aria-label="Downloads and latest release" hidden>
             <span class="nav-stat-item" id="nav-stat-downloads">
               <svg class="nav-stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M12 3v12"></path>
@@ -81,7 +82,7 @@
               <span id="nav-stat-latest">—</span>
             </span>
           </a>
-          <a class="nav-cta" href="https://github.com/mikaelhug/Silo">GitHub</a>
+          <a class="nav-cta" href="https://github.com/Dino0005/Silo">GitHub</a>
         </div>
       </div>
     </nav>
@@ -92,8 +93,9 @@
         <h1>Silo</h1>
         <p class="lede">
           A native macOS launcher for your Windows Steam library — run games
-          through Wine on Metal, with Silo choosing GPTK/D3DMetal or DXMT per
-          game, co-resident with a real Steam client so Steamworks and DRM just work.
+          through Silo's own Wine, built from CrossOver's open sources, on Metal,
+          with GPTK/D3DMetal or DXMT chosen per game and a real Steam client
+          alongside so Steamworks and DRM just work.
         </p>
         <div class="actions" aria-label="Primary actions">
           <a class="button primary" href="#install">Install Silo</a>
@@ -103,7 +105,7 @@
       <div class="hero-shot">
         <img
           src="images/dashboard.png"
-          alt="Silo library window — a grid of installed Steam games (Bloons TD 6, Bloons TD Battles 2, It Takes Two, Overcooked 2, Split Fiction, Victoria 3), each with cover art, install size, a per-game graphics-backend badge (Automatic, GPTK, or DXMT), and a Play button"
+          alt="Silo library window — a grid of nine installed games (Devil May Cry 5, Fatal Fury: City of the Wolves, Marvel's Spider-Man Remastered, Mortal Kombat 1, Resident Evil Requiem, Soulcalibur VI, Tekken 8, plus Batman Arkham Knight and God of War as non-Steam games), each with cover art, install size, a per-game graphics-backend badge (Automatic, GPTK, or DXMT) plus an MF badge on the games that run in the Media Foundation bottle, and a Play button"
           width="960"
         >
       </div>
@@ -121,12 +123,12 @@
             <span class="metric-label">Steam + all its games co-resident, so Steamworks works</span>
           </div>
           <div class="metric">
-            <span class="metric-value">Isolated</span>
-            <span class="metric-label">each non-Steam game in its own Wine bottle</span>
+            <span class="metric-value">Its own icon</span>
+            <span class="metric-label">every game in the Dock, Mission Control and Stage Manager</span>
           </div>
           <div class="metric">
             <span class="metric-value">Self-contained</span>
-            <span class="metric-label">downloads its own Wine and self-updates — no Homebrew</span>
+            <span class="metric-label">its own Wine, built from CrossOver's sources — no Homebrew</span>
           </div>
         </div>
       </section>
@@ -182,8 +184,8 @@
               Add any Windows <code>.exe</code> — an installer or a portable build —
               and Silo provisions a dedicated, isolated Wine bottle for it, with the
               same Automatic graphics backend as Steam games and its own launch options.
-              Create a Desktop shortcut for any game — Steam or not — to launch it
-              through Silo in one double-click. Relocate every bottle to an external drive anytime.
+              <em>Run a Program…</em> starts any installer or tool inside a game's bottle,
+              and every bottle can move to an external drive anytime.
             </p>
           </article>
           <article class="feature">
@@ -194,11 +196,73 @@
                 <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path>
               </svg>
             </div>
-            <h3>Self-contained &amp; updating</h3>
+            <h3>Its own Wine</h3>
             <p>
-              Silo fetches its own Wine runtime (built in its own CI from
-              open-source LGPL Wine) and updates itself from GitHub Releases. No
-              package manager, no external dependencies.
+              Silo downloads a Wine built in this repo's CI from CrossOver's open
+              (LGPL) sources, with CrossOver's GStreamer and the libav decoders that
+              play in-game movies — SHA-256 verified. DXMT is built against it. Own
+              CrossOver? Import its Wine from Settings instead.
+            </p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="5" width="18" height="14" rx="2.5"></rect>
+                <path d="M10 9.5v5l4.5-2.5z"></path>
+              </svg>
+            </div>
+            <h3>Media Foundation bottle</h3>
+            <p>
+              Games whose cutscenes need Windows' Media Foundation run in a second
+              Steam bottle with your own MF DLLs, switched per game, the Steam client
+              following along. Save folders are shared between the two bottles, so
+              progress never splits.
+            </p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="13" rx="2"></rect>
+                <rect x="7" y="18" width="3" height="3" rx="0.8"></rect>
+                <rect x="14" y="18" width="3" height="3" rx="0.8"></rect>
+              </svg>
+            </div>
+            <h3>A real Mac window</h3>
+            <p>
+              Each game gets its own name and the icon from its executable in the
+              Dock, Mission Control and Stage Manager — through a small host Silo
+              writes itself, no CodeWeavers code. One tile per game, closing when the
+              game does, leftover Wine processes cleaned up.
+            </p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"></path>
+                <path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"></path>
+              </svg>
+            </div>
+            <h3>Shortcuts</h3>
+            <p>
+              Right-click any game → <em>Create Shortcut</em> for a double-clickable
+              launcher with the game's icon, on the Desktop or in
+              <code>~/Applications/Silo/</code>, where macOS lists it with your other
+              games. Bring your own icon with a PNG in <code>Covers/</code>.
+            </p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"></path>
+                <path d="M8.5 12l2.5 2.5 4.5-5"></path>
+              </svg>
+            </div>
+            <h3>Native and careful</h3>
+            <p>
+              SwiftUI in English and Italian, updating itself from GitHub Releases.
+              It installs Rosetta when missing, waits for Steam to sign in before a
+              game starts, surfaces a silent graphics fallback instead of a black
+              window, and keeps the last five logs of every game.
             </p>
           </article>
         </div>
@@ -241,7 +305,7 @@
             <span class="n" aria-hidden="true">4</span>
             <div>
               <h4>Launch</h4>
-              <p>Spawn the game detached — co-resident with its Steam client for Steam titles, or in its own bottle for non-Steam <code>.exe</code>s.</p>
+              <p>Wait for Steam to sign in, then spawn the game detached — co-resident with its Steam client for Steam titles, or in its own bottle for non-Steam <code>.exe</code>s — inside a per-game <code>.app</code> that gives it its name and icon.</p>
             </div>
           </div>
         </div>
@@ -287,14 +351,16 @@
           <p class="eyebrow">Get Silo</p>
           <h2>Install the current release</h2>
           <p>
-            Silo runs on macOS 15 or newer on Apple Silicon, outside the App Sandbox
-            so it can drive Wine. It is not yet notarized, so a manual install needs
-            the quarantine step shown in the README.
+            Silo 0.6.5 runs on macOS 15 or newer on Apple Silicon, outside the App
+            Sandbox so it can drive Wine; it installs Rosetta itself if needed. You
+            bring Apple's Game Porting Toolkit <code>.dmg</code>, and one <em>Set up</em>
+            click does the rest. The app is ad-hoc signed, so the first launch needs
+            the Gatekeeper step shown in the README.
           </p>
         </div>
         <div class="install-actions">
-          <a class="button primary" href="https://github.com/mikaelhug/Silo/releases">Download release</a>
-          <a class="button secondary" href="https://github.com/mikaelhug/Silo">View source</a>
+          <a class="button primary" href="https://github.com/Dino0005/Silo/releases">Download release</a>
+          <a class="button secondary" href="https://github.com/Dino0005/Silo">View source</a>
         </div>
       </section>
     </main>
@@ -313,8 +379,10 @@
         </svg>
         <span>Silo</span>
       </a>
-      <a href="https://github.com/mikaelhug/Silo">GitHub</a>
-      <a href="https://github.com/mikaelhug/Silo/issues">Issues</a>
+      <a href="https://github.com/Dino0005/Silo">GitHub</a>
+      <a href="https://github.com/Dino0005/Silo/issues">Issues</a>
+      <a href="https://github.com/Dino0005/Silo/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/mikaelhug/Silo">Upstream: mikaelhug/Silo</a>
     </footer>
 
     <!--

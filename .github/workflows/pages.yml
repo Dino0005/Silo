@@ -1,5 +1,5 @@
 # GitHub Pages — publishes the static project site in docs/ to
-# https://mikaelhug.github.io/Silo/.
+# https://dino0005.github.io/Silo/.
 #
 # Ported from Velox's working setup: a custom GitHub Actions deploy (NOT the legacy
 # "deploy from a branch" source) that also regenerates docs/stats.json from GitHub
