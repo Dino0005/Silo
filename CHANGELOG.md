@@ -10,6 +10,11 @@ the commit message says why.
 ## Unreleased
 
 ### Changed
+- New app icon in Liquid Glass: stacked cards — the two behind in translucent glass — with the play symbol in
+  the blue of the Play button, on a diagonal background (graphite in dark mode). Its source is now
+  `Resources/AppIcon.icon` (Icon Composer); `build-app.sh` compiles it with `actool` into `Assets.car`, and
+  without `actool` (Command Line Tools only) falls back to `Resources/AppIcon.icns`, which `make-icon.sh`
+  regenerates from the `.icon` with `ictool`. The old `make-icon.swift` renderer is gone.
 - While Steam starts, the toolbar's Steam button plays Steam's own loading animation instead of a spinner.
   It's read from the client in the bottle (`clientui/images`, found by content, not by its hashed name) and
   never bundled, since it's Valve's artwork; white parts follow the toolbar colour so it reads in light mode,
