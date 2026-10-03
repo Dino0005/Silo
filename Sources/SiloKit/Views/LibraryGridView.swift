@@ -18,6 +18,9 @@ struct LibraryGridView: View {
     @AppStorage("onboardingDone") private var onboardingDone = false
     /// "Not Now" on the Rosetta prompt — for this session only, so it asks again at the next launch.
     @State private var rosettaPromptDismissed = false
+    /// Steam's loading animation, read from the bottle's Steam install (never bundled — it's Valve's).
+    @State private var throbber: SteamThrobber.Animation?
+    private static let throbberSize: CGFloat = 26
 
     var body: some View {
         @Bindable var lib = env.gameLibrary
@@ -35,6 +38,12 @@ struct LibraryGridView: View {
             }
         }
         .navigationTitle("Library")
+        // Loaded ahead of the first click, and retried at each launch until Steam is installed.
+        .task(id: lib.isSteamLaunching) {
+            guard showLibrary, throbber == nil else { return }
+            throbber = await SteamThrobber.load(steamDir: env.paths.steamBottleClientDir,
+                                                pointSize: Self.throbberSize)
+        }
         // Each control is a ToolbarItem rather than a bare view. The shared glass background — the capsule
         // these sit in — is given to ITEMS in the same logical grouping, and what separates one grouping
         // from the next is a ToolbarSpacer.
@@ -49,10 +58,19 @@ struct LibraryGridView: View {
                         Label {
                             Text("Open Steam")
                         } icon: {
-                            // While Steam is starting the logo becomes a spinner, so the click visibly took —
-                            // a slow start after a runtime change otherwise looked like a missed click.
+                            // While Steam is starting the logo becomes Steam's own loading animation (or a
+                            // spinner when it can't be read), so the click visibly took — a slow start after a
+                            // runtime change otherwise looked like a missed click.
                             if lib.isSteamLaunching {
-                                ProgressView().controlSize(.small).frame(width: 16, height: 16)
+                                if let throbber {
+                                    // Larger than the 16-pt logo: the animation's frame leaves room
+                                    // around the logo for the arcs, so it's drawn bigger for the logo
+                                    // itself to read as large as the other toolbar icons.
+                                    SteamThrobberView(animation: throbber)
+                                        .frame(width: Self.throbberSize, height: Self.throbberSize)
+                                } else {
+                                    ProgressView().controlSize(.small).frame(width: 16, height: 16)
+                                }
                             } else {
                                 steamIcon
                                     .resizable()

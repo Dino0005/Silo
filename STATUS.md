@@ -3,6 +3,14 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Steam throbber on the toolbar button (2026-10-03, verified by the user in the app).** While Steam starts,
+  the button plays Steam's own APNG loading animation (`clientui/images/<hash>.png`: 180 frames, 60 fps, 210 px,
+  white logo + grey ring + blue arcs) instead of the system spinner. `SteamThrobber` finds it by content (the
+  `acTL` chunk; most frames wins), decodes it off the main actor with ImageIO at toolbar size (~0.09 s; the
+  UNclamped delay, the clamped one would play it at 1/3 speed) and splits each frame into a template mask of
+  the neutral pixels (alpha = brightness) + the coloured ones, so the logo turns black in light mode while the
+  arcs stay blue. Read from the user's bottle every run, never bundled (Valve's artwork). Drawn at 26 pt (the
+  frame pads the logo for the arcs; 16 and 22 looked small — user). Missing file → the old spinner. 6 tests (730).
 - **✅ New app icon, Liquid Glass (2026-10-03).** After trying a silo-shaped redesign (rejected by the user), the
   icon stays the stacked game tiles + play, rebuilt as an Icon Composer document: `Resources/AppIcon.icon`
   (SVG layers: diagonal background, 3 cards — the two behind translucent glass — and the play in the "Gioca"

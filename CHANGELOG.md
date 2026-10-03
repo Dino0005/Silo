@@ -7,6 +7,14 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Changed
+- While Steam starts, the toolbar's Steam button plays Steam's own loading animation instead of a spinner.
+  It's read from the client in the bottle (`clientui/images`, found by content, not by its hashed name) and
+  never bundled, since it's Valve's artwork; white parts follow the toolbar colour so it reads in light mode,
+  the blue arcs keep theirs. No Steam installed, or the file gone → the spinner as before.
+
 ## 0.6.5
 
 ### Added
