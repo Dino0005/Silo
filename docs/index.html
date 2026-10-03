@@ -10,6 +10,25 @@
     >
     <meta name="theme-color" content="#0a0c10">
     <link rel="canonical" href="https://dino0005.github.io/Silo/">
+    <link rel="alternate" hreflang="en" href="https://dino0005.github.io/Silo/">
+    <link rel="alternate" hreflang="it" href="https://dino0005.github.io/Silo/it/">
+    <link rel="alternate" hreflang="x-default" href="https://dino0005.github.io/Silo/">
+    <!--
+      Language pick: a visitor whose browser's first preferred language is Italian
+      goes to it/, unless they chose a language with the EN · IT switch (stored in
+      localStorage as "silo-lang", which always wins). Runs before the stylesheet
+      so the English page never flashes on the way.
+    -->
+    <script>
+      (function () {
+        var choice = null;
+        try { choice = localStorage.getItem("silo-lang"); } catch (e) { /* storage blocked: follow the browser */ }
+        var langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ""];
+        if (choice === "it" || (!choice && /^it\b/i.test(langs[0]))) {
+          location.replace("it/" + location.hash);
+        }
+      })();
+    </script>
     <meta property="og:title" content="Silo - Windows Steam games on Apple Silicon">
     <meta
       property="og:description"
@@ -82,6 +101,10 @@
               <span id="nav-stat-latest">—</span>
             </span>
           </a>
+          <span class="nav-lang" aria-label="Language">
+            <a href="./" lang="en" data-lang="en" aria-current="page">EN</a>
+            <a href="it/" lang="it" hreflang="it" data-lang="it">IT</a>
+          </span>
           <a class="nav-cta" href="https://github.com/Dino0005/Silo">GitHub</a>
         </div>
       </div>
@@ -408,6 +431,13 @@
           })
           .catch(function () { /* leave the counter hidden */ });
       })();
+
+      // The EN · IT switch remembers the choice, so the language redirect stops overriding it.
+      document.querySelectorAll("[data-lang]").forEach(function (a) {
+        a.addEventListener("click", function () {
+          try { localStorage.setItem("silo-lang", a.dataset.lang); } catch (e) { /* not remembered: still navigates */ }
+        });
+      });
     </script>
   </body>
 </html>

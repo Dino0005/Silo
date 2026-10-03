@@ -177,6 +177,26 @@ h3 {
   background: var(--surface-2);
 }
 
+.nav-lang {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.nav-lang a {
+  padding: 3px 7px;
+  border-radius: 6px;
+}
+
+.nav-lang a[aria-current="page"] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 .nav-stat {
   display: inline-flex;
   align-items: center;
@@ -665,7 +685,7 @@ h3 {
     font-size: 0.86rem;
   }
 
-  .nav-links a:not(.nav-cta):not(.nav-stat) {
+  .nav-links > a:not(.nav-cta):not(.nav-stat) {
     display: none;
   }
 
