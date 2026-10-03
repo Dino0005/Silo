@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
-# Generate Resources/AppIcon.icns from the CoreGraphics icon renderer.
+# Regenerate the fallback Resources/AppIcon.icns from the icon source, Resources/AppIcon.icon.
+#
+# AppIcon.icon (Icon Composer, Liquid Glass) is the source of truth: build-app.sh compiles it with actool
+# into Assets.car, which macOS picks through CFBundleIconName. This .icns is only used when actool is
+# unavailable (a Command Line Tools-only machine), so it's committed and refreshed by hand after editing
+# the .icon. Needs full Xcode, for Icon Composer's ictool.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+ICTOOL="$(xcode-select -p)/../Applications/Icon Composer.app/Contents/Executables/ictool"
+if [ ! -x "$ICTOOL" ]; then
+    echo "ERROR: ictool not found — this needs full Xcode (Icon Composer), not just the Command Line Tools." >&2
+    exit 1
+fi
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+# ictool renders the shape edge to edge; legacy macOS icons sit on the 824/1024 grid (the same inset
+# actool gives its own .icns), so render at 824 and pad back out to 1024.
+"$ICTOOL" Resources/AppIcon.icon --export-image --output-file "$TMP/shape.png" \
+    --platform macOS --rendition Default --width 824 --height 824 --scale 1 >/dev/null
 SRC="$TMP/icon-1024.png"
-swift Scripts/make-icon.swift "$SRC"
+sips --padToHeightWidth 1024 1024 "$TMP/shape.png" --out "$SRC" >/dev/null
 
 ICONSET="$TMP/AppIcon.iconset"
 mkdir -p "$ICONSET"

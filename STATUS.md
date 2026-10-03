@@ -3,6 +3,17 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ New app icon, Liquid Glass (2026-10-03).** After trying a silo-shaped redesign (rejected by the user), the
+  icon stays the stacked game tiles + play, rebuilt as an Icon Composer document: `Resources/AppIcon.icon`
+  (SVG layers: diagonal background, 3 cards — the two behind translucent glass — and the play in the "Gioca"
+  system blue #0A84FF; Dark appearance = graphite background via `image-name-specializations`). `build-app.sh`
+  compiles it with `actool` into `Assets.car` (+ an `.icns`) and FAILS if actool is present but errors; without
+  actool it copies the committed `Resources/AppIcon.icns`, now generated from the `.icon` by
+  `Scripts/make-icon.sh` (ictool; the old CoreGraphics `make-icon.swift` is gone). Gotchas measured: the
+  icon-level `fill` gradient is always vertical in Icon Composer (orientation ignored) → the background is an
+  SVG layer; `image-name-specializations` only applies when the layer has NO plain `image-name`; actool resolves
+  relative paths against its helper's cwd → absolute paths. 724 tests green; `dist/Silo.app` built with
+  `Assets.car`; seen and approved in the Dock by the user.
 - **✅ Silo 0.6.5 RELEASED (2026-10-02)** — tag v0.6.5 (38580e5), release.yml run 36993083626 green, published on
   the fork with `Silo.zip` (2.5 MB) + `Silo.zip.sha256`; the downloaded zip's sha256 matches (494a0cb9…) and its
   Info.plist says 0.6.5. Open, minor and postponed by the user: why from-source Wine needs the steamwebhelper

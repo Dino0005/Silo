@@ -1,0 +1,77 @@
+{
+  "groups": [
+    {
+      "name": "front",
+      "layers": [
+        {
+          "image-name": "4-play.svg",
+          "name": "play"
+        },
+        {
+          "image-name": "3-card.svg",
+          "name": "card-front"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    },
+    {
+      "name": "stack",
+      "layers": [
+        {
+          "image-name": "2-card.svg",
+          "name": "card-middle"
+        },
+        {
+          "image-name": "1-card.svg",
+          "name": "card-back"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.4
+      }
+    },
+    {
+      "name": "background",
+      "layers": [
+        {
+          "name": "background",
+          "glass": false,
+          "image-name-specializations": [
+            {
+              "value": "0-background.svg"
+            },
+            {
+              "appearance": "dark",
+              "value": "0-background-dark.svg"
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "none",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

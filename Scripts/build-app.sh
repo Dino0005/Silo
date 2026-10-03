@@ -55,7 +55,30 @@ for bundle in ".build/$CONFIG"/*.bundle; do
 done
 shopt -u nullglob
 
-[ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+# App icon. The source is Resources/AppIcon.icon (Icon Composer, Liquid Glass): actool compiles it into
+# Assets.car — found through CFBundleIconName, with the light/dark/clear/tinted appearances — plus an
+# AppIcon.icns for older systems. actool ships only with full Xcode (the release runner has it), so a
+# Command Line Tools-only machine falls back to the committed Resources/AppIcon.icns, which
+# Scripts/make-icon.sh regenerates from the same .icon. When actool IS present and fails, the build
+# stops: falling back silently would ship the flat icon without anyone noticing.
+if [ -d Resources/AppIcon.icon ] && xcrun --find actool >/dev/null 2>&1; then
+    echo "==> Compile app icon (actool)"
+    ICON_PLIST=$(mktemp)
+    # Absolute paths: actool hands the .icon to a long-lived helper that resolves relative paths against
+    # ITS working directory (measured: the directory of a previous actool run), not this script's.
+    if ! xcrun actool "$PWD/Resources/AppIcon.icon" --compile "$PWD/$APP/Contents/Resources" --platform macosx \
+            --minimum-deployment-target "$MIN_OS" --app-icon AppIcon \
+            --output-partial-info-plist "$ICON_PLIST" >/dev/null \
+            || [ ! -f "$APP/Contents/Resources/Assets.car" ]; then
+        rm -f "$ICON_PLIST"
+        echo "ERROR: actool could not compile Resources/AppIcon.icon." >&2
+        exit 1
+    fi
+    rm -f "$ICON_PLIST"
+else
+    echo "==> actool unavailable: using the fallback Resources/AppIcon.icns"
+    [ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+fi
 
 # The alt-loader host (Scripts/altloader-host). Not a SwiftPM target: it must be linked with fixed
 # segment addresses and for the RUNTIME's architecture (x86_64 today), which SwiftPM can't express —

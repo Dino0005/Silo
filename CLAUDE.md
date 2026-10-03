@@ -76,8 +76,12 @@ queue and routed once `bootstrap()` completes. *(This is the deliberately-simple
 went stale, needed DXMT prefix-seeding, showed a "wine" Dock tile, and couldn't serve Steam titles.)*
 
 ## Hard constraints (non-negotiable)
-1. **SwiftPM only — never call `xcodebuild`.** This machine has Command Line Tools only (no Xcode).
-   Build with `swift build`; the `.app` is assembled by `Scripts/build-app.sh`.
+1. **SwiftPM only — never call `xcodebuild`.** Build with `swift build`; the `.app` is assembled by
+   `Scripts/build-app.sh`. Full Xcode IS installed on the dev box now (found 2026-10-03; the release runner
+   has it too), but the build must keep working with the Command Line Tools alone. The one Xcode-only step is
+   the app icon: `Resources/AppIcon.icon` (Icon Composer) → `actool` → `Assets.car`, falling back to the
+   committed `Resources/AppIcon.icns` when `actool` is absent (`Scripts/make-icon.sh` regenerates it via
+   `ictool` after editing the `.icon`).
 2. **Swift 6 strict concurrency** (`swiftLanguageMode(.v6)`). No `@unchecked Sendable` to silence
    errors — derive correct isolation from the concurrency model below. (`@unchecked` is allowed only
    in test doubles where it is genuinely safe and commented.)
@@ -271,7 +275,8 @@ Write the exact question into `STATUS.md` → `## BLOCKED`, commit the last gree
 - Anything needing SIP disable / Full Disk Access / a TCC prompt the agent can't satisfy headlessly.
 
 ## Environment (verified 2026-06-26; runtimes added 2026-07-13)
-Swift 6.3.2 (`arm64-apple-macosx26.0`); macOS 26.5.1, Apple Silicon; `xcodebuild` absent;
+Swift 6.3.2 (`arm64-apple-macosx26.0`); macOS 26.5.1, Apple Silicon; *(stale since 2026-10-03: full
+Xcode is now at `/Applications/Xcode.app`, see constraint #1)* `xcodebuild` absent;
 `git`/`codesign` present. **The dev box now HAS a provisioned Silo bottle + all three runtimes** at
 `~/Library/Application Support/Silo` (`Runtimes/`: `GPTK-4.0_beta_1`, `dxmt-v0.72-cx26.2.0`, `wine-cx-26.2.0`;
 a set-up `SteamBottle`), so on-device launch/log capture is possible here. This does NOT relax constraint #4:
