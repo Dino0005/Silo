@@ -24,7 +24,7 @@ on:
     paths: ['docs/**']
   schedule:
     - cron: '17 6 * * *'         # daily 06:17 UTC — refresh download counts (no docs change needed)
-  workflow_dispatch: {}          # manual redeploy (e.g. first cutover) with no docs change
+  workflow_dispatch: {}          # manual redeploy; also dispatched by release.yml once a release is published
 
 permissions:
   contents: read
