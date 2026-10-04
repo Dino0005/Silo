@@ -93,12 +93,18 @@ int main(int argc, char **argv) {
     /* Nessuno da servire: non restare in giro. Un host fermo su accept() vive per sempre
        e macOS gli tiene una tile nel Dock col nome del gioco, "in esecuzione in background"
        (osservato dall'utente il 2026-09-24). La consegna, quando arriva, arriva entro un
-       secondo o due dallo spawn: un minuto e' larghissimo. */
-    struct timeval tv = { .tv_sec = 60, .tv_usec = 0 };
+       secondo o due dallo spawn: un minuto e' larghissimo.
+       argv[2], se c'e', sostituisce il minuto (secondi, 1-3600): il client Steam crea il
+       suo steamwebhelper solo dopo i controlli e gli aggiornamenti d'avvio, che possono
+       superarlo. */
+    long wait_s = argc > 2 ? strtol(argv[2], NULL, 10) : 60;
+    if (wait_s < 1 || wait_s > 3600) wait_s = 60;
+    L("attesa massima %lds\n", wait_s);
+    struct timeval tv = { .tv_sec = wait_s, .tv_usec = 0 };
     fd_set rfds; FD_ZERO(&rfds); FD_SET(srv, &rfds);
     int ready = select(srv + 1, &rfds, NULL, NULL, &tv);
     if (ready <= 0) {
-        L("nessuna connessione in 60s: esco invece di restare una tile nel Dock\n");
+        L("nessuna connessione in %lds: esco invece di restare una tile nel Dock\n", wait_s);
         unlink(sockpath);
         return ready < 0 ? 1 : 0;
     }

@@ -3,6 +3,19 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Steam client in its own host (2026-10-04, verified by the user on wine-cx-26.3.0 with the new wrapper).**
+  `SteamClientSession.launchSteamProcess` → after `installWebHelperWrapper`, `LaunchOrchestrator
+  .prepareSteamClientHost` → `AltLoaderSession.prepareSteamClient`: bundle `HostApps/steam-client/Steam.app`
+  (`steam-client-mf` for the MF bottle; name "Steam", `steam.exe`'s icon, `GameHostBundle.category = nil` — no
+  Game Mode), whitelist `SteamBottle.webHelperHostExeName` (`steamwebhelper_orig` with a wrapper, else
+  `steamwebhelper`), host wait 300 s (new optional argv[2] in host.c; Steam creates the webhelper only after its
+  start-up checks). `launchSteam` publishes CX_ALT_LOADER_SOCKET + SILO_HOST_CWD (Steam dir). Measured: window
+  owner = pid inside `Steam.app` (`com.mikael.silo.host.steam-client`); Dock tile "Steam" with its icon, Stage
+  Manager shows Steam's icon. Spider-Man launched to the menu and quit with Steam open: Steam's processes untouched.
+  `LaunchLeftovers.classify` now skips `SteamBottle.isSteamHostProcess` — the host binary otherwise reads as a
+  running GAME and would block every post-game cleanup while Steam is open. macOS 27 showed "app update required
+  … component won't open in macOS 28" at that run: the x86_64 `SiloWineHost` (just rebuilt); inherent to Wine on
+  Rosetta, not new. **Still to test: the imported CrossOver Wine** (whitelist `steamwebhelper`).
 - **🔧 CI-built Wine shipped UNSIGNED → Steam's window had NO icon in Stage Manager (found 2026-10-04).** On
   `wine-cx-26.3.0` (CI) Steam's thumbnail showed no icon at all; on the imported CrossOver Wine, the generic white
   sheet. NOT the steamwebhelper wrapper: with the wrapper installed on the imported Wine (copied into its

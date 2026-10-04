@@ -32,6 +32,25 @@ struct GameHostBundleTests {
         #expect(!GameHostBundle(name: "G", id: "1").infoPlist().contains("CFBundleIconName"))
     }
 
+    /// Games declare the games category — it is what turns on Game Mode and the Command-Esc overlay.
+    @Test func aGameDeclaresTheGamesCategory() throws {
+        let plist = GameHostBundle(name: "G", id: "1").infoPlist()
+        let dict = try #require(try PropertyListSerialization.propertyList(
+            from: Data(plist.utf8), format: nil) as? [String: Any])
+        #expect(dict["LSApplicationCategoryType"] as? String == "public.app-category.games")
+        #expect(dict["LSMinimumSystemVersion"] as? String == "15.0")
+    }
+
+    /// The Steam client's host declares no category at all: Steam is a launcher, not a game.
+    @Test func noCategoryLeavesTheKeyOutAndThePlistValid() throws {
+        let plist = GameHostBundle(name: "Steam", id: "steam-client", category: nil).infoPlist()
+        #expect(!plist.contains("LSApplicationCategoryType"))
+        let dict = try #require(try PropertyListSerialization.propertyList(
+            from: Data(plist.utf8), format: nil) as? [String: Any])
+        #expect(dict["CFBundleName"] as? String == "Steam")
+        #expect(dict["LSMinimumSystemVersion"] as? String == "15.0")
+    }
+
     @Test func infoPlistEscapesXMLInTheName() {
         let plist = GameHostBundle(name: "Tom & Jerry <2>", id: "7").infoPlist()
         #expect(plist.contains("<string>Tom &amp; Jerry &lt;2&gt;</string>"))

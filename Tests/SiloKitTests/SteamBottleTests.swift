@@ -66,6 +66,39 @@ struct SteamBottleTests {
         #expect(call.environment["WINEDLLOVERRIDES"] == nil)
     }
 
+    @Test("launchSteam publishes the Steam host's socket and where the host should stand, only when given one")
+    func launchSteamWithHostSocket() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (bottle, fake, paths) = make(tmp)
+        let socket = URL(fileURLWithPath: "/tmp/silo-al-steam-cl-x.sock")
+        _ = try await bottle.launchSteam(wine: URL(fileURLWithPath: "/w/wine64"), altLoaderSocket: socket)
+        let call = try #require(fake.lastInvocation)
+        #expect(call.environment["CX_ALT_LOADER_SOCKET"] == socket.path)
+        #expect(call.environment["SILO_HOST_CWD"] == paths.steamBottleClientDir.path)
+
+        _ = try await bottle.launchSteam(wine: URL(fileURLWithPath: "/w/wine64"))
+        #expect(fake.lastInvocation?.environment["CX_ALT_LOADER_SOCKET"] == nil)
+        #expect(fake.lastInvocation?.environment["SILO_HOST_CWD"] == nil)
+    }
+
+    @Test("the webhelper to hand to the Steam host: steamwebhelper_orig behind Silo's wrapper, else steamwebhelper")
+    func webHelperHostExeName() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (bottle, _, _) = make(tmp)
+        let wine = tmp.url.appendingPathComponent("rt/bin/wine64")
+        #expect(bottle.webHelperHostExeName(wine: wine) == "steamwebhelper")
+        try tmp.write("rt/share/silo/steamwebhelper-wrapper.exe", "MZ")
+        #expect(bottle.webHelperHostExeName(wine: wine) == "steamwebhelper_orig")
+    }
+
+    @Test("each bottle's Steam client gets its own host id")
+    func steamHostIDPerBottle() {
+        let paths = AppPaths(supportDir: URL(fileURLWithPath: "/tmp/silo-x"))
+        #expect(SteamBottle(runner: FakeProcessRunner(), paths: paths).steamHostID == "steam-client")
+        #expect(SteamBottle(runner: FakeProcessRunner(), paths: paths, kind: .mediaFoundation).steamHostID
+                == "steam-client-mf")
+    }
+
     @Test("launchSteam honors an explicit desktopGeometry — the real fix, since every game inherits it")
     func launchSteamHonorsExplicitGeometry() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

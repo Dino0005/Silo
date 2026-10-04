@@ -329,8 +329,14 @@ public final class SteamClientSession {
     /// or nil after recording `launchError`.
     private func launchSteamProcess() async -> Int32? {
         do {
-            if let wine = wineBinary { try bottle.installWebHelperWrapper(wine: wine) }
-            return try await bottle.launchSteam(wine: wineBinary, desktopGeometry: ScreenGeometry.nativeResolution())
+            var hostSocket: URL?
+            if let wine = wineBinary {
+                try bottle.installWebHelperWrapper(wine: wine)
+                // After the wrapper step, which decides which webhelper name owns the window.
+                hostSocket = await orchestrator.prepareSteamClientHost(bottle: bottle, wine: wine)
+            }
+            return try await bottle.launchSteam(wine: wineBinary, desktopGeometry: ScreenGeometry.nativeResolution(),
+                                                altLoaderSocket: hostSocket)
         } catch {
             launchError = (error as NSError).localizedDescription
             return nil

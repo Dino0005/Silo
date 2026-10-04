@@ -66,6 +66,24 @@ struct LaunchLeftoversTests {
         #expect(!ids.contains(49243))    // the client's /desktop=Silo explorer
     }
 
+    /// Steam's webhelper adopted by the Steam client's host reports the host binary, like an adopted game.
+    /// It is Steam's tree: neither a game (that would block every cleanup while Steam is open) nor a leftover.
+    @Test func theSteamHostedWebhelperIsSteamsNotAGame() {
+        let hosted = LaunchLeftovers.Process(
+            id: 88001,
+            command: "/Users/u/Library/Application Support/Silo/HostApps/steam-client/Steam.app/Contents/MacOS/SiloGameHost /var/folders/x/T/silo-al-steam-cl-1.sock 300")
+        let hostedMF = LaunchLeftovers.Process(
+            id: 88002,
+            command: "/Users/u/Library/Application Support/Silo/HostApps/steam-client-mf/Steam.app/Contents/MacOS/SiloGameHost /var/folders/x/T/silo-al-steam-cl-2.sock 300")
+        let census = LaunchLeftovers.classify(
+            all: afterQuitting + [hosted, hostedMF], inPrefix: inPrefix.union([88001, 88002]),
+            gameExecutables: [spiderMan])
+        #expect(census.games.isEmpty)
+        #expect(!census.leftovers.map(\.id).contains(88001))
+        #expect(!census.leftovers.map(\.id).contains(88002))
+        #expect(census.isOnlyLeftovers)          // the post-game cleanup still runs with Steam open
+    }
+
     /// With Silo's own runtime the webhelper wrapper renames the real helper, so Steam's CEF children run as
     /// `steamwebhelper_orig.exe` (verbatim from `ps` on 2026-09-29). They are Steam's, not leftovers — killing
     /// them made Steam's UI reload after every game.

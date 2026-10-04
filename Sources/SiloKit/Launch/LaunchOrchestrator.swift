@@ -266,6 +266,17 @@ public struct LaunchOrchestrator: Sendable {
             prefix: prefix, wine: wine, hostAppsDir: target.hostAppsDir)
     }
 
+    /// Prepare the Steam client's hand-over for `bottle` (see `AltLoaderSession.prepareSteamClient`),
+    /// returning the socket to pass to `SteamBottle.launchSteam` — or `nil`, which launches Steam exactly
+    /// as before. The window is cosmetic; nothing here can stop Steam from starting.
+    public func prepareSteamClientHost(bottle: SteamBottle, wine: URL) async -> URL? {
+        let icon = (try? Data(contentsOf: bottle.steamExecutable, options: .mappedIfSafe))
+            .flatMap(PEIcon.icoData(fromExecutable:))
+        return await altLoader.prepareSteamClient(
+            clientID: bottle.steamHostID, webHelperName: bottle.webHelperHostExeName(wine: wine),
+            steamIconICO: icon, prefix: bottle.prefix, wine: wine, hostAppsDir: bottle.hostAppsDir)
+    }
+
     // MARK: - Manual (non-Steam) games
 
     /// Launch a user-added non-Steam game in the bottle prefix under GPTK. No Steam presence (these don't

@@ -663,15 +663,57 @@ public struct SteamBottle: Sendable {
     ///   on `desktopGeometry` above), so passing anything smaller than the real screen caps every game at
     ///   that size regardless of what resolution the game itself requests. Defaults to the fixed
     ///   `desktopGeometry` fallback only when the caller has no real resolution to give it.
+    /// - Parameter altLoaderSocket: the Steam host's hand-over socket (`AltLoaderSession.prepareSteamClient`),
+    ///   or `nil` to launch without one. Published as `CX_ALT_LOADER_SOCKET`, so the whitelisted webhelper is
+    ///   handed to the host and Steam's window carries the host's name and icon.
     @discardableResult
-    public func launchSteam(wine: URL?, desktopGeometry: String? = nil) async throws -> Int32 {
+    public func launchSteam(wine: URL?, desktopGeometry: String? = nil,
+                            altLoaderSocket: URL? = nil) async throws -> Int32 {
         guard let wine else { throw BottleError.wineNotConfigured }
         let geometry = desktopGeometry.flatMap { $0.isEmpty ? nil : $0 } ?? Self.desktopGeometry
         let args = ["explorer", "/desktop=Silo,\(geometry)", exe.path]
             + Self.cefRenderArgs
+        var env = steamEnvironment(wine: wine)
+        if let altLoaderSocket {
+            env["CX_ALT_LOADER_SOCKET"] = altLoaderSocket.path
+            // The hand-over carries no working directory (see `LaunchOrchestrator.makePlan`); the host
+            // `chdir`s here instead of staying in LaunchServices' `/`.
+            env["SILO_HOST_CWD"] = clientDir.path
+        }
         return try await runner.spawnDetached(
             executable: wine, arguments: args,
-            environment: steamEnvironment(wine: wine), currentDirectory: clientDir, logURL: log)
+            environment: env, currentDirectory: clientDir, logURL: log)
+    }
+
+    // MARK: - Steam client host (alt loader)
+
+    /// `steam.exe`, whose icon the Steam client's host bundle carries.
+    public var steamExecutable: URL { exe }
+    /// Where host bundles live (`AppPaths.hostAppsDir`).
+    public var hostAppsDir: URL { paths.hostAppsDir }
+    /// The per-bottle token for the Steam client's host bundle and socket: the two bottles each run their
+    /// own client, so each gets its own host.
+    public var steamHostID: String { Self.steamHostID(for: kind) }
+
+    static func steamHostID(for kind: AppPaths.SteamBottleKind) -> String {
+        kind == .standard ? "steam-client" : "steam-client-mf"
+    }
+
+    /// Whether a process command line is the Steam client's webhelper running inside its host — part of
+    /// Steam's tree, not a game, even though it shares the host binary every adopted game runs in. The
+    /// host bundle sits at `<hostAppsDir>/<steamHostID>/Steam.app` (`GameHostBundle.bundleURL`).
+    static func isSteamHostProcess(_ command: String) -> Bool {
+        AppPaths.SteamBottleKind.allCases.contains { command.contains("/\(steamHostID(for: $0))/Steam.app/") }
+    }
+
+    /// The exe name Wine will see for the webhelper that owns Steam's window — the name to whitelist for
+    /// the Steam host. Wine matches on `argv[0]` of the command line. With Silo's wrapper in place the
+    /// wrapper is `steamwebhelper` and starts the real one as `steamwebhelper_orig`
+    /// (`Scripts/steamwebhelper-wrapper.c`); the wrapper owns no window and must not take the one-shot
+    /// host. Without a wrapper (`installWebHelperWrapper` restores the real binary) it's `steamwebhelper`.
+    public func webHelperHostExeName(wine: URL) -> String {
+        fileManager.fileExists(atPath: WineRuntimeLayout(wineBinary: wine).wrapperExe.path)
+            ? "steamwebhelper_orig" : "steamwebhelper"
     }
 
     /// Launch Steam for a one-time first-run self-update, ROOTLESS (no `explorer /desktop`) so no window is

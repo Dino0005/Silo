@@ -132,6 +132,51 @@ struct AltLoaderSessionTests {
         #expect(!written.value.contains("notepad.exe"))
     }
 
+    // MARK: - The Steam client
+
+    /// The Steam client's hand-over: a bundle named "Steam" (no games category), the webhelper name it
+    /// was given in the whitelist, a per-bottle socket, and a longer wait passed to the host.
+    @Test func theSteamClientGetsItsOwnHostWhitelistAndLongerWait() async throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let host = try fakeHost(in: root)
+        let prefix = try makePrefix(in: root)
+        let written = LockedBox("")
+        let runner = FakeProcessRunner()
+        let regFile = prefix.appendingPathComponent("drive_c/silo-altloader.reg")
+        runner.onRun = { inv in
+            guard inv.arguments.first == "regedit" else { return }
+            written.set((try? String(contentsOf: regFile, encoding: .utf8)) ?? "")
+        }
+        let hostApps = root.appendingPathComponent("HostApps", isDirectory: true)
+        let socket = try #require(await AltLoaderSession(
+            runner: runner, environment: ["SILO_ALTLOADER_HOST": host.path],
+            temporaryDirectory: root, socketWaitTimeout: .zero
+        ).prepareSteamClient(clientID: "steam-client", webHelperName: "steamwebhelper_orig",
+                             steamIconICO: nil, prefix: prefix, wine: wine, hostAppsDir: hostApps))
+
+        #expect(written.value.contains("\"steamwebhelper_orig\"=\"1\""))
+        #expect(socket.lastPathComponent.hasPrefix("silo-al-steam-cl-"))
+        let open = try #require(runner.invocations.last)
+        #expect(open.executable.path == "/usr/bin/open")
+        #expect(open.arguments[2].hasSuffix("steam-client/Steam.app"))
+        #expect(open.arguments[4] == socket.path)
+        #expect(open.arguments.last == String(AltLoaderSession.steamClientHostWait))
+
+        let plist = try String(contentsOf: hostApps.appendingPathComponent(
+            "steam-client/Steam.app/Contents/Info.plist"), encoding: .utf8)
+        #expect(plist.contains("<string>Steam</string>"))
+        #expect(!plist.contains("LSApplicationCategoryType"))
+    }
+
+    /// A game's host keeps the host's default wait: no extra argument after the socket.
+    @Test func aGameLaunchPassesNoWaitArgument() async throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let runner = FakeProcessRunner()
+        let socket = try #require(await prepare(runner: runner, root: root,
+                                                prefix: try makePrefix(in: root), host: try fakeHost(in: root)))
+        #expect(runner.invocations.last?.arguments.last == socket.path)
+    }
+
     // MARK: - Failure leaves nothing behind
 
     /// If `open` fails the launch must fall back — and the whitelist key must not be left in the

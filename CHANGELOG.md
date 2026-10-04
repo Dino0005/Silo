@@ -9,6 +9,19 @@ the commit message says why.
 
 ## Unreleased
 
+### Added
+- **Steam has its own name and icon in the Dock, Mission Control and Stage Manager.** Its window used to belong
+  to a bare Wine process: a "wine" Dock tile, and on macOS 27 a blank or missing icon in Stage Manager. Silo
+  now hands Steam's window-owning `steamwebhelper` to a host bundle named "Steam" with `steam.exe`'s icon, the
+  same alt-loader route games use (no games category, so no Game Mode). Behind Silo's webhelper wrapper the
+  real helper now starts as `steamwebhelper_orig.exe`, so the wrapper — which owns no window — can't take the
+  host. If anything in the hand-over fails, Steam starts as before.
+
+### Fixed
+- **Silo's own Wine shipped unsigned from CI**, so macOS ignored the Info.plist inside its loader and Stage
+  Manager showed Steam's window with no icon at all. The Wine tree is now signed (ad-hoc) in CI as it already
+  was in local builds, by one shared script.
+
 ### Changed
 - New app icon in Liquid Glass: stacked cards — the two behind in translucent glass — with the play symbol in
   the blue of the Play button, on a diagonal background (graphite in dark mode). Its source is now

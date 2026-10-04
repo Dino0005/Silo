@@ -96,7 +96,12 @@ public struct LaunchLeftovers: Sendable {
             // `…/HostApps/1817070/….app/Contents/MacOS/SiloGameHost`). So this test comes first and is
             // unconditional: without it a game that is actually playing reads as a leftover, and the
             // offered "cleanup" would kill it. A test pins exactly that.
-            if command.contains(GameHostBundle.executableName)
+            // The one exception runs in the same host binary: the Steam client's webhelper, adopted by
+            // Steam's own host. It's Steam's tree — counted as a game, a running Steam would block every
+            // post-game cleanup.
+            if SteamBottle.isSteamHostProcess(command) {
+                continue
+            } else if command.contains(GameHostBundle.executableName)
                 || gameExecutables.contains(where: { !$0.isEmpty && command.contains($0) }) {
                 games.append(process)
             } else if plumbing.contains(where: { command.contains($0) })

@@ -34,10 +34,18 @@ public struct GameHostBundle: Sendable {
     /// Stable per-game token for the bundle identifier and file name (Steam app ID, or a manual game's
     /// UUID string). Two games must never collide on one bundle: the icon would be wrong for one of them.
     public let id: String
+    /// `LSApplicationCategoryType`, or `nil` to declare none. Games keep the default; the Steam client's
+    /// host passes `nil` — Steam is a launcher, and the games category is what turns on Game Mode and the
+    /// Command-Esc game overlay (native `/Applications/Steam.app` and CrossOver's Steam bundles declare none).
+    public let category: String?
 
-    public init(name: String, id: String) {
+    /// The category a game's host declares (see `infoPlist`).
+    public static let gamesCategory = "public.app-category.games"
+
+    public init(name: String, id: String, category: String? = GameHostBundle.gamesCategory) {
         self.name = name
         self.id = id
+        self.category = category
     }
 
     /// Marks a bundle as ours, so `write` can replace its own previous output and nothing else.
@@ -75,11 +83,17 @@ public struct GameHostBundle: Sendable {
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
             <key>CFBundleShortVersionString</key><string>1.0</string>
-            <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
-            <key>LSMinimumSystemVersion</key><string>15.0</string>
+            \(categoryEntry)<key>LSMinimumSystemVersion</key><string>15.0</string>
         </dict>
         </plist>
         """
+    }
+
+    /// The `LSApplicationCategoryType` entry (ending in the next line's indent), or nothing when `category`
+    /// is `nil`.
+    private var categoryEntry: String {
+        guard let category else { return "" }
+        return "<key>LSApplicationCategoryType</key><string>\(xmlEscaped(category))</string>\n    "
     }
 
     /// Named in `CFBundleExecutable`, and — since the alt-loader route was proven (2026-09-23) — the

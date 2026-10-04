@@ -115,25 +115,78 @@ public struct AltLoaderSession: Sendable {
         hostAppsDir: URL,
         fileManager: FileManager = .default
     ) async -> URL? {
+        // Gate Wine's hand-over to THIS exe. Without it the socket is consumed by the first process the
+        // prefix creates — on a cold bottle `wineboot.exe --init`, which owns no window (measured).
+        await prepare(
+            bundle: GameHostBundle(name: gameName, id: gameID),
+            whitelist: [AltLoaderWhitelist.exeName(for: gameExe.lastPathComponent)],
+            iconICO: iconICO, socketID: gameID, prefix: prefix, wine: wine,
+            hostAppsDir: hostAppsDir, fileManager: fileManager)
+    }
+
+    /// The Steam client's hand-over: the bottle's `steamwebhelper` — the process that owns Steam's
+    /// window — goes to a host bundle named "Steam", carrying Steam's icon and no games category (see
+    /// `GameHostBundle.category`).
+    ///
+    /// - Parameters:
+    ///   - webHelperName: the exe name Wine will see for the window-owning webhelper (`argv[0]` of its
+    ///     command line, which is what Wine matches): `steamwebhelper_orig` when Silo's wrapper sits in
+    ///     front of it — the wrapper itself is `steamwebhelper`, owns no window, and must NOT take the
+    ///     one-shot host — and `steamwebhelper` when the runtime ships no wrapper.
+    ///     See `SteamBottle.webHelperHostExeName(wine:)`.
+    ///   - clientID: per-bottle token, so the normal and the Media Foundation bottle get a bundle and a
+    ///     socket each.
+    ///   - steamIconICO: `steam.exe`'s icon, if it could be read.
+    public func prepareSteamClient(
+        clientID: String,
+        webHelperName: String,
+        steamIconICO: Data?,
+        prefix: URL,
+        wine: URL,
+        hostAppsDir: URL,
+        fileManager: FileManager = .default
+    ) async -> URL? {
+        await prepare(
+            bundle: GameHostBundle(name: "Steam", id: clientID, category: nil),
+            whitelist: [webHelperName], iconICO: steamIconICO, socketID: clientID,
+            hostWaitSeconds: Self.steamClientHostWait, prefix: prefix, wine: wine,
+            hostAppsDir: hostAppsDir, fileManager: fileManager)
+    }
+
+    /// How long the Steam client's host waits for its webhelper. Steam only creates it after its start-up
+    /// checks — and an update, when there is one — which can run past the host's default minute. The cost
+    /// of a long wait is only a "Steam" Dock tile lingering when the launch dies before that point.
+    static let steamClientHostWait = 300
+
+    /// The shared part: write the host bundle, whitelist `exeNames`, start the host and wait for it to bind.
+    /// - Parameter hostWaitSeconds: passed to the host as how long to wait for a connection; `nil` keeps
+    ///   the host's own default (a minute — plenty for a game, which is created right after the launch).
+    private func prepare(
+        bundle: GameHostBundle,
+        whitelist exeNames: [String],
+        iconICO: Data?,
+        socketID: String,
+        hostWaitSeconds: Int? = nil,
+        prefix: URL,
+        wine: URL,
+        hostAppsDir: URL,
+        fileManager: FileManager
+    ) async -> URL? {
         guard environment[Self.disableFlag] != "1" else { return nil }
         guard let host = AltLoaderHost.resolved(environment: environment, fileManager: fileManager)
         else { return nil }
 
-        let bundle = GameHostBundle(name: gameName, id: gameID)
         guard let hostInBundle = try? bundle.write(
             into: hostAppsDir, hostBinary: host, iconICO: iconICO, fileManager: fileManager)
         else { return nil }
         _ = hostInBundle   // the bundle is what we launch; the path is only useful for diagnostics
 
-        // Gate Wine's hand-over to THIS exe. Without it the socket is consumed by the first process the
-        // prefix creates — on a cold bottle `wineboot.exe --init`, which owns no window (measured).
-        let exeName = AltLoaderWhitelist.exeName(for: gameExe.lastPathComponent)
-        guard await applyRegistry(AltLoaderWhitelist.enableReg(exeNames: [exeName]),
+        guard await applyRegistry(AltLoaderWhitelist.enableReg(exeNames: exeNames),
                                   named: "silo-altloader.reg", prefix: prefix, wine: wine,
                                   fileManager: fileManager)
         else { return nil }
 
-        let socket = Self.socketPath(forGameID: gameID, temporaryDirectory: temporaryDirectory)
+        let socket = Self.socketPath(forGameID: socketID, temporaryDirectory: temporaryDirectory)
         // Better no hand-over than a truncated one: a truncated bind looks like it worked and then
         // silently costs the icon (see `maxSocketPathLength`).
         guard socket.path.utf8.count <= Self.maxSocketPathLength else {
@@ -154,7 +207,8 @@ public struct AltLoaderSession: Sendable {
             // merely activates that one, so nothing binds the new socket and the launch silently goes
             // back to the old path (measured 2026-09-24: a second launch adopted nothing while the first
             // game's host was still alive).
-            arguments: ["-n", "-a", app.path, "--args", socket.path],
+            arguments: ["-n", "-a", app.path, "--args", socket.path]
+                + (hostWaitSeconds.map { [String($0)] } ?? []),
             environment: [:], currentDirectory: nil),
               result.succeeded
         else {
