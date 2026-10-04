@@ -3,6 +3,19 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🔧 CI-built Wine shipped UNSIGNED → Steam's window had NO icon in Stage Manager (found 2026-10-04).** On
+  `wine-cx-26.3.0` (CI) Steam's thumbnail showed no icon at all; on the imported CrossOver Wine, the generic white
+  sheet. NOT the steamwebhelper wrapper: with the wrapper installed on the imported Wine (copied into its
+  `share/silo` by hand, removed after) the sheet stayed. The cause is the signature: the window-owning loader
+  `lib/wine/x86_64-unix/wine` embeds an Info.plist (same in both trees, from the FOSS source: LSUIElement,
+  NSPrincipalClass WineApplication, id `com.codeweavers.CrossOver.wineloader`), honoured only when the binary is
+  signed. CrossOver's is (CodeWeavers' Developer ID; LaunchServices then reports a bundleURL); the CI one wasn't —
+  not the loader, wineserver, ntdll.so nor winemac.so (only the bundler-copied lib64 dylibs). `build-wine.sh`
+  always signed the tree ad-hoc; `build-wine.yml` never had that step. Proof: ad-hoc signing JUST the loader in
+  place (`codesign -s -`, unsigned copy kept at /tmp/wine-loader-unsigned.bak) → white sheet, one Dock tile
+  (a second, steam.exe's, appeared once and not on the next start). Fix: `Scripts/sign-wine-tree.sh`, shared by
+  both, fails if the loader lacks its bound Info.plist. The published `wine-cx-26.3.0` is still unsigned until
+  rebuilt. The wrapper question itself (why from-source needs it for CEF) is still open.
 - **✅ Steam throbber on the toolbar button (2026-10-03, verified by the user in the app).** While Steam starts,
   the button plays Steam's own APNG loading animation (`clientui/images/<hash>.png`: 180 frames, 60 fps, 210 px,
   white logo + grey ring + blue arcs) instead of the system spinner. `SteamThrobber` finds it by content (the

@@ -165,16 +165,8 @@ SILO_DEPS_PREFIX="$DEPS_PREFIX" SILO_GST_STACK="$GST_STACK" SILO_SDL_DYLIB="$SDL
 # Without this, only the copied third-party dylibs would carry a real Developer ID and the actual
 # Wine binaries would ship completely unsigned — inconsistent, and still effectively "ad-hoc" in
 # practice. Uses SILO_SIGN_IDENTITY if set (see Scripts/sign.sh); falls back to ad-hoc ("-"),
-# matching upstream, when it isn't.
-WINE_IDENTITY="${SILO_SIGN_IDENTITY:--}"
-echo "==> Signing Wine tree with identity: $WINE_IDENTITY"
-# -exec ... \; (not `find | xargs`): xargs on macOS (BSD) can fail outright with "command line cannot
-# be assembled, too long" when the calling shell's environment is already large (as it is here, with
-# PKG_CONFIG_PATH/LDFLAGS/CPPFLAGS exported above) — even with -I{} substituting one file per invocation,
-# BSD xargs still needs headroom to construct that one invocation and can come up short. -exec spawns one
-# process per file directly from find, with no command-line assembly step, so it can't hit that limit.
-find "$WORK/install" -type f \( -perm -u+x -o -name '*.so' -o -name '*.dylib' \) \
-  -exec sh -c 'file "$1" | grep -q "Mach-O" && codesign --force --sign "$2" "$1" 2>/dev/null' _ {} "$WINE_IDENTITY" \;
+# matching upstream, when it isn't. Shared with the CI workflow (which once skipped it, see the script).
+"$ROOT/Scripts/sign-wine-tree.sh" "$WORK/install"
 
 echo "==> Package"
 mkdir -p "$ROOT/dist"

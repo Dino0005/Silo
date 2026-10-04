@@ -210,6 +210,11 @@ jobs:
         # SILO_SDL_DYLIB ships our pinned libSDL2 (winebus dlopens it by leaf name, resolved via the lib64 rpath).
         run: SILO_DEPS_PREFIX="$DEPS_PREFIX" SILO_GST_STACK="$GST_STACK" SILO_SDL_DYLIB="$SDL_PREFIX/lib/libSDL2-2.0.0.dylib" ./Scripts/bundle-wine-dylibs.sh "$GITHUB_WORKSPACE/wine-install"
 
+      - name: Sign the Wine tree (ad-hoc)
+        # Same script as Scripts/build-wine.sh. Without it the loader's embedded Info.plist is ignored and
+        # Stage Manager shows Steam's window with no icon at all (see the script).
+        run: ./Scripts/sign-wine-tree.sh "$GITHUB_WORKSPACE/wine-install"
+
       - name: Package wine.tar.xz
         run: |
           set -eo pipefail
