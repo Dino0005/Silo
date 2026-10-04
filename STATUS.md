@@ -3,6 +3,13 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Silo 0.6.6 RELEASED (2026-10-04)** — tag v0.6.6 (8294b93), release run 37224148637 green, published with
+  `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches (4157ce85…), Info.plist says 0.6.6, and it
+  carries `Assets.car` (the Liquid Glass icon compiled by actool on the runner) beside `AppIcon.icns`. Contents:
+  Steam in its own host (name + icon), Steam behind a game it was started for, signed CI Wine + new wrapper
+  (wine-cx-26.3.0 republished), Steam loading animation on the button, Liquid Glass icon, the two ignored Steam
+  env vars removed. Known flaky test: GameLibraryViewModel's in-progress status timing can fail under the full
+  parallel suite (passes alone).
 - **✅ Steam client in its own host (2026-10-04, verified by the user on wine-cx-26.3.0 with the new wrapper).**
   `SteamClientSession.launchSteamProcess` → after `installWebHelperWrapper`, `LaunchOrchestrator
   .prepareSteamClientHost` → `AltLoaderSession.prepareSteamClient`: bundle `HostApps/steam-client/Steam.app`
