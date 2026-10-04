@@ -40,6 +40,17 @@
   (a second, steam.exe's, appeared once and not on the next start). Fix: `Scripts/sign-wine-tree.sh`, shared by
   both, fails if the loader lacks its bound Info.plist. The published `wine-cx-26.3.0` is still unsigned until
   rebuilt. The wrapper question itself (why from-source needs it for CEF) is still open.
+  **✅ Rebuilt and republished (2026-10-04):** CI run 37203880542 attempt 2 (attempt 1 died in "Build the shipped
+  libraries" with exit 28 = a curl timeout) on cb82940 → `wine-cx-26.3.0` assets replaced (same tag, user's choice:
+  one Wine build), plus `gst-libav-1.24.4`. Checked: sha256 matches; loader signed ad-hoc WITH its 12-entry
+  Info.plist, ntdll.so / winemac.so / wineserver signed. Reinstalled by the user (old runtime + DXMT clone deleted,
+  MF bottle recreated): Steam from the toolbar in front, Steam's window owner inside `Steam.app` with the CI-built
+  wrapper outside it, Spider-Man to the menu and back. Published = verified.
+  Fatal Fury (DXMT, MF bottle recreated, two launches): runs; the MF Steam got its own host
+  (`HostApps/steam-client-mf/Steam.app`); the fresh DXMT clone's d3d12.dll = Wine's original preserved in the new
+  base (`silo-wine-originals`, 1795c565), not D3DMetal's; saves really shared — MF `AppData/Local/CotW` (and
+  `SoulcaliburVI`) are symlinks to the normal bottle's real folders, and the run wrote GameData.sav + the ini files
+  through it.
 - **Steam host groundwork: the wrapper now starts the real webhelper as `steamwebhelper_orig.exe` (2026-10-04).**
   Wine's alt loader picks the process for a host by the exe name in `argv[1]` of the command line (ntdll
   `send_to_cx_loader`, `HKCU\Software\CrossOver\UseAltLoader`), and Silo's host is one-shot (accepts the FIRST
