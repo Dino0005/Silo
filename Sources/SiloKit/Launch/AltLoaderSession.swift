@@ -137,10 +137,14 @@ public struct AltLoaderSession: Sendable {
     ///   - clientID: per-bottle token, so the normal and the Media Foundation bottle get a bundle and a
     ///     socket each.
     ///   - steamIconICO: `steam.exe`'s icon, if it could be read.
+    ///   - activate: bring the host — and so Steam's window — to the front. `open` activates by default, which
+    ///     is right when the user asked for Steam; when Steam is only being started for a game, it would cover
+    ///     the game coming up, so the host is opened in the background instead (`open -g`).
     public func prepareSteamClient(
         clientID: String,
         webHelperName: String,
         steamIconICO: Data?,
+        activate: Bool = true,
         prefix: URL,
         wine: URL,
         hostAppsDir: URL,
@@ -149,7 +153,7 @@ public struct AltLoaderSession: Sendable {
         await prepare(
             bundle: GameHostBundle(name: "Steam", id: clientID, category: nil),
             whitelist: [webHelperName], iconICO: steamIconICO, socketID: clientID,
-            hostWaitSeconds: Self.steamClientHostWait, prefix: prefix, wine: wine,
+            hostWaitSeconds: Self.steamClientHostWait, activate: activate, prefix: prefix, wine: wine,
             hostAppsDir: hostAppsDir, fileManager: fileManager)
     }
 
@@ -161,12 +165,14 @@ public struct AltLoaderSession: Sendable {
     /// The shared part: write the host bundle, whitelist `exeNames`, start the host and wait for it to bind.
     /// - Parameter hostWaitSeconds: passed to the host as how long to wait for a connection; `nil` keeps
     ///   the host's own default (a minute — plenty for a game, which is created right after the launch).
+    /// - Parameter activate: `false` opens the host without bringing it to the front (`open -g`).
     private func prepare(
         bundle: GameHostBundle,
         whitelist exeNames: [String],
         iconICO: Data?,
         socketID: String,
         hostWaitSeconds: Int? = nil,
+        activate: Bool = true,
         prefix: URL,
         wine: URL,
         hostAppsDir: URL,
@@ -207,7 +213,7 @@ public struct AltLoaderSession: Sendable {
             // merely activates that one, so nothing binds the new socket and the launch silently goes
             // back to the old path (measured 2026-09-24: a second launch adopted nothing while the first
             // game's host was still alive).
-            arguments: ["-n", "-a", app.path, "--args", socket.path]
+            arguments: ["-n"] + (activate ? [] : ["-g"]) + ["-a", app.path, "--args", socket.path]
                 + (hostWaitSeconds.map { [String($0)] } ?? []),
             environment: [:], currentDirectory: nil),
               result.succeeded

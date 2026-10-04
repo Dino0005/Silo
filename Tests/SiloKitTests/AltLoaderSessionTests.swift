@@ -168,6 +168,29 @@ struct AltLoaderSessionTests {
         #expect(!plist.contains("LSApplicationCategoryType"))
     }
 
+    /// Steam started for a game opens its host in the background (`open -g`) so it doesn't cover the game;
+    /// asked for by the user, it comes to the front like a game's host does.
+    @Test func theSteamHostOpensInTheBackgroundWhenNotActivated() async throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let host = try fakeHost(in: root)
+        let prefix = try makePrefix(in: root)
+        func openArgs(activate: Bool) async throws -> [String] {
+            let runner = FakeProcessRunner()
+            _ = try #require(await AltLoaderSession(
+                runner: runner, environment: ["SILO_ALTLOADER_HOST": host.path],
+                temporaryDirectory: root, socketWaitTimeout: .zero
+            ).prepareSteamClient(clientID: "steam-client", webHelperName: "steamwebhelper",
+                                 steamIconICO: nil, activate: activate, prefix: prefix, wine: wine,
+                                 hostAppsDir: root.appendingPathComponent("HostApps", isDirectory: true)))
+            return try #require(runner.invocations.last).arguments
+        }
+        let background = try await openArgs(activate: false)
+        #expect(Array(background.prefix(3)) == ["-n", "-g", "-a"])
+        let foreground = try await openArgs(activate: true)
+        #expect(!foreground.contains("-g"))
+        #expect(Array(foreground.prefix(2)) == ["-n", "-a"])
+    }
+
     /// A game's host keeps the host's default wait: no extra argument after the socket.
     @Test func aGameLaunchPassesNoWaitArgument() async throws {
         let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }

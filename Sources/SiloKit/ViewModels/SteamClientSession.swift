@@ -67,8 +67,11 @@ public final class SteamClientSession {
     /// an in-flight launch, else launches it (re-applying the steamwebhelper wrapper) and tracks the PID.
     /// Returns whether the client is running after the call. Concurrent callers (two quick Play clicks, or
     /// Play + "Launch Steam") coalesce onto ONE launch via `steamLaunch`.
+    /// - Parameter foreground: whether a cold start brings Steam's window to the front — yes when the user
+    ///   asked for Steam, no when it's only coming up for a game (it would cover the game). A launch already in
+    ///   flight keeps the choice it started with.
     @discardableResult
-    func ensureRunning() async -> Bool {
+    func ensureRunning(foreground: Bool = true) async -> Bool {
         // Join an in-flight launch FIRST — it owns the cold-start readiness wait (`startSteam` awaits
         // `awaitSteamReady`). Checking readiness before this would let a caller racing the readiness window
         // (Steam up, but its `ActiveProcess` pid not yet in `user.reg`) return early and launch a game whose
@@ -77,7 +80,7 @@ public final class SteamClientSession {
         // redundant relaunch (Steam single-instances anyway) but still report whether the client came up.
         if let inFlight = steamLaunch { await inFlight.value; return launchError == nil }
         if isRunning { return true }
-        let task = Task { @MainActor in await startSteam() }
+        let task = Task { @MainActor in await startSteam(foreground: foreground) }
         steamLaunch = task
         await task.value
         // Safe to clear unconditionally: while `steamLaunch` is non-nil every other caller joins it via the
@@ -97,7 +100,7 @@ public final class SteamClientSession {
     /// failsafe — it fails open) as a cold start. Returns whether the client is running.
     @discardableResult
     func ensureReadyForGame() async -> Bool {
-        guard await ensureRunning() else { return false }
+        guard await ensureRunning(foreground: false) else { return false }
         await awaitSteamReady()
         return true
     }
@@ -256,11 +259,11 @@ public final class SteamClientSession {
         try? await Task.sleep(for: .seconds(warmUpForceQuitSettle))   // let the wineserver reap the killed procs
     }
 
-    private func startSteam() async {
+    private func startSteam(foreground: Bool) async {
         // A pid left by a Steam that was killed would make the readiness wait below pass before the new
         // client exists. Cleared only if the bottle is down — see `SteamReadiness.clearStalePid`.
         SteamReadiness.clearStalePid(prefix: bottle.prefix)
-        guard await launchSteamProcess() != nil else { return }   // spawned detached; we don't track its PID
+        guard await launchSteamProcess(foreground: foreground) != nil else { return }   // detached; PID untracked
         launchError = nil
         // NOT gated on the readiness result, and that is deliberate. Upstream bacb7a1 turned a readiness
         // TIMEOUT into a launch failure; ported here, it refused the first launch every single time — this
@@ -327,13 +330,14 @@ public final class SteamClientSession {
 
     /// Launch the bottle's Steam client (re-applying the steamwebhelper wrapper first); returns the PID,
     /// or nil after recording `launchError`.
-    private func launchSteamProcess() async -> Int32? {
+    private func launchSteamProcess(foreground: Bool) async -> Int32? {
         do {
             var hostSocket: URL?
             if let wine = wineBinary {
                 try bottle.installWebHelperWrapper(wine: wine)
                 // After the wrapper step, which decides which webhelper name owns the window.
-                hostSocket = await orchestrator.prepareSteamClientHost(bottle: bottle, wine: wine)
+                hostSocket = await orchestrator.prepareSteamClientHost(
+                    bottle: bottle, wine: wine, activate: foreground)
             }
             return try await bottle.launchSteam(wine: wineBinary, desktopGeometry: ScreenGeometry.nativeResolution(),
                                                 altLoaderSocket: hostSocket)

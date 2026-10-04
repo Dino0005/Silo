@@ -19,6 +19,14 @@
   (its webhelper is handed over before the game's launch rewrites the whitelist, since sign-in happens in the UI).
   **Imported CrossOver Wine verified too** (no wrapper; whitelist `steamwebhelper`; the main helper in `Steam.app`,
   Dock tile "Steam" with its icon, Stage Manager icon).
+  Foreground (verified by the user): the Steam host is opened with `open -g` when Steam only comes up for a game
+  (`ensureReadyForGame` → `ensureRunning(foreground: false)`), so it stays behind in Stage Manager and the game
+  opens in front; the toolbar Steam button / settings sign-in still bring it to the front. Before this, `open`
+  activated the host and Steam covered the game coming up (a bare Wine process never was activated).
+  Known, left as is (user, 2026-10-04): a SECOND Dock tile "wine" = `steam.exe` promoted to Foreground (only hidden
+  windows: the 1728×33 menu bars + a 500×500), next to the host's "Steam" tile. Same timing-dependent promotion
+  measured 2026-09-29 and on CrossOver itself; now just more visible. Seen on BOTH cold starts via a game on the
+  imported Wine, rarely on wine-cx. A second host for steam.exe would only rename it "Steam" — still two tiles.
 - **🔧 CI-built Wine shipped UNSIGNED → Steam's window had NO icon in Stage Manager (found 2026-10-04).** On
   `wine-cx-26.3.0` (CI) Steam's thumbnail showed no icon at all; on the imported CrossOver Wine, the generic white
   sheet. NOT the steamwebhelper wrapper: with the wrapper installed on the imported Wine (copied into its
