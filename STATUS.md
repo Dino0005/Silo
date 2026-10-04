@@ -15,7 +15,10 @@
   `LaunchLeftovers.classify` now skips `SteamBottle.isSteamHostProcess` — the host binary otherwise reads as a
   running GAME and would block every post-game cleanup while Steam is open. macOS 27 showed "app update required
   … component won't open in macOS 28" at that run: the x86_64 `SiloWineHost` (just rebuilt); inherent to Wine on
-  Rosetta, not new. **Still to test: the imported CrossOver Wine** (whitelist `steamwebhelper`).
+  Rosetta, not new. Also verified: a game launched with Steam CLOSED (Spider-Man) — Steam still ends up in its host
+  (its webhelper is handed over before the game's launch rewrites the whitelist, since sign-in happens in the UI).
+  **Imported CrossOver Wine verified too** (no wrapper; whitelist `steamwebhelper`; the main helper in `Steam.app`,
+  Dock tile "Steam" with its icon, Stage Manager icon).
 - **🔧 CI-built Wine shipped UNSIGNED → Steam's window had NO icon in Stage Manager (found 2026-10-04).** On
   `wine-cx-26.3.0` (CI) Steam's thumbnail showed no icon at all; on the imported CrossOver Wine, the generic white
   sheet. NOT the steamwebhelper wrapper: with the wrapper installed on the imported Wine (copied into its
