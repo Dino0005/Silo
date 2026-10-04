@@ -19,6 +19,8 @@ the commit message says why.
   It's read from the client in the bottle (`clientui/images`, found by content, not by its hashed name) and
   never bundled, since it's Valve's artwork; white parts follow the toolbar colour so it reads in light mode,
   the blue arcs keep theirs. No Steam installed, or the file gone → the spinner as before.
+  The static Steam logo grows from 16 to 19 pt, the size of the logo inside the animation, so only the arcs
+  appear around it while Steam starts.
 
 ## 0.6.5
 

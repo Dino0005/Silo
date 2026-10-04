@@ -21,6 +21,9 @@ struct LibraryGridView: View {
     /// Steam's loading animation, read from the bottle's Steam install (never bundled — it's Valve's).
     @State private var throbber: SteamThrobber.Animation?
     private static let throbberSize: CGFloat = 26
+    /// The static Steam logo (`steam.pdf` has almost no margin): a little above the 16-pt SF Symbols
+    /// next to it, which read as heavier than the thin-lined logo at the same size.
+    private static let steamIconSize: CGFloat = 19
 
     var body: some View {
         @Bindable var lib = env.gameLibrary
@@ -63,9 +66,9 @@ struct LibraryGridView: View {
                             // runtime change otherwise looked like a missed click.
                             if lib.isSteamLaunching {
                                 if let throbber {
-                                    // Larger than the 16-pt logo: the animation's frame leaves room
-                                    // around the logo for the arcs, so it's drawn bigger for the logo
-                                    // itself to read as large as the other toolbar icons.
+                                    // Larger than the static logo: the animation's frame leaves room
+                                    // around the logo for the arcs (the logo is 72% of it), so at 26 pt
+                                    // its logo is the static icon's 19 pt and only the arcs are added.
                                     SteamThrobberView(animation: throbber)
                                         .frame(width: Self.throbberSize, height: Self.throbberSize)
                                 } else {
@@ -77,7 +80,7 @@ struct LibraryGridView: View {
                                     .interpolation(.high)
                                     .antialiased(true)
                                     .scaledToFit()
-                                    .frame(width: 16, height: 16)
+                                    .frame(width: Self.steamIconSize, height: Self.steamIconSize)
                             }
                         }
                     }

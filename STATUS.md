@@ -10,7 +10,8 @@
   UNclamped delay, the clamped one would play it at 1/3 speed) and splits each frame into a template mask of
   the neutral pixels (alpha = brightness) + the coloured ones, so the logo turns black in light mode while the
   arcs stay blue. Read from the user's bottle every run, never bundled (Valve's artwork). Drawn at 26 pt (the
-  frame pads the logo for the arcs; 16 and 22 looked small — user). Missing file → the old spinner. 6 tests (730).
+  frame pads the logo for the arcs; 16 and 22 looked small — user). The static logo went 16 → 19 pt (2026-10-04, user) = the
+  animation's logo (72% of 26), so starting only adds the arcs. Missing file → the old spinner. 6 tests (730).
 - **✅ New app icon, Liquid Glass (2026-10-03).** After trying a silo-shaped redesign (rejected by the user), the
   icon stays the stacked game tiles + play, rebuilt as an Icon Composer document: `Resources/AppIcon.icon`
   (SVG layers: diagonal background, 3 cards — the two behind translucent glass — and the play in the "Gioca"
