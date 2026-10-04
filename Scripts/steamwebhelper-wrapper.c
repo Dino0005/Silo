@@ -36,9 +36,25 @@ int wmain(void)
     if (wcslen(real) + wcslen(kRealExe) >= MAX_PATH) return 1;
     wcscat(real, kRealExe);
 
-    // Original command line + injected CEF flags (idempotent — Steam may already pass some).
+    // The real binary's own path as argv[0], then Steam's arguments, then the CEF flags (idempotent —
+    // Steam may already pass some). argv[0] must NOT stay "steamwebhelper.exe": Wine's alt loader picks the
+    // process to hand to Silo's Steam host by the exe name in argv[0] (ntdll send_to_cx_loader), and the
+    // wrapper itself carries that name — so the real webhelper, the one owning Steam's window, is told
+    // apart only by starting its command line with steamwebhelper_orig.exe.
+    const wchar_t *args = GetCommandLineW();
+    if (*args == L'"') {
+        args++;
+        while (*args && *args != L'"') args++;
+        if (*args == L'"') args++;
+    } else {
+        while (*args && *args != L' ' && *args != L'\t') args++;
+    }
     static wchar_t cmdline[32768];
-    lstrcpynW(cmdline, GetCommandLineW(), 32000);
+    cmdline[0] = L'"';
+    lstrcpynW(cmdline + 1, real, MAX_PATH);
+    wcscat(cmdline, L"\"");
+    if (wcslen(cmdline) + wcslen(args) + wcslen(kInjectedFlags) >= 32000) return 1;
+    wcscat(cmdline, args);
     if (wcsstr(cmdline, L"--in-process-gpu") == NULL)
         wcscat(cmdline, kInjectedFlags);
 

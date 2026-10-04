@@ -16,6 +16,21 @@
   (a second, steam.exe's, appeared once and not on the next start). Fix: `Scripts/sign-wine-tree.sh`, shared by
   both, fails if the loader lacks its bound Info.plist. The published `wine-cx-26.3.0` is still unsigned until
   rebuilt. The wrapper question itself (why from-source needs it for CEF) is still open.
+- **Steam host groundwork: the wrapper now starts the real webhelper as `steamwebhelper_orig.exe` (2026-10-04).**
+  Wine's alt loader picks the process for a host by the exe name in `argv[1]` of the command line (ntdll
+  `send_to_cx_loader`, `HKCU\Software\CrossOver\UseAltLoader`), and Silo's host is one-shot (accepts the FIRST
+  connection, then becomes that process). Without a wrapper (imported Wine) whitelisting `steamwebhelper` would
+  hand over the right process — steam.exe's first webhelper is the window owner; its children then find the host
+  gone and spawn normally. With the wrapper the wrapper itself (no window) would take the host, and the real one
+  carried the same name. So the wrapper now builds the child's command line with its own real path as argv[0]
+  (Steam's arguments + flags unchanged). Measured in the app: Steam renders; wrapper = `steamwebhelper.exe`, real
+  window owner = `steamwebhelper_orig.exe`, children `steamwebhelper_orig.exe --type=…`. Whitelist per runtime:
+  `steamwebhelper_orig` with a wrapper, `steamwebhelper` without. Must ship in the wine-cx-26.3.0 rebuild.
+  **Why the wrapper is needed (measured):** without it, with the loader signed, Steam is still black — the webhelper
+  runs Chromium's GPU in a separate `--type=gpu-process` (`--use-gl=angle --use-angle=swiftshader-webgl`); the
+  wrapper's real contribution is `--in-process-gpu`. `STEAM_CEF_COMMAND_LINE` (set by `steamEnvironment`) is
+  IGNORED by current Steam — dead code to remove or fix. Why the separate GPU process presents on CrossOver's Wine
+  and not on ours is still open.
 - **✅ Steam throbber on the toolbar button (2026-10-03, verified by the user in the app).** While Steam starts,
   the button plays Steam's own APNG loading animation (`clientui/images/<hash>.png`: 180 frames, 60 fps, 210 px,
   white logo + grey ring + blue arcs) instead of the system spinner. `SteamThrobber` finds it by content (the
