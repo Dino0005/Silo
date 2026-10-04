@@ -59,8 +59,9 @@ struct SteamBottleTests {
         #expect(call.arguments.contains("-cef-in-process-gpu"))           // NOT --single-process
         #expect(call.environment["WINEPREFIX"] == paths.steamBottle.path)
         #expect(call.environment["WINEMSYNC"] == "1")                     // co-residency with games
-        #expect(call.environment["STEAM_CEF_COMMAND_LINE"]?.contains("--use-gl=swiftshader") == true)
-        #expect(call.environment["STEAM_DISABLE_GPU_PROCESS"] == "1")
+        // Removed 2026-10-04 — Steam ignores both (measured); the wrapper carries the flag that matters.
+        #expect(call.environment["STEAM_CEF_COMMAND_LINE"] == nil)
+        #expect(call.environment["STEAM_DISABLE_GPU_PROCESS"] == nil)
         // No WINEDLLOVERRIDES on the Steam launch: the Steam client needs no graphics-backend override
         // (its CEF UI paints via SwiftShader software GL, not GPTK/DXMT).
         #expect(call.environment["WINEDLLOVERRIDES"] == nil)

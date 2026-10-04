@@ -175,7 +175,7 @@ jobs:
           # Metal/window-surface helpers via dlsym — this is what lets GPTK/D3DMetal GAMES present (without
           # it D3D→Metal output is black for layered windows). It is NOT what fixes the Steam *client* CEF
           # UI: that black window is fixed at RUNTIME by forcing CEF onto its SwiftShader software-GL
-          # renderer (STEAM_CEF_COMMAND_LINE + the --in-process-gpu wrapper, see SteamBottle). Set on BOTH
+          # renderer (the --in-process-gpu steamwebhelper wrapper, see SteamBottle). Set on BOTH
           # CFLAGS and CROSSCFLAGS. -O2 restores the optimization an explicit CFLAGS would otherwise drop.
           $ARCH_PREFIX env CFLAGS="-fvisibility=default -O2" CROSSCFLAGS="-fvisibility=default -O2" \
             PKG_CONFIG="$PKG_CONFIG" PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR" PKG_CONFIG_PATH= \

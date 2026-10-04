@@ -6,8 +6,9 @@
 // into the browser process via `--in-process-gpu` — NOT `--single-process`. `--single-process` also collapses
 // Chromium's NETWORK service into one process, which fails under Wine (`WSALookupServiceBegin failed`) and
 // breaks login with "Failed to poll auth session / Transport Error 2"; `--in-process-gpu` keeps the network
-// service separate (and working). These flags pair with `STEAM_CEF_COMMAND_LINE=…--use-gl=swiftshader…` set
-// at launch (see SteamBottle.steamEnvironment); this wrapper is the reliable belt-and-suspenders injector.
+// service separate (and working). This wrapper is the only thing that delivers them: Steam ignores both
+// `STEAM_CEF_COMMAND_LINE` and `STEAM_DISABLE_GPU_PROCESS` (measured 2026-10-04; Silo no longer sets them),
+// and without `--in-process-gpu` the separate GPU process stays black on Silo's own runtime.
 //
 // Silo renames the real `steamwebhelper.exe` → `steamwebhelper_orig.exe` and drops this wrapper in its place.
 // Steam launches the wrapper with its usual arguments; the wrapper re-launches the real binary with the same

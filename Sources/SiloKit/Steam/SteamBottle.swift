@@ -631,8 +631,8 @@ public struct SteamBottle: Sendable {
     /// Apple-Silicon macOS 2026): `-cef-in-process-gpu` folds the GPU into the browser process (NOT
     /// `--single-process`, which also breaks Chromium's network service → login Transport Error), the
     /// `-cef-disable-*` flags force software GL, and `-noverifyfiles -norepairfiles` skip Steam's slow
-    /// self-repair. The real software-GL switch (`--use-gl=swiftshader`) is injected via the wrapper +
-    /// `STEAM_CEF_COMMAND_LINE` (see `steamEnvironment`), since no steam.exe flag carries it.
+    /// self-repair. On Silo's own runtime the flag that matters reaches the webhelper through the wrapper
+    /// (`--in-process-gpu`, see `installWebHelperWrapper`); the imported CrossOver Wine paints without it.
     public static let cefRenderArgs = [
         "-cef-disable-gpu", "-cef-disable-gpu-compositing", "-cef-in-process-gpu",
         "-cef-disable-sandbox", "-no-cef-sandbox", "-noverifyfiles", "-norepairfiles",
@@ -777,25 +777,19 @@ public struct SteamBottle: Sendable {
 
     // MARK: - Helpers
 
-    /// Environment for launching the Steam client — trimmed to what's actually load-bearing (verified
-    /// on-device 2026-06-28). `STEAM_CEF_COMMAND_LINE` forces steamwebhelper's Chromium onto its bundled
-    /// **SwiftShader software GL** (`--use-gl=swiftshader` — confirmed active in the GPU log; the route that
-    /// actually paints under Wine, vs Metal/winemac.drv presentation) with `--in-process-gpu` (NOT
-    /// `--single-process`, which breaks Chromium's network service). The load-bearing flag injection is the
-    /// steamwebhelper wrapper (`installWebHelperWrapper`); this env is the partner that carries SwiftShader.
+    /// Environment for launching the Steam client — only what's load-bearing.
+    ///
+    /// *(Removed 2026-10-04: `STEAM_CEF_COMMAND_LINE` and `STEAM_DISABLE_GPU_PROCESS`, inherited from
+    /// upstream's Vineport recipe. Measured on both runtimes: current Steam ignores them — none of their
+    /// flags reach any steamwebhelper, the GPU process stays separate without the wrapper, and with them unset
+    /// Steam paints exactly as before. What keeps the UI from going black on Silo's own runtime is the
+    /// wrapper's `--in-process-gpu`; CrossOver sets neither variable.)*
+    ///
     /// `WINEMSYNC=1` matches the per-game launch env so Steam + co-hosted games share one wineserver (the
     /// co-residency Steamworks relies on). No `WINEDLLOVERRIDES` here: the Steam client needs no
-    /// graphics-backend override (its CEF UI paints via SwiftShader software GL, not GPTK/DXMT).
+    /// graphics-backend override (its CEF UI paints in software, not through GPTK/DXMT).
     private func steamEnvironment(wine: URL) -> [String: String] {
-        var env = Silo.msyncWineEnvironment(prefix: prefixDir, wine: wine)
-        // Force steamwebhelper's Chromium onto bundled SwiftShader software GL — the route that actually
-        // paints under Wine (the GPU/Metal path black-screens; an experimental GPU path was tried and
-        // removed as it never rendered).
-        env["STEAM_CEF_COMMAND_LINE"] =
-            "--no-sandbox --in-process-gpu --disable-gpu --disable-gpu-compositing "
-            + "--use-gl=swiftshader --disable-software-rasterizer"
-        env["STEAM_DISABLE_GPU_PROCESS"] = "1"
-        return env
+        Silo.msyncWineEnvironment(prefix: prefixDir, wine: wine)
     }
 
     /// Download the Steam installer into the bottle (idempotent — returns the cached `SteamSetup.exe`). The

@@ -63,8 +63,11 @@
   `steamwebhelper_orig` with a wrapper, `steamwebhelper` without. Must ship in the wine-cx-26.3.0 rebuild.
   **Why the wrapper is needed (measured):** without it, with the loader signed, Steam is still black — the webhelper
   runs Chromium's GPU in a separate `--type=gpu-process` (`--use-gl=angle --use-angle=swiftshader-webgl`); the
-  wrapper's real contribution is `--in-process-gpu`. `STEAM_CEF_COMMAND_LINE` (set by `steamEnvironment`) is
-  IGNORED by current Steam — dead code to remove or fix. Why the separate GPU process presents on CrossOver's Wine
+  wrapper's real contribution is `--in-process-gpu`. `STEAM_CEF_COMMAND_LINE` + `STEAM_DISABLE_GPU_PROCESS`
+  (upstream's Vineport recipe, 199bd5c) were IGNORED by current Steam — **removed 2026-10-04 (user)** after a
+  control run on both runtimes with them unset: Steam paints, no separate GPU process, no `STEAM_` var in its env.
+  CrossOver sets neither (nothing in CrossOver.app, crossover.tie or its bottles; it launches bare `steam.exe`).
+  Deliberate divergence from upstream's `SteamBottle.steamEnvironment`. Why the separate GPU process presents on CrossOver's Wine
   and not on ours is still open.
 - **✅ Steam throbber on the toolbar button (2026-10-03, verified by the user in the app).** While Steam starts,
   the button plays Steam's own APNG loading animation (`clientui/images/<hash>.png`: 180 frames, 60 fps, 210 px,

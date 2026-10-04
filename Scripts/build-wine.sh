@@ -120,8 +120,8 @@ rm -rf build install && mkdir build install && cd build
 # Metal/window-surface helpers via dlsym — this is what lets **GPTK/D3DMetal GAMES** present correctly
 # (without it the macOS surface path is broken for layered windows and D3D→Metal output is black). NOTE:
 # this is NOT what fixes the Steam *client* CEF UI — that black window is fixed at RUNTIME by forcing CEF
-# onto its SwiftShader software-GL renderer (STEAM_CEF_COMMAND_LINE + the --in-process-gpu wrapper, see
-# SteamBottle.steamEnvironment), not by Metal presentation. Set on BOTH CFLAGS (Wine's Unix-side .so
+# onto software rendering in the browser process (the --in-process-gpu steamwebhelper wrapper, see
+# SteamBottle.installWebHelperWrapper), not by Metal presentation. Set on BOTH CFLAGS (Wine's Unix-side .so
 # thunks, incl. winemac.so) AND CROSSCFLAGS (the PE-side built-in DLLs). -O2 keeps the optimization an
 # explicit *FLAGS would otherwise drop. gnutls = Wine's schannel TLS (Steam's networking needs it).
 # --with-sdl: build winebus's SDL game-controller backend (dlopens the pinned libSDL2 bundled below). With

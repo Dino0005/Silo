@@ -23,6 +23,11 @@ the commit message says why.
   was in local builds, by one shared script.
 
 ### Changed
+- **Steam is launched without `STEAM_CEF_COMMAND_LINE` and `STEAM_DISABLE_GPU_PROCESS`.** Both came from
+  upstream's Vineport recipe and current Steam ignores them: measured on Silo's own Wine and on an imported
+  CrossOver Wine, with them unset Steam paints exactly as before and no flag of theirs reached any
+  steamwebhelper. The flag that matters, `--in-process-gpu`, is delivered by the webhelper wrapper. A deliberate
+  divergence from upstream.
 - New app icon in Liquid Glass: stacked cards — the two behind in translucent glass — with the play symbol in
   the blue of the Play button, on a diagonal background (graphite in dark mode). Its source is now
   `Resources/AppIcon.icon` (Icon Composer); `build-app.sh` compiles it with `actool` into `Assets.car`, and

@@ -147,7 +147,6 @@ struct SteamBottleViewModelTests {
         #expect(call.detached)
         #expect(call.arguments.first == "explorer")
         #expect(call.arguments.contains("-cef-in-process-gpu"))
-        #expect(call.environment["STEAM_CEF_COMMAND_LINE"]?.contains("--use-gl=swiftshader") == true)
         // Silent on success — no spinner (busy) and no lingering status label; Steam's window is the feedback.
         #expect(vm.status.isEmpty)
         #expect(!vm.busy)
