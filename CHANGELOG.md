@@ -7,7 +7,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.6.6
 
 ### Added
 - **Steam has its own name and icon in the Dock, Mission Control and Stage Manager.** Its window used to belong
@@ -16,11 +16,14 @@ the commit message says why.
   same alt-loader route games use (no games category, so no Game Mode). Behind Silo's webhelper wrapper the
   real helper now starts as `steamwebhelper_orig.exe`, so the wrapper — which owns no window — can't take the
   host. If anything in the hand-over fails, Steam starts as before.
+- **Steam stays behind the game it was started for.** When a game brings Steam up, Steam opens in the
+  background and the game comes to the front; started from the toolbar's Steam button, it comes to the front.
 
 ### Fixed
 - **Silo's own Wine shipped unsigned from CI**, so macOS ignored the Info.plist inside its loader and Stage
   Manager showed Steam's window with no icon at all. The Wine tree is now signed (ad-hoc) in CI as it already
-  was in local builds, by one shared script.
+  was in local builds, by one shared script. `wine-cx-26.3.0` was rebuilt and republished under the same tag
+  (signed, with the new webhelper wrapper): remove it in *Settings → Wine* and install it again once.
 
 ### Changed
 - **Steam is launched without `STEAM_CEF_COMMAND_LINE` and `STEAM_DISABLE_GPU_PROCESS`.** Both came from
