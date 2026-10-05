@@ -3,6 +3,24 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ DLSS through Streamline fixed (2026-10-05, verified by the user on the imported CrossOver Wine).** RESIDENT
+  EVIL requiem and Spider-Man Remastered (Streamline, `sl.interposer.dll`) offered FSR only; NGX-direct titles
+  (Tekken 8, God of War) already had DLSS. Cause: `GraphicsLinker.installGPTKPrefixLoaders` copied GPTK's REAL
+  `nvapi64.dll` / `nvngx-on-metalfx.dll` into the prefix's `system32` — over the placeholder wineboot had made.
+  With that file in system32, Streamline loads nvapi64, `NvAPI_Initialize` fails ("NVAPI failed to initialize"),
+  it unloads nvapi64 + `sl.dlss*` and the game falls back to FSR. CrossOver bottles carry a 1032-byte Wine
+  placeholder there instead; measured (vmmap) that nvapi64 then loads from `lib64/apple_gptk/wine` and stays
+  mapped. Fix: the seed is now `WinePlaceholderDLL.bytes` (built field by field, SHA-256-tested equal to
+  wineboot's), and a real builtin copy left by an earlier Silo is replaced (a native DLL is left alone) — existing
+  bottles convert at their next GPTK launch. Verified: RE9, Spider-Man and an NGX-direct game all offer DLSS.
+  Why the system32 copy breaks NVAPI is inferred, not measured: GPTK's PE carries the "Wine builtin DLL" marker,
+  so Wine likely loads that copy, away from its unix side; nvngx escapes via cxcompatdb's hard-coded
+  `redirect_nvngx_to_d3dmetal`. **Ruled out first, with measurements:** CodeWeavers' Authenticode signature
+  (CrossOver's apple_gptk `nvapi64/dxgi/d3d11/d3d12` = Apple's GPTK 3.0 code + a signature; A/B with the signed
+  copies → still FSR), cxcompatdb per-game rules (self-dumps with `WINEDEBUG=+cxcompatdb,+cxcompatdbdmp`: 169
+  rules, none for RE9/Spider-Man, none about nvapi), and the alt-loader host (`SILO_DISABLE_ALTLOADER=1` → still
+  FSR). **Open:** the same check on the from-source `wine-cx-26.3.0`, which has no cxcompatdb (so no nvngx
+  redirect) — there both shims now load from `lib/wine` through the placeholder.
 - **✅ Silo 0.6.6 RELEASED (2026-10-04)** — tag v0.6.6 (8294b93), release run 37224148637 green, published with
   `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches (4157ce85…), Info.plist says 0.6.6, and it
   carries `Assets.car` (the Liquid Glass icon compiled by actool on the runner) beside `AppIcon.icns`. Contents:

@@ -367,25 +367,35 @@ struct GraphicsLinkerTests {
         #expect(!FileManager.default.fileExists(atPath: wineLib.appendingPathComponent("wine/i386-windows").path))
     }
 
-    @Test("installGPTKPrefixLoaders seeds the NVIDIA shims into system32, nvngx under its plain name")
-    func gptkPrefixLoaders() throws {
-        let tmp = try TempDir(); defer { tmp.cleanup() }
+    /// A PE carrying Wine's builtin marker — what a real GPTK DLL looks like to `WinePlaceholderDLL`.
+    private func builtinPE(_ tag: String) -> Data {
+        var d = Data("MZ".utf8) + Data(count: 0x3e)
+        d += Data("Wine builtin DLL".utf8) + Data(tag.utf8)
+        return d
+    }
+
+    /// GPTK's PE dir with both NVIDIA shims, as real-looking builtins.
+    private func makeGPTKNVIDIAShims(_ tmp: TempDir) throws -> URL {
         let gptkLib = tmp.url.appendingPathComponent("GPTK/lib/wine/x86_64-windows")
         try FileManager.default.createDirectory(at: gptkLib, withIntermediateDirectories: true)
-        FileManager.default.createFile(
-            atPath: gptkLib.appendingPathComponent("nvapi64.dll").path, contents: Data("NVAPI".utf8))
+        try builtinPE("NVAPI").write(to: gptkLib.appendingPathComponent("nvapi64.dll"))
         // GPTK ships the NGX shim under a suffixed, inert name — the prefix needs the plain one.
-        FileManager.default.createFile(
-            atPath: gptkLib.appendingPathComponent("nvngx-on-metalfx.dll").path, contents: Data("NGX".utf8))
+        try builtinPE("NGX").write(to: gptkLib.appendingPathComponent("nvngx-on-metalfx.dll"))
+        return gptkLib
+    }
+
+    @Test("installGPTKPrefixLoaders seeds Wine placeholders for the NVIDIA shims, nvngx under its plain name")
+    func gptkPrefixLoaders() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLib = try makeGPTKNVIDIAShims(tmp)
 
         let prefix = tmp.url.appendingPathComponent("Bottle")
         try linker.installGPTKPrefixLoaders(prefix: prefix, gptkLibDir: gptkLib)
 
+        // Placeholders, not GPTK's real files: a real nvapi64 in system32 breaks Streamline's NVAPI init.
         let system32 = prefix.appendingPathComponent("drive_c/windows/system32")
-        #expect(try String(contentsOf: system32.appendingPathComponent("nvapi64.dll"),
-                           encoding: .utf8) == "NVAPI")
-        #expect(try String(contentsOf: system32.appendingPathComponent("nvngx.dll"),
-                           encoding: .utf8) == "NGX")
+        #expect(try Data(contentsOf: system32.appendingPathComponent("nvapi64.dll")) == WinePlaceholderDLL.bytes)
+        #expect(try Data(contentsOf: system32.appendingPathComponent("nvngx.dll")) == WinePlaceholderDLL.bytes)
         // The suffixed name is NOT what wine looks up, so it has no business in the prefix.
         #expect(!FileManager.default.fileExists(
             atPath: system32.appendingPathComponent("nvngx-on-metalfx.dll").path))
@@ -400,16 +410,49 @@ struct GraphicsLinkerTests {
         let gptkLib = tmp.url.appendingPathComponent("GPTK/lib/wine/x86_64-windows")
         try FileManager.default.createDirectory(at: gptkLib, withIntermediateDirectories: true)
         // Only nvapi64 — an older GPTK with no MetalFX shim at all.
-        FileManager.default.createFile(
-            atPath: gptkLib.appendingPathComponent("nvapi64.dll").path, contents: Data("NVAPI".utf8))
+        try builtinPE("NVAPI").write(to: gptkLib.appendingPathComponent("nvapi64.dll"))
 
         let prefix = tmp.url.appendingPathComponent("Bottle")
         try linker.installGPTKPrefixLoaders(prefix: prefix, gptkLibDir: gptkLib)
         try linker.installGPTKPrefixLoaders(prefix: prefix, gptkLibDir: gptkLib)   // second run: no-op
 
         let system32 = prefix.appendingPathComponent("drive_c/windows/system32")
-        #expect(FileManager.default.fileExists(atPath: system32.appendingPathComponent("nvapi64.dll").path))
+        #expect(try Data(contentsOf: system32.appendingPathComponent("nvapi64.dll")) == WinePlaceholderDLL.bytes)
         #expect(!FileManager.default.fileExists(atPath: system32.appendingPathComponent("nvngx.dll").path))
+    }
+
+    @Test("installGPTKPrefixLoaders replaces the real GPTK copies an earlier Silo seeded with placeholders")
+    func gptkPrefixLoadersReplaceBuiltinCopies() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLib = try makeGPTKNVIDIAShims(tmp)
+        let prefix = tmp.url.appendingPathComponent("Bottle")
+        let system32 = try tmp.makeDir("Bottle/drive_c/windows/system32")
+        // What the old seeding left behind: the real builtins, byte-for-byte GPTK's.
+        try FileManager.default.copyItem(at: gptkLib.appendingPathComponent("nvapi64.dll"),
+                                         to: system32.appendingPathComponent("nvapi64.dll"))
+        try FileManager.default.copyItem(at: gptkLib.appendingPathComponent("nvngx-on-metalfx.dll"),
+                                         to: system32.appendingPathComponent("nvngx.dll"))
+
+        try linker.installGPTKPrefixLoaders(prefix: prefix, gptkLibDir: gptkLib)
+
+        #expect(try Data(contentsOf: system32.appendingPathComponent("nvapi64.dll")) == WinePlaceholderDLL.bytes)
+        #expect(try Data(contentsOf: system32.appendingPathComponent("nvngx.dll")) == WinePlaceholderDLL.bytes)
+    }
+
+    @Test("installGPTKPrefixLoaders leaves a native DLL in system32 alone")
+    func gptkPrefixLoadersKeepNativeDLL() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLib = try makeGPTKNVIDIAShims(tmp)
+        let prefix = tmp.url.appendingPathComponent("Bottle")
+        let system32 = try tmp.makeDir("Bottle/drive_c/windows/system32")
+        // A Windows DLL with no Wine marker — not ours, not wineboot's.
+        let native = Data("MZ".utf8) + Data(count: 0x3e) + Data("This program cannot be run in DOS".utf8)
+        try native.write(to: system32.appendingPathComponent("nvapi64.dll"))
+
+        try linker.installGPTKPrefixLoaders(prefix: prefix, gptkLibDir: gptkLib)
+
+        #expect(try Data(contentsOf: system32.appendingPathComponent("nvapi64.dll")) == native)
+        #expect(try Data(contentsOf: system32.appendingPathComponent("nvngx.dll")) == WinePlaceholderDLL.bytes)
     }
 
     @Test("installDXMTPrefixLoaders seeds winemetal.dll into the prefix per ABI (x86_64→system32, i386→syswow64)")

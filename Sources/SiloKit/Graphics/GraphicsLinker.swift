@@ -322,30 +322,39 @@ public struct GraphicsLinker: Sendable {
     /// path and the `=b` override never gets the chance to load the builtin.
     ///
     /// A CrossOver-derived runtime carries both from the moment it's imported, so `wineboot` DOES create the
-    /// stubs and the bridge works without this (measured: Tekken 8 has DLSS active). This is insurance for
-    /// the runtime that isn't CrossOver's — one built by `build-wine.sh`, or a future one that stops
-    /// shipping them.
+    /// stubs there. This is insurance for the runtime that isn't CrossOver's — one built by `build-wine.sh`,
+    /// or a future one that stops shipping them.
+    ///
+    /// What goes in is a Wine **placeholder** (`WinePlaceholderDLL`), exactly what `wineboot` would have made —
+    /// never the real GPTK file. Measured 2026-10-05 on RESIDENT EVIL requiem: with GPTK's real `nvapi64.dll`
+    /// in `system32` (what this used to copy, over wineboot's own stub), Streamline loads nvapi64, gets a
+    /// failed `NvAPI_Initialize`, unloads it and the game offers FSR only; with the placeholder, nvapi64
+    /// loads from the runtime's GPTK tree, stays loaded and DLSS is offered — as in CrossOver, whose bottles
+    /// carry the same placeholder. A real builtin copy left by an earlier Silo is therefore replaced; a file
+    /// that is neither (a native DLL someone put there) is left alone.
     ///
     /// GPTK is 64-bit only (Apple ships no i386 D3DMetal), so `system32` alone — no `syswow64` twin, unlike
-    /// the dual-ABI DXMT seed. `nvngx` comes from the `-on-metalfx` shim and lands under its plain name,
-    /// matching the rename `copyModules` performs in the runtime tree. Idempotent, and a no-op for a module
-    /// this GPTK doesn't ship.
+    /// the dual-ABI DXMT seed. `nvngx` is seeded when GPTK ships the `-on-metalfx` shim, under the plain name
+    /// `copyModules` gives it in the runtime tree. Idempotent, and a no-op for a module this GPTK doesn't ship.
     ///
     /// - Parameters:
     ///   - prefix: the game's Wine prefix (its `drive_c/windows/system32` is seeded).
     ///   - gptkLibDir: GPTK's PE module dir (`<gptk>/lib/wine/x86_64-windows`).
     public func installGPTKPrefixLoaders(prefix: URL, gptkLibDir: URL) throws {
         let system32 = prefix.appendingPathComponent("drive_c/windows/system32")
-        // source file name → the name it has to resolve under inside the prefix.
+        // source file name in GPTK → the name it has to resolve under inside the prefix.
         let seeds = [("nvapi64.dll", "nvapi64.dll"), ("nvngx-on-metalfx.dll", "nvngx.dll")]
         for (sourceName, destName) in seeds {
-            let src = gptkLibDir.appendingPathComponent(sourceName)
-            guard fileManager.fileExists(atPath: src.path) else { continue }   // this GPTK doesn't ship it
+            guard fileManager.fileExists(atPath: gptkLibDir.appendingPathComponent(sourceName).path)
+            else { continue }   // this GPTK doesn't ship it
             let dst = system32.appendingPathComponent(destName)
-            if fileManager.contentsEqual(atPath: src.path, andPath: dst.path) { continue }   // already placed
+            if let existing = fileManager.contents(atPath: dst.path),
+               !WinePlaceholderDLL.isBuiltin(existing) {
+                continue   // already a placeholder, or a native DLL that isn't ours to replace
+            }
             try fileManager.createDirectory(at: system32, withIntermediateDirectories: true)
             if fileManager.fileExists(atPath: dst.path) { try fileManager.removeItem(at: dst) }
-            try fileManager.copyItem(at: src, to: dst)
+            try WinePlaceholderDLL.bytes.write(to: dst)
         }
     }
 
