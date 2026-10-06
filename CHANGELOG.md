@@ -7,6 +7,17 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## 0.6.7
+
+### Fixed
+- **DLSS in games that request it through NVIDIA Streamline** (RESIDENT EVIL requiem, Marvel's Spider-Man
+  Remastered…), which offered FSR only. Silo copied GPTK's real `nvapi64.dll` into the bottle's `system32`, over
+  the placeholder Wine had made; with it there, Streamline's NVAPI initialisation failed and it dropped DLSS.
+  `system32` now gets a Wine placeholder for `nvapi64` — like CrossOver's bottles — and keeps the real NGX shim
+  for `nvngx`, which NGX reads itself. Games that call NGX directly (TEKKEN 8, God of War) keep DLSS. Existing
+  bottles are repaired at their next launch with GPTK. Verified with Silo's own Wine and with a Wine imported
+  from CrossOver.
+
 ## 0.6.6
 
 ### Added
