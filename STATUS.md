@@ -3,6 +3,13 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Silo 0.6.7 RELEASED (2026-10-06)** — tag v0.6.7 (b2993ab), release run 37501380247 green on its 2nd attempt,
+  published with `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches (fada8ba3…), Info.plist says
+  0.6.7, `Assets.car` present; the site redeployed after the release (pages run 37502430410) and shows 0.6.7.
+  Contents: the DLSS-through-Streamline fix below. Attempt 1 failed the test gate on a timing flake, NOT the
+  change: GraphicsFallbackTests "a chatty log does not saturate the main actor" (`elapsed < .seconds(2)` around a
+  50 ms sleep) exceeded 2 s on the CI runner under the full parallel suite; re-run of the failed job passed.
+  Second known flaky timing test, next to GameLibraryViewModel's in-progress status one.
 - **✅ DLSS through Streamline fixed (2026-10-05, verified by the user on BOTH Wine kinds).** RESIDENT EVIL requiem
   and Spider-Man Remastered (Streamline, `sl.interposer.dll`) offered FSR only; NGX-direct titles (Tekken 8, God
   of War) already had DLSS. Cause: `GraphicsLinker.installGPTKPrefixLoaders` copied GPTK's REAL `nvapi64.dll`
