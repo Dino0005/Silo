@@ -22,8 +22,9 @@
   `-on-metalfx` shim, as before. A first cut seeded a placeholder for both: fine on the imported Wine (its
   cxcompatdb redirects `system32\nvngx.dll` to D3DMetal's file — `redirect_nvngx_to_d3dmetal`) but on the
   from-source `wine-cx-26.3.0` NGX read the placeholder and refused it ("failed to load NGXCore: -2146885623",
-  0x80092009, seen via `WINEDEBUG=+debugstr`). Final state verified: RE9 + Tekken 8 offer DLSS on wine-cx-26.3.0
-  AND on the imported wine-crossover-26.3 (Spider-Man too, on the first cut). Existing bottles self-repair at
+  0x80092009, seen via `WINEDEBUG=+debugstr`). Final state verified by the user: RE9, Spider-Man and Tekken 8
+  offer DLSS on wine-cx-26.3.0 AND on the imported wine-crossover-26.3, with GPTK 3.0 — and again on 2026-10-06
+  with GPTK 4.0 beta 2 (all three DLSS in their graphics settings). Existing bottles self-repair at
   their next GPTK launch. Why the real nvapi64 breaks NVAPI is inferred, not measured (GPTK's PE carries the "Wine
   builtin DLL" marker, so Wine likely loads that copy, away from its unix side).
   **Ruled out first, with measurements:** CodeWeavers' Authenticode signature (CrossOver's apple_gptk
