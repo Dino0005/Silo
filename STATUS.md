@@ -16,6 +16,16 @@
   "Set input hook"; `controller.txt` "Queueing activation for controller: 0 app: 544750"; the Swift patch of the
   real file is byte-identical to the hand-patched one tested. A future GPTK build won't match → unpatched (Steam
   Input dead again) until its fragments are re-derived. Diagnosis kept below.
+  **Verified by the user on BOTH Wine kinds (2026-10-07):** wine-cx-26.3.0 → SC6 (Steam Input), Tekken 8,
+  Spider-Man, RE requiem all run, DLSS offered, `controller.txt` activation for each. Imported wine-crossover-26.3
+  (GPTK 4 overlaid for the first time by this build) → both `lib/wine` and `lib64/apple_gptk` dxgi.dll patched
+  (hash equal to the from-source one); SC6, Tekken 8, Spider-Man OK with DLSS; RE9's FIRST launch stayed black
+  at 100% CPU (MTLCompilerService idle), the second launch ran fine with DLSS — one-off first start on the new
+  GPTK, not the patch. RE9's `steamerrorreporter64.exe -pid=<game>` ~13 s after start is normal (exit 0, seen
+  2026-10-05 under GPTK 3 too). Side note from the user, NOT caused by this: switching Wine kind or Silo version
+  drops some games to 1280×800; RE9's `config.ini` stores `[Render/Adapter]` (Description "AMD Compatibility
+  Mode", VendorId 0x10DE, DeviceId 26287) + Wine's mode list — hypothesis (unmeasured): the game resets its
+  graphics settings when the reported adapter differs between the two Wines/versions.
 - **🔎 Steam Input (and the Steam overlay) dead under GPTK 4.0 beta 2 — diagnosis (2026-10-07).**
   Reported on SoulCalibur VI + DualSense: Steam Input works with GPTK 3, not with GPTK 4 (same bottle).
   Measured from Steam's own logs: `controller.txt` shows "Queueing activation for controller: 0 app: <game>"
