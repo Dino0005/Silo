@@ -3,6 +3,16 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Silo 0.6.8 RELEASED (2026-10-07)** — tag v0.6.8 (d12b082), release run 37665887220 green (app, site,
+  Discord notify), published with `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches
+  (4eb95f58…), Info.plist says 0.6.8, `Assets.car` present, signature valid, `SteamOverlayDXGIPatch` in the
+  binary; the site shows 0.6.8 (EN + IT). Contents: the GPTK 4 Steam Input / overlay fix below.
+  The first run (37664605956) failed the test gate twice on the timing test "a chatty log does not saturate the
+  main actor" (3.8 s and 3.2 s against a 2 s bound, unrelated CI load — the same flake as 0.6.7's attempt 1).
+  Fixed instead of re-run: it now counts off-main scans (`GraphicsFallbackMonitor.scansPerformed`, ≤ one per
+  `minimumCheckInterval` during the flood) rather than timing the main actor; the other known flake
+  (GameLibraryViewModel "An in-progress status stays up…", fixed 200 ms sleep) now polls with a bound. Six full
+  local runs green. The v0.6.8 tag (no release had been published from it) was moved to the fixed commit.
 - **✅ FIXED (2026-10-07, verified by the user on SoulCalibur VI + DualSense, GPTK 4 beta 2, wine-cx-26.3.0):**
   `SteamOverlayDXGIPatch` + `GraphicsLinker.patchDXGIForSteamOverlay`. GPTK 4's `dxgi.dll` `DllMain` fills
   `dxgi_jump_table` with `jmp [rip+2]` thunks to D3DMetal's unix-side code; the overlay follows them to memory
