@@ -127,6 +127,66 @@ struct GraphicsLinkerTests {
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("lib64").path))
     }
 
+    // MARK: - Steam-overlay patch of GPTK 4's dxgi.dll
+
+    @Test("overlayGPTK patches the runtime's copy of GPTK 4's dxgi.dll for the Steam overlay — never GPTK's own file")
+    func overlayPatchesDXGIForSteamOverlay() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLibDir = try makeGPTK(tmp, modules: ["d3d11.dll", "dxgi.dll"])
+        let original = SteamOverlayDXGIPatchTests.fakeDXGI()
+        try original.write(to: gptkLibDir.appendingPathComponent("dxgi.dll"))
+        let wine = try makeWine(tmp)
+        let root = wine.deletingLastPathComponent().deletingLastPathComponent()
+
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: gptkLibDir)
+
+        let overlaid = try Data(contentsOf: root.appendingPathComponent("lib/wine/x86_64-windows/dxgi.dll"))
+        #expect(SteamOverlayDXGIPatch.state(of: overlaid) == .patched)
+        #expect(try Data(contentsOf: gptkLibDir.appendingPathComponent("dxgi.dll")) == original)
+        // A second pass leaves it patched (and the d3d11 witness still matches).
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: gptkLibDir)
+        #expect(SteamOverlayDXGIPatch.state(of: try Data(contentsOf:
+            root.appendingPathComponent("lib/wine/x86_64-windows/dxgi.dll"))) == .patched)
+    }
+
+    @Test("a runtime overlaid before the patch existed self-repairs on the next overlay, apple_gptk tree included")
+    func overlayPatchesDXGISelfRepairs() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLibDir = try makeGPTK(tmp, modules: ["d3d11.dll", "dxgi.dll"])
+        let original = SteamOverlayDXGIPatchTests.fakeDXGI()
+        try original.write(to: gptkLibDir.appendingPathComponent("dxgi.dll"))
+        let wine = try makeWine(tmp)
+        let root = wine.deletingLastPathComponent().deletingLastPathComponent()
+        let appleWin = root.appendingPathComponent("lib64/apple_gptk/wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: appleWin, withIntermediateDirectories: true)
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: gptkLibDir)
+
+        // What an older Silo left: both trees current (witness matches) but carrying the unpatched dxgi.dll.
+        let libDXGI = root.appendingPathComponent("lib/wine/x86_64-windows/dxgi.dll")
+        let appleDXGI = appleWin.appendingPathComponent("dxgi.dll")
+        try original.write(to: libDXGI)
+        try original.write(to: appleDXGI)
+
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: gptkLibDir)
+        #expect(SteamOverlayDXGIPatch.state(of: try Data(contentsOf: libDXGI)) == .patched)
+        #expect(SteamOverlayDXGIPatch.state(of: try Data(contentsOf: appleDXGI)) == .patched)
+    }
+
+    @Test("a dxgi.dll the patch doesn't target (GPTK 3, any other build) is overlaid byte-for-byte")
+    func overlayLeavesOtherDXGIAlone() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let gptkLibDir = try makeGPTK(tmp, modules: ["d3d11.dll", "dxgi.dll"])
+        try SteamOverlayDXGIPatchTests.fakeDXGI(imageSize: 0x0101_6000)
+            .write(to: gptkLibDir.appendingPathComponent("dxgi.dll"))
+        let wine = try makeWine(tmp)
+        let root = wine.deletingLastPathComponent().deletingLastPathComponent()
+
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: gptkLibDir)
+        #expect(FileManager.default.contentsEqual(
+            atPath: root.appendingPathComponent("lib/wine/x86_64-windows/dxgi.dll").path,
+            andPath: gptkLibDir.appendingPathComponent("dxgi.dll").path))
+    }
+
     @Test("overlayGPTK is idempotent — a second call is a no-op and does not throw")
     func overlayIdempotent() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

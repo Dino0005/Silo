@@ -3,7 +3,20 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
-- **🔎 Steam Input (and the Steam overlay) dead under GPTK 4.0 beta 2 — diagnosed, not fixed (2026-10-07).**
+- **✅ FIXED (2026-10-07, verified by the user on SoulCalibur VI + DualSense, GPTK 4 beta 2, wine-cx-26.3.0):**
+  `SteamOverlayDXGIPatch` + `GraphicsLinker.patchDXGIForSteamOverlay`. GPTK 4's `dxgi.dll` `DllMain` fills
+  `dxgi_jump_table` with `jmp [rip+2]` thunks to D3DMetal's unix-side code; the overlay follows them to memory
+  Wine has no view for. The patch (WineForge's fragments — Radim Veselý, LGPL-2.1, `dlls/ntdll/pe_patches.c`,
+  commit a05564cf — 10 byte fragments in the generator) makes the thunks `mov rax, imm64; jmp rax`, which the
+  overlay hooks inside dxgi.dll. WineForge patches in memory from ntdll; Silo patches its OWN overlaid copy at
+  overlay time (lib/ and lib64/apple_gptk, also on the witness-matched path so existing runtimes self-repair),
+  so it covers both Wine kinds with no Wine rebuild. Byte-exact gate: `SizeOfImage == 0x01025000` and every
+  fragment reading its original bytes — GPTK 3 and any other dxgi.dll are untouched; GPTK's own file never is.
+  Measured after the fix: "IWrapDXGIFactory1::CreateSwapChain called" → "Hooking vtable for swap chain" →
+  "Set input hook"; `controller.txt` "Queueing activation for controller: 0 app: 544750"; the Swift patch of the
+  real file is byte-identical to the hand-patched one tested. A future GPTK build won't match → unpatched (Steam
+  Input dead again) until its fragments are re-derived. Diagnosis kept below.
+- **🔎 Steam Input (and the Steam overlay) dead under GPTK 4.0 beta 2 — diagnosis (2026-10-07).**
   Reported on SoulCalibur VI + DualSense: Steam Input works with GPTK 3, not with GPTK 4 (same bottle).
   Measured from Steam's own logs: `controller.txt` shows "Queueing activation for controller: 0 app: <game>"
   ~15 s after every game start on 2026-10-05 (GPTK 3), and for NO game since `wine-cx-26.3.0` got GPTK 4

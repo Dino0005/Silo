@@ -82,7 +82,12 @@ public struct GraphicsLinker: Sendable {
                                  gptkUnixDir: gptkUnixDir, gptkExternal: gptkExternal)
 
         // Idempotent: if a witness module is already byte-identical, the runtime carries THIS GPTK — skip.
-        if witnessMatches(modules, in: wineWinDir) { return }
+        // The Steam-overlay patch runs first so a runtime overlaid before it existed self-repairs (dxgi.dll is
+        // never the witness while d3d11.dll ships, so patching it doesn't defeat the check).
+        if witnessMatches(modules, in: wineWinDir) {
+            try patchDXGIForSteamOverlay(in: wineWinDir)
+            return
+        }
 
         try fileManager.createDirectory(at: wineExternal, withIntermediateDirectories: true)
         // Keep Wine's own copies first (once, on a runtime GPTK hasn't touched yet): the DXMT clone of this
@@ -97,6 +102,17 @@ public struct GraphicsLinker: Sendable {
         // Now that D3DMetal.framework is in lib/external, link it into the unix-modules dir (the pre-witness
         // call above was a no-op on a fresh runtime where the framework didn't exist yet).
         try linkD3DMetalFramework(unixDir: wineUnixDir, externalDir: wineExternal)
+        try patchDXGIForSteamOverlay(in: wineWinDir)
+    }
+
+    /// Apply `SteamOverlayDXGIPatch` to the overlaid `dxgi.dll` in `winDir`, so the Steam overlay — and Steam
+    /// Input, which needs it — can hook GPTK 4's DXGI. Only ever the runtime's copy, never GPTK's own file; a
+    /// no-op for any dxgi.dll the patch doesn't target, or one already patched.
+    func patchDXGIForSteamOverlay(in winDir: URL) throws {
+        let dxgi = winDir.appendingPathComponent("dxgi.dll")
+        guard let data = fileManager.contents(atPath: dxgi.path),
+              let patched = SteamOverlayDXGIPatch.apply(to: data) else { return }
+        try patched.write(to: dxgi, options: .atomic)
     }
 
     /// Overlay the same GPTK modules into a CrossOver-derived runtime's `lib64/apple_gptk` tree.
@@ -124,7 +140,10 @@ public struct GraphicsLinker: Sendable {
         let unixDir = root.appendingPathComponent("wine/x86_64-unix", isDirectory: true)
         let external = root.appendingPathComponent("external", isDirectory: true)
         // Its own witness: this tree can be stale while lib/ is current, and vice versa.
-        if witnessMatches(modules, in: winDir) { return }
+        if witnessMatches(modules, in: winDir) {
+            try patchDXGIForSteamOverlay(in: winDir)
+            return
+        }
 
         for dir in [winDir, unixDir, external] {
             try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -134,6 +153,7 @@ public struct GraphicsLinker: Sendable {
             try replace(item, in: external)
         }
         try linkD3DMetalFramework(unixDir: unixDir, externalDir: external)
+        try patchDXGIForSteamOverlay(in: winDir)
     }
 
     // MARK: - Wine's own modules under the GPTK overlay
