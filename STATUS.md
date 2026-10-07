@@ -3,6 +3,21 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🔎 Steam Input (and the Steam overlay) dead under GPTK 4.0 beta 2 — diagnosed, not fixed (2026-10-07).**
+  Reported on SoulCalibur VI + DualSense: Steam Input works with GPTK 3, not with GPTK 4 (same bottle).
+  Measured from Steam's own logs: `controller.txt` shows "Queueing activation for controller: 0 app: <game>"
+  ~15 s after every game start on 2026-10-05 (GPTK 3), and for NO game since `wine-cx-26.3.0` got GPTK 4
+  (2026-10-06 13:52) — SC6, Tekken 8, 1817070 alike. Cause in `gameoverlay_renderer.txt`: with GPTK 4 the
+  overlay's IDXGIFactory vtable hooks fail ("hook target … covers a non-executable page", "VirtualProtect call
+  failed", `module=non-module-addr`) — the factory methods live at ~0x2_1xxx_xxxx, outside `dxgi.dll`'s mapped
+  range — so `CreateSwapChain` is never intercepted, the overlay never attaches to the swap chain and Steam never
+  activates the game's controller config. Reference (CrossOver TEKKEN 8 bottle, GPTK 3): "IWrapDXGIFactory::
+  CreateSwapChain called" → "Hooking vtable for swap chain" → "Set input hook". Inferred, not measured: GPTK 4's
+  DXGI factory code sits in memory D3DMetal maps itself, which Wine has no view for, so NtProtectVirtualMemory
+  refuses it. Candidate answers (none chosen): per-game GPTK 3 for overlay/Steam-Input titles; a Wine patch that
+  lets VirtualQuery/VirtualProtect cover host-mapped executable regions; wait for/report to Apple.
+  SC6 side note: the game has no PlayStation prompts on PC and its raw-device table in `input.ini` lists the
+  DualShock 4 only, so without Steam Input a DualSense gets scrambled buttons.
 - **✅ Silo 0.6.7 RELEASED (2026-10-06)** — tag v0.6.7 (b2993ab), release run 37501380247 green on its 2nd attempt,
   published with `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches (fada8ba3…), Info.plist says
   0.6.7, `Assets.car` present; the site redeployed after the release (pages run 37502430410) and shows 0.6.7.
