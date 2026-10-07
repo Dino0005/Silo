@@ -6,7 +6,7 @@
 - **✅ FIXED (2026-10-07, verified by the user on SoulCalibur VI + DualSense, GPTK 4 beta 2, wine-cx-26.3.0):**
   `SteamOverlayDXGIPatch` + `GraphicsLinker.patchDXGIForSteamOverlay`. GPTK 4's `dxgi.dll` `DllMain` fills
   `dxgi_jump_table` with `jmp [rip+2]` thunks to D3DMetal's unix-side code; the overlay follows them to memory
-  Wine has no view for. The patch (WineForge's fragments — Radim Veselý, LGPL-2.1, `dlls/ntdll/pe_patches.c`,
+  Wine has no view for. The patch (WineForge's fragments — Radim Veselý (Alien4042x), LGPL-2.1, `dlls/ntdll/pe_patches.c`,
   commit a05564cf — 10 byte fragments in the generator) makes the thunks `mov rax, imm64; jmp rax`, which the
   overlay hooks inside dxgi.dll. WineForge patches in memory from ntdll; Silo patches its OWN overlaid copy at
   overlay time (lib/ and lib64/apple_gptk, also on the witness-matched path so existing runtimes self-repair),

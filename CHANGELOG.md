@@ -16,8 +16,9 @@ the commit message says why.
   macOS-side code; the overlay followed them into memory Wine doesn't know, failed to hook, and never attached
   — and Steam Input waits for the overlay. Silo now patches its own copy of that `dxgi.dll` when it installs
   GPTK into a runtime, so the thunks jump the same way in a form the overlay hooks in place. The fix is
-  [WineForge](https://github.com/Alien4042x/WineForge)'s (Radim Veselý, LGPL-2.1), which applies it in memory
-  from Wine's ntdll; Silo's version needs no Wine rebuild, so it covers a Wine imported from CrossOver too.
+  [WineForge](https://github.com/Alien4042x/WineForge)'s, by Radim Veselý (Alien4042x on GitHub, LGPL-2.1),
+  which applies it in memory from Wine's ntdll; Silo's version needs no Wine rebuild, so it covers a Wine
+  imported from CrossOver too.
   Byte-exact: only GPTK 4.0 beta 2's `dxgi.dll` is touched, GPTK's own file never is, and existing runtimes
   are fixed at the next launch. Verified with Silo's own Wine and with a Wine imported from CrossOver
   (SoulCalibur VI with Steam Input; TEKKEN 8, Spider-Man and RESIDENT EVIL requiem with DLSS).

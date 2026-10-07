@@ -11,11 +11,11 @@ import Foundation
 ///
 /// The fix rewrites the generator so each thunk is `mov rax, imm64; jmp rax` instead — same jump, but one the
 /// overlay can't follow, so it hooks the thunk inside `dxgi.dll` itself. `rax` is volatile at a Win64 call
-/// boundary, so nothing observable changes. The fragments are WineForge's (Radim Veselý, LGPL-2.1,
-/// `dlls/ntdll/pe_patches.c`, "launcher-compat/steam-overlay-d3dmetal-thunks-v2"), which applies them in memory
-/// from ntdll; Silo applies them to its own copy of the file at overlay time instead, so the fix holds on both
-/// Wine kinds (the imported CrossOver Wine has no WineForge ntdll) with no Wine rebuild. Verified on SoulCalibur VI
-/// + DualSense: swap chain hooked, input hook set, Steam Input working.
+/// boundary, so nothing observable changes. The fragments are WineForge's (Radim Veselý, GitHub Alien4042x,
+/// LGPL-2.1, `dlls/ntdll/pe_patches.c`, "launcher-compat/steam-overlay-d3dmetal-thunks-v2"), which applies them
+/// in memory from ntdll; Silo applies them to its own copy of the file at overlay time instead, so the fix holds
+/// on both Wine kinds (the imported CrossOver Wine has no WineForge ntdll) with no Wine rebuild. Verified on
+/// SoulCalibur VI + DualSense: swap chain hooked, input hook set, Steam Input working.
 ///
 /// Byte-exact: only an image of `SizeOfImage == 0x01025000` whose every fragment reads its original bytes is
 /// patched. Any other `dxgi.dll` (GPTK 3, a future GPTK, Wine's or DXMT's own) is left alone.
