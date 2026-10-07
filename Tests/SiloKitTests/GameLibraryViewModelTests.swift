@@ -1016,7 +1016,9 @@ struct GameLibraryViewModelTests {
         try await Task.sleep(for: .milliseconds(200))
         #expect(vm.statusMessage == "Starting Steam…")
         vm.setStatus("Steam is open.")
-        try await Task.sleep(for: .milliseconds(200))
+        // Polled, bounded: under the full parallel suite the dismissal can land well after its 50 ms, and a
+        // fixed 200 ms sleep failed intermittently. Only a status that never clears fails this.
+        for _ in 0..<300 where vm.statusMessage != nil { try await Task.sleep(for: .milliseconds(10)) }
         #expect(vm.statusMessage == nil)
     }
 

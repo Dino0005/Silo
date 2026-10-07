@@ -101,7 +101,10 @@ struct GraphicsFallbackTests {
     /// The hang of 2026-09-24: a game logging through wine's trace channels writes continuously, the
     /// kqueue source fires per write, and every event used to enqueue a 64 KB case-insensitive scan on the
     /// main actor. The queue grew without bound and Silo spun at 98 % CPU. The scan now runs off the main
-    /// actor, coalesced — so the main actor must stay responsive under a flood of writes.
+    /// actor, coalesced to one per `minimumCheckInterval` — so a flood of writes costs a handful of scans.
+    ///
+    /// Counted, not timed: this used to time a main-actor round trip (< 2 s), which on the CI runner, under
+    /// the full parallel suite, took 3–4 s from unrelated load and failed the 0.6.7 and 0.6.8 release gates.
     @MainActor
     @Test("a chatty log does not saturate the main actor")
     func monitorKeepsTheMainActorResponsiveUnderAFloodOfWrites() async throws {
@@ -111,21 +114,27 @@ struct GraphicsFallbackTests {
         monitor.start(url: log, backend: .gptk) { }
         defer { monitor.stop() }
 
+        let writes = 3000
+        let started = ContinuousClock.now
         let writer = Task.detached {
             guard let h = try? FileHandle(forWritingTo: log) else { return }
             h.seekToEndOfFile()
             let line = Data("00e8:trace:loaddll:build_module Loaded builtin module\n".utf8)
-            for _ in 0..<3000 { h.write(line) }
+            for _ in 0..<writes { h.write(line) }
             try? h.close()
         }
-
-        // A main-actor round trip during the flood: with the old code this waited on thousands of queued
-        // scans. The bound is generous on purpose — the failure it guards against was 17 minutes long.
-        let started = ContinuousClock.now
-        try await Task.sleep(for: .milliseconds(50))
-        let elapsed = ContinuousClock.now - started
         await writer.value
-        #expect(elapsed < .seconds(2))
+        let flood = ContinuousClock.now - started
+        // Let the trailing check land (polled, bounded — no fixed sleep to tune).
+        for _ in 0..<200 where monitor.scansPerformed == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        try await Task.sleep(for: GraphicsFallbackMonitor.minimumCheckInterval * 2)
+
+        // At most one scan per interval while the flood lasted, plus the leading and trailing ones; the old
+        // code ran one per kqueue event. However slow the runner, the ratio holds.
+        let bound = Int(flood / GraphicsFallbackMonitor.minimumCheckInterval) + 3
+        #expect(monitor.scansPerformed >= 1)          // the writes were noticed at all
+        #expect(monitor.scansPerformed <= bound)
+        #expect(monitor.scansPerformed < writes / 10)
     }
 
     /// Coalescing must not cost detection: a fallback line written after a burst of noise is still caught.

@@ -84,6 +84,11 @@ final class GraphicsFallbackMonitor {
     /// Whether a kqueue watch is currently armed (test/introspection hook).
     var isObserving: Bool { watch != nil }
 
+    /// Off-main log scans run since `start` (test/introspection hook): proves the coalescing without timing
+    /// the main actor, which a loaded CI runner can't do reliably.
+    var scansPerformed: Int { scans.value }
+    private let scans = LockedBox(0)
+
     /// The shortest gap between two log inspections.
     ///
     /// **This bound is load-bearing, not tidiness** (measured 2026-09-24): the kqueue source fires on
@@ -113,6 +118,8 @@ final class GraphicsFallbackMonitor {
         // reference.
         let backend = backend
         let pending = LockedBox(false)
+        let scans = scans
+        scans.set(0)
         watch = FileWatch(url: url) { [weak self] in
             // Coalesce (see `minimumCheckInterval`) and classify off the main actor — a 64 KB tail
             // scanned case-insensitively, i.e. Unicode folding per character, is work that must never
@@ -130,6 +137,7 @@ final class GraphicsFallbackMonitor {
                 // Clear BEFORE reading, so a write arriving during the scan schedules the next check
                 // rather than being swallowed by it.
                 pending.set(false)
+                scans.mutate { $0 += 1 }
                 let status = GraphicsFallback.classify(url.tailString(), backend: backend)
                 guard status != .unknown else { return }
                 Task { @MainActor in self?.apply(status) }
