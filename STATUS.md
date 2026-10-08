@@ -3,6 +3,25 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🧪 NotProton on Silo's Wine (2026-10-08) — Wine patch 0003 + a NotProton fork, awaiting a runtime build and
+  an on-device Steam test.** NotProton (github.com/NotProtonNot/NotProton, v1.1.0, GPL-3.0) runs Windows games from
+  the macOS Steam client via a port of Valve's lsteamclient, and makes CrossOver's ntdll load it by patching the
+  binary at offsets pinned per CrossOver build (it identifies a build by its loader's SHA256). Silo's from-source
+  Wine never matches those hashes, so instead `Scripts/patches/0003-ntdll-lsteamclient-redirect.patch` does the same
+  redirection in source (build_module: steamclient64 / steamclient / 32-bit gameoverlayrenderer → lsteamclient
+  trampolines + DllMain/imports skipped + steamclient.dll's ImageBase restored — Proton's logic, NotProton's module
+  set). **Opt-in: only with `SILO_LSTEAMCLIENT=1`, which Silo never sets** — Silo launches are unchanged.
+  Measured on a clone of wine-cx-26.3.0 with the rebuilt ntdll (both ABIs, fake steamclient/lsteamclient DLLs):
+  unset/"0" → stock, "1" → redirected (a non-shared export untouched), "1" without lsteamclient.dll → ERR line +
+  stock load. The fork lives in `~/Downloads/Progetti/NotProton` (branch `silo-wine`, remote `upstream` =
+  NotProtonNot; no GitHub fork created yet): a "Silo" section next to "CrossOver" lists `Silo/Runtimes/wine-*`
+  trees (not CrossOver imports), recognises patch 0003 by the UTF-16 `SILO_LSTEAMCLIENT` in both ntdll.dll, and
+  sets one up as its own Steam tool (`notproton-silo-<ver>[-dxmt]`) with no ntdll patch, no hash pin and no
+  CrossOver licence check; the run script exports `SILO_LSTEAMCLIENT=1` and Silo's per-runtime graphics env
+  (DXMT if winemetal.so, else GPTK with libd3dshared + DYLD fallbacks, else wined3d; GStreamer). Fork tests: 485/485
+  with the v1.1.0 release payload staged, + `make silocheck`. **Next:** a Wine runtime built with 0003 (none
+  published yet; the current wine-cx-26.3.0 shows as "built without NotProton support"), then a game through the
+  fork's NotProton.app.
 - **✅ Silo 0.6.8 RELEASED (2026-10-07)** — tag v0.6.8 (d12b082), release run 37665887220 green (app, site,
   Discord notify), published with `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches
   (4eb95f58…), Info.plist says 0.6.8, `Assets.car` present, signature valid, `SteamOverlayDXGIPatch` in the

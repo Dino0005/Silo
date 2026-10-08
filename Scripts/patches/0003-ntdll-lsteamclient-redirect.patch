@@ -1,0 +1,208 @@
+Silo patch 0003 — ntdll: route steamclient to lsteamclient (opt-in, SILO_LSTEAMCLIENT=1)
+
+Why: NotProton (github.com/NotProtonNot/NotProton) runs Windows Steam games from the macOS Steam client
+through a port of Valve's lsteamclient — the bridge from a game's Windows steam_api to the native client.
+For that to work, a game loading steamclient64.dll / steamclient.dll must get lsteamclient.dll's exports
+instead. Proton does this in its loader (build_module); NotProton does it by patching CrossOver's binary
+ntdll.dll at hard-coded offsets, which are pinned per CrossOver build. Silo compiles its Wine from source,
+so its ntdll hashes differ from CrossOver's and change on every build — a binary detour can't follow. This
+patch does the same redirection in source, so a Silo runtime needs no binary patching at all. Silo's fork
+of NotProton recognises a runtime carrying this patch from the L"SILO_LSTEAMCLIENT" string in ntdll.dll.
+
+What (PE side, dlls/ntdll/loader.c, build_module, before the imports are fixed up), when the module being
+built is steamclient64.dll (64-bit) or steamclient.dll / gameoverlayrenderer.dll (32-bit, as NotProton's
+i386 detour does):
+  * load lsteamclient.dll (once, cached) along the module's own load path;
+  * point every named export the two DLLs share, and the entry point, at lsteamclient (mov rax/eax ; jmp);
+  * steamclient.dll: put the linked ImageBase back in its header (Steam checks it), as Proton does;
+  * skip the module's own imports and DllMain (LDR_DONT_RESOLVE_REFS + DONT_RESOLVE_DLL_REFERENCES).
+Exports are looked up raw (no forwarder resolution), so nothing else gets loaded from inside build_module.
+
+Inert for Silo: nothing happens unless SILO_LSTEAMCLIENT is exactly "1" — Silo never sets it, and its
+runtimes ship no lsteamclient.dll. With the variable set but no lsteamclient.dll, an ERR line is logged and
+the module loads normally.
+
+Verify (measured 2026-10-08, from-source 26.3.0 runtime, both ABIs): a test exe loading a fake
+steamclient{,64}.dll whose CreateInterface returns 1, next to a fake lsteamclient.dll returning 42 —
+unset or "0" → 1; "1" → 42 with lsteamclient loaded and a non-shared export untouched; "1" without
+lsteamclient.dll → 1 plus the ERR line.
+
+--- a/dlls/ntdll/loader.c
++++ b/dlls/ntdll/loader.c
+@@ -2271,8 +2271,166 @@
+ #endif
+ #ifdef __x86_64__
+ static void apply_fuzzy_binary_patches( WINE_MODREF* wm );
++#endif
++
++/* SILO PATCH 0003: steamclient -> lsteamclient redirection, opt-in through SILO_LSTEAMCLIENT=1.
++ * The same thing Proton's loader does (and NotProton's ntdll detour does to CrossOver's binary). */
++static BOOL use_lsteamclient(void)
++{
++    static int use = -1;
++    WCHAR env[4] = { 0 };
++
++    if (use == -1) use = get_env( L"SILO_LSTEAMCLIENT", env, sizeof(env) ) && env[0] == '1' && !env[1];
++    return use;
++}
++
++/* The module Steam loads that lsteamclient replaces; 32-bit also routes the overlay renderer, as
++ * NotProton's i386 detour does. */
++static BOOL is_lsteamclient_target( const WINE_MODREF *wm, BOOL *is_steamclient32 )
++{
++#ifdef _WIN64
++    static UNICODE_STRING steamclient = RTL_CONSTANT_STRING( L"steamclient64.dll" );
++
++    *is_steamclient32 = FALSE;
++    return RtlEqualUnicodeString( &wm->ldr.BaseDllName, &steamclient, TRUE );
++#else
++    static UNICODE_STRING steamclient = RTL_CONSTANT_STRING( L"steamclient.dll" );
++    static UNICODE_STRING overlay = RTL_CONSTANT_STRING( L"gameoverlayrenderer.dll" );
++
++    *is_steamclient32 = RtlEqualUnicodeString( &wm->ldr.BaseDllName, &steamclient, TRUE );
++    return *is_steamclient32 || RtlEqualUnicodeString( &wm->ldr.BaseDllName, &overlay, TRUE );
++#endif
++}
++
++/* An export's address in the image itself, without following forwarders (which could load more
++ * modules from inside build_module); neither steamclient nor lsteamclient forwards anything. */
++static void *lsteamclient_raw_export( HMODULE module, const char *name )
++{
++    const IMAGE_EXPORT_DIRECTORY *exports;
++    const DWORD *names, *functions;
++    const WORD *ordinals;
++    DWORD size, i;
++
++    if (!(exports = RtlImageDirectoryEntryToData( module, TRUE, IMAGE_DIRECTORY_ENTRY_EXPORT, &size )))
++        return NULL;
++    names = get_rva( module, exports->AddressOfNames );
++    functions = get_rva( module, exports->AddressOfFunctions );
++    ordinals = get_rva( module, exports->AddressOfNameOrdinals );
++    for (i = 0; i < exports->NumberOfNames; i++)
++    {
++        if (strcmp( get_rva( module, names[i] ), name )) continue;
++        if (ordinals[i] >= exports->NumberOfFunctions || !functions[ordinals[i]]) return NULL;
++        return get_rva( module, functions[ordinals[i]] );
++    }
++    return NULL;
++}
++
++/* mov rax/eax, target ; jmp rax/eax */
++static void lsteamclient_write_jump( void *src, void *tgt )
++{
++#ifdef _WIN64
++    static const BYTE mov[] = { 0x48, 0xb8 };
++#else
++    static const BYTE mov[] = { 0xb8 };
+ #endif
++    static const BYTE jmp[] = { 0xff, 0xe0 };
+ 
++    memcpy( src, mov, sizeof(mov) );
++    memcpy( (BYTE *)src + sizeof(mov), &tgt, sizeof(tgt) );
++    memcpy( (BYTE *)src + sizeof(mov) + sizeof(tgt), jmp, sizeof(jmp) );
++}
++
++/* Point every named export of src that lsteamclient also exports, and src's entry point, at
++ * lsteamclient. */
++static void lsteamclient_setup_trampolines( HMODULE src, HMODULE tgt )
++{
++    IMAGE_NT_HEADERS *src_nt = RtlImageNtHeader( src ), *tgt_nt = RtlImageNtHeader( tgt );
++    IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION( src_nt );
++    const IMAGE_EXPORT_DIRECTORY *exports;
++    const DWORD *names;
++    void *addr, *from, *to;
++    SIZE_T size;
++    ULONG old, exp_size;
++    DWORD i;
++
++    for (i = 0; i < src_nt->FileHeader.NumberOfSections; i++)
++    {
++        if (!(sec[i].Characteristics & IMAGE_SCN_MEM_EXECUTE)) continue;
++        addr = get_rva( src, sec[i].VirtualAddress );
++        size = sec[i].Misc.VirtualSize;
++        NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, PAGE_EXECUTE_READWRITE, &old );
++    }
++
++    if ((exports = RtlImageDirectoryEntryToData( src, TRUE, IMAGE_DIRECTORY_ENTRY_EXPORT, &exp_size )))
++    {
++        names = get_rva( src, exports->AddressOfNames );
++        for (i = 0; i < exports->NumberOfNames; i++)
++        {
++            const char *name = get_rva( src, names[i] );
++            if (!(from = lsteamclient_raw_export( src, name ))) continue;
++            if (!(to = lsteamclient_raw_export( tgt, name ))) continue;
++            lsteamclient_write_jump( from, to );
++        }
++    }
++
++    if (src_nt->OptionalHeader.AddressOfEntryPoint && tgt_nt->OptionalHeader.AddressOfEntryPoint)
++        lsteamclient_write_jump( get_rva( src, src_nt->OptionalHeader.AddressOfEntryPoint ),
++                                 get_rva( tgt, tgt_nt->OptionalHeader.AddressOfEntryPoint ) );
++}
++
++/* Steam checks steamclient.dll's header against the image base it was linked at, which relocation
++ * replaced with the address it actually got; put the file's value back. */
++static void lsteamclient_restore_image_base( void *module, IMAGE_NT_HEADERS *nt, const UNICODE_STRING *nt_name )
++{
++    OBJECT_ATTRIBUTES attr;
++    IO_STATUS_BLOCK io;
++    LARGE_INTEGER offset;
++    void *addr = module;
++    SIZE_T size = 0x1000;
++    ULONG old;
++    HANDLE file;
++
++    if (NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, PAGE_READWRITE, &old )) return;
++    InitializeObjectAttributes( &attr, (UNICODE_STRING *)nt_name, OBJ_CASE_INSENSITIVE, 0, NULL );
++    if (!NtOpenFile( &file, GENERIC_READ | SYNCHRONIZE, &attr, &io, FILE_SHARE_READ | FILE_SHARE_DELETE,
++                     FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE ))
++    {
++        offset.QuadPart = (ULONG_PTR)&nt->OptionalHeader.ImageBase - (ULONG_PTR)module;
++        NtReadFile( file, 0, NULL, NULL, &io, &nt->OptionalHeader.ImageBase,
++                    sizeof(nt->OptionalHeader.ImageBase), &offset, NULL );
++        NtClose( file );
++    }
++    addr = module;
++    size = 0x1000;
++    NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size, old, &old );
++}
++
++/* Returns TRUE when the module was routed to lsteamclient, so its own imports and DllMain must be
++ * skipped. Nothing happens unless SILO_LSTEAMCLIENT=1 and an lsteamclient.dll can be loaded, so a
++ * plain Silo launch takes the stock path. */
++static BOOL redirect_to_lsteamclient( LPCWSTR load_path, WINE_MODREF *wm, IMAGE_NT_HEADERS *nt,
++                                      const UNICODE_STRING *nt_name )
++{
++    static HMODULE lsteamclient;
++    UNICODE_STRING name = RTL_CONSTANT_STRING( L"lsteamclient.dll" );
++    BOOL is_steamclient32;
++
++    if (!use_lsteamclient() || !is_lsteamclient_target( wm, &is_steamclient32 )) return FALSE;
++    if (!lsteamclient && LdrLoadDll( load_path, 0, &name, &lsteamclient ))
++    {
++        ERR( "SILO_LSTEAMCLIENT is set but lsteamclient.dll could not be loaded, %s loads normally\n",
++             debugstr_us( &wm->ldr.BaseDllName ) );
++        lsteamclient = NULL;
++        return FALSE;
++    }
++
++    TRACE( "routing %s to lsteamclient %p\n", debugstr_us( &wm->ldr.BaseDllName ), lsteamclient );
++    lsteamclient_setup_trampolines( wm->ldr.DllBase, lsteamclient );
++    if (is_steamclient32) lsteamclient_restore_image_base( wm->ldr.DllBase, nt, nt_name );
++    wm->ldr.Flags |= LDR_DONT_RESOLVE_REFS;
++    return TRUE;
++}
++
+ /*************************************************************************
+  *		build_module
+  *
+@@ -2309,6 +2467,9 @@
+     wm->system = system;
+ 
+     update_load_config( *module );
++
++    /* SILO PATCH 0003 */
++    if (redirect_to_lsteamclient( load_path, wm, nt, nt_name )) flags |= DONT_RESOLVE_DLL_REFERENCES;
+ 
+     /* fixup imports */
+ 
