@@ -3,6 +3,14 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **⚠️ TEKKEN 8 on Metal 4 (GPTK 4 beta 2, wine-cx-26.3.0): black screen, audio on, force quit (2026-10-08).**
+  Same game on Metal 3 is fine. Measured: `Logs/1778820.log` (launch 22:39, `D3DM_MTL4=1`,
+  `D3DM_ENABLE_METALFX=1`) ends ~9 min in with "AGX: exceeded compiled variants footprint limit" then
+  MetalPerformanceShadersGraph `ANERegion.mm:585: failed assertion 'ANE inference operation failed' (Code=-19)`;
+  no DiagnosticReport (user force-quit). Inferred, not measured: the ANE caller is MetalFX (the DLSS→MetalFX
+  bridge) on D3DMetal's Metal 4 path; the assertion killed the render thread while audio carried on. Apple-side
+  (GPTK 4 beta + Metal 4 + MetalFX) — nothing in Silo's path beyond the `D3DM_MTL4` env. Advice given: Metal 3
+  for TEKKEN 8; optional confirmation = Metal 4 with FSR/no upscaler; Feedback Assistant to Apple.
 - **🧪 NotProton on Silo's Wine (2026-10-08) — Wine patch 0003 + a NotProton fork, awaiting a runtime build and
   an on-device Steam test.** NotProton (github.com/NotProtonNot/NotProton, v1.1.0, GPL-3.0) runs Windows games from
   the macOS Steam client via a port of Valve's lsteamclient, and makes CrossOver's ntdll load it by patching the
