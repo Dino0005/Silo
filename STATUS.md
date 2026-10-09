@@ -34,8 +34,12 @@
   tree (6/6). Not published. The fresh tree has no GPTK overlay yet (Silo adds it when the runtime is used), so
   NotProton would run it on wined3d until then. The build first failed in gst-plugins-base: its GL library
   looks `glib-mkenums` up on PATH, which an x86_64 Homebrew used to provide before 113c6c3 — fixed in
-  build-gst-libav.sh by putting the built glib's `$PREFIX/bin` on PATH. **Next:** a game through the fork's
-  NotProton.app (fork now at upstream 1.1.3).
+  build-gst-libav.sh by putting the built glib's `$PREFIX/bin` on PATH. **Verified in Silo by the user
+  (2026-10-09):** TEKKEN 8 and RE9 on wine-cx-26.3.0-np (GPTK now overlaid by Silo), DLSS on both — patch 0003
+  is inert on Silo's own launches. RE9 again dropped its graphics settings after the runtime switch (same as the
+  2026-10-07 note); its `[Render/Adapter]` is unchanged (VendorId 4318, DeviceId 26287), so the "different
+  adapter" hypothesis is weakened — to measure: keep a copy of config.ini, diff after the next switch.
+  **Next:** a game through the fork's NotProton.app (fork now at upstream 1.1.3); NotProton not installed yet.
 - **✅ Silo 0.6.8 RELEASED (2026-10-07)** — tag v0.6.8 (d12b082), release run 37665887220 green (app, site,
   Discord notify), published with `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches
   (4eb95f58…), Info.plist says 0.6.8, `Assets.car` present, signature valid, `SteamOverlayDXGIPatch` in the
