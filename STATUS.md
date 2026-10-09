@@ -42,7 +42,11 @@
   on the first, 1728×1080 on the second), then held: two more launches — from /Applications/Silo.app and from
   dist/Silo.app — left config.ini byte-identical (Resolution=1728x1080), so the app used is not the trigger.
   To measure next time: copy config.ini before and after the first launch on a new runtime.
-  **Next:** a game through the fork's NotProton.app (fork now at upstream 1.1.3); NotProton not installed yet.
+  **✅ Through NotProton too (user, 2026-10-09):** TEKKEN 8 runs with DLSS via the fork's NotProton on
+  wine-cx-26.3.0-np — patch 0003 measured working end to end. Two fork fixes were needed (in the fork's STATUS):
+  build notproton.dylib from the fork (it embeds the run script), and Wine's placeholder for system32 nvapi64
+  (same rule as GraphicsLinker.installGPTKPrefixLoaders). **Next:** GitHub fork + deciding how to publish
+  the 0003 runtime (wine-cx-26.3.0 release exists).
 - **✅ Silo 0.6.8 RELEASED (2026-10-07)** — tag v0.6.8 (d12b082), release run 37665887220 green (app, site,
   Discord notify), published with `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches
   (4eb95f58…), Info.plist says 0.6.8, `Assets.car` present, signature valid, `SteamOverlayDXGIPatch` in the
