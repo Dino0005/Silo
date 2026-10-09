@@ -27,9 +27,15 @@
   sets one up as its own Steam tool (`notproton-silo-<ver>[-dxmt]`) with no ntdll patch, no hash pin and no
   CrossOver licence check; the run script exports `SILO_LSTEAMCLIENT=1` and Silo's per-runtime graphics env
   (DXMT if winemetal.so, else GPTK with libd3dshared + DYLD fallbacks, else wined3d; GStreamer). Fork tests: 485/485
-  with the v1.1.0 release payload staged, + `make silocheck`. **Next:** a Wine runtime built with 0003 (none
-  published yet; the current wine-cx-26.3.0 shows as "built without NotProton support"), then a game through the
-  fork's NotProton.app.
+  with the v1.1.0 release payload staged, + `make silocheck`. **2026-10-09: built locally** with
+  `Scripts/build-wine.sh 26.3.0 wine-cx-26.3.0-np` (patches 0002 + 0003 applied; dist/wine.tar.xz sha256
+  ebbdf1da…, the Sep 29 tarball kept as dist/wine-20260929.tar.xz) and installed as Runtimes/wine-cx-26.3.0-np
+  (`install-local-wine.sh`); both ntdll.dll carry the marker and the fake-DLL test passes again on the installed
+  tree (6/6). Not published. The fresh tree has no GPTK overlay yet (Silo adds it when the runtime is used), so
+  NotProton would run it on wined3d until then. The build first failed in gst-plugins-base: its GL library
+  looks `glib-mkenums` up on PATH, which an x86_64 Homebrew used to provide before 113c6c3 — fixed in
+  build-gst-libav.sh by putting the built glib's `$PREFIX/bin` on PATH. **Next:** a game through the fork's
+  NotProton.app (fork now at upstream 1.1.3).
 - **✅ Silo 0.6.8 RELEASED (2026-10-07)** — tag v0.6.8 (d12b082), release run 37665887220 green (app, site,
   Discord notify), published with `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches
   (4eb95f58…), Info.plist says 0.6.8, `Assets.car` present, signature valid, `SteamOverlayDXGIPatch` in the

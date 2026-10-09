@@ -66,7 +66,10 @@ if [ ! -x "$WORK/tools/bin/nasm" ]; then
   rm -rf nasm && mkdir nasm && tar -xf nasm.tar.xz -C nasm --strip-components=1
   ( cd nasm && ./configure -q --prefix="$WORK/tools" >/dev/null && make -j"$JOBS" -s >/dev/null && make -s install >/dev/null )
 fi
-export PATH="$BISON:$WORK/venv/bin:$WORK/tools/bin:$PATH"
+# $PREFIX/bin: the tools of the glib built below (glib-mkenums etc.). gst-plugins-base's GL library looks
+# glib-mkenums up by name on PATH; it used to come from an x86_64 Homebrew, gone since 113c6c3 (measured
+# 2026-10-09: "Program 'glib-mkenums' not found"), and our own 2.78 is the version that should run anyway.
+export PATH="$BISON:$WORK/venv/bin:$WORK/tools/bin:$PREFIX/bin:$PATH"
 # Only our own prefix is visible to pkg-config — nothing is picked up from Homebrew by accident.
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig" PKG_CONFIG_PATH=
 rm -rf "$PREFIX" && mkdir -p "$PREFIX"
