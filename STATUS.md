@@ -38,7 +38,10 @@
   (2026-10-09):** TEKKEN 8 and RE9 on wine-cx-26.3.0-np (GPTK now overlaid by Silo), DLSS on both — patch 0003
   is inert on Silo's own launches. RE9 again dropped its graphics settings after the runtime switch (same as the
   2026-10-07 note); its `[Render/Adapter]` is unchanged (VendorId 4318, DeviceId 26287), so the "different
-  adapter" hypothesis is weakened — to measure: keep a copy of config.ini, diff after the next switch.
+  adapter" hypothesis is weakened. It reset on the first two launches after the switch (max offered 1680×1050
+  on the first, 1728×1080 on the second), then held: two more launches — from /Applications/Silo.app and from
+  dist/Silo.app — left config.ini byte-identical (Resolution=1728x1080), so the app used is not the trigger.
+  To measure next time: copy config.ini before and after the first launch on a new runtime.
   **Next:** a game through the fork's NotProton.app (fork now at upstream 1.1.3); NotProton not installed yet.
 - **✅ Silo 0.6.8 RELEASED (2026-10-07)** — tag v0.6.8 (d12b082), release run 37665887220 green (app, site,
   Discord notify), published with `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches
