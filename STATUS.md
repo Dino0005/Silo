@@ -45,12 +45,14 @@
   **✅ Through NotProton too (user, 2026-10-09):** TEKKEN 8 runs with DLSS via the fork's NotProton on
   wine-cx-26.3.0-np — patch 0003 measured working end to end. Two fork fixes were needed (in the fork's STATUS):
   build notproton.dylib from the fork (it embeds the run script), and Wine's placeholder for system32 nvapi64
-  (same rule as GraphicsLinker.installGPTKPrefixLoaders). **✅ Published 2026-10-10:** the release
-  `wine-cx-26.3.0` on Dino0005/Silo now carries this build (patches 0002 + 0003; wine.tar.xz sha256 ebbdf1da…,
-  95 396 752 bytes; notes updated). Verified from outside: the public download and its .sha256 both give
-  ebbdf1da… (GitHub's download link served the old file for ~2 min after the swap). The previous asset
-  (sha256 6247197b…, 2026-10-04) is kept in dist/wine-cx-26.3.0-release-20261004.tar.xz for rollback. Same tag,
-  so an existing wine-cx-26.3.0 install does not update itself — reinstall it. **Next:** GitHub fork of NotProton.
+  (same rule as GraphicsLinker.installGPTKPrefixLoaders). **✅ Published 2026-10-10 by CI:** build-wine.yml
+  run 38032345011 (main f6b97e3, crossover 26.3.0, draft=false — a draft run would have turned the published
+  release back into a draft), 1 h 37 min, all green; it republished `wine-cx-26.3.0` (wine.tar.xz sha256
+  e16811d8…, 99 019 456 bytes) and `gst-libav-1.24.4` (7 077 280 bytes). Verified from outside: download matches
+  its .sha256, both ntdll.dll carry the 0003 marker, cfgmgr32 carries 0002. The CI publish resets the release
+  notes, re-added by hand. (Before it, the local build ebbdf1da… had been uploaded by hand; the 2026-10-04 asset,
+  sha256 6247197b…, is kept in dist/wine-cx-26.3.0-release-20261004.tar.xz.) Same tag, so an existing
+  wine-cx-26.3.0 install does not update itself — reinstall it. **Next:** GitHub fork of NotProton.
 - **✅ Silo 0.6.8 RELEASED (2026-10-07)** — tag v0.6.8 (d12b082), release run 37665887220 green (app, site,
   Discord notify), published with `Silo.zip` (3.7 MB) + `.sha256`; the downloaded zip's sha256 matches
   (4eb95f58…), Info.plist says 0.6.8, `Assets.car` present, signature valid, `SteamOverlayDXGIPatch` in the
