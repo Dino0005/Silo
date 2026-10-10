@@ -3485,6 +3485,20 @@
 ## Known follow-ups (non-blocking)
 - DiscoveryEngine skips Windows-style (`C:\...`) library paths in `libraryfolders.vdf`; only host-absolute (`/...`) extra libraries are scanned. In the single-downloader model games land in the primary C: library (always scanned), so this is sufficient for v1. Add Wine `dosdevices` drive-letter translation if cross-drive libraries are needed.
 - Co-resident logged-in Steam: the real "Steam client in the game's prefix" answer is now the **shared Steam bottle** (`SteamBottle` + `SteamClientSession` run one logged-in Windows Steam client that all co-resident Steam games reach). The old per-game presence strategies `.sharedSteamClient` and `.emulatorStub` are **removed** — `SteamPresenceStrategy` has only `.none` + `.steamAppIDFile` (unknown/legacy raw values decode to `.none`). Constraint #7 still bars bundling any emulator.
+- **FUTURE ARCHITECTURE (user, 2026-10-10): Steam games without the Windows Steam client.** Observed by the user:
+  TEKKEN 8 through NotProton (macOS Steam + `lsteamclient`, on Silo's own `wine-cx-26.3.0-np`) is smoother, with
+  steadier FPS/fewer drops, than through Silo — and CrossOver performs identically to Silo, i.e. the difference
+  tracks "Windows Steam in the bottle", not the Wine build. Measured same runtime, same flags (Metal 3, DLSS,
+  AVX2, MSync), same GameUserSettings.ini, RetinaMode=0, both host apps in the games category. Differences found:
+  (1) Silo loads Windows `gameoverlayrenderer64.dll` into the game (hooks D3D12 present under D3DMetal) where
+  NotProton uses macOS Steam's native overlay; (2) the Windows Steam client + CEF `steamwebhelper` run under
+  Rosetta in the same prefix and share the game's wineserver; (3) Silo's host app lacks NSHighResolutionCapable
+  (image, not smoothness). Not yet A/B-measured (proposed: CPU of steam.exe/steamwebhelper during a match, and a
+  match with the overlay off). Direction: route Steam games to native macOS Steam via `lsteamclient` like
+  NotProton — the Wine side already exists in patch 0003; open questions: lsteamclient's source/licence (Valve's
+  Proton code, ported by NotProton) and how Silo would launch through macOS Steam. Also a macOS 28 concern
+  (Rosetta's announced reduction makes an x86 Windows Steam client in Wine a liability). Expect CrossOver to move
+  the same way. Meanwhile the user plays Steam games via the NotProton fork with Silo's Wine.
 
 ## BLOCKED
 - **HW-accelerated Steam *UI* (M92, on-device test):** flip Advanced → Steam bottle → "Hardware-accelerated
