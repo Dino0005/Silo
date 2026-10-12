@@ -279,7 +279,8 @@ public final class AppEnvironment {
         let center = NSWorkspace.shared.notificationCenter
         for await note in center.notifications(named: NSWorkspace.didTerminateApplicationNotification) {
             let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            guard app?.bundleIdentifier?.hasPrefix(GameHostBundle.bundleIDPrefix) == true else { continue }
+            guard let bundleID = app?.bundleIdentifier,
+                  bundleID.hasPrefix(GameHostBundle.bundleIDPrefix) else { continue }
             Task { [weak self] in
                 for delay in [Duration.seconds(3), .seconds(10)] {
                     try? await Task.sleep(for: delay)
@@ -292,8 +293,22 @@ public final class AppEnvironment {
                     if (self?.launchLeftoverCount ?? 0) > 0 {
                         await self?.closeLaunchLeftovers()
                     }
+                    // A non-Steam game's tile can also be held by Apple XPC services left in its host's
+                    // coalition (measured on God of War, 2026-10-12). Only for non-Steam hosts (user's
+                    // decision, same day); see `HostSystemServices` for what exactly may be stopped.
+                    if self?.isManualGameHost(bundleID) == true, let runner = self?.runner {
+                        await HostSystemServices(runner: runner).stopLeftoverServices(ofHost: bundleID)
+                    }
                 }
             }
+        }
+    }
+
+    /// Whether `bundleID` is the host of one of the library's non-Steam games (their hosts are keyed on the
+    /// game's UUID; Steam games' on the app id, the client's on `steam-client`).
+    func isManualGameHost(_ bundleID: String) -> Bool {
+        gameLibrary.manualGames.contains {
+            GameHostBundle.bundleIdentifier(forID: $0.id.uuidString) == bundleID
         }
     }
 

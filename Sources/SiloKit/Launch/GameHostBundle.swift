@@ -51,6 +51,12 @@ public struct GameHostBundle: Sendable {
     /// Marks a bundle as ours, so `write` can replace its own previous output and nothing else.
     static let bundleIDPrefix = "com.mikael.silo.host."
 
+    /// The `CFBundleIdentifier` of the host for the game `id` — what `infoPlist` writes, so a running or
+    /// exited host can be matched back to its game.
+    static func bundleIdentifier(forID id: String) -> String {
+        bundleIDPrefix + bundleSafe(id)
+    }
+
     public enum HostBundleError: Error, Sendable, Equatable {
         case writeFailed(String)
         /// The destination is occupied by something that isn't one of our host bundles — refuse rather
@@ -77,7 +83,7 @@ public struct GameHostBundle: Sendable {
         <dict>
             <key>CFBundleName</key><string>\(xmlEscaped(name))</string>
             <key>CFBundleDisplayName</key><string>\(xmlEscaped(name))</string>
-            <key>CFBundleIdentifier</key><string>\(Self.bundleIDPrefix)\(bundleSafe(id))</string>
+            <key>CFBundleIdentifier</key><string>\(Self.bundleIdentifier(forID: id))</string>
             <key>CFBundleExecutable</key><string>\(Self.executableName)</string>
             <key>CFBundleIconFile</key><string>\(Self.iconName)</string>
             <key>CFBundlePackageType</key><string>APPL</string>
@@ -121,7 +127,7 @@ public struct GameHostBundle: Sendable {
     /// while two games with the same display name still get a bundle each.
     public func bundleURL(in directory: URL) -> URL {
         directory
-            .appendingPathComponent(bundleSafe(id), isDirectory: true)
+            .appendingPathComponent(Self.bundleSafe(id), isDirectory: true)
             .appendingPathComponent("\(fileSafeName).app", isDirectory: true)
     }
 
@@ -255,7 +261,7 @@ public struct GameHostBundle: Sendable {
     }
 
     /// A bundle-id-safe slug (alphanumerics, `.` and `-` kept; anything else → `-`).
-    private func bundleSafe(_ s: String) -> String {
+    private static func bundleSafe(_ s: String) -> String {
         String(s.unicodeScalars.map {
             CharacterSet.alphanumerics.contains($0) || $0 == "." || $0 == "-" ? Character($0) : "-"
         })

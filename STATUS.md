@@ -54,6 +54,15 @@
     SetStoreUpdateService, SafariPlatformSupport.Helper, MTLCompilerService; no Wine process; SIGKILL → tile gone.
     So it is not DXMT-specific. **GoW on GPTK shows the white specks too** (user, on screen) — matches the Reddit
     report; D3DMetal is closed, so 0003's fix can't be applied there; for GoW, DXMT is now the speck-free path.
+    Spider-Man (Steam) the same evening: tile gone by itself after quitting; the Steam host's coalition held two
+    `SetStoreUpdateService` — i.e. with the client up, these services land in Steam's coalition, not the game's.
+  - **🧪 Built: `HostSystemServices` (user's decision 2026-10-12: non-Steam games only, "e nient'altro").** In
+    the existing post-exit hook (`watchGameExitsForLeftovers`, +3 s / +10 s), after the Wine-leftover close, and
+    only when the terminated host is a manual game's (`isManualGameHost`, via the new
+    `GameHostBundle.bundleIdentifier(forID:)`): parse `lsappinfo list`, take the coalition of the EXITED
+    registration with that bundle id, keep only pids whose `ps` shows ppid 1 and an executable inside a
+    `/System/…/*.xpc/Contents/MacOS/` bundle, SIGTERM, wait 1 s, re-check, SIGKILL the survivors. 8 new tests on
+    the measured `lsappinfo` text (758 green). `dist/Silo.app` rebuilt. Awaiting the user's check on GoW.
 - **⚠️ TEKKEN 8 on Metal 4 (GPTK 4 beta 2, wine-cx-26.3.0): black screen, audio on, force quit (2026-10-08).**
   Same game on Metal 3 is fine. Measured: `Logs/1778820.log` (launch 22:39, `D3DM_MTL4=1`,
   `D3DM_ENABLE_METALFX=1`) ends ~9 min in with "AGX: exceeded compiled variants footprint limit" then
