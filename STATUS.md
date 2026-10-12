@@ -24,18 +24,22 @@
      backend's set (Wine keeps the last entry — already handled for `extra` in c967553) and set
      `SILO_REAL_D3D11` to the copy's `Z:` path (needed: a prefix not booted by that runtime has no system32
      placeholder → `LoadLibrary` by name fails with 126).
-  5. **Where the proxy goes** — open question for the user: next to the game's exe (what the test did; writes
-     into the user's game folder, and for Steam games into the library) vs. the bottle's `system32` (replaces
-     Wine's placeholder `d3d11.dll`; other games keep `d3d11=b` → builtin, so they're unaffected, but in the
-     shared Steam bottle it's shared). Silo must also REMOVE it when the option is turned off.
+  5. **Where the proxy goes — DECIDED (user, 2026-10-13): in the game's BOTTLE, never in the game folder.** I.e.
+     the bottle's `drive_c/windows/system32/d3d11.dll` (replaces Wine's placeholder; Wine's native search after
+     the exe's dir is system32). Other games in the same bottle keep `d3d11=b` → builtin, so they're unaffected —
+     matters for the shared Steam bottle. To verify first: with the proxy there, a `d3d11=b` launch still loads
+     the builtin (not the proxy), and wineboot/a prefix update doesn't silently put the placeholder back. Silo
+     must restore Wine's placeholder when the option is turned off (and when no game in that bottle needs it).
+  **Publishing — DECIDED (user, 2026-10-13):** all commits stay local until this feature is done; then pushed to
+  GitHub together with the new DXMT (0002 + 0003) release.
   6. **UI:** toggle in the game's settings (Steam + manual), it/en strings. **Tests** for model decode,
      `makePlan` (GPTK/DXMT/off), the overlay copy, placement/removal.
   7. **Then clean today's hand setup:** GoW's `envFlags.extra` (`WINEDLLOVERRIDES`, `SILO_REAL_D3D11`; backup
      `Silo/Backups/config.json.pre-d3d11-proxy`), the proxy in `/Volumes/Extreme Pro/GOG/God of War/d3d11.dll`,
      and the hand-made `Runtimes/wine-cx-26.3.0-np/lib/wine/x86_64-windows/d3dm_d3d11.dll` (the feature recreates
      it). The test proxy logs to `/tmp/silo-proxy.log` on every launch until then.
-  Also still open (separate): GoW's darker lighting on DXMT (lead: unsupported border colour 32), and
-  publishing — commits since 3591bf9 are local only; the DXMT with 0002/0003 is installed here but not released.
+  Also still open (separate): GoW's darker lighting on DXMT (lead: unsupported border colour 32). Commits since
+  3591bf9 are local only; the DXMT with 0002/0003 is installed here but not released (see Publishing above).
 - **🧪 God of War (2018) "white dots" on DXMT — DXMT patch 0002, built locally, awaiting the user's on-device
   check (2026-10-12).** Source: a Reddit report (via CrossOver) that bisected the specks to the G-buffer pass, the
   only depth-stencil state with `DepthFunc = EQUAL` after a depth prepass; its fix was a third-party `d3d11.dll`
