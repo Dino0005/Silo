@@ -30,6 +30,15 @@
      matters for the shared Steam bottle. To verify first: with the proxy there, a `d3d11=b` launch still loads
      the builtin (not the proxy), and wineboot/a prefix update doesn't silently put the placeholder back. Silo
      must restore Wine's placeholder when the option is turned off (and when no game in that bottle needs it).
+     **⚖️ To evaluate FIRST tomorrow (user, 2026-10-13), possibly replacing the above:** a **runtime variant**
+     "GPTK + depth fix" — an APFS clone of the GPTK runtime (like the DXMT variant, `RuntimeVariants`), with the
+     proxy as `lib/wine/x86_64-windows/d3d11.dll` and D3DMetal's as `d3dm_d3d11.dll` beside it; games with the
+     option launch on that runtime (per-launch, so it co-resides in the shared Steam bottle exactly like DXMT's
+     clone). Pros: no bottle and no game folder touched, nothing to restore when the option goes off, no
+     `d3d11=n,b` needed. To verify: Wine loads a module from the builtin dir only if it carries the builtin
+     marker — mark the proxy (`winebuild --builtin`, or the "Wine builtin DLL" stub bytes) and test that it loads;
+     plus that the clone stays in sync when GPTK is re-imported. Bottle/system32 = plan B. (Not a real problem in
+     the shared Steam bottle either: other games keep `d3d11=b`; the variant is just cleaner.)
   **Publishing — DECIDED (user, 2026-10-13):** all commits stay local until this feature is done; then pushed to
   GitHub together with the new DXMT (0002 + 0003) release.
   6. **UI:** toggle in the game's settings (Steam + manual), it/en strings. **Tests** for model decode,
