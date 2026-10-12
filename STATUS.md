@@ -62,7 +62,9 @@
     `GameHostBundle.bundleIdentifier(forID:)`): parse `lsappinfo list`, take the coalition of the EXITED
     registration with that bundle id, keep only pids whose `ps` shows ppid 1 and an executable inside a
     `/System/…/*.xpc/Contents/MacOS/` bundle, SIGTERM, wait 1 s, re-check, SIGKILL the survivors. 8 new tests on
-    the measured `lsappinfo` text (758 green). `dist/Silo.app` rebuilt. Awaiting the user's check on GoW.
+    the measured `lsappinfo` text (758 green). `dist/Silo.app` rebuilt. **✅ Verified on device (user,
+    2026-10-12):** GoW quit from the game → its Dock tile closed by itself; afterwards no registration for
+    its host and no XPC service from that run left.
 - **⚠️ TEKKEN 8 on Metal 4 (GPTK 4 beta 2, wine-cx-26.3.0): black screen, audio on, force quit (2026-10-08).**
   Same game on Metal 3 is fine. Measured: `Logs/1778820.log` (launch 22:39, `D3DM_MTL4=1`,
   `D3DM_ENABLE_METALFX=1`) ends ~9 min in with "AGX: exceeded compiled variants footprint limit" then
