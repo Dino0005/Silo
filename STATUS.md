@@ -3,6 +3,39 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **▶️ NEXT TASK (user's decision, 2026-10-13): make the depth fix a Silo feature — a per-game option
+  "Correzione profondità" (EN "Depth fix"), with Silo preparing the copy and the proxy by itself.** Proven by
+  hand on GoW the evening before (GPTK: proxy, see the GoW entries below and `Experiments/d3d11-depth-proxy/`;
+  DXMT: patch 0003's `d3d11.depthEqualAsGreaterEqual`). Plan, to confirm/adjust when starting:
+  1. **Model:** `depthFix: Bool` (default false, tolerant decode) on `GameConfig` and `ManualGame`. One toggle,
+     both backends: GPTK → the proxy; DXMT → `DXMT_CONFIG=d3d11.depthEqualAsGreaterEqual=True` (patch 0003's
+     option, so it works for any game, not only the `GoW.exe` profile). Only valid for reverse-Z games that
+     draw an EQUAL pass after a prepass — the UI text must say it's per-game and may break other games.
+  2. **The proxy binary** (our own code, so shipping it is fine — #7 covers Wine/GPTK/emulators/CodeWeavers,
+     not this): move `Experiments/d3d11-depth-proxy` to e.g. `Sources/…`-adjacent `Proxy/` with the per-call
+     logging removed (keep only an opt-in log). It's a Windows PE → needs llvm-mingw, which the SwiftPM/CLT build
+     doesn't have (#1). Proposal: `release.yml` (and `build-app.sh` when the llvm-mingw from
+     `Scripts/build-dxmt.sh` is present) compiles it into `Silo.app/Contents/Resources/`; absent → the option is
+     shown disabled with a reason, never a crash (#4). Alternative: a CI-built release asset downloaded like DXMT.
+  3. **The renamed copy:** `GraphicsLinker.overlayGPTK` also writes `d3dm_d3d11.dll` (= the overlaid D3DMetal
+     `d3d11.dll`) next to it, refreshed whenever GPTK is overlaid/re-imported (today's hand copy goes stale on a
+     GPTK change). Measured: the matching `.so` is NOT needed.
+  4. **Launch (`makePlan`, pure + table tests):** with `depthFix` on and GPTK: append `d3d11=n,b` AFTER the
+     backend's set (Wine keeps the last entry — already handled for `extra` in c967553) and set
+     `SILO_REAL_D3D11` to the copy's `Z:` path (needed: a prefix not booted by that runtime has no system32
+     placeholder → `LoadLibrary` by name fails with 126).
+  5. **Where the proxy goes** — open question for the user: next to the game's exe (what the test did; writes
+     into the user's game folder, and for Steam games into the library) vs. the bottle's `system32` (replaces
+     Wine's placeholder `d3d11.dll`; other games keep `d3d11=b` → builtin, so they're unaffected, but in the
+     shared Steam bottle it's shared). Silo must also REMOVE it when the option is turned off.
+  6. **UI:** toggle in the game's settings (Steam + manual), it/en strings. **Tests** for model decode,
+     `makePlan` (GPTK/DXMT/off), the overlay copy, placement/removal.
+  7. **Then clean today's hand setup:** GoW's `envFlags.extra` (`WINEDLLOVERRIDES`, `SILO_REAL_D3D11`; backup
+     `Silo/Backups/config.json.pre-d3d11-proxy`), the proxy in `/Volumes/Extreme Pro/GOG/God of War/d3d11.dll`,
+     and the hand-made `Runtimes/wine-cx-26.3.0-np/lib/wine/x86_64-windows/d3dm_d3d11.dll` (the feature recreates
+     it). The test proxy logs to `/tmp/silo-proxy.log` on every launch until then.
+  Also still open (separate): GoW's darker lighting on DXMT (lead: unsupported border colour 32), and
+  publishing — commits since 3591bf9 are local only; the DXMT with 0002/0003 is installed here but not released.
 - **🧪 God of War (2018) "white dots" on DXMT — DXMT patch 0002, built locally, awaiting the user's on-device
   check (2026-10-12).** Source: a Reddit report (via CrossOver) that bisected the specks to the G-buffer pass, the
   only depth-stencil state with `DepthFunc = EQUAL` after a depth prepass; its fix was a third-party `d3d11.dll`
