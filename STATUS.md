@@ -29,7 +29,14 @@
   (read-only EQUAL depth tests → GREATER_EQUAL in the Metal state; GetDesc unchanged), on in the GoW.exe profile
   next to defuseFma. Rebuilt with build-dxmt.sh and installed by hand into
   `Runtimes/dxmt-v0.72-cx26.3.0` (the pre-0002 tree is backed up in `Silo/Backups/dxmt-v0.72-cx26.3.0-pre-0002`;
-  Silo re-overlays it into the `-dxmt` runtime clone before the next launch). Awaiting the user's check.
+  Silo re-overlays it into the `-dxmt` runtime clone before the next launch). **✅ Verified (user, on screen,
+  2026-10-12): with 0003 the specks are gone.** Still open, separate: on DXMT the menu is much darker than on
+  GPTK ("as if global illumination were missing"; menu entries hard to read). Neither patch can plausibly
+  darken the frame (0003 only lets more G-buffer fragments pass; 0002 changes rounding by an ulp) — inferred,
+  not A/B-measured. One lead from the log: `CreateSamplerState: Unsupported border color (32, 32, 32, 32)` —
+  Metal has only 3 fixed border colours, DXMT (v0.72 and upstream main alike) falls back to opaque white (1.0),
+  so a lookup outside a texture returns 1 instead of 32. Unproven that this is the darkening; next step would be
+  a GPU frame capture (`DXMT_CAPTURE_FRAME`) of the menu to find the pass that goes dark.
 - **⚠️ TEKKEN 8 on Metal 4 (GPTK 4 beta 2, wine-cx-26.3.0): black screen, audio on, force quit (2026-10-08).**
   Same game on Metal 3 is fine. Measured: `Logs/1778820.log` (launch 22:39, `D3DM_MTL4=1`,
   `D3DM_ENABLE_METALFX=1`) ends ~9 min in with "AGX: exceeded compiled variants footprint limit" then
