@@ -50,6 +50,10 @@
     exited host's coalition from `lsappinfo` and kill only members whose executable is under
     `/System/Library/` and inside an `XPCServices/` bundle (per-app instances, relaunched on demand). The
     public SDK has no coalition API (`PROC_PIDCOALITIONINFO` is absent from `sys/proc_info.h`).
+    **Same on GPTK (21:44–21:48):** host 34749 `(exited-with-subordinates)`, coalition `{ 34760 34768 34769 }` =
+    SetStoreUpdateService, SafariPlatformSupport.Helper, MTLCompilerService; no Wine process; SIGKILL → tile gone.
+    So it is not DXMT-specific. **GoW on GPTK shows the white specks too** (user, on screen) — matches the Reddit
+    report; D3DMetal is closed, so 0003's fix can't be applied there; for GoW, DXMT is now the speck-free path.
 - **⚠️ TEKKEN 8 on Metal 4 (GPTK 4 beta 2, wine-cx-26.3.0): black screen, audio on, force quit (2026-10-08).**
   Same game on Metal 3 is fine. Measured: `Logs/1778820.log` (launch 22:39, `D3DM_MTL4=1`,
   `D3DM_ENABLE_METALFX=1`) ends ~9 min in with "AGX: exceeded compiled variants footprint limit" then
