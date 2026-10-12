@@ -22,6 +22,14 @@
   fix there), check the main menu; A/B by launching with `DXMT_CONFIG="d3d11.defuseFma=False"` (user config wins
   over the profile). If the specks persist, the fallback is the per-game EQUAL→GREATER_EQUAL in DXMT's
   `CreateDepthStencilState` (valid only because GoW uses reverse-Z).
+  **Result (user, 2026-10-12): 0002 alone is NOT enough.** The log shows the profile active ("Found built-in
+  config: d3d11.defuseFma = True"), yet specks are still visible in motion, and the lighting on Kratos in the
+  menu looks poor (not yet known whether it was the same before 0002, or on GPTK). So the fallback was built:
+  `Scripts/dxmt-patches/0003-d3d11-depth-equal-as-greater-equal-gow.patch` adds `d3d11.depthEqualAsGreaterEqual`
+  (read-only EQUAL depth tests → GREATER_EQUAL in the Metal state; GetDesc unchanged), on in the GoW.exe profile
+  next to defuseFma. Rebuilt with build-dxmt.sh and installed by hand into
+  `Runtimes/dxmt-v0.72-cx26.3.0` (the pre-0002 tree is backed up in `Silo/Backups/dxmt-v0.72-cx26.3.0-pre-0002`;
+  Silo re-overlays it into the `-dxmt` runtime clone before the next launch). Awaiting the user's check.
 - **⚠️ TEKKEN 8 on Metal 4 (GPTK 4 beta 2, wine-cx-26.3.0): black screen, audio on, force quit (2026-10-08).**
   Same game on Metal 3 is fine. Measured: `Logs/1778820.log` (launch 22:39, `D3DM_MTL4=1`,
   `D3DM_ENABLE_METALFX=1`) ends ~9 min in with "AGX: exceeded compiled variants footprint limit" then

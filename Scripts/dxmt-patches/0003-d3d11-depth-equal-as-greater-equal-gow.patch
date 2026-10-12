@@ -1,0 +1,70 @@
+Silo-only: new option `d3d11.depthEqualAsGreaterEqual`, on for God of War (2018) via its profile (added by
+0002, so this applies after it).
+
+Why: patch 0002 (defuseFma) did not remove GoW's white specks on device (2026-10-12: profile confirmed active
+in the log, specks still visible in motion). The Reddit diagnosis that this follows found exactly one
+depth-stencil state with DepthFunc = EQUAL, depth writes off — the G-buffer pass after the depth prepass —
+and swapping it live to GREATER_EQUAL removed every speck. GoW is reverse-Z, so GREATER_EQUAL accepts the
+same fragments EQUAL would on Windows plus the ones whose depth is off by rounding on Metal. Applied only to
+read-only EQUAL states (a writing EQUAL test is left alone) and only when the option is on, because for a
+conventional-Z game the right substitute would be LESS_EQUAL. The D3D desc returned by GetDesc() is
+unchanged; only the Metal depth-stencil state differs. Override per launch with
+DXMT_CONFIG="d3d11.depthEqualAsGreaterEqual=False".
+
+Not upstream. Keep as long as GoW needs it; rebase onto each DXMT_VERSION bump.
+
+diff --git a/src/d3d11/d3d11_state_object.cpp b/src/d3d11/d3d11_state_object.cpp
+index 6a1ad50..6f49120 100644
+--- a/src/d3d11/d3d11_state_object.cpp
++++ b/src/d3d11/d3d11_state_object.cpp
+@@ -4,6 +4,7 @@
+ #include "d3d11_state_object.hpp"
+ #include "dxmt_sampler.hpp"
+ #include "log/log.hpp"
++#include "config/config.hpp"
+ #include "../d3d10/d3d10_state_object.hpp"
+ 
+ namespace dxmt {
+@@ -566,6 +567,12 @@ HRESULT StateObjectCache<D3D11_DEPTH_STENCIL_DESC, IMTLD3D11DepthStencilState>::
+   if (pDesc->DepthEnable) {
+     info.depth_compare_function = kCompareFunctionMap[pDesc->DepthFunc];
+     info.depth_write_enabled = pDesc->DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ALL;
++    // Silo: a read-only EQUAL test after a depth prepass (reverse-Z) misses on scattered pixels when the
++    // two passes round SV_Position differently on Metal; GREATER_EQUAL passes the same fragments plus those.
++    static const bool equal_as_greater_equal =
++        Config::getInstance().getOption<bool>("d3d11.depthEqualAsGreaterEqual", false);
++    if (equal_as_greater_equal && pDesc->DepthFunc == D3D11_COMPARISON_EQUAL && !info.depth_write_enabled)
++      info.depth_compare_function = WMTCompareFunctionGreaterEqual;
+   } 
+ 
+   if (pDesc->StencilEnable) {
+diff --git a/src/util/config/config.cpp b/src/util/config/config.cpp
+index 97f6293..cafbdd0 100644
+--- a/src/util/config/config.cpp
++++ b/src/util/config/config.cpp
+@@ -59,6 +59,7 @@ namespace dxmt {
+     /** God of War (2018) — Silo: white specks from the EQUAL-depth G-buffer pass after the prepass */
+     { R"(\\GoW\.exe$)", {{
+       { "d3d11.defuseFma",   "True" },
++      { "d3d11.depthEqualAsGreaterEqual",   "True" },
+     }} },
+   }};
+ 
+diff --git a/dxmt.conf b/dxmt.conf
+index db6e8f8..d180b48 100644
+--- a/dxmt.conf
++++ b/dxmt.conf
+@@ -77,3 +77,13 @@
+ # - God of War (2018)
+ 
+ # d3d11.defuseFma = False
++
++# (Silo) Run a read-only D3D11_COMPARISON_EQUAL depth test as GREATER_EQUAL. Only valid for reverse-Z
++# games that draw an EQUAL pass after a depth prepass.
++#
++# Supported values: True, False
++#
++# Enabled by default for:
++# - God of War (2018)
++
++# d3d11.depthEqualAsGreaterEqual = False
