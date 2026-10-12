@@ -1,0 +1,404 @@
+Backport of upstream DXMT's `d3d11.defuseFma` option (854aed0 + 4ab5983 + 59bf42f + 43a16e9, 2026-04, on
+main after v0.72), reduced to that one option, plus a God of War (2018) profile entry.
+
+Why: v0.72 (3d8d2aa) lowers DXBC `mad` to a FUSED air.fma only when the instruction is `precise` — and marks
+EVERY instruction precise in shaders compiled without refactoringAllowed — but to a separate mul + add
+otherwise. A depth prepass and the later G-buffer pass can therefore compute SV_Position through different
+roundings (fused vs. unfused), so the depth differs by an ulp and the G-buffer's DepthFunc = EQUAL test
+fails on scattered pixels: God of War's "white dots" (diagnosed by a Reddit user, 2026: the only EQUAL
+depth-stencil state is the G-buffer one, and swapping it to GREATER_EQUAL removes every speck). Upstream
+added `defuseFma` for the same class of problem in Shadow of the Tomb Raider; with it on, every fma() is
+emitted as mul + add, so both passes round identically. Position is already `air.invariant` and vertex
+shaders already have fast-math off, so preserveInvariance-style changes would not help here.
+
+Same option name, config key and flag bit as upstream (bit 0, SAMPLE_NAN_TO_ZERO, is not backported); the
+flag is folded into every shader variant digest so the on-disk shader cache keeps fused and defused
+variants apart. Override per launch with DXMT_CONFIG="d3d11.defuseFma=False" (user config wins over the
+profile). Drop this patch once DXMT_VERSION includes upstream 43a16e9 — but keep the GoW.exe profile by
+re-adding it (or upstreaming it) if the fix is confirmed on device.
+
+diff --git a/src/airconv/airconv_cli.cpp b/src/airconv/airconv_cli.cpp
+index 3a537ff..87d8485 100644
+--- a/src/airconv/airconv_cli.cpp
++++ b/src/airconv/airconv_cli.cpp
+@@ -217,6 +217,7 @@ int main(int argc, char **argv) {
+ 
+   SM50_SHADER_COMMON_DATA data;
+   data.metal_version = SM50_SHADER_METAL_320;
++  data.flags = {};
+   data.next = 0;
+   data.type = SM50_SHADER_COMMON;
+ 
+diff --git a/src/airconv/airconv_public.h b/src/airconv/airconv_public.h
+index 7bc8aa6..0111279 100644
+--- a/src/airconv/airconv_public.h
++++ b/src/airconv/airconv_public.h
+@@ -222,10 +222,15 @@ enum SM50_SHADER_METAL_VERSION {
+   SM50_SHADER_METAL_MAX = 0xffffffff,
+ };
+ 
++enum SM50_SHADER_FLAG {
++  SM50_SHADER_FLAG_DEFUSE_FMA = 1 << 1, // same bit as upstream (bit 0 = SAMPLE_NAN_TO_ZERO there)
++};
++
+ struct SM50_SHADER_COMMON_DATA {
+   void *next;
+   enum SM50_SHADER_COMPILATION_ARGUMENT_TYPE type;
+   enum SM50_SHADER_METAL_VERSION metal_version;
++  enum SM50_SHADER_FLAG flags;
+ };
+ 
+ struct SM50_SHADER_PSO_PIXEL_SHADER_DATA {
+diff --git a/src/airconv/dxbc_converter.cpp b/src/airconv/dxbc_converter.cpp
+index dbe17d5..a82bdfb 100644
+--- a/src/airconv/dxbc_converter.cpp
++++ b/src/airconv/dxbc_converter.cpp
+@@ -449,9 +449,11 @@ llvm::Error convert_dxbc_pixel_shader(
+     pso_sample_mask = pso_data->sample_mask;
+   }
+   SM50_SHADER_METAL_VERSION metal_version = SM50_SHADER_METAL_310;
++  SM50_SHADER_FLAG shader_flags = {};
+   SM50_SHADER_COMMON_DATA *sm50_common = nullptr;
+   if (args_get_data<SM50_SHADER_COMMON, SM50_SHADER_COMMON_DATA>(pArgs, &sm50_common)) {
+     metal_version = sm50_common->metal_version;
++    shader_flags = sm50_common->flags;
+   }
+ 
+   IREffect prologue([](auto) { return std::monostate(); });
+@@ -501,6 +503,7 @@ llvm::Error convert_dxbc_pixel_shader(
+   llvm::IRBuilder<> builder(entry_bb);
+   llvm::raw_null_ostream nulldbg{};
+   llvm::air::AIRBuilder air(builder, nulldbg);
++  air.defuseFma = bool(shader_flags & SM50_SHADER_FLAG_DEFUSE_FMA);
+ 
+   setup_metal_version(module, metal_version);
+   setup_fastmath_flag(module, builder);
+@@ -572,9 +575,11 @@ llvm::Error convert_dxbc_compute_shader(
+   auto shader_info = &(pShaderInternal->shader_info);
+ 
+   SM50_SHADER_METAL_VERSION metal_version = SM50_SHADER_METAL_310;
++  SM50_SHADER_FLAG shader_flags = {};
+   SM50_SHADER_COMMON_DATA *sm50_common = nullptr;
+   if (args_get_data<SM50_SHADER_COMMON, SM50_SHADER_COMMON_DATA>(pArgs, &sm50_common)) {
+     metal_version = sm50_common->metal_version;
++    shader_flags = sm50_common->flags;
+   }
+ 
+   IREffect prologue([](auto) { return std::monostate(); });
+@@ -607,6 +612,7 @@ llvm::Error convert_dxbc_compute_shader(
+   llvm::IRBuilder<> builder(entry_bb);
+   llvm::raw_null_ostream nulldbg{};
+   llvm::air::AIRBuilder air(builder, nulldbg);
++  air.defuseFma = bool(shader_flags & SM50_SHADER_FLAG_DEFUSE_FMA);
+ 
+   setup_metal_version(module, metal_version);
+   setup_fastmath_flag(module, builder);
+@@ -667,9 +673,11 @@ llvm::Error convert_dxbc_vertex_shader(
+        gs_passthrough->RasterizationDisabled) ||
+       (vertex_so != nullptr);
+   SM50_SHADER_METAL_VERSION metal_version = SM50_SHADER_METAL_310;
++  SM50_SHADER_FLAG shader_flags = {};
+   SM50_SHADER_COMMON_DATA *sm50_common = nullptr;
+   if (args_get_data<SM50_SHADER_COMMON, SM50_SHADER_COMMON_DATA>(pArgs, &sm50_common)) {
+     metal_version = sm50_common->metal_version;
++    shader_flags = sm50_common->flags;
+   }
+ 
+   IREffect prologue([](auto) { return std::monostate(); });
+@@ -783,6 +791,7 @@ llvm::Error convert_dxbc_vertex_shader(
+   llvm::IRBuilder<> builder(entry_bb);
+   llvm::raw_null_ostream nulldbg{};
+   llvm::air::AIRBuilder air(builder, nulldbg);
++  air.defuseFma = bool(shader_flags & SM50_SHADER_FLAG_DEFUSE_FMA);
+ 
+   setup_metal_version(module, metal_version);
+   setup_fastmath_flag(module, builder);
+diff --git a/src/airconv/dxbc_converter_gs.cpp b/src/airconv/dxbc_converter_gs.cpp
+index 0db3906..c8c231f 100644
+--- a/src/airconv/dxbc_converter_gs.cpp
++++ b/src/airconv/dxbc_converter_gs.cpp
+@@ -112,9 +112,11 @@ convert_dxbc_geometry_shader(
+     is_strip = pso_data->strip_topology;
+   }
+   SM50_SHADER_METAL_VERSION metal_version = SM50_SHADER_METAL_310;
++  SM50_SHADER_FLAG shader_flags = {};
+   SM50_SHADER_COMMON_DATA *sm50_common = nullptr;
+   if (args_get_data<SM50_SHADER_COMMON, SM50_SHADER_COMMON_DATA>(pArgs, &sm50_common)) {
+     metal_version = sm50_common->metal_version;
++    shader_flags = sm50_common->flags;
+   }
+ 
+   IREffect prologue([](auto) { return std::monostate(); });
+@@ -168,6 +170,7 @@ convert_dxbc_geometry_shader(
+   llvm::IRBuilder<> builder(entry_bb);
+   llvm::raw_null_ostream nulldbg{};
+   llvm::air::AIRBuilder air(builder, nulldbg);
++  air.defuseFma = bool(shader_flags & SM50_SHADER_FLAG_DEFUSE_FMA);
+   setup_metal_version(module, metal_version);
+   setup_fastmath_flag(module, builder);
+ 
+@@ -514,9 +517,11 @@ convert_dxbc_vertex_for_geometry_shader(
+     is_strip = pso_data->strip_topology;
+   }
+   SM50_SHADER_METAL_VERSION metal_version = SM50_SHADER_METAL_310;
++  SM50_SHADER_FLAG shader_flags = {};
+   SM50_SHADER_COMMON_DATA *sm50_common = nullptr;
+   if (args_get_data<SM50_SHADER_COMMON, SM50_SHADER_COMMON_DATA>(pArgs, &sm50_common)) {
+     metal_version = sm50_common->metal_version;
++    shader_flags = sm50_common->flags;
+   }
+ 
+   bool is_triadj_strip = is_strip && pGeometryStage->gs_input_primitive == D3D10_SB_PRIMITIVE_TRIANGLE_ADJ;
+@@ -586,6 +591,7 @@ convert_dxbc_vertex_for_geometry_shader(
+   llvm::IRBuilder<> builder(entry_bb);
+   llvm::raw_null_ostream nulldbg{};
+   llvm::air::AIRBuilder air(builder, nulldbg);
++  air.defuseFma = bool(shader_flags & SM50_SHADER_FLAG_DEFUSE_FMA);
+ 
+   setup_metal_version(module, metal_version);
+   setup_fastmath_flag(module, builder);
+diff --git a/src/airconv/dxbc_converter_ts.cpp b/src/airconv/dxbc_converter_ts.cpp
+index b13eac1..4488290 100644
+--- a/src/airconv/dxbc_converter_ts.cpp
++++ b/src/airconv/dxbc_converter_ts.cpp
+@@ -201,9 +201,11 @@ convert_dxbc_vertex_hull_shader(
+   auto [final_maxtessfactor, factor_int] = get_final_maxtessfactor(pHullStage, pArgs);
+ 
+   SM50_SHADER_METAL_VERSION metal_version = SM50_SHADER_METAL_310;
++  SM50_SHADER_FLAG shader_flags = {};
+   SM50_SHADER_COMMON_DATA *sm50_common = nullptr;
+   if (args_get_data<SM50_SHADER_COMMON, SM50_SHADER_COMMON_DATA>(pArgs, &sm50_common)) {
+     metal_version = sm50_common->metal_version;
++    shader_flags = sm50_common->flags;
+   }
+   SM50_SHADER_IA_INPUT_LAYOUT_DATA *ia_layout = nullptr;
+   args_get_data<SM50_SHADER_IA_INPUT_LAYOUT, SM50_SHADER_IA_INPUT_LAYOUT_DATA>(pArgs, &ia_layout);
+@@ -314,6 +316,7 @@ convert_dxbc_vertex_hull_shader(
+   llvm::IRBuilder<> builder(entry_bb_global);
+   llvm::raw_null_ostream nulldbg{};
+   llvm::air::AIRBuilder air(builder, nulldbg);
++  air.defuseFma = bool(shader_flags & SM50_SHADER_FLAG_DEFUSE_FMA);
+ 
+   // these values are initialized by vertex stage and accessed by hull stage
+   llvm::Value *instance_id = nullptr;
+@@ -721,9 +724,11 @@ convert_dxbc_tesselator_domain_shader(
+       (args_get_data<SM50_SHADER_GS_PASS_THROUGH, SM50_SHADER_GS_PASS_THROUGH_DATA>(pArgs, &gs_passthrough) &&
+        gs_passthrough->RasterizationDisabled);
+   SM50_SHADER_METAL_VERSION metal_version = SM50_SHADER_METAL_310;
++  SM50_SHADER_FLAG shader_flags = {};
+   SM50_SHADER_COMMON_DATA *sm50_common = nullptr;
+   if (args_get_data<SM50_SHADER_COMMON, SM50_SHADER_COMMON_DATA>(pArgs, &sm50_common)) {
+     metal_version = sm50_common->metal_version;
++    shader_flags = sm50_common->flags;
+   }
+ 
+   auto [final_maxtessfactor, factor_int] = get_final_maxtessfactor(pHullStage, pArgs);
+@@ -838,6 +843,7 @@ convert_dxbc_tesselator_domain_shader(
+   llvm::IRBuilder<> builder(entry_bb);
+   llvm::raw_null_ostream nulldbg{};
+   llvm::air::AIRBuilder air(builder, nulldbg);
++  air.defuseFma = bool(shader_flags & SM50_SHADER_FLAG_DEFUSE_FMA);
+ 
+   setup_metal_version(module, metal_version);
+   setup_fastmath_flag(module, builder);
+diff --git a/src/airconv/nt/air_builder.cpp b/src/airconv/nt/air_builder.cpp
+index 3bbfa6e..02e181b 100644
+--- a/src/airconv/nt/air_builder.cpp
++++ b/src/airconv/nt/air_builder.cpp
+@@ -1152,6 +1152,9 @@ AIRBuilder::CreateFMA(Value *X, Value *Y, Value *Z) {
+     debug << "invalid operation: fma has unmatched operand types.\n";
+     return nullptr; // TODO
+   }
++  if (defuseFma) {
++    return builder.CreateFAdd(builder.CreateFMul(X, Y), Z);
++  }
+   auto &Context = getContext();
+   auto Attrs = AttributeList::get(
+       Context, {{~0U, Attribute::get(Context, Attribute::AttrKind::ReadNone)},
+diff --git a/src/airconv/nt/air_builder.hpp b/src/airconv/nt/air_builder.hpp
+index 0228eb1..09e43aa 100644
+--- a/src/airconv/nt/air_builder.hpp
++++ b/src/airconv/nt/air_builder.hpp
+@@ -107,6 +107,9 @@ class AIRBuilder {
+ public:
+   AIRBuilder(IRBuilderBase &ir_builder, raw_ostream &debug) : builder(ir_builder), debug(debug) {}
+ 
++  // Silo backport of upstream `defuseFma` (59bf42f): emit fma() as a separate mul + add.
++  bool defuseFma = false;
++
+   /* Texture Operations */
+ 
+   std::pair<Value *, Value *>
+diff --git a/src/d3d11/d3d11_shader.cpp b/src/d3d11/d3d11_shader.cpp
+index ffc3e14..08e49c3 100644
+--- a/src/d3d11/d3d11_shader.cpp
++++ b/src/d3d11/d3d11_shader.cpp
+@@ -1,11 +1,26 @@
+ #include "d3d11_shader.hpp"
+ #include "Metal.hpp"
+ #include "airconv_public.h"
++#include "config/config.hpp"
+ #include "d3d11_input_layout.hpp"
+ #include "sha1/sha1_util.hpp"
++#include <mutex>
+ 
+ namespace dxmt {
+ 
++// Silo backport of upstream getGlobalShaderFlag (4ab5983 + 43a16e9), reduced to `d3d11.defuseFma`.
++SM50_SHADER_FLAG
++getGlobalShaderFlag() {
++  static SM50_SHADER_FLAG shader_flag;
++  static std::once_flag get_shader_flag_once;
++  std::call_once(get_shader_flag_once, []() {
++    shader_flag = {};
++    if (Config::getInstance().getOption<bool>("d3d11.defuseFma", false))
++      shader_flag = SM50_SHADER_FLAG(shader_flag | SM50_SHADER_FLAG_DEFUSE_FMA);
++  });
++  return shader_flag;
++};
++
+ template <typename Proc>
+ class GeneralShaderCompileTask : public CompiledShader {
+ public:
+@@ -15,6 +30,7 @@ public:
+         shader_(shader), variant_digest_(variant_digest) {
+     sm50_common.type = SM50_SHADER_COMMON;
+     sm50_common.metal_version = (SM50_SHADER_METAL_VERSION)pDevice->GetDXMTDevice().metalVersion();
++    sm50_common.flags = getGlobalShaderFlag();
+     sm50_common.next = nullptr;
+   }
+ 
+@@ -104,6 +120,7 @@ std::unique_ptr<CompiledShader>
+ CreateVariantShader(MTLD3D11Device *pDevice, ManagedShader shader,
+                     ShaderVariantVertex variant) {
+   Sha1HashState h;
++  h.update(getGlobalShaderFlag());
+   h.update(variant.gs_passthrough);
+   h.update(variant.rasterization_disabled);
+   if (variant.input_layout_handle)
+@@ -149,6 +166,7 @@ std::unique_ptr<CompiledShader>
+ CreateVariantShader(MTLD3D11Device *pDevice, ManagedShader shader,
+                     ShaderVariantPixel variant) {
+   Sha1HashState h;
++  h.update(getGlobalShaderFlag());
+   h.update(variant.sample_mask);
+   h.update(variant.unorm_output_reg_mask);
+   h.update(variant.dual_source_blending);
+@@ -184,7 +202,10 @@ template <>
+ std::unique_ptr<CompiledShader>
+ CreateVariantShader(MTLD3D11Device *pDevice, ManagedShader shader,
+                     ShaderVariantDefault) {
+-  std::string func_name = "shader_" + shader->sha1().string().substr(0, 8);
++  Sha1HashState h;
++  h.update(getGlobalShaderFlag());
++  auto variant_digest = h.final();
++  std::string func_name = "cs_" + shader->sha1().string().substr(0, 8) + "_" + variant_digest.string();
+   auto proc = [=](const char *func_name, SM50_SHADER_COMMON_DATA *common) -> sm50_bitcode_t  {
+     sm50_bitcode_t compile_result = nullptr;
+     sm50_error_t sm50_err = nullptr;
+@@ -197,7 +218,7 @@ CreateVariantShader(MTLD3D11Device *pDevice, ManagedShader shader,
+     return compile_result;
+   };
+   return std::make_unique<GeneralShaderCompileTask<decltype(proc)>>(
+-      pDevice, shader, std::move(proc), func_name, shader->sha1());
++      pDevice, shader, std::move(proc), func_name, variant_digest);
+ };
+ 
+ template <>
+@@ -205,6 +226,7 @@ std::unique_ptr<CompiledShader>
+ CreateVariantShader(MTLD3D11Device *pDevice, ManagedShader shader,
+                     ShaderVariantTessellationVertexHull variant) {
+   Sha1HashState h;
++  h.update(getGlobalShaderFlag());
+   h.update(variant.vertex_shader_handle->sha1());
+   h.update(variant.index_buffer_format);
+   h.update(variant.max_potential_tess_factor);
+@@ -246,6 +268,7 @@ std::unique_ptr<CompiledShader>
+ CreateVariantShader(MTLD3D11Device *pDevice, ManagedShader shader,
+                     ShaderVariantTessellationDomain variant) {
+   Sha1HashState h;
++  h.update(getGlobalShaderFlag());
+   h.update(variant.hull_shader_handle->sha1());
+   h.update(variant.gs_passthrough);
+   h.update(variant.rasterization_disabled);
+@@ -283,6 +306,7 @@ std::unique_ptr<CompiledShader>
+ CreateVariantShader(MTLD3D11Device *pDevice, ManagedShader shader,
+                     ShaderVariantVertexStreamOutput variant) {
+   Sha1HashState h;
++  h.update(getGlobalShaderFlag());
+   h.update(((IMTLD3D11StreamOutputLayout *)variant.stream_output_layout_handle)->Digest());
+   if (variant.input_layout_handle)
+     h.update(variant.input_layout_handle->sha1());
+@@ -332,6 +356,7 @@ std::unique_ptr<CompiledShader>
+ CreateVariantShader(MTLD3D11Device *pDevice, ManagedShader shader,
+                     ShaderVariantGeometryVertex variant) {
+   Sha1HashState h;
++  h.update(getGlobalShaderFlag());
+   h.update(variant.geometry_shader_handle->sha1());
+   h.update(variant.index_buffer_format);
+   h.update(variant.strip_topology);
+@@ -381,6 +406,7 @@ std::unique_ptr<CompiledShader>
+ CreateVariantShader(MTLD3D11Device *pDevice, ManagedShader shader,
+                     ShaderVariantGeometry variant) {
+   Sha1HashState h;
++  h.update(getGlobalShaderFlag());
+   h.update(variant.vertex_shader_handle->sha1());
+   h.update(variant.strip_topology);
+   auto variant_digest = h.final();
+diff --git a/src/util/config/config.cpp b/src/util/config/config.cpp
+index 2f840db..97f6293 100644
+--- a/src/util/config/config.cpp
++++ b/src/util/config/config.cpp
+@@ -52,6 +52,14 @@ namespace dxmt {
+     { R"(\\OMORI\.exe$)", {{
+       { "dxgi.forceSDR",   "True" },
+     }} },
++    /** Shadow of the Tomb Raider (upstream 43a16e9) */
++    { R"(\\SotTR\.exe$)", {{
++      { "d3d11.defuseFma",   "True" },
++    }} },
++    /** God of War (2018) — Silo: white specks from the EQUAL-depth G-buffer pass after the prepass */
++    { R"(\\GoW\.exe$)", {{
++      { "d3d11.defuseFma",   "True" },
++    }} },
+   }};
+ 
+   const Config* findProfile(const ProfileList& profiles, const std::string& appName) {
+diff --git a/src/winemetal/unix/winemetal_unix.c b/src/winemetal/unix/winemetal_unix.c
+index 1de085b..57d2e71 100644
+--- a/src/winemetal/unix/winemetal_unix.c
++++ b/src/winemetal/unix/winemetal_unix.c
+@@ -1733,6 +1733,7 @@ struct SM50_SHADER_COMMON_DATA32 {
+   uint32_t next;
+   enum SM50_SHADER_COMPILATION_ARGUMENT_TYPE type;
+   enum SM50_SHADER_METAL_VERSION metal_version;
++  enum SM50_SHADER_FLAG flag;
+ };
+ 
+ struct SM50_SHADER_COMPILATION_ARGUMENT_DATA32 {
+@@ -1816,6 +1817,7 @@ sm50_compilation_argument32_convert(
+       last_arg->next = NULL;
+       data->type = src->type;
+       data->metal_version = src->metal_version;
++      data->flags = src->flag;
+       break;
+     }
+     case SM50_SHADER_PSO_PIXEL_SHADER: {
+diff --git a/dxmt.conf b/dxmt.conf
+index 8c9e946..db6e8f8 100644
+--- a/dxmt.conf
++++ b/dxmt.conf
+@@ -67,3 +67,13 @@
+ # Supported values: 310, 320
+ 
+ # dxmt.shaderMetalVersion = 310
++
++# Split `fma()` into a multiplication and an addition.
++#
++# Supported values: True, False
++#
++# Enabled by default for:
++# - Shadow of the Tomb Raider
++# - God of War (2018)
++
++# d3d11.defuseFma = False

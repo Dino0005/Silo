@@ -3,6 +3,25 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🧪 God of War (2018) "white dots" on DXMT — DXMT patch 0002, built locally, awaiting the user's on-device
+  check (2026-10-12).** Source: a Reddit report (via CrossOver) that bisected the specks to the G-buffer pass, the
+  only depth-stencil state with `DepthFunc = EQUAL` after a depth prepass; its fix was a third-party `d3d11.dll`
+  proxy swapping EQUAL→GREATER_EQUAL — NOT adopted (unverifiable binary, needs CrossOver's own d3d11.dll, and
+  Silo's `WINEDLLOVERRIDES` `d3d11=b` beats a registry AppDefaults override anyway). The post's suggested root fix
+  (invariant position / preserveInvariance) was checked and **is already in DXMT v0.72**: `air_signature.cpp` emits
+  `air.position` + `air.invariant`, and vertex shaders compile with fast-math off; measured with `xcrun metal`:
+  with fast-math off, `-fpreserve-invariance` changes nothing in the AIR. The actual mechanism (inferred from code):
+  v0.72's 3d8d2aa lowers `mad` to a fused `air.fma` only if `precise` — and marks everything precise when
+  `refactoringAllowed` is off — else to mul+add, so a prepass and the G-buffer pass can round SV_Position
+  differently. Upstream added `d3d11.defuseFma` (all fma → mul+add) for the same class of bug in Shadow of the Tomb
+  Raider (4/2026). `Scripts/dxmt-patches/0002-d3d11-defuse-fma-option-gow.patch` backports that option alone
+  (same key/flag bit; flag folded into every variant digest, so the shader cache keeps both apart) + profiles for
+  `SotTR.exe` (upstream's) and `GoW.exe` (ours). Applies on clean v0.72 after 0001; `Scripts/build-dxmt.sh` built
+  dist/dxmt.tar.xz with it (both d3d11.dll carry the profile). Not published, not installed. **To verify:** import
+  the new DXMT, set GoW's graphics to DXMT (Automatic picks GPTK for this 64-bit game — D3DMetal is closed, so no
+  fix there), check the main menu; A/B by launching with `DXMT_CONFIG="d3d11.defuseFma=False"` (user config wins
+  over the profile). If the specks persist, the fallback is the per-game EQUAL→GREATER_EQUAL in DXMT's
+  `CreateDepthStencilState` (valid only because GoW uses reverse-Z).
 - **⚠️ TEKKEN 8 on Metal 4 (GPTK 4 beta 2, wine-cx-26.3.0): black screen, audio on, force quit (2026-10-08).**
   Same game on Metal 3 is fine. Measured: `Logs/1778820.log` (launch 22:39, `D3DM_MTL4=1`,
   `D3DM_ENABLE_METALFX=1`) ends ~9 min in with "AGX: exceeded compiled variants footprint limit" then
