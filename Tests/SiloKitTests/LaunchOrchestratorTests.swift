@@ -148,6 +148,30 @@ struct MakePlanTests {
         #expect(plan.environment["WINEDLLOVERRIDES"] == "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b")
     }
 
+    @Test("A hand-written extra WINEDLLOVERRIDES comes AFTER the backend's set (Wine keeps the last entry)")
+    func extraDllOverridesComeLast() throws {
+        var cfg = GameConfig(appID: 220)
+        cfg.envFlags.extra["WINEDLLOVERRIDES"] = "d3d11=n,b"
+        var b = backend()
+        b.gptkLibDirPath = URL(fileURLWithPath: "/g/lib/wine/x86_64-windows")
+        let plan = try LaunchOrchestrator.makePlan(
+            config: cfg, backend: b, gameExe: gameExe, prefix: prefix, logURL: log)
+        let overrides = try #require(plan.environment["WINEDLLOVERRIDES"])
+        #expect(overrides.hasSuffix(";d3d11=n,b"))
+        #expect(overrides.contains("d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b"))
+    }
+
+    @Test("No extra WINEDLLOVERRIDES: the backend's set is emitted exactly, nothing appended")
+    func noExtraDllOverridesLeavesTheBackendSet() throws {
+        var cfg = GameConfig(appID: 220)
+        cfg.envFlags.extra["SOME_OTHER_VAR"] = "1"
+        var b = backend()
+        b.gptkLibDirPath = URL(fileURLWithPath: "/g/lib/wine/x86_64-windows")
+        let plan = try LaunchOrchestrator.makePlan(
+            config: cfg, backend: b, gameExe: gameExe, prefix: prefix, logURL: log)
+        #expect(plan.environment["WINEDLLOVERRIDES"] == "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b")
+    }
+
     @Test("DXMT plan: winemetal/d3d builtin overrides, and NO lib/external DYLD path (winemetal links system Metal)")
     func dxmtPlan() throws {
         let cfg = GameConfig(appID: 220)
@@ -188,7 +212,7 @@ struct MakePlanTests {
         #expect(plan.environment["WINEDEBUG"] == "+seh,+tid")
     }
 
-    @Test("GPTK appends its d3d overrides to a user's pre-existing WINEDLLOVERRIDES (semicolon-merged, not clobbered)")
+    @Test("GPTK merges its d3d overrides with a user's WINEDLLOVERRIDES (semicolon-joined, user's last, not clobbered)")
     func mergesPreExistingWineDllOverrides() throws {
         var cfg = GameConfig(appID: 220)
         // Power user forces their own DLL override via the extra escape hatch, WITH GPTK configured.
@@ -197,8 +221,8 @@ struct MakePlanTests {
         b.gptkLibDirPath = URL(fileURLWithPath: "/g/lib/wine/x86_64-windows")
         let plan = try LaunchOrchestrator.makePlan(
             config: cfg, backend: b, gameExe: gameExe, prefix: prefix, logURL: log)
-        // GPTK's d3d overrides are APPENDED (semicolon-joined), not overwriting the user's.
-        #expect(plan.environment["WINEDLLOVERRIDES"] == "winemenubuilder.exe=d;d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b")
+        // Both kept, semicolon-joined; the user's comes last so it wins for any module both name.
+        #expect(plan.environment["WINEDLLOVERRIDES"] == "d3d10,d3d10_1,d3d10core,d3d11,d3d12,d3d12core,dxgi,nvapi64,nvngx=b;winemenubuilder.exe=d")
     }
 
     @Test("Perf env-flags (MetalHUD / MetalFX / DXR / AVX) propagate into the launch plan's environment")

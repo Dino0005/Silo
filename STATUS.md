@@ -47,6 +47,22 @@
     `d3d11.dll` run. It works even WITHOUT a renamed `d3dm_d3d11.so` (D3DMetal's unix side is not looked up by
     the PE's file name). Not built yet: the proxy itself (our own `d3d11.dll` that forwards to `d3dm_d3d11.dll`
     and patches `CreateDepthStencilState`), and Silo's per-game wiring (its launch forces `d3d11=b`).
+    **✅ Step 2 done and verified on device (user, 2026-10-12 ~23:55): GoW on GPTK, launched from Silo, correct
+    lighting AND no specks, with FSR Quality and with DLSS Quality.** Proxy source (the exact tested build) in
+    `Experiments/d3d11-depth-proxy/` (README = setup). It patches slot 21 (`CreateDepthStencilState`) of the
+    device vtable after `D3D11CreateDevice`/`…AndSwapChain`/`D3D11On12CreateDevice`; one vtable for Device..Device5.
+    Log: 88 `EQUAL / write 0 / stencil 1` states swapped (the Reddit diagnosis exactly). What it took:
+    - **Launching outside Silo hangs GoW** (black window, beach ball) even WITHOUT the proxy and with nvapi on —
+      so all terminal attempts were void; the test had to go through Silo (host + its env).
+    - **`LaunchOrchestrator.makePlan`: a hand-written `envFlags.extra["WINEDLLOVERRIDES"]` now comes AFTER the
+      backend's set.** Wine keeps the last entry per module (`loadorder.c add_load_order`: "replace existing
+      option"), so before this the documented "extra overrides anything" was false for DLL overrides. Tests: 2
+      new + the merge test's expected order updated (760 green).
+    - The prefix wasn't booted by a runtime holding `d3dm_d3d11.dll`, so `LoadLibrary` by name → 126; the proxy
+      loads it by full path from `SILO_REAL_D3D11`.
+    Current on-device setup (all reversible): `Runtimes/wine-cx-26.3.0-np/lib/wine/x86_64-windows/d3dm_d3d11.dll`
+    (goes stale on a GPTK re-import), the proxy in the GoW folder, GoW's `extra` (backup:
+    `Silo/Backups/config.json.pre-d3d11-proxy`). Open: whether/how to make it a Silo feature.
   - **New Dock-tile holder, measured 2026-10-12 21:37–21:41 (GoW, manual, DXMT): Apple XPC services, not Wine.**
     The user quit GoW normally; >2 min later the tile was still up. `lsappinfo`: host pid 34553
     `(exited-with-subordinates)`, `coalition: 5310 { 34571 34576 34580 34582 }` = `SetStoreUpdateService`,

@@ -121,8 +121,13 @@ public struct LaunchOrchestrator: Sendable {
                 environment["DYLD_FALLBACK_LIBRARY_PATH"] = "\(external.path):\(wine.siloDyldFallback)"
                 environment["DYLD_FALLBACK_FRAMEWORK_PATH"] = external.path
             }
+            // The backend's set first, then a hand-written `envFlags.extra` override (the only other source
+            // of this variable): Wine keeps the LAST entry for a module (`add_load_order`: "replace existing
+            // option"), so a user entry placed before the backend's could never take effect — contrary to
+            // `extra`'s documented "overrides anything". First user: a per-game d3d11 proxy in front of
+            // D3DMetal (`d3d11=n,b`), God of War, 2026-10-12.
             environment["WINEDLLOVERRIDES"] = mergeOverride(
-                environment["WINEDLLOVERRIDES"], graphics.dllOverrides)
+                graphics.dllOverrides, config.envFlags.extra["WINEDLLOVERRIDES"])
         }
 
         // The hand-over socket for the alt-loader host (`AltLoaderSession`): Wine's `send_to_cx_loader`
@@ -460,8 +465,9 @@ public struct LaunchOrchestrator: Sendable {
         }
     }
 
-    private static func mergeOverride(_ existing: String?, _ addition: String) -> String {
-        guard let existing, !existing.isEmpty else { return addition }
+    private static func mergeOverride(_ existing: String?, _ addition: String?) -> String {
+        guard let existing, !existing.isEmpty else { return addition ?? "" }
+        guard let addition, !addition.isEmpty else { return existing }
         return existing + ";" + addition
     }
 }
