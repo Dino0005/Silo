@@ -37,6 +37,19 @@
   Metal has only 3 fixed border colours, DXMT (v0.72 and upstream main alike) falls back to opaque white (1.0),
   so a lookup outside a texture returns 1 instead of 32. Unproven that this is the darkening; next step would be
   a GPU frame capture (`DXMT_CAPTURE_FRAME`) of the menu to find the pass that goes dark.
+  - **New Dock-tile holder, measured 2026-10-12 21:37–21:41 (GoW, manual, DXMT): Apple XPC services, not Wine.**
+    The user quit GoW normally; >2 min later the tile was still up. `lsappinfo`: host pid 34553
+    `(exited-with-subordinates)`, `coalition: 5310 { 34571 34576 34580 34582 }` = `SetStoreUpdateService`,
+    `com.apple.SafariPlatformSupport.Helper` (listed as "AutoFill (God of War)"), `ColorSyncXPCAgent`,
+    `MTLCompilerService` — all `/System/Library/…/XPCServices/…`, ppid 1, started with the game. **No Wine
+    process left at all** (the post-exit leftover cleanup had done its part; its census only sees processes
+    attached to a wineserver, so it can't see these). Still there after 90 s more. SIGTERM ended only the Safari
+    helper; SIGKILL on the other three → registration gone (`lsappinfo` count 1 → 0), tile gone. Not yet known:
+    whether GPTK launches leave the same services (the earlier verified auto-close runs, Spider-Man and Tekken,
+    were GPTK) — the user is about to test GoW on GPTK. Possible fix, not built: in the post-exit hook, read our
+    exited host's coalition from `lsappinfo` and kill only members whose executable is under
+    `/System/Library/` and inside an `XPCServices/` bundle (per-app instances, relaunched on demand). The
+    public SDK has no coalition API (`PROC_PIDCOALITIONINFO` is absent from `sys/proc_info.h`).
 - **⚠️ TEKKEN 8 on Metal 4 (GPTK 4 beta 2, wine-cx-26.3.0): black screen, audio on, force quit (2026-10-08).**
   Same game on Metal 3 is fine. Measured: `Logs/1778820.log` (launch 22:39, `D3DM_MTL4=1`,
   `D3DM_ENABLE_METALFX=1`) ends ~9 min in with "AGX: exceeded compiled variants footprint limit" then
