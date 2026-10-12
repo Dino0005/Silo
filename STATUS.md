@@ -37,6 +37,16 @@
   Metal has only 3 fixed border colours, DXMT (v0.72 and upstream main alike) falls back to opaque white (1.0),
   so a lookup outside a texture returns 1 instead of 32. Unproven that this is the darkening; next step would be
   a GPU frame capture (`DXMT_CAPTURE_FRAME`) of the menu to find the pass that goes dark.
+  - **GoW on GPTK — the proxy route, step 1 measured (2026-10-12 23:15):** the Reddit post's claim that the same
+    EQUAL→GREATER_EQUAL idea would work on D3DMetal via a proxy wrapping D3DMetal's d3d11 is plausible (the bug is
+    the game's EQUAL pass after a prepass, not the translator; I had wrongly said "nothing to do on GPTK").
+    The risky precondition — loading D3DMetal's `d3d11.dll` under another name — **works**: on an APFS clone of
+    `wine-cx-26.3.0-np` (`/tmp/gptk-rt`) with `lib/wine/x86_64-windows/d3d11.dll` copied to `d3dm_d3d11.dll`, a
+    llvm-mingw test exe in a scratch prefix (`LoadLibrary` + `D3D11CreateDevice` + an EQUAL read-only
+    `CreateDepthStencilState`) got `hr=0`, feature level 0xb000, state created — identical to the stock
+    `d3d11.dll` run. It works even WITHOUT a renamed `d3dm_d3d11.so` (D3DMetal's unix side is not looked up by
+    the PE's file name). Not built yet: the proxy itself (our own `d3d11.dll` that forwards to `d3dm_d3d11.dll`
+    and patches `CreateDepthStencilState`), and Silo's per-game wiring (its launch forces `d3d11=b`).
   - **New Dock-tile holder, measured 2026-10-12 21:37–21:41 (GoW, manual, DXMT): Apple XPC services, not Wine.**
     The user quit GoW normally; >2 min later the tile was still up. `lsappinfo`: host pid 34553
     `(exited-with-subordinates)`, `coalition: 5310 { 34571 34576 34580 34582 }` = `SetStoreUpdateService`,
