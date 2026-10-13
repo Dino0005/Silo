@@ -7,6 +7,44 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Added
+- **Depth fix ("Correzione profondità"), a per-game option** in a new *Rendering* section of the game's settings,
+  for Steam and non-Steam games. It removes the white specks God of War (2018) shows on characters: the game
+  draws its scene a second time with an exact (`EQUAL`) depth test against a depth prepass, and on Metal a few
+  pixels round differently between the two passes and fail it. With the option on, that one test is run as
+  `GREATER_EQUAL`. Off by default and meant only for games that need it — on others it can draw things through
+  walls.
+  - **GPTK:** Silo puts its own small `d3d11.dll` in front of D3DMetal's (source in `Proxy/d3d11-depth-fix`,
+    built by `Scripts/build-depth-proxy.sh`). It goes in the bottle's `system32` for that launch only, never in
+    the game's folder, and reaches D3DMetal through a copy Silo keeps beside it in the runtime and refreshes
+    whenever GPTK is installed. Other games in the same bottle keep D3DMetal's own `d3d11`. Turning the option
+    off puts back what was there before.
+  - **DXMT:** the same switch turns on DXMT's own equivalent (`d3d11.depthEqualAsGreaterEqual`, see below).
+  - Verified on God of War with GPTK (no specks with the option on, specks back with it off), with FSR and DLSS.
+    Also checked against a Wine imported from CrossOver with a test program.
+
+### Fixed
+- **God of War's white specks under DXMT**, with two patches on top of DXMT v0.72: `0002` backports upstream's
+  `d3d11.defuseFma` option, and `0003` adds `d3d11.depthEqualAsGreaterEqual`; both are on by default for
+  `GoW.exe`. `dxmt-v0.72-cx26.3.0` was rebuilt on CI with them and republished under the same tag: remove it in
+  *Settings → DXMT* and install it again once. Under DXMT the game's lighting is still darker than under GPTK;
+  that's a separate, open issue.
+- **A non-Steam game's Dock tile stayed after quitting the game.** No Wine process was left; what kept the tile
+  were Apple's own per-app services macOS had started for the game (`MTLCompilerService`, ColorSync, Safari's
+  AutoFill helper, `SetStoreUpdateService`). After a non-Steam game ends, Silo now also stops those — only the
+  ones in that game's group, only `/System` XPC services started by launchd, never Wine, Steam or a running
+  game. Steam games weren't affected: there those services join the Steam client's group instead.
+
+### Changed
+- **A `WINEDLLOVERRIDES` written by hand in a game's `extra` settings (config.json) now comes after Silo's own
+  overrides**, so it really takes effect: Wine keeps the last entry for each DLL, so before this it was always
+  overridden by the graphics backend's.
+- **`wine-cx-26.3.0` was republished (2026-10-10) with Wine patch `0003`**, which lets `steamclient` load as
+  `lsteamclient` (for running games from the macOS Steam client). It only acts with `SILO_LSTEAMCLIENT=1`, which
+  Silo never sets, so Silo's own launches are unchanged and reinstalling is optional.
+
 ## 0.6.8
 
 ### Fixed
