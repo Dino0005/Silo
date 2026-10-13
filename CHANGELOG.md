@@ -11,7 +11,7 @@ the commit message says why.
 
 ### Added
 - **Depth fix ("Correzione profondità"), a per-game option** in a new *Rendering* section of the game's settings,
-  for Steam and non-Steam games. It removes the white specks God of War (2018) shows on characters: the game
+  for Steam and non-Steam games, **DirectX 11 games only**. It removes the white specks God of War (2018) shows on characters: the game
   draws its scene a second time with an exact (`EQUAL`) depth test against a depth prepass, and on Metal a few
   pixels round differently between the two passes and fail it. With the option on, that one test is run as
   `GREATER_EQUAL`. Off by default and meant only for games that need it — on others it can draw things through
@@ -22,6 +22,8 @@ the commit message says why.
     whenever GPTK is installed. Other games in the same bottle keep D3DMetal's own `d3d11`. Turning the option
     off puts back what was there before.
   - **DXMT:** the same switch turns on DXMT's own equivalent (`d3d11.depthEqualAsGreaterEqual`, see below).
+  - Silo also keeps a copy of the proxy at `Runtimes/depth-fix/d3d11.dll`, refreshed at every startup, for
+    tools that run Silo's Wine outside Silo (NotProton's matching checkbox reads it there).
   - Verified on God of War with GPTK (no specks with the option on, specks back with it off), with FSR and DLSS.
     Also checked against a Wine imported from CrossOver with a test program.
 
