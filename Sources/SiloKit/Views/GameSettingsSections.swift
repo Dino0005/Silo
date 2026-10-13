@@ -43,6 +43,23 @@ struct PerformanceFlagsSection: View {
     }
 }
 
+/// The depth-fix toggle (`EnvFlags.depthFix`), shared by both settings sheets. Its own section, because it
+/// is a per-game workaround rather than a performance flag, and the warning belongs right under it.
+struct DepthFixSection: View {
+    @Binding var flags: EnvFlags
+
+    var body: some View {
+        Section {
+            Toggle("Depth fix", isOn: $flags.depthFix)
+        } header: {
+            Text("Rendering")
+        } footer: {
+            Text("Fixes white specks on characters in games that redraw the scene with an exact depth test (God of War). Only for games that need it: on others it can draw things through walls. Works with GPTK and DXMT.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// The launch-options form section shared by both settings sheets.
 struct LaunchOptionsSection: View {
     @Binding var text: String

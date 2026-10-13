@@ -57,6 +57,16 @@ struct GraphicsLinkerTests {
         // The Metal backend (lib/external) is overlaid so those symlinks + DYLD resolve.
         #expect(FileManager.default.fileExists(atPath: wineLib.appendingPathComponent("external/libd3dshared.dylib").path))
         #expect(FileManager.default.fileExists(atPath: wineLib.appendingPathComponent("external/D3DMetal.framework/D3DMetal").path))
+        // The depth fix's renamed copy of D3DMetal's d3d11 sits right beside it.
+        #expect(FileManager.default.contentsEqual(
+            atPath: d3d11.path,
+            andPath: wineLib.appendingPathComponent("wine/x86_64-windows/\(GraphicsLinker.depthFixRealModuleName)").path))
+        // …and a runtime already carrying this GPTK (the witness early return) gets it too.
+        try FileManager.default.removeItem(
+            at: wineLib.appendingPathComponent("wine/x86_64-windows/\(GraphicsLinker.depthFixRealModuleName)"))
+        try linker.overlayGPTK(wineBinary: wine, gptkLibDir: gptkLibDir)
+        #expect(FileManager.default.fileExists(
+            atPath: wineLib.appendingPathComponent("wine/x86_64-windows/\(GraphicsLinker.depthFixRealModuleName)").path))
     }
 
     @Test("overlayGPTK also overlays a CrossOver-derived runtime's lib64/apple_gptk tree")

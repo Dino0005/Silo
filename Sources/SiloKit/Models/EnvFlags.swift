@@ -82,6 +82,17 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// is resolved. Games are discovered from the normal Steam bottle either way, so the library shows one
     /// entry per game regardless of which bottle it runs in.
     public var mediaFoundationNative: Bool
+    /// **Depth fix** ("Correzione profondità"): run a read-only `DepthFunc = EQUAL` depth test as
+    /// `GREATER_EQUAL`. Off by default, and only for reverse-Z games that draw an EQUAL pass after a depth
+    /// prepass — on Metal a few pixels round differently between the two passes and fail EQUAL (God of War
+    /// 2018's white specks, verified on both backends 2026-10-12). On another game it can draw through things.
+    ///
+    /// GPTK: Silo's own d3d11 proxy goes in the bottle's system32 and the launch uses `d3d11=n,b`
+    /// (`GraphicsLinker.installDepthFixProxy`, `LaunchOrchestrator.makePlan`). DXMT: DXMT's own
+    /// `d3d11.depthEqualAsGreaterEqual` option (Silo's DXMT patch 0003) via `DXMT_CONFIG`. Like
+    /// `mediaFoundationNative`, nothing is emitted from `environment(graphics:)`: it's applied in `makePlan`,
+    /// which knows the runtime.
+    public var depthFix: Bool
     /// Free-form extra environment variables — a config.json-only escape hatch (no UI). Merged last in
     /// `environment()`, so it overrides the flags above — EXCEPT the sync keys (`WINEMSYNC`/`WINEESYNC`),
     /// which `LaunchOrchestrator.makePlan` force-overrides afterward for shared-bottle co-residency.
@@ -95,6 +106,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         dxr: Bool = false,
         metalBackend: MetalBackendChoice = .auto,
         mediaFoundationNative: Bool = false,
+        depthFix: Bool = false,
         extra: [String: String] = [:]
     ) {
         self.syncMode = syncMode
@@ -104,6 +116,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.dxr = dxr
         self.metalBackend = metalBackend
         self.mediaFoundationNative = mediaFoundationNative
+        self.depthFix = depthFix
         self.extra = extra
     }
 
@@ -149,7 +162,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     // MARK: - Codable (migrates legacy esync/msync bools; tolerates missing perf fields)
 
     private enum CodingKeys: String, CodingKey {
-        case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, extra
+        case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, depthFix, extra
         case esync, msync   // legacy fields from configs written before the SyncMode enum
     }
 
@@ -174,6 +187,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         metalBackend = (try c.decodeIfPresent(String.self, forKey: .metalBackend))
             .flatMap(MetalBackendChoice.init(rawValue:)) ?? .auto
         mediaFoundationNative = try c.decodeIfPresent(Bool.self, forKey: .mediaFoundationNative) ?? false
+        depthFix = try c.decodeIfPresent(Bool.self, forKey: .depthFix) ?? false
         extra = try c.decodeIfPresent([String: String].self, forKey: .extra) ?? [:]
     }
 
@@ -186,6 +200,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         try c.encode(dxr, forKey: .dxr)
         try c.encode(metalBackend, forKey: .metalBackend)
         try c.encode(mediaFoundationNative, forKey: .mediaFoundationNative)
+        try c.encode(depthFix, forKey: .depthFix)
         try c.encode(extra, forKey: .extra)
     }
 }

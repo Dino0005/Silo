@@ -86,6 +86,7 @@ public struct GraphicsLinker: Sendable {
         // never the witness while d3d11.dll ships, so patching it doesn't defeat the check).
         if witnessMatches(modules, in: wineWinDir) {
             try patchDXGIForSteamOverlay(in: wineWinDir)
+            try syncDepthFixRealModule(in: wineWinDir)
             return
         }
 
@@ -103,6 +104,7 @@ public struct GraphicsLinker: Sendable {
         // call above was a no-op on a fresh runtime where the framework didn't exist yet).
         try linkD3DMetalFramework(unixDir: wineUnixDir, externalDir: wineExternal)
         try patchDXGIForSteamOverlay(in: wineWinDir)
+        try syncDepthFixRealModule(in: wineWinDir)
     }
 
     /// Apply `SteamOverlayDXGIPatch` to the overlaid `dxgi.dll` in `winDir`, so the Steam overlay — and Steam
@@ -142,6 +144,7 @@ public struct GraphicsLinker: Sendable {
         // Its own witness: this tree can be stale while lib/ is current, and vice versa.
         if witnessMatches(modules, in: winDir) {
             try patchDXGIForSteamOverlay(in: winDir)
+            try syncDepthFixRealModule(in: winDir)
             return
         }
 
@@ -154,6 +157,74 @@ public struct GraphicsLinker: Sendable {
         }
         try linkD3DMetalFramework(unixDir: unixDir, externalDir: external)
         try patchDXGIForSteamOverlay(in: winDir)
+        try syncDepthFixRealModule(in: winDir)
+    }
+
+    // MARK: - Depth fix (Correzione profondità)
+
+    /// The name D3DMetal's `d3d11.dll` is ALSO kept under, beside itself, for Silo's depth-fix proxy: the proxy
+    /// is the game's `d3d11.dll`, and Wine won't load a second module of that base name, so it reaches
+    /// D3DMetal through this copy (measured 2026-10-12: it works without a matching `.so`).
+    public static let depthFixRealModuleName = "d3dm_d3d11.dll"
+    /// The string the proxy carries (`Proxy/d3d11-depth-fix/proxy.c`) — how Silo tells its own file apart.
+    static let depthFixMarker = Data("Silo depth-fix d3d11 proxy".utf8)
+    /// Where a foreign native `d3d11.dll` found in `system32` is kept while the proxy stands in for it.
+    static let depthFixBackupName = "d3d11.dll.silo-depth-fix-backup"
+
+    /// The proxy shipped in Silo's resources (built by `Scripts/build-depth-proxy.sh`).
+    public static var bundledDepthFixProxy: URL? {
+        Bundle.module.url(forResource: "silo-depth-fix-d3d11", withExtension: "dll")
+    }
+
+    static func isDepthFixProxy(_ data: Data) -> Bool { data.range(of: depthFixMarker) != nil }
+
+    /// Keep `d3dm_d3d11.dll` byte-identical to the `d3d11.dll` beside it — run with every GPTK overlay, so a
+    /// re-imported or updated GPTK never leaves a stale copy. A no-op where there is no `d3d11.dll`.
+    func syncDepthFixRealModule(in winDir: URL) throws {
+        let d3d11 = winDir.appendingPathComponent("d3d11.dll")
+        let copy = winDir.appendingPathComponent(Self.depthFixRealModuleName)
+        guard fileManager.fileExists(atPath: d3d11.path),
+              !fileManager.contentsEqual(atPath: d3d11.path, andPath: copy.path) else { return }
+        if fileManager.fileExists(atPath: copy.path) { try fileManager.removeItem(at: copy) }
+        try fileManager.copyItem(at: d3d11, to: copy)
+    }
+
+    /// Make the bottle's `system32\d3d11.dll` match this launch: the proxy when `enabled`, otherwise back to
+    /// what it was. Run before EVERY launch (GPTK or DXMT), so the file always reflects the game being started
+    /// — in a shared bottle another game's `d3d11=b` loads the builtin regardless (measured 2026-10-13), and a
+    /// game already running keeps the module it mapped. `wineboot -u` leaves a native file alone (measured).
+    ///
+    /// Installing never loses anything: Wine's own builtin copy or placeholder is simply replaced (it is
+    /// rebuilt as a placeholder on removal), a FOREIGN native `d3d11.dll` is moved aside and put back.
+    /// Removal touches the file only if it is Silo's proxy.
+    public func syncDepthFixProxy(prefix: URL, enabled: Bool, proxy: URL?) throws {
+        let system32 = prefix.appendingPathComponent("drive_c/windows/system32")
+        let dst = system32.appendingPathComponent("d3d11.dll")
+        let backup = system32.appendingPathComponent(Self.depthFixBackupName)
+        let existing = fileManager.contents(atPath: dst.path)
+        let isOurs = existing.map(Self.isDepthFixProxy) ?? false
+
+        if enabled {
+            guard let proxy, fileManager.fileExists(atPath: proxy.path) else { throw LinkError.sourceMissing(proxy ?? dst) }
+            if isOurs, fileManager.contentsEqual(atPath: proxy.path, andPath: dst.path) { return }
+            try fileManager.createDirectory(at: system32, withIntermediateDirectories: true)
+            if let existing, !isOurs {
+                let wineOwn = WinePlaceholderDLL.isBuiltin(existing) || WinePlaceholderDLL.isPlaceholder(existing)
+                if !wineOwn, !fileManager.fileExists(atPath: backup.path) {
+                    try fileManager.moveItem(at: dst, to: backup)
+                }
+            }
+            if fileManager.fileExists(atPath: dst.path) { try fileManager.removeItem(at: dst) }
+            try fileManager.copyItem(at: proxy, to: dst)
+        } else {
+            guard isOurs else { return }
+            try fileManager.removeItem(at: dst)
+            if fileManager.fileExists(atPath: backup.path) {
+                try fileManager.moveItem(at: backup, to: dst)
+            } else {
+                try WinePlaceholderDLL.bytes.write(to: dst)
+            }
+        }
     }
 
     // MARK: - Wine's own modules under the GPTK overlay

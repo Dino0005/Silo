@@ -1,46 +1,60 @@
-/* Silo experiment: d3d11.dll proxy in front of D3DMetal's d3d11 (loaded as d3dm_d3d11.dll).
- * Only change: a read-only depth-stencil state with DepthFunc = EQUAL is created as GREATER_EQUAL
- * (God of War is reverse-Z; its G-buffer pass tests EQUAL against the prepass depth).
- * SILO_DEPTH_EQUAL_FIX=0 disables the change. Everything else is passed through untouched. */
+/* Silo's "depth fix" (Correzione profondità): a d3d11.dll proxy in front of D3DMetal's d3d11.
+ *
+ * The only change it makes: a read-only depth-stencil state with DepthFunc = EQUAL is created as
+ * GREATER_EQUAL. Some reverse-Z games (God of War 2018) draw their G-buffer with an EQUAL test against the
+ * depth prepass; on Metal a few pixels round differently between the two passes and fail it (white specks).
+ * GREATER_EQUAL passes the same fragments plus those. Everything else is passed through untouched.
+ *
+ * Silo puts this file in the game bottle's system32 and launches with d3d11=n,b; D3DMetal's own d3d11 is
+ * loaded from the copy Silo keeps beside it in the runtime (d3dm_d3d11.dll — the proxy can't load a second
+ * module named d3d11.dll). Environment:
+ *   SILO_REAL_D3D11       full DOS path of that copy (set by Silo; falls back to loading it by name)
+ *   SILO_DEPTH_EQUAL_FIX  "0" disables the change (for an A/B comparison)
+ *   SILO_DEPTH_FIX_LOG    DOS path of a log file (off when unset)
+ * Built by Scripts/build-depth-proxy.sh. Verified on God of War (GPTK) 2026-10-12. */
 #define COBJMACROS
 #define INITGUID
 #include <windows.h>
 #include <d3d11_4.h>
 #include <d3d11on12.h>
-#include <stdio.h>
 #include <stdarg.h>
-static void plog(const char *fmt, ...) {
-    FILE *f = fopen("Z:\\tmp\\silo-proxy.log", "a");
-    va_list ap; va_start(ap, fmt);
-    if (f) { vfprintf(f, fmt, ap); fclose(f); }
-    va_end(ap);
-}
+#include <stdio.h>
+
+/* How Silo recognises its own file in a bottle (GraphicsLinker.depthFixMarker). Keep in sync. */
+__attribute__((used)) static const char silo_marker[] = "Silo depth-fix d3d11 proxy";
 
 typedef HRESULT (WINAPI *PFN_CDSS)(ID3D11Device *, const D3D11_DEPTH_STENCIL_DESC *, ID3D11DepthStencilState **);
 
 static HMODULE real;
 static int fix_enabled = 1;
-static volatile LONG swapped;
+static char log_path[MAX_PATH];
 #define MAX_VTBLS 8
 static void *vtbls[MAX_VTBLS];
 static PFN_CDSS originals[MAX_VTBLS];
 static int nvtbls;
 static CRITICAL_SECTION lock;
 
+static void plog(const char *fmt, ...) {
+    if (!log_path[0]) return;
+    FILE *f = fopen(log_path, "a");
+    if (!f) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+    fclose(f);
+}
+
+/* Loaded on first use, never from DllMain (loader lock). */
 static HMODULE get_real(void) {
     if (!real) {
-        char v[8];
+        char v[8], path[MAX_PATH];
         if (GetEnvironmentVariableA("SILO_DEPTH_EQUAL_FIX", v, sizeof v) && v[0] == '0') fix_enabled = 0;
-        real = LoadLibraryA("d3dm_d3d11.dll");
-        if (!real) plog("silo-d3d11-proxy: LoadLibrary(d3dm_d3d11.dll) failed, error %lu\n", GetLastError());
-        if (!real) {
-            char p[MAX_PATH];
-            if (GetEnvironmentVariableA("SILO_REAL_D3D11", p, sizeof p)) {
-                real = LoadLibraryA(p);
-                plog("silo-d3d11-proxy: LoadLibrary(%s) = %p, error %lu\n", p, (void *)real, real ? 0 : GetLastError());
-            }
-        }
-        plog("silo-d3d11-proxy: real d3d11 = %p, fix %s\n", (void *)real, fix_enabled ? "ON" : "OFF");
+        DWORD n = GetEnvironmentVariableA("SILO_REAL_D3D11", path, sizeof path);
+        if (n && n < sizeof path) real = LoadLibraryA(path);
+        if (!real) real = LoadLibraryA("d3dm_d3d11.dll");
+        plog("silo-depth-fix: real d3d11 = %p (error %lu), fix %s\n", (void *)real, real ? 0 : GetLastError(),
+             fix_enabled ? "on" : "off");
     }
     return real;
 }
@@ -51,15 +65,11 @@ static HRESULT WINAPI hooked_cdss(ID3D11Device *This, const D3D11_DEPTH_STENCIL_
     EnterCriticalSection(&lock);
     for (int i = 0; i < nvtbls; i++) if (vtbls[i] == vt) { orig = originals[i]; break; }
     LeaveCriticalSection(&lock);
-    if (!orig) return E_FAIL; /* cannot happen: we only install on vtables we recorded */
-    { static volatile LONG calls; LONG c = InterlockedIncrement(&calls);
-      if (c <= 300 && desc) plog("silo-d3d11-proxy: CDSS #%ld enable %d write %d func %d stencil %d\n", c, desc->DepthEnable, desc->DepthWriteMask, desc->DepthFunc, desc->StencilEnable); }
+    if (!orig) return E_FAIL; /* cannot happen: installed only on vtables recorded here */
     if (fix_enabled && desc && desc->DepthEnable && desc->DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ZERO &&
         desc->DepthFunc == D3D11_COMPARISON_EQUAL) {
         D3D11_DEPTH_STENCIL_DESC d = *desc;
         d.DepthFunc = D3D11_COMPARISON_GREATER_EQUAL;
-        if (InterlockedIncrement(&swapped) <= 4)
-            plog("silo-d3d11-proxy: EQUAL depth state -> GREATER_EQUAL\n");
         return orig(This, &d, out);
     }
     return orig(This, desc, out);
@@ -78,7 +88,7 @@ static void patch_vtable(IUnknown *obj) {
             nvtbls++;
             vt[21] = (void *)hooked_cdss;
             VirtualProtect(&vt[21], sizeof(void *), old, &old);
-            plog("silo-d3d11-proxy: patched device vtable %p\n", (void *)vt);
+            plog("silo-depth-fix: patched device vtable %p\n", (void *)vt);
         }
     }
     LeaveCriticalSection(&lock);
@@ -110,7 +120,6 @@ HRESULT WINAPI D3D11CreateDevice(IDXGIAdapter *a, D3D_DRIVER_TYPE t, HMODULE s, 
     PFN_CD p = (PFN_CD)GetProcAddress(get_real(), "D3D11CreateDevice");
     if (!p) return E_FAIL;
     HRESULT hr = p(a, t, s, f, fl, n, v, dev, ofl, ctx);
-    plog("silo-d3d11-proxy: D3D11CreateDevice(adapter %p, type %d, flags 0x%x, %u levels, first 0x%x) = 0x%08lx, level 0x%x\n", (void *)a, t, f, n, fl && n ? fl[0] : 0, hr, ofl ? *ofl : 0);
     if (SUCCEEDED(hr) && dev) hook_device(*dev);
     return hr;
 }
@@ -137,6 +146,12 @@ HRESULT WINAPI D3D11On12CreateDevice(IUnknown *d12, UINT f, const D3D_FEATURE_LE
 }
 
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
-    if (reason == DLL_PROCESS_ATTACH) { DisableThreadLibraryCalls(inst); InitializeCriticalSection(&lock); }
+    (void)reserved;
+    if (reason == DLL_PROCESS_ATTACH) {
+        DisableThreadLibraryCalls(inst);
+        InitializeCriticalSection(&lock);
+        DWORD n = GetEnvironmentVariableA("SILO_DEPTH_FIX_LOG", log_path, sizeof log_path);
+        if (!n || n >= sizeof log_path) log_path[0] = 0;
+    }
     return TRUE;
 }

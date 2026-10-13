@@ -97,6 +97,7 @@ struct GameSettingsSheet: View {
             }
 
             PerformanceFlagsSection(flags: $vm.config.envFlags, graphics: vm.config.graphics)
+            DepthFixSection(flags: $vm.config.envFlags)
 
             // Only offered once the Media Foundation bottle exists — otherwise there's nothing to switch
             // to, and a toggle that does nothing is worse than no toggle. Removing that bottle turns the

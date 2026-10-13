@@ -126,8 +126,23 @@ public struct LaunchOrchestrator: Sendable {
             // option"), so a user entry placed before the backend's could never take effect — contrary to
             // `extra`'s documented "overrides anything". First user: a per-game d3d11 proxy in front of
             // D3DMetal (`d3d11=n,b`), God of War, 2026-10-12.
-            environment["WINEDLLOVERRIDES"] = mergeOverride(
-                graphics.dllOverrides, config.envFlags.extra["WINEDLLOVERRIDES"])
+            var overrides = graphics.dllOverrides
+            // The depth fix (`EnvFlags.depthFix`). GPTK: d3d11 becomes Silo's proxy in system32 (native,
+            // placed by `linkGraphics`), which reaches D3DMetal through the renamed copy beside it — by full
+            // path, since a bottle booted by another runtime has no system32 placeholder for that name.
+            // DXMT: its own option, from Silo's DXMT patch 0003.
+            if config.envFlags.depthFix {
+                switch graphics {
+                case .gptk:
+                    overrides = mergeOverride(overrides, "d3d11=n,b")
+                    environment["SILO_REAL_D3D11"] = dosPath(for: WineRuntimeLayout(wineBinary: wine)
+                        .windowsModulesDir.appendingPathComponent(GraphicsLinker.depthFixRealModuleName))
+                case .dxmt:
+                    environment["DXMT_CONFIG"] = [environment["DXMT_CONFIG"], "d3d11.depthEqualAsGreaterEqual=True"]
+                        .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ";")
+                }
+            }
+            environment["WINEDLLOVERRIDES"] = mergeOverride(overrides, config.envFlags.extra["WINEDLLOVERRIDES"])
         }
 
         // The hand-over socket for the alt-loader host (`AltLoaderSession`): Wine's `send_to_cx_loader`
@@ -232,7 +247,8 @@ public struct LaunchOrchestrator: Sendable {
         // one the backend decision was made against.
         let gameExe = try gameExe ?? resolveExecutable(app: app, config: config)
         try check32BitSupported(gameExe, graphics: graphics)
-        try linkGraphics(backendConfig: backend, graphics: graphics, wine: launchWine, prefix: prefix)
+        try linkGraphics(backendConfig: backend, graphics: graphics, wine: launchWine, prefix: prefix,
+                         depthFix: config.envFlags.depthFix)
         try presenceInstaller.apply(strategy: config.presence, appID: app.appID, gameExe: gameExe)
         var socket = altLoaderSocket
         if socket == nil {
@@ -302,7 +318,8 @@ public struct LaunchOrchestrator: Sendable {
             throw LaunchError.executableNotFound(game.executablePath)
         }
         try check32BitSupported(game.executablePath, graphics: graphics)
-        try linkGraphics(backendConfig: backend, graphics: graphics, wine: launchWine, prefix: prefix)
+        try linkGraphics(backendConfig: backend, graphics: graphics, wine: launchWine, prefix: prefix,
+                         depthFix: game.envFlags.depthFix)
         var socket = altLoaderSocket
         if socket == nil {
             socket = await prepareAltLoader(
@@ -451,8 +468,11 @@ public struct LaunchOrchestrator: Sendable {
     /// DXMT it ALSO seeds `winemetal.dll` into the game `prefix` (see `installDXMTPrefixLoaders` — wine can't
     /// load the winemetal builtin otherwise). Skipped when that backend is unconfigured — the game then falls
     /// back to wine's own wined3d.
+    ///
+    /// The depth fix's bottle side happens here too: Silo's d3d11 proxy goes into the prefix's system32 for a
+    /// GPTK launch with the option on, and comes back out for any other launch (`syncDepthFixProxy`).
     private func linkGraphics(
-        backendConfig: BackendConfig, graphics: GraphicsBackend, wine: URL, prefix: URL
+        backendConfig: BackendConfig, graphics: GraphicsBackend, wine: URL, prefix: URL, depthFix: Bool = false
     ) throws {
         guard let libDir = backendConfig.libDir(for: graphics) else { return }
         switch graphics {
@@ -463,6 +483,8 @@ public struct LaunchOrchestrator: Sendable {
             try linker.overlayDXMT(wineBinary: wine, dxmtLibDir: libDir)
             try linker.installDXMTPrefixLoaders(prefix: prefix, dxmtLibDir: libDir)
         }
+        try linker.syncDepthFixProxy(prefix: prefix, enabled: depthFix && graphics == .gptk,
+                                     proxy: GraphicsLinker.bundledDepthFixProxy)
     }
 
     private static func mergeOverride(_ existing: String?, _ addition: String?) -> String {

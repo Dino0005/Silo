@@ -173,6 +173,7 @@ struct ManualGameSettingsSheet: View {
                 }
 
                 PerformanceFlagsSection(flags: $game.envFlags, graphics: game.graphics)
+                DepthFixSection(flags: $game.envFlags)
                 LaunchOptionsSection(text: $game.launchOptionsString)
             }
             .formStyle(.grouped)
