@@ -39,29 +39,7 @@
      marker — mark the proxy (`winebuild --builtin`, or the "Wine builtin DLL" stub bytes) and test that it loads;
      plus that the clone stays in sync when GPTK is re-imported. Bottle/system32 = plan B. (Not a real problem in
      the shared Steam bottle either: other games keep `d3d11=b`; the variant is just cleaner.)
-     **🔁 Requirement added later the same day (user): it must also work in NotProton, with BOTH Silo's Wine and
-     CrossOver's Wine as the runner.** That tips the choice to the BOTTLE route (everything in the prefix + per-
-     launch env), because a runtime variant means writing into / cloning the runner's own tree — for CrossOver
-     that is the licensed, signed `CrossOver.app` bundle (and NotProton pins its ntdll by hash), which we must not
-     modify. Open point that decides feasibility: today the renamed `d3dm_d3d11.dll` sits in the RUNTIME's
-     builtin dir; first test whether D3DMetal's `d3d11.dll` still works when the copy lives in the bottle (or any
-     Silo-owned dir) and is loaded by full path — if not, find another way to reach the real module (a proxy
-     can't load a second file also named `d3d11.dll`: Wine returns the already-loaded module by base name). Also
-     check where CrossOver keeps D3DMetal's `d3d11.dll` (its tree layout differs: `lib64/apple_gptk`).
-     **✅ DECIDED (user, 2026-10-13, supersedes the CrossOver-runner requirement above): Silo's runner only, like
-     Media Foundation.** In NotProton the option is a checkbox in **Steam's own game Properties → Compatibility**
-     (the options panel NotProton injects into Steam's UI, `dylib/feats/webpatch.c`), next to the existing
-     "Media Foundation (videos, uses Silo's MF package)" one — NOT in the NotProton app window. Same mechanics as
-     MF: the checkbox writes a `NAME=1` into the game's launch options (`T([...])` in webpatch.c), and
-     `dylib/feats/compat_run.sh` acts on it only when the runner is Silo's (`np_silo=1`), using files Silo
-     prepared (MF reads `Silo/Runtimes/media-foundation`). So the design is ONE for both:
-     - **Silo prepares:** `d3dm_d3d11.dll` beside D3DMetal's `d3d11.dll` in every GPTK-overlaid runtime (overlay
-       step, refreshed on re-import), and the proxy at a fixed place (e.g. `Silo/Runtimes/depth-fix/d3d11.dll`).
-     - **Per launch (Silo app via `makePlan`; NotProton via `compat_run.sh` on e.g. `NOTPROTON_DEPTH_FIX=1`):**
-       D3DMetal → copy the proxy into the prefix's `system32`, append `d3d11=n,b` LAST, set `SILO_REAL_D3D11` to
-       the copy's `Z:` path; DXMT → add `d3d11.depthEqualAsGreaterEqual=True` to `DXMT_CONFIG`; option off →
-       restore Wine's placeholder `d3d11.dll` in `system32`.
-     - The runtime variant is therefore NOT needed. The NotProton fork is LOCAL ONLY (never push `silo-wine`).
+     **✅ DECIDED (user, 2026-10-13): the BOTTLE route above; the runtime variant is NOT needed.**
   **🧪 Silo-app side BUILT (c7dc437, 773 tests green), awaiting the user's GoW check through Silo:** `EnvFlags.depthFix`
   + "Depth fix"/"Correzione profondità" toggle (new "Rendering" section, both settings sheets); proxy moved to
   `Proxy/d3d11-depth-fix/` (marker string, opt-in `SILO_DEPTH_FIX_LOG`), built by `Scripts/build-depth-proxy.sh`
@@ -74,13 +52,13 @@
   (`wine-crossover-26.3`, D3DMetal in both `lib/wine` and `lib64/apple_gptk`, same file) the proxy loads the
   `lib/wine` copy by full path, gets FL 11_1 and swaps EQUAL→GREATER_EQUAL — test program only, no game yet.
   GoW's hand setup removed: proxy out of the game folder (kept in `Silo/Backups/gow-folder-test-proxy-d3d11.dll`),
-  `extra` emptied, `depthFix: true` set in config.json. Next: user's GoW check, then the NotProton checkbox.
+  `extra` emptied, `depthFix: true` set in config.json. Next: user's GoW check.
   **✅ Verified on device through the Silo feature (user, 2026-10-13, GoW on GPTK, from-source runtime): option ON →
   no specks; option OFF (second launch) → specks back.** After the OFF launch the bottle's `system32\d3d11.dll` was
   Wine's placeholder again (1032 B), no backup left — the restore path works. Best quality with FSR; with DLSS
   (= D3DMetal's DLSS→MetalFX temporal bridge) slight stutters at times and shimmer on fine detail (Atreus's fur tips)
   that FSR doesn't show — MetalFX's, unrelated to the depth fix. Imported-runtime GoW run still not done (test
-  program only). Next: the NotProton checkbox.
+  program only).
   **Publishing — DECIDED (user, 2026-10-13):** all commits stay local until this feature is done; then pushed to
   GitHub together with the new DXMT (0002 + 0003) release.
   6. **UI:** toggle in the game's settings (Steam + manual), it/en strings. **Tests** for model decode,
@@ -89,8 +67,9 @@
      `Silo/Backups/config.json.pre-d3d11-proxy`), the proxy in `/Volumes/Extreme Pro/GOG/God of War/d3d11.dll`,
      and the hand-made `Runtimes/wine-cx-26.3.0-np/lib/wine/x86_64-windows/d3dm_d3d11.dll` (the feature recreates
      it). The test proxy logs to `/tmp/silo-proxy.log` on every launch until then.
-  Also still open (separate): GoW's darker lighting on DXMT (lead: unsupported border colour 32). Commits since
-  3591bf9 are local only; the DXMT with 0002/0003 is installed here but not released (see Publishing above).
+  Also still open (separate): GoW's darker lighting on DXMT (lead: unsupported border colour 32).
+  **Published 2026-10-13:** everything up to ec8d589 pushed to origin/main; the DXMT rebuild with 0001–0003 started on
+  CI (`build-dxmt.yml`, run 38425863765, non-draft → replaces the assets of `dxmt-v0.72-cx26.3.0`) — result pending.
 - **🧪 God of War (2018) "white dots" on DXMT — DXMT patch 0002, built locally, awaiting the user's on-device
   check (2026-10-12).** Source: a Reddit report (via CrossOver) that bisected the specks to the G-buffer pass, the
   only depth-stencil state with `DepthFunc = EQUAL` after a depth prepass; its fix was a third-party `d3d11.dll`
