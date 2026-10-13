@@ -69,7 +69,10 @@
      it). The test proxy logs to `/tmp/silo-proxy.log` on every launch until then.
   Also still open (separate): GoW's darker lighting on DXMT (lead: unsupported border colour 32).
   **Published 2026-10-13:** everything up to ec8d589 pushed to origin/main; the DXMT rebuild with 0001–0003 started on
-  CI (`build-dxmt.yml`, run 38425863765, non-draft → replaces the assets of `dxmt-v0.72-cx26.3.0`) — result pending.
+  CI (`build-dxmt.yml`, run 38425863765, non-draft → replaces the assets of `dxmt-v0.72-cx26.3.0`). **✅ Done 16:33 UTC,
+  success:** the release stayed public; the new `dxmt.tar.xz` (8662388 B) passes its `.sha256`, and both d3d11.dll
+  (x86_64, i386) carry `defuseFma`, `depthEqualAsGreaterEqual` and the GoW profile. Same tag name, so a Silo that
+  already installed `dxmt-v0.72-cx26.3.0` keeps its old copy until reinstalled.
 - **🧪 God of War (2018) "white dots" on DXMT — DXMT patch 0002, built locally, awaiting the user's on-device
   check (2026-10-12).** Source: a Reddit report (via CrossOver) that bisected the specks to the G-buffer pass, the
   only depth-stencil state with `DepthFunc = EQUAL` after a depth prepass; its fix was a third-party `d3d11.dll`
