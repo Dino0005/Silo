@@ -54,7 +54,7 @@ struct DepthFixSection: View {
         } header: {
             Text("Rendering")
         } footer: {
-            Text("Fixes white specks on characters in games that redraw the scene with an exact depth test (God of War). Only for games that need it: on others it can draw things through walls. Works with GPTK and DXMT.")
+            Text("Fixes white specks on characters in games that redraw the scene with an exact depth test (God of War). Only for games that need it: on others it can draw things through walls. Works with GPTK and DXMT, DirectX 11 games only.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

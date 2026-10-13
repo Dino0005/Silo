@@ -408,4 +408,4 @@
 /* Depth fix (per-game, GameSettingsSections.DepthFixSection) */
 "Rendering" = "Rendering";
 "Depth fix" = "Correzione profondità";
-"Fixes white specks on characters in games that redraw the scene with an exact depth test (God of War). Only for games that need it: on others it can draw things through walls. Works with GPTK and DXMT." = "Elimina i puntini bianchi sui personaggi nei giochi che ridisegnano la scena con un test di profondità esatto (God of War). Solo per i giochi che ne hanno bisogno: su altri può far vedere oggetti attraverso i muri. Funziona con GPTK e DXMT.";
+"Fixes white specks on characters in games that redraw the scene with an exact depth test (God of War). Only for games that need it: on others it can draw things through walls. Works with GPTK and DXMT, DirectX 11 games only." = "Elimina i puntini bianchi sui personaggi nei giochi che ridisegnano la scena con un test di profondità esatto (God of War). Solo per i giochi che ne hanno bisogno: su altri può far vedere oggetti attraverso i muri. Funziona con GPTK e DXMT, solo giochi DirectX 11.";
