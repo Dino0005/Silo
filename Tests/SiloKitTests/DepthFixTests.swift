@@ -205,4 +205,38 @@ struct DepthFixTests {
             #expect(env["DXMT_CONFIG"] == nil)
         }
     }
+
+    // MARK: - The copy at a fixed place, for NotProton
+
+    @Test("stageDepthFixProxy puts the proxy at depth-fix/d3d11.dll, leaves it alone when current, follows an update")
+    func stagedForNotProton() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let dir = AppPaths(supportDir: tmp.url).depthFixDir
+        #expect(dir.lastPathComponent == "depth-fix")
+        #expect(dir.deletingLastPathComponent().lastPathComponent == "Runtimes")
+        let dst = dir.appendingPathComponent("d3d11.dll")
+
+        let v1 = try fakeProxy(tmp, version: "1")
+        try linker.stageDepthFixProxy(into: dir, proxy: v1)
+        #expect(try Data(contentsOf: dst) == Data(contentsOf: v1))
+        let inode = try FileManager.default.attributesOfItem(atPath: dst.path)[.systemFileNumber] as? Int
+
+        try linker.stageDepthFixProxy(into: dir, proxy: v1)
+        #expect(try FileManager.default.attributesOfItem(atPath: dst.path)[.systemFileNumber] as? Int == inode)
+
+        let v2 = try fakeProxy(tmp, version: "2")
+        try linker.stageDepthFixProxy(into: dir, proxy: v2)
+        #expect(try Data(contentsOf: dst) == Data(contentsOf: v2))
+        // No staging leftovers beside it.
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path) == ["d3d11.dll"])
+    }
+
+    @Test("stageDepthFixProxy without a proxy throws and writes nothing")
+    func stagedWithoutProxy() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let dir = AppPaths(supportDir: tmp.url).depthFixDir
+        #expect(throws: (any Error).self) { try linker.stageDepthFixProxy(into: dir, proxy: nil) }
+        #expect(!FileManager.default.fileExists(atPath: dir.path))
+    }
+
 }

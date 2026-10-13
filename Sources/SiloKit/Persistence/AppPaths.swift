@@ -29,6 +29,11 @@ public struct AppPaths: Sendable, Hashable {
     public var mediaFoundationDir: URL {
         runtimesDir.appendingPathComponent("media-foundation", isDirectory: true)
     }
+    /// A copy of Silo's depth-fix proxy at a fixed place, refreshed at every startup
+    /// (`GraphicsLinker.stageDepthFixProxy`), for tools outside Silo that run Silo's Wine — NotProton's
+    /// "Depth fix" checkbox reads `d3d11.dll` from here, as it reads `media-foundation`. Silo's own
+    /// launches use the proxy in its resources.
+    public var depthFixDir: URL { runtimesDir.appendingPathComponent("depth-fix", isDirectory: true) }
     public var logsDir: URL { supportDir.appendingPathComponent("Logs", isDirectory: true) }
     public var configFile: URL { supportDir.appendingPathComponent("config.json") }
     /// Scratch dir for downloaded app-update archives (the inline updater stages the `.zip` here).

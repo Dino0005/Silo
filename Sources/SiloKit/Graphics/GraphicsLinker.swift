@@ -178,6 +178,24 @@ public struct GraphicsLinker: Sendable {
 
     static func isDepthFixProxy(_ data: Data) -> Bool { data.range(of: depthFixMarker) != nil }
 
+    /// Put a copy of `proxy` at `<dir>/d3d11.dll` (`AppPaths.depthFixDir`) unless the same bytes are already
+    /// there — for NotProton, which runs Silo's Wine and takes the proxy from that fixed place. Replaced
+    /// atomically, so a game starting at that moment never reads half a file.
+    public func stageDepthFixProxy(into dir: URL, proxy: URL?) throws {
+        guard let proxy, fileManager.fileExists(atPath: proxy.path) else {
+            throw LinkError.sourceMissing(proxy ?? dir)
+        }
+        let dst = dir.appendingPathComponent("d3d11.dll")
+        if fileManager.contentsEqual(atPath: proxy.path, andPath: dst.path) { return }
+        try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        let staged = dir.appendingPathComponent(".d3d11.dll.\(UUID().uuidString)")
+        try fileManager.copyItem(at: proxy, to: staged)
+        guard rename(staged.path, dst.path) == 0 else {
+            try? fileManager.removeItem(at: staged)
+            throw CocoaError(.fileWriteUnknown)
+        }
+    }
+
     /// Keep `d3dm_d3d11.dll` byte-identical to the `d3d11.dll` beside it — run with every GPTK overlay, so a
     /// re-imported or updated GPTK never leaves a stale copy. A no-op where there is no `d3d11.dll`.
     func syncDepthFixRealModule(in winDir: URL) throws {

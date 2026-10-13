@@ -356,6 +356,14 @@ public final class AppEnvironment {
         // filesystem work — and best-effort, so a failure here never delays startup.
         let ourBottles = allBottlePrefixes()   // computed here: the sweep only touches these
         Task.detached { WineServerProbe.sweepLeftovers(prefixes: ourBottles) }
+        // The depth-fix proxy at its fixed place, for NotProton running Silo's Wine (`AppPaths.depthFixDir`).
+        // Every startup, so a Silo update that rebuilds the proxy reaches it. Best-effort: Silo's own
+        // launches don't use this copy.
+        let depthFixDir = paths.depthFixDir
+        Task.detached {
+            try? GraphicsLinker().stageDepthFixProxy(
+                into: depthFixDir, proxy: GraphicsLinker.bundledDepthFixProxy)
+        }
         // Said at startup, not at the first Play: without translation nothing can launch, and the failure
         // surfaces as an error about Steam that names a CPU type and helps nobody.
         // The library/onboarding then asks to install it (`installRosetta`).
