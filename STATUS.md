@@ -39,6 +39,15 @@
      marker — mark the proxy (`winebuild --builtin`, or the "Wine builtin DLL" stub bytes) and test that it loads;
      plus that the clone stays in sync when GPTK is re-imported. Bottle/system32 = plan B. (Not a real problem in
      the shared Steam bottle either: other games keep `d3d11=b`; the variant is just cleaner.)
+     **🔁 Requirement added later the same day (user): it must also work in NotProton, with BOTH Silo's Wine and
+     CrossOver's Wine as the runner.** That tips the choice to the BOTTLE route (everything in the prefix + per-
+     launch env), because a runtime variant means writing into / cloning the runner's own tree — for CrossOver
+     that is the licensed, signed `CrossOver.app` bundle (and NotProton pins its ntdll by hash), which we must not
+     modify. Open point that decides feasibility: today the renamed `d3dm_d3d11.dll` sits in the RUNTIME's
+     builtin dir; first test whether D3DMetal's `d3d11.dll` still works when the copy lives in the bottle (or any
+     Silo-owned dir) and is loaded by full path — if not, find another way to reach the real module (a proxy
+     can't load a second file also named `d3d11.dll`: Wine returns the already-loaded module by base name). Also
+     check where CrossOver keeps D3DMetal's `d3d11.dll` (its tree layout differs: `lib64/apple_gptk`).
   **Publishing — DECIDED (user, 2026-10-13):** all commits stay local until this feature is done; then pushed to
   GitHub together with the new DXMT (0002 + 0003) release.
   6. **UI:** toggle in the game's settings (Steam + manual), it/en strings. **Tests** for model decode,
