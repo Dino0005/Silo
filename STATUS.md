@@ -62,6 +62,19 @@
        the copy's `Z:` path; DXMT → add `d3d11.depthEqualAsGreaterEqual=True` to `DXMT_CONFIG`; option off →
        restore Wine's placeholder `d3d11.dll` in `system32`.
      - The runtime variant is therefore NOT needed. The NotProton fork is LOCAL ONLY (never push `silo-wine`).
+  **🧪 Silo-app side BUILT (c7dc437, 773 tests green), awaiting the user's GoW check through Silo:** `EnvFlags.depthFix`
+  + "Depth fix"/"Correzione profondità" toggle (new "Rendering" section, both settings sheets); proxy moved to
+  `Proxy/d3d11-depth-fix/` (marker string, opt-in `SILO_DEPTH_FIX_LOG`), built by `Scripts/build-depth-proxy.sh`
+  into the COMMITTED resource `Sources/SiloKit/Resources/silo-depth-fix-d3d11.dll` (icon-style; llvm-mingw cached
+  in `.toolchains/`); `GraphicsLinker.syncDepthFixRealModule` (every GPTK overlay, both trees) and
+  `syncDepthFixProxy` (every launch; foreign native d3d11 moved aside + restored, Wine's own → placeholder);
+  `makePlan` emits `d3d11=n,b` + `SILO_REAL_D3D11` (GPTK) or `DXMT_CONFIG` (DXMT). Measured 2026-10-13 with the test
+  program before building: proxy in system32 + `d3d11=b` → builtin D3DMetal (unaffected); `d3d11=n,b` → proxy;
+  `wineboot -u` keeps the proxy. **Both runtime kinds:** on a clone of the IMPORTED CrossOver runtime
+  (`wine-crossover-26.3`, D3DMetal in both `lib/wine` and `lib64/apple_gptk`, same file) the proxy loads the
+  `lib/wine` copy by full path, gets FL 11_1 and swaps EQUAL→GREATER_EQUAL — test program only, no game yet.
+  GoW's hand setup removed: proxy out of the game folder (kept in `Silo/Backups/gow-folder-test-proxy-d3d11.dll`),
+  `extra` emptied, `depthFix: true` set in config.json. Next: user's GoW check, then the NotProton checkbox.
   **Publishing — DECIDED (user, 2026-10-13):** all commits stay local until this feature is done; then pushed to
   GitHub together with the new DXMT (0002 + 0003) release.
   6. **UI:** toggle in the game's settings (Steam + manual), it/en strings. **Tests** for model decode,
