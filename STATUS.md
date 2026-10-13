@@ -48,6 +48,20 @@
      Silo-owned dir) and is loaded by full path — if not, find another way to reach the real module (a proxy
      can't load a second file also named `d3d11.dll`: Wine returns the already-loaded module by base name). Also
      check where CrossOver keeps D3DMetal's `d3d11.dll` (its tree layout differs: `lib64/apple_gptk`).
+     **✅ DECIDED (user, 2026-10-13, supersedes the CrossOver-runner requirement above): Silo's runner only, like
+     Media Foundation.** In NotProton the option is a checkbox in **Steam's own game Properties → Compatibility**
+     (the options panel NotProton injects into Steam's UI, `dylib/feats/webpatch.c`), next to the existing
+     "Media Foundation (videos, uses Silo's MF package)" one — NOT in the NotProton app window. Same mechanics as
+     MF: the checkbox writes a `NAME=1` into the game's launch options (`T([...])` in webpatch.c), and
+     `dylib/feats/compat_run.sh` acts on it only when the runner is Silo's (`np_silo=1`), using files Silo
+     prepared (MF reads `Silo/Runtimes/media-foundation`). So the design is ONE for both:
+     - **Silo prepares:** `d3dm_d3d11.dll` beside D3DMetal's `d3d11.dll` in every GPTK-overlaid runtime (overlay
+       step, refreshed on re-import), and the proxy at a fixed place (e.g. `Silo/Runtimes/depth-fix/d3d11.dll`).
+     - **Per launch (Silo app via `makePlan`; NotProton via `compat_run.sh` on e.g. `NOTPROTON_DEPTH_FIX=1`):**
+       D3DMetal → copy the proxy into the prefix's `system32`, append `d3d11=n,b` LAST, set `SILO_REAL_D3D11` to
+       the copy's `Z:` path; DXMT → add `d3d11.depthEqualAsGreaterEqual=True` to `DXMT_CONFIG`; option off →
+       restore Wine's placeholder `d3d11.dll` in `system32`.
+     - The runtime variant is therefore NOT needed. The NotProton fork is LOCAL ONLY (never push `silo-wine`).
   **Publishing — DECIDED (user, 2026-10-13):** all commits stay local until this feature is done; then pushed to
   GitHub together with the new DXMT (0002 + 0003) release.
   6. **UI:** toggle in the game's settings (Steam + manual), it/en strings. **Tests** for model decode,
