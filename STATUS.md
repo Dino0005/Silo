@@ -75,6 +75,12 @@
   `lib/wine` copy by full path, gets FL 11_1 and swaps EQUAL→GREATER_EQUAL — test program only, no game yet.
   GoW's hand setup removed: proxy out of the game folder (kept in `Silo/Backups/gow-folder-test-proxy-d3d11.dll`),
   `extra` emptied, `depthFix: true` set in config.json. Next: user's GoW check, then the NotProton checkbox.
+  **✅ Verified on device through the Silo feature (user, 2026-10-13, GoW on GPTK, from-source runtime): option ON →
+  no specks; option OFF (second launch) → specks back.** After the OFF launch the bottle's `system32\d3d11.dll` was
+  Wine's placeholder again (1032 B), no backup left — the restore path works. Best quality with FSR; with DLSS
+  (= D3DMetal's DLSS→MetalFX temporal bridge) slight stutters at times and shimmer on fine detail (Atreus's fur tips)
+  that FSR doesn't show — MetalFX's, unrelated to the depth fix. Imported-runtime GoW run still not done (test
+  program only). Next: the NotProton checkbox.
   **Publishing — DECIDED (user, 2026-10-13):** all commits stay local until this feature is done; then pushed to
   GitHub together with the new DXMT (0002 + 0003) release.
   6. **UI:** toggle in the game's settings (Steam + manual), it/en strings. **Tests** for model decode,
