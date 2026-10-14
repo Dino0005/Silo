@@ -23,7 +23,7 @@ the commit message says why.
     off puts back what was there before.
   - **DXMT:** the same switch turns on DXMT's own equivalent (`d3d11.depthEqualAsGreaterEqual`, see below).
   - Silo also keeps a copy of the proxy at `Runtimes/depth-fix/d3d11.dll`, refreshed at every startup, for
-    tools that run Silo's Wine outside Silo (NotProton's matching checkbox reads it there).
+    tools that run Silo's Wine outside Silo (the NotProton fork's matching checkbox reads it there).
   - Verified on God of War with GPTK (no specks with the option on, specks back with it off), with FSR and DLSS.
     Also checked against a Wine imported from CrossOver with a test program.
 - **Play in the Games app starts the game through Silo.** macOS's Games app lists every game Silo has run,
