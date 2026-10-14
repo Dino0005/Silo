@@ -38,14 +38,23 @@ public struct GameHostBundle: Sendable {
     /// host passes `nil` — Steam is a launcher, and the games category is what turns on Game Mode and the
     /// Command-Esc game overlay (native `/Applications/Steam.app` and CrossOver's Steam bundles declare none).
     public let category: String?
+    /// The game's `silo://play/…` link. The bundle is registered with LaunchServices like any app, so the
+    /// Games app lists it and its Play button opens it — with no hand-over socket. The host then opens this
+    /// link (read from `playURLFileName`), and Silo launches the game the way its own Play button does.
+    /// `nil` for the Steam client's host, which has no game to start.
+    public let playLink: SiloDeepLink?
 
     /// The category a game's host declares (see `infoPlist`).
     public static let gamesCategory = "public.app-category.games"
+    /// The file in `Contents/Resources` holding `playLink`'s URL, read by `Scripts/altloader-host/host.c`.
+    static let playURLFileName = "silo-play-url"
 
-    public init(name: String, id: String, category: String? = GameHostBundle.gamesCategory) {
+    public init(name: String, id: String, category: String? = GameHostBundle.gamesCategory,
+                playLink: SiloDeepLink? = nil) {
         self.name = name
         self.id = id
         self.category = category
+        self.playLink = playLink
     }
 
     /// Marks a bundle as ours, so `write` can replace its own previous output and nothing else.
@@ -228,6 +237,15 @@ public struct GameHostBundle: Sendable {
                 }
                 try fileManager.copyItem(at: hostBinary, to: installed)
                 try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: installed.path)
+            }
+            let playURLFile = bundle.appendingPathComponent(
+                "Contents/Resources/\(Self.playURLFileName)")
+            if let playLink {
+                try fileManager.createDirectory(
+                    at: playURLFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data(playLink.url.absoluteString.utf8).write(to: playURLFile, options: .atomic)
+            } else if fileManager.fileExists(atPath: playURLFile.path) {
+                try fileManager.removeItem(at: playURLFile)
             }
             if let iconICO, let icns = Self.icnsData(fromICO: iconICO) {
                 let resources = bundle.appendingPathComponent("Contents/Resources", isDirectory: true)

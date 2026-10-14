@@ -463,7 +463,8 @@ public final class GameLibraryViewModel {
                 logURL: paths.log(forAppID: game.appID),
                 gameExe: exe,
                 altLoaderTarget: .init(gameName: game.name, gameID: String(game.appID),
-                                       hostAppsDir: paths.hostAppsDir))
+                                       hostAppsDir: paths.hostAppsDir,
+                                       playLink: .playSteam(appID: game.appID)))
             // NOTE (2026-07-25): `desktopGeometry: ScreenGeometry.nativeResolution()` was here as an
             // attempted fix for GPTK games not covering the real screen (menu bar/Dock visible around
             // them). REVERTED — on-device testing showed `explorer /desktop=` produces a bordered,
@@ -665,7 +666,8 @@ public final class GameLibraryViewModel {
                 game, backend: backend, graphics: context.graphics,
                 wine: context.wineBinary, prefix: context.prefix, logURL: paths.manualLog(game.id),
                 altLoaderTarget: .init(gameName: game.name, gameID: game.id.uuidString,
-                                       hostAppsDir: paths.hostAppsDir))
+                                       hostAppsDir: paths.hostAppsDir,
+                                       playLink: .playManual(id: game.id)))
             // See the matching NOTE in play(above) — reverted for the same reason.
             do {
                 _ = try await configStore.updateManualGame(id: game.id) { $0.lastPlayed = Date() }

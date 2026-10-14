@@ -30,6 +30,9 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/un.h>
+#include <libgen.h>
+#include <limits.h>
+#include <mach-o/dyld.h>
 
 __asm__(".zerofill WINE_RESERVE,WINE_RESERVE");
 static char __wine_reserve[0x1fffff000] __attribute__((section("WINE_RESERVE, WINE_RESERVE")));
@@ -65,7 +68,30 @@ static char *rd_blob(int s, uint64_t *out) {
     *out = n; return b;
 }
 
+/* Aperto senza il socket di Silo: il Play dell'app Giochi, il Finder o Launchpad avviano il
+   bundle come una qualsiasi app, senza argomenti e senza nessun Wine da adottare. Allora si
+   chiede a Silo di avviare il gioco, con il link silo://play/... che Silo ha scritto nel
+   bundle (GameHostBundle.playLink), invece di restare un minuto in attesa per niente.
+   L'host del client Steam non ha il file: esce e basta. */
+static int hand_to_silo(void) {
+    char exe[PATH_MAX], real[PATH_MAX], file[PATH_MAX + 64], url[512];
+    uint32_t size = sizeof exe;
+    if (_NSGetExecutablePath(exe, &size) != 0 || !realpath(exe, real)) return 0;
+    char *macos = dirname(real);                          /* .../Contents/MacOS */
+    snprintf(file, sizeof file, "%s/../Resources/silo-play-url", macos);
+    FILE *f = fopen(file, "r");
+    if (!f) return 0;
+    size_t n = fread(url, 1, sizeof url - 1, f);
+    fclose(f);
+    url[n] = 0;
+    url[strcspn(url, "\r\n")] = 0;
+    if (strncmp(url, "silo://play/", 12) != 0) return 0;
+    execl("/usr/bin/open", "open", url, (char *)NULL);
+    return 1;
+}
+
 int main(int argc, char **argv) {
+    if (argc < 2 || strncmp(argv[1], "-psn", 4) == 0) return hand_to_silo();
     init_reserved_areas();
     const char *sockpath = argc > 1 ? argv[1] : "/tmp/silo-altloader.sock";
     /* Log dell'host: solo su richiesta. In produzione la diagnostica del gioco sta

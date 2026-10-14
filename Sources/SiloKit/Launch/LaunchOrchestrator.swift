@@ -284,7 +284,7 @@ public struct LaunchOrchestrator: Sendable {
             .flatMap(PEIcon.icoData(fromExecutable:))
         return await altLoader.prepare(
             gameName: target.gameName, gameID: target.gameID, gameExe: windowOwner, iconICO: icon,
-            prefix: prefix, wine: wine, hostAppsDir: target.hostAppsDir)
+            playLink: target.playLink, prefix: prefix, wine: wine, hostAppsDir: target.hostAppsDir)
     }
 
     /// Prepare the Steam client's hand-over for `bottle` (see `AltLoaderSession.prepareSteamClient`),

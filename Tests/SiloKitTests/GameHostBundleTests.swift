@@ -143,6 +143,39 @@ struct GameHostBundleTests {
         #expect(FileManager.default.fileExists(atPath: plist.path))
     }
 
+    // The Games app opens the bundle with no hand-over socket; the host then opens this link (host.c).
+    @Test func writeStoresThePlayLinkForTheHost() throws {
+        let root = try Self.tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = { (bundle: GameHostBundle) in
+            bundle.bundleURL(in: root).appendingPathComponent("Contents/Resources/silo-play-url")
+        }
+        let steam = GameHostBundle(name: "TEKKEN 8", id: "1778820", playLink: .playSteam(appID: 1778820))
+        try steam.write(into: root)
+        #expect(try String(contentsOf: file(steam), encoding: .utf8) == "silo://play/steam/1778820")
+
+        let id = try #require(UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF"))
+        let manual = GameHostBundle(name: "God of War", id: id.uuidString, playLink: .playManual(id: id))
+        try manual.write(into: root)
+        #expect(try String(contentsOf: file(manual), encoding: .utf8)
+                == "silo://play/manual/6F9619FF-8B86-D011-B42D-00C04FC964FF")
+        // What the host reads is a link Silo itself accepts.
+        let read = try String(contentsOf: file(manual), encoding: .utf8)
+        #expect(SiloDeepLink(url: try #require(URL(string: read))) == .playManual(id: id))
+    }
+
+    @Test func writeWithoutAPlayLinkLeavesNoneAndRemovesAStaleOne() throws {
+        let root = try Self.tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let withLink = GameHostBundle(name: "Steam", id: "steam-client", category: nil,
+                                      playLink: .playSteam(appID: 1))
+        try withLink.write(into: root)
+        let steamClient = GameHostBundle(name: "Steam", id: "steam-client", category: nil)
+        try steamClient.write(into: root)
+        let file = steamClient.bundleURL(in: root).appendingPathComponent("Contents/Resources/silo-play-url")
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+    }
+
     @Test func writeWithoutAnIconSkipsTheResourcesFile() throws {
         let root = try Self.tempDir()
         defer { try? FileManager.default.removeItem(at: root) }

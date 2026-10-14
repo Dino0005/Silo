@@ -48,11 +48,15 @@ public struct AltLoaderSession: Sendable {
         public let gameID: String
         /// Normally `AppPaths.hostAppsDir`.
         public let hostAppsDir: URL
+        /// The game's `silo://play/…` link, written into the host bundle so that opening the bundle from
+        /// outside Silo (Play in the Games app, Finder, Launchpad) asks Silo to launch the game.
+        public let playLink: SiloDeepLink?
 
-        public init(gameName: String, gameID: String, hostAppsDir: URL) {
+        public init(gameName: String, gameID: String, hostAppsDir: URL, playLink: SiloDeepLink? = nil) {
             self.gameName = gameName
             self.gameID = gameID
             self.hostAppsDir = hostAppsDir
+            self.playLink = playLink
         }
     }
 
@@ -105,11 +109,13 @@ public struct AltLoaderSession: Sendable {
     ///   - gameExe: the Windows executable; its **base name** is what goes in the whitelist, because
     ///     that is what Wine matches on (`AltLoaderWhitelist.exeName`).
     ///   - iconICO: the exe's icon from `PEIcon`, if any.
+    ///   - playLink: the game's `silo://play/…` link for the bundle (see `GameHostBundle.playLink`).
     public func prepare(
         gameName: String,
         gameID: String,
         gameExe: URL,
         iconICO: Data?,
+        playLink: SiloDeepLink? = nil,
         prefix: URL,
         wine: URL,
         hostAppsDir: URL,
@@ -118,7 +124,7 @@ public struct AltLoaderSession: Sendable {
         // Gate Wine's hand-over to THIS exe. Without it the socket is consumed by the first process the
         // prefix creates — on a cold bottle `wineboot.exe --init`, which owns no window (measured).
         await prepare(
-            bundle: GameHostBundle(name: gameName, id: gameID),
+            bundle: GameHostBundle(name: gameName, id: gameID, playLink: playLink),
             whitelist: [AltLoaderWhitelist.exeName(for: gameExe.lastPathComponent)],
             iconICO: iconICO, socketID: gameID, prefix: prefix, wine: wine,
             hostAppsDir: hostAppsDir, fileManager: fileManager)
