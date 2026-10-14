@@ -7,7 +7,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.6.9
 
 ### Added
 - **Depth fix ("Correzione profondità"), a per-game option** in a new *Rendering* section of the game's settings,
@@ -47,7 +47,7 @@ the commit message says why.
   module GPTK replaces, so the DXMT runtime can put Wine's back — but it kept them only on the first GPTK install.
   GPTK 4.0 beta 3 adds `d3d12core.dll`, which Wine has too: installing it would have replaced Wine's copy unsaved,
   and DXMT games that probe DirectX 12 (Fatal Fury, Devil May Cry 5) would have found D3DMetal's instead — the
-  crash fixed in 0.6.x. Silo now also keeps Wine's copy of any module a later GPTK brings for the first time.
+  crash fixed in 0.6.5. Silo now also keeps Wine's copy of any module a later GPTK brings for the first time.
 - **God of War's white specks under DXMT**, with two patches on top of DXMT v0.72: `0002` backports upstream's
   `d3d11.defuseFma` option, and `0003` adds `d3d11.depthEqualAsGreaterEqual`; both are on by default for
   `GoW.exe`. `dxmt-v0.72-cx26.3.0` was rebuilt on CI with them and republished under the same tag: remove it in
