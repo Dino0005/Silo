@@ -3,6 +3,25 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **▶️ NEXT (user, 2026-10-14): GPTK 4.0 beta 3 — first the d3d12core fix in Silo, then import + test.** The user
+  downloaded `~/Downloads/Game_Porting_Toolkit_4.0_beta_3.dmg` (not imported yet — advised NOT to until the fix).
+  Compared with beta 2 (both inner "Evaluation environment" dmgs mounted read-only): the Read Me is identical except
+  the version (Apple published no change list); D3DMetal 4.0b2 → 4.0b3 (`SourceVersion` 33024 → 33039, binary
+  7.58 → 7.97 MB), new `default.metallib`, `libmetalirconverter`, `libd3dshared.dylib`; every PE changed, `dxgi.dll`
+  122880 → 135168 B, `nvapi64.dll` grew; **new module `d3d12core.dll`** (+ `d3d12core.so` → libd3dshared, like the
+  others). Two Silo consequences:
+  1. **`SteamOverlayDXGIPatch` won't apply** (byte-exact for beta 2: SizeOfImage 0x01025000; beta 3's is 0x01028000).
+     Harmless (skipped), but Steam overlay/Shift+Tab and Steam Input may be broken again under beta 3 unless Apple
+     fixed hooking — test (SoulCalibur VI + DualSense, Shift+Tab); if broken, port the WineForge patch to the new dxgi.
+  2. **TO FIX FIRST — `d3d12core.dll` and the DXMT clone:** Wine ships its own `d3d12core.dll` (present in
+     `wine-cx-26.3.0-np` and its `-dxmt` clone). `preserveWineModules` saves Wine's originals ONCE (originals dir +
+     `touched.txt`, today: nvngx-on-metalfx nvngx nvapi64 d3d10 d3d11 d3d12 dxgi), so overlaying beta 3 would
+     overwrite Wine's `d3d12core.dll` without keeping it and `restoreWineModules` (DXMT variant) would never put it
+     back → the DXMT runtime carries D3DMetal's d3d12core — the documented crash class (Fatal Fury / DMC5 on DXMT
+     probing D3D12 found D3DMetal modules). Fix: when a GPTK brings a module name not yet in `touched.txt`, save
+     Wine's own copy of it (if it is still Wine's, i.e. not a GPTK bridge) and append the name; `restoreWineModules`
+     then handles it. With tests. Then: import beta 3, test a GPTK game (TEKKEN 8 / GoW), Shift+Tab + Steam Input in a
+     Steam game, a DXMT game (Fatal Fury).
 - **▶️ NEXT TASK (user's decision, 2026-10-13): make the depth fix a Silo feature — a per-game option
   "Correzione profondità" (EN "Depth fix"), with Silo preparing the copy and the proxy by itself.** Proven by
   hand on GoW the evening before (GPTK: proxy, see the GoW entries below and `Experiments/d3d11-depth-proxy/`;
