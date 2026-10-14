@@ -28,6 +28,13 @@ the commit message says why.
     Also checked against a Wine imported from CrossOver with a test program.
 
 ### Fixed
+- **Steam stuck at startup after a Steam update** (no window, never logs in; Silo's status bar says Steam is open).
+  Silo runs Steam's interface through a small wrapper and keeps Steam's own webhelper as `steamwebhelper_orig.exe`.
+  When a Steam update installed a NEW webhelper, Silo took it for an old wrapper of its own, deleted it and kept
+  the previous one — an old interface next to an updated client, which never connects. Silo now recognises its
+  wrapper by its content, so a webhelper a Steam update brings always becomes the kept original. A bottle already
+  hit by this is fixed by Steam reinstalling its client once (measured 2026-10-14; the client from 2026-10-13
+  shipped a new webhelper).
 - **A GPTK that adds a module Wine also ships could break DXMT games.** Silo keeps Wine's own copy of every
   module GPTK replaces, so the DXMT runtime can put Wine's back — but it kept them only on the first GPTK install.
   GPTK 4.0 beta 3 adds `d3d12core.dll`, which Wine has too: installing it would have replaced Wine's copy unsaved,

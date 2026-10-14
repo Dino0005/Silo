@@ -3,6 +3,21 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ FIXED (2026-10-14): Steam stuck at startup — Silo's webhelper wrapper deleted a Steam update's NEW webhelper.**
+  Symptom: Steam starts, connectivity OK, the UI's shared JS context is created and "setting locale" logged, then
+  nothing — the UI never opens its websocket to steam.exe (`CWebSocketConnection … websocket open` missing), no
+  logon, no window; `steam.exe` registered as a Foreground app (2nd "Steam" Dock tile), no on-screen window. NOT the
+  cause (each ruled out by measurement): GPTK beta 3 (same with beta 2), a hidden dialog (CGWindowList: none), the
+  htmlcache, the Steam Client Service (running), DXGI, an empty `gamerecording.pb`, registry state.
+  **Cause:** `SteamBottle.installWebHelperWrapper` treated `steamwebhelper.exe` as a stale wrapper whenever
+  `steamwebhelper_orig.exe` existed, so the new real webhelper of the 2026-10-13 21:50 client (7 501 976 B; the kept
+  original was 2026-09-03, 7 488 152 B) was deleted and the old one ran beside the updated client.
+  **Fix (12626b5):** decide by `isSiloWebHelperWrapper` — a real webhelper always becomes `_orig` (replacing an older
+  one). Test extended (wrapper fixtures now carry the real wrapper's wide marker; new "Steam update puts back its
+  new webhelper" step). **Repair of this bottle:** renamed `package/steam_client_win64.{installed,manifest}` → Steam
+  re-downloaded and reinstalled its client → logged on; one restart through the fixed Silo → wrapper over the new
+  `_orig` (`18609d83e3…`), window paints. Backups cleaned. The MF bottle still has the 09-03 client + webhelper
+  (consistent); the fix covers it when it updates.
 - **▶️ NEXT (user, 2026-10-14): GPTK 4.0 beta 3 — first the d3d12core fix in Silo, then import + test.** The user
   downloaded `~/Downloads/Game_Porting_Toolkit_4.0_beta_3.dmg` (not imported yet — advised NOT to until the fix).
   Compared with beta 2 (both inner "Evaluation environment" dmgs mounted read-only): the Read Me is identical except
