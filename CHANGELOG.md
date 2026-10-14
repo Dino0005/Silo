@@ -30,7 +30,10 @@ the commit message says why.
   through its host bundle, but its Play button opened that bundle with nothing to adopt, so nothing happened.
   The host now opens the game's `silo://play/…` link when it starts that way, and Silo launches the game like
   its own Play button does (backend, bottle and, for Steam games, the Steam client resolved at that moment).
-  A game's bundle gets the link the next time the game is launched from Silo.
+  A game's bundle gets the link the next time the game is launched from Silo. That first launch after updating
+  Silo may leave the game's window in Stage Manager instead of full screen: macOS checks the updated host (an
+  Intel binary, run by Rosetta) once and shows a system notice that takes the focus. From the next launch on it
+  comes to the front as usual. Verified on God of War (launch from Silo, then Play in the Games app).
 
 ### Fixed
 - **Steam stuck at startup after a Steam update** (no window, never logs in; Silo's status bar says Steam is open).
