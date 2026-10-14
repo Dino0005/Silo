@@ -52,6 +52,10 @@ the commit message says why.
   game. Steam games weren't affected: there those services join the Steam client's group instead.
 
 ### Changed
+- **GPTK 4.0 beta 3 tested.** It installs and runs (TEKKEN 8 with DLSS and HDR; SoulCalibur VI). With it the Steam
+  overlay and Steam Input work without Silo's `dxgi.dll` fix from 0.6.8 — Apple fixed the cause — so that fix,
+  byte-exact for beta 2, simply doesn't apply to beta 3. The first launch after switching can still freeze once
+  while D3DMetal rebuilds its shaders; launch again.
 - **A `WINEDLLOVERRIDES` written by hand in a game's `extra` settings (config.json) now comes after Silo's own
   overrides**, so it really takes effect: Wine keeps the last entry for each DLL, so before this it was always
   overridden by the graphics backend's.

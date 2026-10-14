@@ -45,8 +45,8 @@
      (verified in `silo-wine-originals`). TEKKEN 8 (GPTK, from-source runtime): first launch froze in the menu
      (likely the first-run shader build), second launch fine — menu, DLSS and HDR present, window switching OK.
      **SoulCalibur VI (MF bottle) with beta 3: Steam Input works** even though `SteamOverlayDXGIPatch` does not apply
-     to beta 3's dxgi.dll — suggests Apple fixed the overlay hooking in beta 3; overlay (Shift+Tab) not tried yet.
-     Still to do: Shift+Tab in a game, a DXMT game (Fatal Fury).
+     to beta 3's dxgi.dll, **and Shift+Tab opens the overlay** — confirmed: Apple fixed the overlay hooking in beta 3, so
+     the WineForge-derived patch is only needed (and only applied) for beta 2. Still to do: a DXMT game (Fatal Fury).
 - **▶️ NEXT TASK (user's decision, 2026-10-13): make the depth fix a Silo feature — a per-game option
   "Correzione profondità" (EN "Depth fix"), with Silo preparing the copy and the proxy by itself.** Proven by
   hand on GoW the evening before (GPTK: proxy, see the GoW entries below and `Experiments/d3d11-depth-proxy/`;
