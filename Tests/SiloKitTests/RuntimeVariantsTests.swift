@@ -116,6 +116,54 @@ struct RuntimeVariantsTests {
         #expect(!FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent(kept).path))
     }
 
+    @Test("A newer GPTK's NEW module (beta 3's d3d12core) is kept from Wine too, so the DXMT clone gets Wine's")
+    func newModuleOfALaterGPTKIsPreserved() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let wine = try makeWine(tmp)
+        try addWineD3D(tmp)
+        try tmp.write("wine/lib/wine/x86_64-windows/d3d12core.dll", "WINE:d3d12core.dll")   // Wine ships it
+        let variants = RuntimeVariants()
+        // GPTK 4.0 beta 2: no d3d12core. The originals are taken now, without it.
+        let gptkWin = try makeFullGPTK(tmp)
+        _ = try variants.prepare(backend: .gptk, baseWine: wine, libDir: gptkWin)
+        let kept = "wine/lib/wine/\(GraphicsLinker.wineOriginalsDirName)"
+        #expect(try !read(tmp, "\(kept)/touched.txt").contains("d3d12core.dll"))
+
+        // GPTK 4.0 beta 3: brings d3d12core (+ a module Wine doesn't have) and changes d3d11.
+        let unix = tmp.url.appendingPathComponent("gptk/lib/wine/x86_64-unix")
+        for module in ["d3d12core.dll", "nvextra.dll"] {
+            try tmp.write("gptk/lib/wine/x86_64-windows/\(module)", "GPTK:\(module)")
+            try FileManager.default.createSymbolicLink(
+                atPath: unix.appendingPathComponent((module as NSString).deletingPathExtension + ".so").path,
+                withDestinationPath: "../../external/libd3dshared.dylib")
+        }
+        try tmp.write("gptk/lib/wine/x86_64-windows/d3d11.dll", "GPTK-b3:d3d11.dll")
+        _ = try variants.prepare(backend: .gptk, baseWine: wine, libDir: gptkWin)
+        #expect(try read(tmp, "wine/lib/wine/x86_64-windows/d3d12core.dll") == "GPTK:d3d12core.dll")   // base: GPTK
+        #expect(try read(tmp, "\(kept)/x86_64-windows/d3d12core.dll") == "WINE:d3d12core.dll")         // saved first
+        let touched = try read(tmp, "\(kept)/touched.txt").split(separator: "\n").map(String.init)
+        #expect(touched.contains("d3d12core.dll") && touched.contains("nvextra.dll"))
+        #expect(touched.contains("nvapi64.dll"))                                                      // old list kept
+
+        // The DXMT clone: Wine's d3d12core, no GPTK-only module, no D3DMetal bridge.
+        _ = try variants.prepare(backend: .dxmt, baseWine: wine, libDir: try makeDXMT(tmp))
+        let clone = "wine-dxmt/lib/wine"
+        #expect(try read(tmp, "\(clone)/x86_64-windows/d3d12core.dll") == "WINE:d3d12core.dll")
+        let fm = FileManager.default
+        #expect(!fm.fileExists(atPath: tmp.url.appendingPathComponent("\(clone)/x86_64-windows/nvextra.dll").path))
+        for so in ["d3d12core.so", "nvextra.so"] {
+            #expect((try? fm.destinationOfSymbolicLink(
+                atPath: tmp.url.appendingPathComponent("\(clone)/x86_64-unix/\(so)").path)) == nil)
+        }
+
+        // Overlaying the same GPTK again changes nothing: the saved copy stays Wine's, the list has no duplicates.
+        try tmp.write("gptk/lib/wine/x86_64-windows/d3d11.dll", "GPTK-b3bis:d3d11.dll")
+        _ = try variants.prepare(backend: .gptk, baseWine: wine, libDir: gptkWin)
+        #expect(try read(tmp, "\(kept)/x86_64-windows/d3d12core.dll") == "WINE:d3d12core.dll")
+        let again = try read(tmp, "\(kept)/touched.txt").split(separator: "\n")
+        #expect(again.filter { $0 == "d3d12core.dll" }.count == 1)
+    }
+
     @Test("prepare(.gptk) overlays the BASE runtime in place and returns the base wine (no clone)")
     func prepareGPTK() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

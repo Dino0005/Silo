@@ -275,8 +275,11 @@ public struct GraphicsLinker: Sendable {
     /// regains them when reinstalled.
     func preserveWineModules(_ modules: [URL], layout: WineRuntimeLayout) throws {
         let dir = wineOriginalsDir(layout)
-        guard !fileManager.fileExists(atPath: dir.path) else { return }
         let names = overlaidNames(modules)
+        guard !fileManager.fileExists(atPath: dir.path) else {
+            try preserveNewWineModules(names, in: dir, layout: layout)
+            return
+        }
         guard !names.contains(where: { isGPTKBridge($0, unixDir: layout.unixModulesDir) }) else { return }
         let staging = dir.deletingLastPathComponent().appendingPathComponent(".\(Self.wineOriginalsDirName).tmp")
         try? fileManager.removeItem(at: staging)
@@ -288,6 +291,32 @@ public struct GraphicsLinker: Sendable {
         }
         try Data(names.joined(separator: "\n").utf8).write(to: staging.appendingPathComponent("touched.txt"))
         try fileManager.moveItem(at: staging, to: dir)   // published complete, or not at all
+    }
+
+    /// The originals are kept on the FIRST overlay, so a newer GPTK can bring a module that list has never
+    /// seen — GPTK 4.0 beta 3 adds `d3d12core.dll`, which Wine also ships (found 2026-10-14). Unrecorded, the
+    /// overlay would replace Wine's copy unsaved and `restoreWineModules` would leave D3DMetal's in the DXMT
+    /// clone: the "DXMT game probing D3D12 finds D3DMetal" crash. So, before the overlay writes them: save
+    /// Wine's own copy of each new name (only if what sits there is still Wine's — not a GPTK bridge) and add
+    /// the name to `touched.txt`. A new name with no Wine copy is recorded anyway, so the clone drops it.
+    private func preserveNewWineModules(_ names: [String], in dir: URL, layout: WineRuntimeLayout) throws {
+        let listURL = dir.appendingPathComponent("touched.txt")
+        guard let list = try? String(contentsOf: listURL, encoding: .utf8) else { return }   // not ours: leave it
+        let known = list.split(separator: "\n").map(String.init)
+        let knownLower = Set(known.map { $0.lowercased() })
+        let new = names.filter { !knownLower.contains($0.lowercased()) }
+        guard !new.isEmpty else { return }
+        let win = dir.appendingPathComponent("x86_64-windows", isDirectory: true)
+        try fileManager.createDirectory(at: win, withIntermediateDirectories: true)
+        for name in new where !isGPTKBridge(name, unixDir: layout.unixModulesDir) {
+            let own = layout.windowsModulesDir.appendingPathComponent(name)
+            let saved = win.appendingPathComponent(name)
+            if fileManager.fileExists(atPath: own.path), !fileManager.fileExists(atPath: saved.path) {
+                try fileManager.copyItem(at: own, to: saved)
+            }
+        }
+        // The list last, atomically: a copy is never left unlisted by a failure halfway.
+        try Data((known + new).joined(separator: "\n").utf8).write(to: listURL, options: .atomic)
     }
 
     /// Put Wine's own modules back into a variant runtime (the DXMT clone) wherever GPTK's overlay of the base

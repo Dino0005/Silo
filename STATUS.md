@@ -22,6 +22,10 @@
      Wine's own copy of it (if it is still Wine's, i.e. not a GPTK bridge) and append the name; `restoreWineModules`
      then handles it. With tests. Then: import beta 3, test a GPTK game (TEKKEN 8 / GoW), Shift+Tab + Steam Input in a
      Steam game, a DXMT game (Fatal Fury).
+     **✅ Fix BUILT (2026-10-14, 776 tests green):** `preserveWineModules` → `preserveNewWineModules` when the originals
+     dir exists: new names get Wine's copy saved (if not a GPTK bridge) and are appended to `touched.txt` (atomic,
+     no duplicates). Test `newModuleOfALaterGPTKIsPreserved` (beta 2 → beta 3 with d3d12core + a GPTK-only module →
+     DXMT clone gets Wine's d3d12core, drops the extra, no bridges). Next: the user imports beta 3 and tests.
 - **▶️ NEXT TASK (user's decision, 2026-10-13): make the depth fix a Silo feature — a per-game option
   "Correzione profondità" (EN "Depth fix"), with Silo preparing the copy and the proxy by itself.** Proven by
   hand on GoW the evening before (GPTK: proxy, see the GoW entries below and `Experiments/d3d11-depth-proxy/`;
