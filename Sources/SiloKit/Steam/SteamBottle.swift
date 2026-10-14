@@ -576,12 +576,16 @@ public struct SteamBottle: Sendable {
             if fileManager.fileExists(atPath: staged.path) { try fileManager.removeItem(at: staged) }
             try fileManager.copyItem(at: wrapper, to: staged)
             do {
-                if fileManager.fileExists(atPath: real.path) {
-                    // Real webhelper already preserved; `helper` is a STALE wrapper — replace just it, so we
-                    // never move a wrapper over the genuine `…_orig.exe`.
+                if Self.isSiloWebHelperWrapper(at: helper) {
+                    // A STALE wrapper (an older version of ours) over an already-preserved original: replace
+                    // just it, so a wrapper is never moved over the genuine `…_orig.exe`.
                     try fileManager.removeItem(at: helper)
                 } else {
-                    // `helper` is the real webhelper (fresh install or a Steam update): preserve it once.
+                    // `helper` is the REAL webhelper — a fresh install, or a Steam update that put its own
+                    // binary back. It becomes the preserved original, replacing any older one: keying this on
+                    // "`…_orig.exe` already exists" (as before 2026-10-14) deleted the NEW webhelper a Steam
+                    // update had just installed and kept running the old one next to the updated client.
+                    if fileManager.fileExists(atPath: real.path) { try fileManager.removeItem(at: real) }
                     try fileManager.moveItem(at: helper, to: real)
                 }
                 try fileManager.moveItem(at: staged, to: helper)   // atomic publish (same-dir rename)

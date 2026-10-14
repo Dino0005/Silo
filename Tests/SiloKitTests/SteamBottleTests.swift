@@ -263,9 +263,14 @@ struct SteamBottleTests {
     func webHelperWrapper() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let (bottle, _, paths) = make(tmp)
-        // The wine runtime ships the wrapper at <wineRoot>/share/silo/.
+        // The wine runtime ships the wrapper at <wineRoot>/share/silo/ — with the wide "steamwebhelper_orig.exe"
+        // the real one carries, which is how Silo tells its wrapper from Steam's own binary.
         let wine = tmp.url.appendingPathComponent("wine/bin/wine64")
-        _ = try tmp.write("wine/share/silo/steamwebhelper-wrapper.exe", "WRAPPER")
+        let wrapperURL = wine.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("share/silo/steamwebhelper-wrapper.exe")
+        try FileManager.default.createDirectory(at: wrapperURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let wrapperV1 = Self.wrapperBytes + Data("V1".utf8), wrapperV2 = Self.wrapperBytes + Data("V2".utf8)
+        try wrapperV1.write(to: wrapperURL)
         // Steam installed its real webhelper in the bottle.
         let helper = paths.steamBottleCEFDir.appendingPathComponent("cef.win7x64/steamwebhelper.exe")
         try FileManager.default.createDirectory(at: helper.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -273,7 +278,7 @@ struct SteamBottleTests {
 
         try bottle.installWebHelperWrapper(wine: wine)
         let orig = helper.deletingLastPathComponent().appendingPathComponent("steamwebhelper_orig.exe")
-        #expect(try String(contentsOf: helper, encoding: .utf8) == "WRAPPER")   // wrapper in place
+        #expect(try Data(contentsOf: helper) == wrapperV1)                      // wrapper in place
         #expect(try String(contentsOf: orig, encoding: .utf8) == "REAL")        // real one preserved
 
         // Idempotent: a second call doesn't clobber the preserved real binary.
@@ -282,10 +287,9 @@ struct SteamBottleTests {
 
         // A NEW wrapper version (changed CEF flags) replaces the stale wrapper but keeps the real `_orig`
         // — must NOT move the stale wrapper over the genuine preserved binary.
-        try "WRAPPER_V2".write(to: wine.deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("share/silo/steamwebhelper-wrapper.exe"), atomically: true, encoding: .utf8)
+        try wrapperV2.write(to: wrapperURL)
         try bottle.installWebHelperWrapper(wine: wine)
-        #expect(try String(contentsOf: helper, encoding: .utf8) == "WRAPPER_V2")   // new wrapper in place
+        #expect(try Data(contentsOf: helper) == wrapperV2)                         // new wrapper in place
         #expect(try String(contentsOf: orig, encoding: .utf8) == "REAL")           // real one still intact
 
         // A Steam update adds a SECOND cef dir (cef.win64) with a fresh real webhelper — it must ALSO get
@@ -294,8 +298,16 @@ struct SteamBottleTests {
         try FileManager.default.createDirectory(at: cef2, withIntermediateDirectories: true)
         try "REAL2".write(to: cef2.appendingPathComponent("steamwebhelper.exe"), atomically: true, encoding: .utf8)
         try bottle.installWebHelperWrapper(wine: wine)
-        #expect(try String(contentsOf: cef2.appendingPathComponent("steamwebhelper.exe"), encoding: .utf8) == "WRAPPER_V2")
+        #expect(try Data(contentsOf: cef2.appendingPathComponent("steamwebhelper.exe")) == wrapperV2)
         #expect(try String(contentsOf: cef2.appendingPathComponent("steamwebhelper_orig.exe"), encoding: .utf8) == "REAL2")
+
+        // A Steam update puts its NEW real webhelper back over the wrapper while the old original is still
+        // preserved: the new one must become `_orig` (measured 2026-10-14: the old rule deleted it and kept the
+        // stale original next to an updated client).
+        try "REAL_NEW".write(to: helper, atomically: true, encoding: .utf8)
+        try bottle.installWebHelperWrapper(wine: wine)
+        #expect(try Data(contentsOf: helper) == wrapperV2)
+        #expect(try String(contentsOf: orig, encoding: .utf8) == "REAL_NEW")
     }
 
     /// Wrapper bytes as the real one has them: it names the binary it launches as a wide string.
