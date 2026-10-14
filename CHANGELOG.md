@@ -26,6 +26,11 @@ the commit message says why.
     tools that run Silo's Wine outside Silo (NotProton's matching checkbox reads it there).
   - Verified on God of War with GPTK (no specks with the option on, specks back with it off), with FSR and DLSS.
     Also checked against a Wine imported from CrossOver with a test program.
+- **Play in the Games app starts the game through Silo.** macOS's Games app lists every game Silo has run,
+  through its host bundle, but its Play button opened that bundle with nothing to adopt, so nothing happened.
+  The host now opens the game's `silo://play/…` link when it starts that way, and Silo launches the game like
+  its own Play button does (backend, bottle and, for Steam games, the Steam client resolved at that moment).
+  A game's bundle gets the link the next time the game is launched from Silo.
 
 ### Fixed
 - **Steam stuck at startup after a Steam update** (no window, never logs in; Silo's status bar says Steam is open).
