@@ -33,6 +33,8 @@
 #include <libgen.h>
 #include <limits.h>
 #include <mach-o/dyld.h>
+#include <fcntl.h>
+#include <spawn.h>
 
 __asm__(".zerofill WINE_RESERVE,WINE_RESERVE");
 static char __wine_reserve[0x1fffff000] __attribute__((section("WINE_RESERVE, WINE_RESERVE")));
@@ -73,12 +75,19 @@ static char *rd_blob(int s, uint64_t *out) {
    chiede a Silo di avviare il gioco, con il link silo://play/... che Silo ha scritto nel
    bundle (GameHostBundle.playLink), invece di restare un minuto in attesa per niente.
    L'host del client Steam non ha il file: esce e basta. */
+/* Contents/Resources/silo-play-url del bundle di questo host. Solo il bundle di un gioco
+   ce l'ha (quello del client Steam no). */
+static int play_url_file(char *file, size_t size) {
+    char exe[PATH_MAX], real[PATH_MAX];
+    uint32_t n = sizeof exe;
+    if (_NSGetExecutablePath(exe, &n) != 0 || !realpath(exe, real)) return 0;
+    snprintf(file, size, "%s/../Resources/silo-play-url", dirname(real));   /* da .../Contents/MacOS */
+    return 1;
+}
+
 static int hand_to_silo(void) {
-    char exe[PATH_MAX], real[PATH_MAX], file[PATH_MAX + 64], url[512];
-    uint32_t size = sizeof exe;
-    if (_NSGetExecutablePath(exe, &size) != 0 || !realpath(exe, real)) return 0;
-    char *macos = dirname(real);                          /* .../Contents/MacOS */
-    snprintf(file, sizeof file, "%s/../Resources/silo-play-url", macos);
+    char file[PATH_MAX + 64], url[512];
+    if (!play_url_file(file, sizeof file)) return 0;
     FILE *f = fopen(file, "r");
     if (!f) return 0;
     size_t n = fread(url, 1, sizeof url - 1, f);
@@ -90,8 +99,30 @@ static int hand_to_silo(void) {
     return 1;
 }
 
+/* Tiene sveglio lo schermo finche' questo processo - che diventera' il gioco - e' vivo.
+   Giocando solo col controller macOS non vede attivita' (conta tastiera, mouse e trackpad)
+   e dopo un po' parte il salvaschermo. caffeinate -w esce da solo con il gioco, quindi
+   Silo non deve seguirne la vita. Solo per il bundle di un gioco, mai per il client Steam.
+   Lanciato prima di aprire qualunque descrittore, cosi' non eredita il socket di Wine. */
+static void keep_display_awake(void) {
+    char file[PATH_MAX + 64];
+    if (!play_url_file(file, sizeof file) || access(file, R_OK) != 0) return;
+    char pid[32];
+    snprintf(pid, sizeof pid, "%d", getpid());
+    char *args[] = { "caffeinate", "-d", "-i", "-w", pid, NULL };
+    posix_spawn_file_actions_t io;
+    posix_spawn_file_actions_init(&io);
+    for (int fd = 0; fd <= 2; fd++)
+        posix_spawn_file_actions_addopen(&io, fd, "/dev/null", fd ? O_WRONLY : O_RDONLY, 0);
+    pid_t child;
+    extern char **environ;
+    posix_spawn(&child, "/usr/bin/caffeinate", &io, NULL, args, environ);
+    posix_spawn_file_actions_destroy(&io);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2 || strncmp(argv[1], "-psn", 4) == 0) return hand_to_silo();
+    keep_display_awake();
     init_reserved_areas();
     const char *sockpath = argc > 1 ? argv[1] : "/tmp/silo-altloader.sock";
     /* Log dell'host: solo su richiesta. In produzione la diagnostica del gioco sta

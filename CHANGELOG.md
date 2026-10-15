@@ -34,6 +34,11 @@ the commit message says why.
   Silo may leave the game's window in Stage Manager instead of full screen: macOS checks the updated host (an
   Intel binary, run by Rosetta) once and shows a system notice that takes the focus. From the next launch on it
   comes to the front as usual. Verified on God of War (launch from Silo, then Play in the Games app).
+- **No screen saver while a game runs.** Playing only with a controller, macOS saw no activity (it counts the
+  keyboard, mouse and trackpad) and started the screen saver or turned the display off during long sessions. The
+  game's host now keeps the display awake (`caffeinate -d -i`, tied to the game's process) for as long as the game
+  runs, and lets go the moment it ends — even with Silo closed, and for games started from the Games app. Not for
+  the Steam client. The same fix NotProton adopted upstream (PR #166).
 
 ### Fixed
 - **Steam stuck at startup after a Steam update** (no window, never logs in; Silo's status bar says Steam is open).
