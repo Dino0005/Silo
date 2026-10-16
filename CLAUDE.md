@@ -204,8 +204,13 @@ user-guided SteamSetup black-window/auto-launch (mitigated by `forceQuit` before
 **Phase 2 (2026-07-10):** after `wineboot`, `SteamBottle.applyWineDefaults` imports Silo's default
 `HKCU\Software\Wine\DllOverrides` set (`Silo.defaultDllOverrides` — the 58-entry standard Windows-compatibility
 override set, `Sources/SiloKit/Steam/BottleDefaults.swift`) via one `wine regedit /S`. `d3dcompiler_47`/`msvcp140`/
-`vcruntime140` are installed as native files but **NOT** overridden — Wine's load order picks up the real files
-once present, so no registry override is needed (the earlier `d3dcompiler_47=native` override was removed).
+`vcruntime140` are installed as native files but **NOT** overridden (the earlier `d3dcompiler_47=native` override
+was removed). So the VC++ runtime that runs is **Wine's builtin, not Microsoft's** — measured 2026-10-16 with
+`vmmap` on FATAL FURY launched from Silo: `concrt140`/`msvcp140`/`msvcp140_1`/`vcruntime140`/`vcruntime140_1` all map
+from the runtime's `lib/wine/x86_64-windows`, none from the bottle's `system32` (an earlier note here claimed Wine's
+load order picks up the real files once present — wrong). The redist is there so games' dependency checks pass.
+Games run fine this way; if one ever reports the runtime missing, the fix is NotProton 1.1.9's: emit `<dll>=n,b` for
+each VC++ DLL in `system32` that isn't a Wine builtin (its PE header at offset 64 reads `Wine builtin DLL`).
 
 ## Concurrency model (apply consistently)
 - **Pure & synchronous** (trivially `Sendable`): `ACFTokenizer`, `KeyValuesParser`, `KVNode`,
