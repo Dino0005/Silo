@@ -55,8 +55,8 @@ the commit message says why.
 - **A GPTK that adds a module Wine also ships could break DXMT games.** Silo keeps Wine's own copy of every
   module GPTK replaces, so the DXMT runtime can put Wine's back — but it kept them only on the first GPTK install.
   GPTK 4.0 beta 3 adds `d3d12core.dll`, which Wine has too: installing it would have replaced Wine's copy unsaved,
-  and DXMT games that probe DirectX 12 (Fatal Fury, Devil May Cry 5) would have found D3DMetal's instead — the
-  crash fixed in 0.6.5. Silo now also keeps Wine's copy of any module a later GPTK brings for the first time.
+  and DXMT games that probe DirectX 12 (Fatal Fury) would have found D3DMetal's instead — the crash fixed in
+  0.6.5. Silo now also keeps Wine's copy of any module a later GPTK brings for the first time.
 - **God of War's white specks under DXMT**, with two patches on top of DXMT v0.72: `0002` backports upstream's
   `d3d11.defuseFma` option, and `0003` adds `d3d11.depthEqualAsGreaterEqual`; both are on by default for
   `GoW.exe`. `dxmt-v0.72-cx26.3.0` was rebuilt on CI with them and republished under the same tag: remove it in
