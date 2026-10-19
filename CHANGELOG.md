@@ -16,6 +16,20 @@ the commit message says why.
   runs, and lets go the moment it ends — even with Silo closed, and for games started from the Games app. Not for
   the Steam client. The same fix NotProton adopted upstream (PR #166).
 
+### Fixed
+- **God of War is no longer dark on DXMT with AMD FSR 2.** With FSR on, the picture was far darker than with FSR
+  off or on GPTK, and darker at every lower FSR mode. The game measures the scene's brightness on the GPU and
+  reads the result back to set its exposure; with FSR on it sizes one of the buffers for that measurement too
+  small and writes past its end — harmless on Windows, where those writes are dropped and the reads give 0, but
+  on DXMT the measurement picked up unrelated data and the exposure came out about 100 times too low. Two DXMT
+  patches fix it: out-of-range buffer reads and writes now behave as on Windows (for every game), and God of War's
+  shaders are compiled without fast math (`d3d11.disableFastMath`, on by default for God of War only). Checked
+  on device with FSR Ultra Performance and Quality, and without FSR at 80 % render scale.
+  **`dxmt-v0.72-cx26.3.0` has to be re-downloaded** (*Settings → DXMT*: remove, then install again) once the
+  rebuilt runtime is published.
+  Still open: on the main menu, before a game is started, Kratos's shoulder armour flashes white for an instant
+  when opening the settings.
+
 ## 0.6.9
 
 ### Added

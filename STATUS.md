@@ -111,7 +111,22 @@
      `Silo/Backups/config.json.pre-d3d11-proxy`), the proxy in `/Volumes/Extreme Pro/GOG/God of War/d3d11.dll`,
      and the hand-made `Runtimes/wine-cx-26.3.0-np/lib/wine/x86_64-windows/d3dm_d3d11.dll` (the feature recreates
      it). The test proxy logs to `/tmp/silo-proxy.log` on every launch until then.
-  Also still open (separate): GoW's darker lighting on DXMT (lead: unsupported border colour 32).
+- **✅ GoW dark on DXMT with AMD FSR 2 — FIXED 2026-10-19 (DXMT patches 0004 + 0005, verified on device; local,
+  CI rebuild of `dxmt-v0.72-cx26.3.0` pending).** Root cause, measured with read-back probes in an instrumented
+  DXMT: GoW's auto-exposure is a GPU reduction (`luminancePartAio`: l3 `83f966…` → final `54a3cf…`/`c598ea…`)
+  over a 240×135 luminance image, read back as a 16-byte buffer (`ResultBufFinal`: −sum(x)/sum(z), …). With FSR on
+  the game sizes the intermediate buffer from the reduced render size (816 B = 51 elements vs 7296 B) but still
+  dispatches 4×135 groups into it; on D3D the excess stores drop and the excess loads read 0, on DXMT airconv
+  pointed them at a null address → garbage → exposure −0.91 instead of ~5.8 (≈6.6 EV dark). Fix = 0004
+  (out-of-range raw/structured loads → 0, stores skipped; all games) + 0005 (`d3d11.disableFastMath`, GoW profile).
+  Bisected on device: 0004 alone dark; 0004 + willfaust PR #8 texture checks + encoder fences dark; 0004 + fast
+  math off correct, with or without fences → PR #8, fences, atomic guards NOT needed (not shipped). FSR 2 itself
+  is innocent (probed: preserves brightness end to end). Checked: FSR Ultra Performance + Quality, no FSR at 80 %.
+  **Minor, open:** on the main menu (before starting a game) Kratos's shoulder armour flashes white for an instant
+  when opening the settings — suspect the unsupported sampler border colour (32 → Metal opaque white).
+  Investigation artifacts (full experimental diff with probes/toggles, FSR + luminance shaders and .asm, the
+  `disas.exe` D3DDisassemble tool, `rwtest`) in `Silo/Backups/gow-fsr2-investigation`. Experimental runtime
+  backup `Silo/Backups/dxmt-v0.72-cx26.3.0-pre-0004` (0001–0003) can go once CI's build is installed.
   **Published 2026-10-13:** everything up to ec8d589 pushed to origin/main; the DXMT rebuild with 0001–0003 started on
   CI (`build-dxmt.yml`, run 38425863765, non-draft → replaces the assets of `dxmt-v0.72-cx26.3.0`). **✅ Done 16:33 UTC,
   success:** the release stayed public; the new `dxmt.tar.xz` (8662388 B) passes its `.sha256`, and both d3d11.dll

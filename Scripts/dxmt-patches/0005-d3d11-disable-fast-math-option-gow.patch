@@ -1,0 +1,130 @@
+Silo-only: new option `d3d11.disableFastMath`, on for God of War (2018) via its profile (added by 0002/0003,
+so this applies after them).
+
+Why: with AMD FSR 2 on, GoW's picture was far darker than with FSR off or on GPTK. The game's auto-exposure
+is a GPU reduction over a 240x135 luminance image that it reads back as a 16-byte buffer; measured on device
+(2026-10-19) it came out ~6.6 EV low with FSR on. Patch 0004 (out-of-range buffer access like D3D) is half of
+the fix; the other half is fast math: DXMT compiles every shader the game marks `refactoringAllowed` with
+Metal fast math, which also assumes no NaN/Inf, and the reduction still went wrong that way. Tested
+combinations on device: 0004 alone — dark; 0004 + texture out-of-range checks + encoder fences — dark; 0004 +
+fast math off — correct, with or without fences. The flag rides in SM50_SHADER_COMMON_DATA like defuseFma, so
+it is part of every variant digest and never mixes cache entries. Override per launch with
+DXMT_CONFIG="d3d11.disableFastMath=False".
+
+Not upstream. Keep as long as GoW needs it; rebase onto each DXMT_VERSION bump.
+
+diff --git a/dxmt.conf b/dxmt.conf
+index d180b48..a91331b 100644
+--- a/dxmt.conf
++++ b/dxmt.conf
+@@ -87,3 +87,12 @@
+ # - God of War (2018)
+ 
+ # d3d11.depthEqualAsGreaterEqual = False
++
++# (Silo) Compile every shader without fast math, even those the game marks as refactoring-allowed.
++#
++# Supported values: True, False
++#
++# Enabled by default for:
++# - God of War (2018)
++
++# d3d11.disableFastMath = False
+diff --git a/src/airconv/airconv_public.h b/src/airconv/airconv_public.h
+index 0111279..0e8368d 100644
+--- a/src/airconv/airconv_public.h
++++ b/src/airconv/airconv_public.h
+@@ -224,6 +224,7 @@ enum SM50_SHADER_METAL_VERSION {
+ 
+ enum SM50_SHADER_FLAG {
+   SM50_SHADER_FLAG_DEFUSE_FMA = 1 << 1, // same bit as upstream (bit 0 = SAMPLE_NAN_TO_ZERO there)
++  SM50_SHADER_FLAG_DISABLE_FAST_MATH = 1 << 16, // Silo-only, kept clear of upstream's low bits
+ };
+ 
+ struct SM50_SHADER_COMMON_DATA {
+diff --git a/src/airconv/dxbc_converter.cpp b/src/airconv/dxbc_converter.cpp
+index a82bdfb..e14b80f 100644
+--- a/src/airconv/dxbc_converter.cpp
++++ b/src/airconv/dxbc_converter.cpp
+@@ -1390,6 +1390,14 @@ AIRCONV_API void SM50Destroy(sm50_shader_t pShader) {
+   delete (dxmt::dxbc::SM50ShaderInternal *)pShader;
+ }
+ 
++// Silo: `d3d11.disableFastMath` (SM50_SHADER_FLAG_DISABLE_FAST_MATH) compiles every shader without fast math.
++static bool
++DisableFastMath(const SM50_SHADER_COMPILATION_ARGUMENT_DATA *pArgs) {
++  SM50_SHADER_COMMON_DATA *sm50_common = nullptr;
++  return dxmt::dxbc::args_get_data<SM50_SHADER_COMMON, SM50_SHADER_COMMON_DATA>(pArgs, &sm50_common) &&
++         (sm50_common->flags & SM50_SHADER_FLAG_DISABLE_FAST_MATH);
++}
++
+ AIRCONV_API int SM50Compile(
+   sm50_shader_t pShader, SM50_SHADER_COMPILATION_ARGUMENT_DATA *pArgs,
+   const char *FunctionName, sm50_bitcode_t *ppBitcode, sm50_error_t *ppError
+@@ -1419,7 +1427,7 @@ AIRCONV_API int SM50Compile(
+   auto pModule = std::make_unique<Module>("shader.air", context);
+   initializeModule(
+     *pModule,
+-    {.enableFastMath =
++    {.enableFastMath = !DisableFastMath(pArgs) &&
+        (!shader_info.skipOptimization && shader_info.refactoringAllowed &&
+         // this is by design: vertex functions are usually not the
+         // bottle-neck of pipeline, and precise calculation on pixel can reduce
+@@ -1489,7 +1497,7 @@ AIRCONV_API int SM50CompileTessellationPipelineHull(
+   auto pModule = std::make_unique<Module>("shader.air", context);
+   initializeModule(
+     *pModule,
+-    {.enableFastMath =
++    {.enableFastMath = !DisableFastMath(pHullShaderArgs) &&
+        (!shader_info.skipOptimization && shader_info.refactoringAllowed)}
+   );
+ 
+@@ -1559,7 +1567,7 @@ AIRCONV_API int SM50CompileTessellationPipelineDomain(
+   auto pModule = std::make_unique<Module>("shader.air", context);
+   initializeModule(
+     *pModule,
+-    {.enableFastMath =
++    {.enableFastMath = !DisableFastMath(pDomainShaderArgs) &&
+        (!shader_info.skipOptimization && shader_info.refactoringAllowed &&
+         // this is by design: vertex functions are usually not the
+         // bottle-neck of pipeline, and precise calculation on pixel can reduce
+@@ -1695,7 +1703,7 @@ AIRCONV_API int SM50CompileGeometryPipelineGeometry(
+   auto pModule = std::make_unique<Module>("shader.air", context);
+   initializeModule(
+     *pModule,
+-    {.enableFastMath =
++    {.enableFastMath = !DisableFastMath(pGeometryShaderArgs) &&
+        (!shader_info.skipOptimization && shader_info.refactoringAllowed)}
+   );
+ 
+diff --git a/src/d3d11/d3d11_shader.cpp b/src/d3d11/d3d11_shader.cpp
+index 08e49c3..03b27b0 100644
+--- a/src/d3d11/d3d11_shader.cpp
++++ b/src/d3d11/d3d11_shader.cpp
+@@ -17,6 +17,8 @@ getGlobalShaderFlag() {
+     shader_flag = {};
+     if (Config::getInstance().getOption<bool>("d3d11.defuseFma", false))
+       shader_flag = SM50_SHADER_FLAG(shader_flag | SM50_SHADER_FLAG_DEFUSE_FMA);
++    if (Config::getInstance().getOption<bool>("d3d11.disableFastMath", false))
++      shader_flag = SM50_SHADER_FLAG(shader_flag | SM50_SHADER_FLAG_DISABLE_FAST_MATH);
+   });
+   return shader_flag;
+ };
+diff --git a/src/util/config/config.cpp b/src/util/config/config.cpp
+index cafbdd0..be6da09 100644
+--- a/src/util/config/config.cpp
++++ b/src/util/config/config.cpp
+@@ -56,10 +56,12 @@ namespace dxmt {
+     { R"(\\SotTR\.exe$)", {{
+       { "d3d11.defuseFma",   "True" },
+     }} },
+-    /** God of War (2018) — Silo: white specks from the EQUAL-depth G-buffer pass after the prepass */
++    /** God of War (2018) — Silo: white specks from the EQUAL-depth G-buffer pass after the prepass;
++     *  dark picture with AMD FSR 2 from its auto-exposure reduction under fast math */
+     { R"(\\GoW\.exe$)", {{
+       { "d3d11.defuseFma",   "True" },
+       { "d3d11.depthEqualAsGreaterEqual",   "True" },
++      { "d3d11.disableFastMath",   "True" },
+     }} },
+   }};
+ 

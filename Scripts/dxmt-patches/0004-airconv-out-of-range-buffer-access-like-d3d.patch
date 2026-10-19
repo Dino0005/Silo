@@ -1,0 +1,160 @@
+Silo-only: out-of-range raw/structured buffer loads return 0 and out-of-range stores are dropped, as D3D defines.
+
+Why: God of War (2018) with AMD FSR 2 on was far darker than with FSR off or on GPTK, darker the lower the FSR
+mode. Measured on device (2026-10-19) with read-back probes: the game's auto-exposure is a GPU reduction
+(`luminancePartAio`) over a 240x135 luminance image that it reads back as a 16-byte buffer. With FSR on, the
+game sizes the intermediate partial-sum buffer from the reduced render resolution (816 B = 51 elements) but
+still dispatches 4x135 groups into it. On D3D that is harmless — the excess stores are dropped, the excess
+loads read 0 and the final ratio sum(x)/sum(z) ignores them. airconv instead pointed an out-of-range access
+at a null address, which on Metal neither drops the store nor reads 0: the reduction picked up garbage
+(positive values where a negative log-luminance belongs) and the exposure came out ~6.6 EV low (-0.91 instead
+of ~5.8). With this patch the reduction gives the FSR-off value and the picture matches GPTK.
+
+The null-address select is kept so the access itself still never leaves the buffer; the value / the store is
+now also guarded explicitly. Shader cache version bumped so converted shaders are not reused.
+
+Not upstream. Rebase onto each DXMT_VERSION bump.
+
+diff --git a/src/airconv/nt/dxbc_converter_base.cpp b/src/airconv/nt/dxbc_converter_base.cpp
+index 48be756..a5322f2 100644
+--- a/src/airconv/nt/dxbc_converter_base.cpp
++++ b/src/airconv/nt/dxbc_converter_base.cpp
+@@ -2263,6 +2263,8 @@ Converter::operator()(const InstLoadRaw &load) {
+     auto Ptr = CreateGEPInt32WithBoundCheck(Buf.value(), ir.CreateAdd(Index, ir.getInt32(Comp)));
+     auto ValueInt = Buf->GlobalCoherent ? (llvm::Value *)air.CreateDeviceCoherentLoad(ir.getInt32Ty(), Ptr)
+                                         : (llvm::Value *)ir.CreateLoad(ir.getInt32Ty(), Ptr, Volatile);
++    if (auto InBounds = BufferIndexInBounds(Buf.value(), ir.CreateAdd(Index, ir.getInt32(Comp))))
++      ValueInt = ir.CreateSelect(InBounds, ValueInt, ir.getInt32(0));
+     return StoreOperand(load.dst, MaskSwizzle(ValueInt, Mask));
+   }
+ 
+@@ -2271,6 +2273,8 @@ Converter::operator()(const InstLoadRaw &load) {
+     auto Ptr = CreateGEPInt32WithBoundCheck(Buf.value(), ir.CreateAdd(Index, ir.getInt32(DstComp)));
+     auto ValueInt = Buf->GlobalCoherent ? (llvm::Value *)air.CreateDeviceCoherentLoad(ir.getInt32Ty(), Ptr)
+                                         : (llvm::Value *)ir.CreateLoad(ir.getInt32Ty(), Ptr, Volatile);
++    if (auto InBounds = BufferIndexInBounds(Buf.value(), ir.CreateAdd(Index, ir.getInt32(DstComp))))
++      ValueInt = ir.CreateSelect(InBounds, ValueInt, ir.getInt32(0));
+     ValueVec = ir.CreateInsertElement(ValueVec, ValueInt, DstComp);
+   }
+   StoreOperand(load.dst, MaskSwizzle(ValueVec, Mask, Buf->Swizzle));
+@@ -2295,6 +2299,8 @@ Converter::operator()(const InstLoadStructured &load) {
+     auto Ptr = CreateGEPInt32WithBoundCheck(Buf.value(), ir.CreateAdd(Index, ir.getInt32(Comp)));
+     auto ValueInt = Buf->GlobalCoherent ? (llvm::Value *)air.CreateDeviceCoherentLoad(ir.getInt32Ty(), Ptr)
+                                         : (llvm::Value *)ir.CreateLoad(ir.getInt32Ty(), Ptr, Volatile);
++    if (auto InBounds = BufferIndexInBounds(Buf.value(), ir.CreateAdd(Index, ir.getInt32(Comp))))
++      ValueInt = ir.CreateSelect(InBounds, ValueInt, ir.getInt32(0));
+     return StoreOperand(load.dst, MaskSwizzle(ValueInt, Mask));
+   }
+ 
+@@ -2303,6 +2309,8 @@ Converter::operator()(const InstLoadStructured &load) {
+     auto Ptr = CreateGEPInt32WithBoundCheck(Buf.value(), ir.CreateAdd(Index, ir.getInt32(DstComp)));
+     auto ValueInt = Buf->GlobalCoherent ? (llvm::Value *)air.CreateDeviceCoherentLoad(ir.getInt32Ty(), Ptr)
+                                         : (llvm::Value *)ir.CreateLoad(ir.getInt32Ty(), Ptr, Volatile);
++    if (auto InBounds = BufferIndexInBounds(Buf.value(), ir.CreateAdd(Index, ir.getInt32(DstComp))))
++      ValueInt = ir.CreateSelect(InBounds, ValueInt, ir.getInt32(0));
+     ValueVec = ir.CreateInsertElement(ValueVec, ValueInt, DstComp);
+   }
+   StoreOperand(load.dst, MaskSwizzle(ValueVec, Mask, Buf->Swizzle));
+@@ -2332,11 +2340,24 @@ Converter::operator()(const InstStoreRaw &store) {
+   auto Value = LoadOperand(store.src, Buf->Mask);
+ 
+   for (auto [DstComp, _] : EnumerateComponents(Buf->Mask)) {
+-    auto Ptr = CreateGEPInt32WithBoundCheck(Buf.value(), ir.CreateAdd(Index, ir.getInt32(DstComp)));
++    auto CompIndex = ir.CreateAdd(Index, ir.getInt32(DstComp));
++    auto Ptr = CreateGEPInt32WithBoundCheck(Buf.value(), CompIndex);
++    llvm::BasicBlock *Done = nullptr;
++    if (auto InBounds = BufferIndexInBounds(Buf.value(), CompIndex)) {
++      auto Fn = ir.GetInsertBlock()->getParent();
++      auto Store = llvm::BasicBlock::Create(air.getContext(), "buf_store_in_bounds", Fn);
++      Done = llvm::BasicBlock::Create(air.getContext(), "buf_store_done", Fn);
++      ir.CreateCondBr(InBounds, Store, Done);
++      ir.SetInsertPoint(Store);
++    }
+     if (Buf->GlobalCoherent)
+       air.CreateDeviceCoherentStore(ExtractElement(Value, DstComp), Ptr);
+     else
+       ir.CreateStore(ExtractElement(Value, DstComp), Ptr, Volatile);
++    if (Done) {
++      ir.CreateBr(Done);
++      ir.SetInsertPoint(Done);
++    }
+   }
+ }
+ 
+@@ -2366,11 +2387,24 @@ Converter::operator()(const InstStoreStructured &store) {
+   auto Value = LoadOperand(store.src, Buf->Mask);
+ 
+   for (auto [DstComp, _] : EnumerateComponents(Buf->Mask)) {
+-    auto Ptr = CreateGEPInt32WithBoundCheck(Buf.value(), ir.CreateAdd(Index, ir.getInt32(DstComp)));
++    auto CompIndex = ir.CreateAdd(Index, ir.getInt32(DstComp));
++    auto Ptr = CreateGEPInt32WithBoundCheck(Buf.value(), CompIndex);
++    llvm::BasicBlock *Done = nullptr;
++    if (auto InBounds = BufferIndexInBounds(Buf.value(), CompIndex)) {
++      auto Fn = ir.GetInsertBlock()->getParent();
++      auto Store = llvm::BasicBlock::Create(air.getContext(), "buf_store_in_bounds", Fn);
++      Done = llvm::BasicBlock::Create(air.getContext(), "buf_store_done", Fn);
++      ir.CreateCondBr(InBounds, Store, Done);
++      ir.SetInsertPoint(Store);
++    }
+     if (Buf->GlobalCoherent)
+       air.CreateDeviceCoherentStore(ExtractElement(Value, DstComp), Ptr);
+     else
+       ir.CreateStore(ExtractElement(Value, DstComp), Ptr, Volatile);
++    if (Done) {
++      ir.CreateBr(Done);
++      ir.SetInsertPoint(Done);
++    }
+   }
+ }
+ 
+@@ -2907,6 +2941,22 @@ Converter::DomainGeneratePrimitives(
+   ir.CreateCall(Fn, Ops);
+ }
+ 
++// D3D defines an out-of-range raw/structured buffer load as 0 and drops an out-of-range store. Pointing the access
++// at a null address (CreateGEPInt32WithBoundCheck) gives neither on Metal, so loads and stores also test this.
++llvm::Value *
++Converter::BufferIndexInBounds(BufferResourceHandle &Buffer, llvm::Value *Index) {
++  if (!Buffer.Metadata)
++    return nullptr;
++  return ir.CreateICmpULT(Index, ir.CreateLShr(DecodeRawBufferByteLength(Buffer.Metadata), 2));
++}
++
++llvm::Value *
++Converter::BufferIndexInBounds(AtomicBufferResourceHandle &Buffer, llvm::Value *Index) {
++  if (!Buffer.Metadata)
++    return nullptr;
++  return ir.CreateICmpULT(Index, ir.CreateLShr(DecodeRawBufferByteLength(Buffer.Metadata), 2));
++}
++
+ llvm::Value *
+ Converter::CreateGEPInt32WithBoundCheck(BufferResourceHandle &Buffer, llvm::Value *Index) {
+   auto Addr = ir.CreateGEP(ir.getInt32Ty(), Buffer.Pointer, {Index});
+diff --git a/src/airconv/nt/dxbc_converter_base.hpp b/src/airconv/nt/dxbc_converter_base.hpp
+index 522b170..781411f 100644
+--- a/src/airconv/nt/dxbc_converter_base.hpp
++++ b/src/airconv/nt/dxbc_converter_base.hpp
+@@ -479,6 +479,10 @@ public:
+ 
+   llvm::Value * CreateGEPInt32WithBoundCheck(BufferResourceHandle &Buffer, llvm::Value* Index);
+ 
++  llvm::Value *BufferIndexInBounds(BufferResourceHandle &Buffer, llvm::Value *Index);
++
++  llvm::Value *BufferIndexInBounds(AtomicBufferResourceHandle &Buffer, llvm::Value *Index);
++
+   llvm::Value * CreateGEPInt32WithBoundCheck(AtomicBufferResourceHandle &Buffer, llvm::Value* Index);
+ 
+   class ForcePreciseMath {
+diff --git a/src/d3d11/d3d11_pipeline_cache.hpp b/src/d3d11/d3d11_pipeline_cache.hpp
+index 85f29fe..53249fd 100644
+--- a/src/d3d11/d3d11_pipeline_cache.hpp
++++ b/src/d3d11/d3d11_pipeline_cache.hpp
+@@ -4,7 +4,7 @@
+ 
+ namespace dxmt {
+ 
+-constexpr int kDXMTShaderCacheVersion = 7;
++constexpr int kDXMTShaderCacheVersion = 8;
+ 
+ class MTLD3D11PipelineCacheBase {
+ public:
