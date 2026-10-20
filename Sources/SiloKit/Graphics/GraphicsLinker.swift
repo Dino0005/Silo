@@ -357,11 +357,13 @@ public struct GraphicsLinker: Sendable {
     // MARK: - DXMT overlay
 
     /// The modules DXMT ships in its `lib/wine` tree: its Direct3D 10/11 translation (`d3d11`, `d3d10core`,
-    /// `dxgi`) plus the `winemetal` Metal bridge (PE `winemetal.dll` + unix `winemetal.so`). DXMT is
-    /// D3D10/11 only — it ships no `d3d12` and no `d3d9`. Used to select what to overlay and as a guard so
-    /// we never clobber an unrelated wine module.
+    /// `dxgi`), the `winemetal` Metal bridge (PE `winemetal.dll` + unix `winemetal.so`) and, in a release
+    /// built with DXMT's NVIDIA extensions, `nvapi64` + `nvngx` (DLSS → MetalFX temporal scaler; 64-bit
+    /// only). DXMT is D3D10/11 only — it ships no `d3d12` and no `d3d9`. Used to select what to overlay, to
+    /// keep `restoreWineModules` off these names in the clone, and as a guard so we never clobber an
+    /// unrelated wine module.
     static func isDXMTModule(_ name: String) -> Bool {
-        isOverlayModule(name, prefixes: ["d3d", "dxgi", "winemetal"])
+        isOverlayModule(name, prefixes: ["d3d", "dxgi", "winemetal", "nvapi64", "nvngx"])
     }
 
     /// Overlay 3Shain's DXMT modules into the **wine runtime** (not a game prefix) so wine loads DXMT's
@@ -403,7 +405,11 @@ public struct GraphicsLinker: Sendable {
 
             let wineWinDir = wineLayout.windowsModulesDir(arch)
             // Idempotent: if a witness module is already byte-identical, the runtime carries THIS DXMT — skip.
-            if witnessMatches(modules, in: wineWinDir) { continue }
+            // Every module must also be there: a release adding a module (the NVIDIA ones) with an unchanged
+            // d3d11.dll would otherwise never be copied in.
+            if witnessMatches(modules, in: wineWinDir),
+               modules.allSatisfy({ fileManager.fileExists(
+                   atPath: wineWinDir.appendingPathComponent($0.lastPathComponent).path) }) { continue }
 
             let srcUnix = sourceRoot.appendingPathComponent("\(arch.rawValue)-unix")
             let wineUnixDir = wineLayout.unixModulesDir(arch)
@@ -429,6 +435,15 @@ public struct GraphicsLinker: Sendable {
     /// the release ships, so wine picks the one matching each game's PE machine type — 32-bit and 64-bit
     /// games both get DXMT with no per-game selection. Idempotent.
     ///
+    /// A release built with DXMT's NVIDIA extensions also gets `system32\nvngx.dll` and `system32\nvapi64.dll`
+    /// seeded, for the DLSS path (`LaunchOrchestrator.makePlan`). Same trap as winemetal — a bottle booted by
+    /// the base runtime has no file for either name — plus NGX opens `system32\nvngx.dll` itself before
+    /// loading it. Only when the name is ABSENT: with `nvngx=b` Wine loads the runtime's builtin whatever sits
+    /// there (measured 2026-10-21 on God of War with GPTK's shim AND with DXMT's own file in system32 — DLSS
+    /// worked both times), so an existing file — GPTK's, in the shared Steam bottle — is left alone and the two
+    /// backends never rewrite each other's. `nvngx` gets DXMT's real file, `nvapi64` a Wine placeholder, as
+    /// `installGPTKPrefixLoaders` does for GPTK. 64-bit only, like the extensions.
+    ///
     /// - Parameters:
     ///   - prefix: the game's Wine prefix (`<bottle>` — its `drive_c/windows/{system32,syswow64}` are seeded).
     ///   - dxmtLibDir: DXMT's x86_64 PE module dir; its `<arch>-windows` siblings are the source per ABI.
@@ -448,6 +463,21 @@ public struct GraphicsLinker: Sendable {
             try fileManager.createDirectory(at: destDir, withIntermediateDirectories: true)
             if fileManager.fileExists(atPath: dst.path) { try fileManager.removeItem(at: dst) }
             try fileManager.copyItem(at: src, to: dst)
+        }
+
+        let system32 = windows.appendingPathComponent("system32")
+        let x64 = sourceRoot.appendingPathComponent("\(WineArch.x86_64.rawValue)-windows")
+        let nvngx = x64.appendingPathComponent("nvngx.dll")
+        let nvngxDst = system32.appendingPathComponent("nvngx.dll")
+        if fileManager.fileExists(atPath: nvngx.path), !fileManager.fileExists(atPath: nvngxDst.path) {
+            try fileManager.createDirectory(at: system32, withIntermediateDirectories: true)
+            try fileManager.copyItem(at: nvngx, to: nvngxDst)
+        }
+        let nvapiDst = system32.appendingPathComponent("nvapi64.dll")
+        if fileManager.fileExists(atPath: x64.appendingPathComponent("nvapi64.dll").path),
+           !fileManager.fileExists(atPath: nvapiDst.path) {
+            try fileManager.createDirectory(at: system32, withIntermediateDirectories: true)
+            try WinePlaceholderDLL.bytes.write(to: nvapiDst)
         }
     }
 

@@ -560,6 +560,36 @@ struct GraphicsLinkerTests {
             prefix.appendingPathComponent("drive_c/windows/syswow64/winemetal.dll").path))
     }
 
+    @Test("installDXMTPrefixLoaders seeds DXMT's nvngx + an nvapi64 placeholder only where none exists yet")
+    func installDXMTPrefixLoadersNVIDIA() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let dxmtLibDir = try makeDXMT(tmp)
+        let system32 = "bottle/drive_c/windows/system32"
+        let prefix = try tmp.makeDir("bottle")
+        let nvngx = prefix.appendingPathComponent("drive_c/windows/system32/nvngx.dll")
+        let nvapi = prefix.appendingPathComponent("drive_c/windows/system32/nvapi64.dll")
+
+        // A release without the extensions seeds neither.
+        try linker.installDXMTPrefixLoaders(prefix: prefix, dxmtLibDir: dxmtLibDir)
+        #expect(!FileManager.default.fileExists(atPath: nvngx.path))
+        #expect(!FileManager.default.fileExists(atPath: nvapi.path))
+
+        // With them, a clean bottle gets DXMT's nvngx and a Wine placeholder for nvapi64.
+        try tmp.write("dxmt/lib/wine/x86_64-windows/nvngx.dll", "PE:dxmt-nvngx")
+        try tmp.write("dxmt/lib/wine/x86_64-windows/nvapi64.dll", "PE:dxmt-nvapi64")
+        try linker.installDXMTPrefixLoaders(prefix: prefix, dxmtLibDir: dxmtLibDir)
+        #expect(try String(contentsOf: nvngx, encoding: .utf8) == "PE:dxmt-nvngx")
+        #expect(try Data(contentsOf: nvapi) == WinePlaceholderDLL.bytes)
+
+        // What a bottle already has — GPTK's shim in the shared Steam bottle — is left alone.
+        let other = try TempDir(); defer { other.cleanup() }
+        let shared = try other.makeDir("bottle")
+        try other.write("\(system32)/nvngx.dll", "PE:gptk-shim")
+        try linker.installDXMTPrefixLoaders(prefix: shared, dxmtLibDir: dxmtLibDir)
+        #expect(try String(contentsOf: shared.appendingPathComponent("drive_c/windows/system32/nvngx.dll"),
+                           encoding: .utf8) == "PE:gptk-shim")
+    }
+
     @Test("isOverlayModule: only .dll/.so with a backend's module prefixes; the two filters diverge right")
     func overlayModulePredicate() {
         #expect(GraphicsLinker.isOverlayModule("d3d11.dll", prefixes: ["d3d"]))
@@ -567,7 +597,10 @@ struct GraphicsLinkerTests {
         #expect(!GraphicsLinker.isOverlayModule("d3d11.txt", prefixes: ["d3d"]))      // wrong extension
         #expect(!GraphicsLinker.isOverlayModule("kernel32.dll", prefixes: ["d3d", "dxgi"]))   // guard
         // The backend filters parameterize the shared predicate — their DIFFERENCES must survive:
-        #expect(GraphicsLinker.isGPTKModule("nvngx.dll") && !GraphicsLinker.isDXMTModule("nvngx.dll"))
+        // Both carry the NVIDIA pair (DXMT only when built with its NVIDIA extensions), but only GPTK's `nv*`
+        // is open-ended.
+        #expect(GraphicsLinker.isDXMTModule("nvapi64.dll") && GraphicsLinker.isDXMTModule("nvngx.dll"))
+        #expect(GraphicsLinker.isGPTKModule("nvcuda.dll") && !GraphicsLinker.isDXMTModule("nvcuda.dll"))
         #expect(GraphicsLinker.isDXMTModule("winemetal.so") && !GraphicsLinker.isGPTKModule("winemetal.so"))
     }
 

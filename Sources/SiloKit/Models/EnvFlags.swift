@@ -55,8 +55,11 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     public var advertiseAVX: Bool
     /// `MTL_HUD_ENABLED=1` — Apple's Metal performance HUD (FPS / frame time overlay). The perf metric.
     public var metalHUD: Bool
-    /// MetalFX upscaling where the game supports it. The env var is backend-specific: `D3DM_ENABLE_METALFX`
-    /// for GPTK/D3DMetal, `DXMT_METALFX_SPATIAL_SWAPCHAIN` for DXMT — see `environment(graphics:)`.
+    /// MetalFX upscaling. GPTK/D3DMetal: `D3DM_ENABLE_METALFX` (the game's DLSS on MetalFX's temporal scaler),
+    /// emitted by `environment(graphics:)`. DXMT, emitted by `LaunchOrchestrator.makePlan` because it depends
+    /// on the game and the installed DXMT: the same DLSS-on-MetalFX for a game that ships DLSS when DXMT ships
+    /// its NVIDIA extensions (`nvapi64`/`nvngx` + `DXMT_ENABLE_NVEXT`), else MetalFX's spatial upscale of the
+    /// swapchain (`DXMT_METALFX_SPATIAL_SWAPCHAIN`) — the user's decision, 2026-10-21.
     public var metalFX: Bool
     /// `D3DM_SUPPORT_DXR=1` — expose DirectX Raytracing in D3DMetal's DX12 layer. GPTK only (DXMT is
     /// D3D10/11, no DX12), so it's emitted only for the GPTK backend.
@@ -131,12 +134,8 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         }
         if advertiseAVX { env["ROSETTA_ADVERTISE_AVX"] = "1" }   // x86 Wine runs under Rosetta
         if metalHUD { env["MTL_HUD_ENABLED"] = "1" }             // Apple's Metal HUD — any Metal backend
-        if metalFX {
-            switch graphics {
-            case .gptk: env["D3DM_ENABLE_METALFX"] = "1"
-            case .dxmt: env["DXMT_METALFX_SPATIAL_SWAPCHAIN"] = "1"
-            }
-        }
+        // DXMT's half of `metalFX` depends on the game and the installed DXMT, so `makePlan` emits it.
+        if metalFX, graphics == .gptk { env["D3DM_ENABLE_METALFX"] = "1" }
         if dxr, graphics == .gptk { env["D3DM_SUPPORT_DXR"] = "1" }   // DX12 raytracing — GPTK only
         if graphics == .gptk {
             // D3DMetal's DX12 renderer. `.auto` emits nothing so Apple's own default applies (Metal 3 on

@@ -207,17 +207,22 @@ jobs:
           # win64 → install/x86_64-windows (+ x86_64-unix/winemetal.so), win32 → install/i386-windows. Wine
           # auto-selects the tree by the game's PE machine type; the i386 PE winemetal.dll thunks into the
           # shared host-arch x86_64-unix/winemetal.so (new-WoW64), so 32-bit ships no unix .so of its own.
-          build_abi() {  # $1 = cross-file, $2 = build dir
+          # win64 also builds DXMT's NVIDIA extensions (nvapi64 + nvngx: DLSS → MetalFX's temporal scaler),
+          # enabled per game by Silo's MetalFX option; 64-bit only (nvapi64 doesn't build for i386, and
+          # CrossOver ships the pair for x86_64 alone).
+          build_abi() {  # $1 = cross-file, $2 = build dir, then extra meson options
+            local cross="$1" dir="$2"; shift 2
             $ARCH_PREFIX meson setup \
-              --cross-file "$1" --native-file silo-osx.txt \
+              --cross-file "$cross" --native-file silo-osx.txt \
               -Dnative_llvm_path="$LLVM15" \
               -Dwine_install_path="$WINE_INSTALL" \
               -Dwine_builtin_dll=true \
-              "$2" --buildtype release --prefix "$DXMT_SRC/install" --strip
-            $ARCH_PREFIX meson compile -C "$2"
-            $ARCH_PREFIX meson install -C "$2"
+              "$@" \
+              "$dir" --buildtype release --prefix "$DXMT_SRC/install" --strip
+            $ARCH_PREFIX meson compile -C "$dir"
+            $ARCH_PREFIX meson install -C "$dir"
           }
-          build_abi build-win64.txt build
+          build_abi build-win64.txt build -Denable_nvapi=true -Denable_nvngx=true
           build_abi build-win32.txt build32
 
       - name: Verify artifacts
@@ -231,6 +236,8 @@ jobs:
             done
           done
           test -e "$unix/winemetal.so" || { echo "::error::missing artifact $unix/winemetal.so"; exit 1; }
+          # DXMT's NVIDIA extensions (win64): present, and carrying Wine's builtin marker (shared with build-dxmt.sh).
+          "$GITHUB_WORKSPACE/Scripts/check-dxmt-nvext.sh" install "$WINE_INSTALL/bin/winebuild"
           file "$unix/winemetal.so" | grep -q x86_64 || { echo "::error::winemetal.so is not x86_64"; exit 1; }
           # Install name + references + rpath as CrossOver's own winemetal.so (shared with build-dxmt.sh).
           "$GITHUB_WORKSPACE/Scripts/fix-winemetal-rpath.sh" "$unix/winemetal.so"

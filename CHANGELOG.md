@@ -15,6 +15,13 @@ the commit message says why.
   game's host now keeps the display awake (`caffeinate -d -i`, tied to the game's process) for as long as the game
   runs, and lets go the moment it ends — even with Silo closed, and for games started from the Games app. Not for
   the Steam client. The same fix NotProton adopted upstream (PR #166).
+- **DLSS under DXMT.** With *MetalFX upscaling* on, a DXMT game that ships DLSS (`nvngx_dlss.dll` in its folder,
+  also inside Unreal's plugin folders) now offers DLSS, and runs it on MetalFX's temporal upscaler — the same
+  thing D3DMetal does under GPTK. It uses DXMT's own NVIDIA modules (`nvapi64`, `nvngx`), which the DXMT runtime
+  now ships (64-bit only); the GPU is shown to the game as an NVIDIA one only for these games. A DXMT game without
+  DLSS keeps what *MetalFX upscaling* did on DXMT before: MetalFX's spatial upscale of the final image. Checked on
+  God of War: image comparable to D3DMetal's DLSS Quality, smooth once shaders are built. Needs the rebuilt
+  `dxmt-v0.72-cx26.3.0` (re-download it in *Settings → DXMT*); with an older one nothing changes.
 
 ### Fixed
 - **God of War is no longer dark on DXMT with AMD FSR 2.** With FSR on, the picture was far darker than with FSR
@@ -27,8 +34,8 @@ the commit message says why.
   on device with FSR Ultra Performance and Quality, and without FSR at 80 % render scale.
   **`dxmt-v0.72-cx26.3.0` has to be re-downloaded** (*Settings → DXMT*: remove, then install again); the
   rebuilt runtime is published under the same name.
-  Still open: on the main menu, before a game is started, Kratos's shoulder armour flashes white for an instant
-  when opening the settings.
+  Not ours: on the main menu, before a game is started, Kratos's shoulder armour flashes white for an instant
+  when opening the settings — it does the same on GPTK.
 
 ## 0.6.9
 

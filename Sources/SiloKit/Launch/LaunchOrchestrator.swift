@@ -62,6 +62,10 @@ public struct LaunchOrchestrator: Sendable {
     ///   nil to launch rootless. When set AND `graphics == .gptk`, the game runs inside an `explorer
     ///   /desktop=` virtual desktop sized to exactly that — see the inline comment in the function body,
     ///   just before `LaunchPlan` is built, for why.
+    /// - Parameter dxmtDLSS: whether this game's DLSS can run on DXMT — the installed DXMT ships its NVIDIA
+    ///   extensions AND the game ships DLSS (`Self.dxmtDLSS(backend:gameExe:)`). Decides what the game's
+    ///   `metalFX` means under DXMT: DLSS on MetalFX's temporal scaler when true, MetalFX's spatial upscale of
+    ///   the swapchain when false.
     /// - Parameter sharedBottle: `true` only for a game co-resident with the real Steam client in the
     ///   shared Steam bottle (`launchInBottle`) — the ONE case `Silo.enforceMsync` exists to protect
     ///   (splitting the wineserver there would silently break Steamworks IPC). Manual games each get their
@@ -80,7 +84,8 @@ public struct LaunchOrchestrator: Sendable {
         sharedBottle: Bool = true,
         desktopGeometry: String? = nil,
         steamArguments: [String] = [],
-        altLoaderSocket: URL? = nil
+        altLoaderSocket: URL? = nil,
+        dxmtDLSS: Bool = false
     ) throws -> LaunchPlan {
         guard let wine = wine ?? backend.wineBinaryPath else {
             throw LaunchError.wineNotConfigured
@@ -140,6 +145,20 @@ public struct LaunchOrchestrator: Sendable {
                 case .dxmt:
                     environment["DXMT_CONFIG"] = [environment["DXMT_CONFIG"], "d3d11.depthEqualAsGreaterEqual=True"]
                         .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ";")
+                }
+            }
+            // MetalFX under DXMT. A game that ships DLSS, with a DXMT that ships its NVIDIA extensions: the
+            // game's DLSS on DXMT's own `nvapi64`/`nvngx` (→ MetalFX's temporal scaler), as `D3DM_ENABLE_METALFX`
+            // does for D3DMetal — `DXMT_ENABLE_NVEXT` makes DXMT's dxgi report an NVIDIA adapter and register the
+            // NGX keys, without which DXMT's nvngx refuses to load. Measured on God of War (2026-10-21): DLSS
+            // offered and working, no fake device id or name needed. Any other game: MetalFX's spatial upscale of
+            // the swapchain, the option's meaning on DXMT before — the adapter stays Apple's.
+            if graphics == .dxmt, config.envFlags.metalFX {
+                if dxmtDLSS {
+                    overrides = mergeOverride(overrides, "nvapi64,nvngx=b")
+                    environment["DXMT_ENABLE_NVEXT"] = "1"
+                } else {
+                    environment["DXMT_METALFX_SPATIAL_SWAPCHAIN"] = "1"
                 }
             }
             environment["WINEDLLOVERRIDES"] = mergeOverride(overrides, config.envFlags.extra["WINEDLLOVERRIDES"])
@@ -226,6 +245,18 @@ public struct LaunchOrchestrator: Sendable {
         "Z:" + url.path.replacingOccurrences(of: "/", with: "\\")
     }
 
+    /// Whether the installed DXMT was built with its NVIDIA extensions (`nvapi64` + `nvngx`, DLSS → MetalFX),
+    /// read from its module dir.
+    static func dxmtShipsNVIDIAExtensions(_ backend: BackendConfig) -> Bool {
+        guard let lib = backend.libDir(for: .dxmt) else { return false }
+        return FileManager.default.fileExists(atPath: lib.appendingPathComponent("nvngx.dll").path)
+    }
+
+    /// `makePlan`'s `dxmtDLSS`: the installed DXMT can serve DLSS and the game ships it (`DLSSDetector`).
+    static func dxmtDLSS(backend: BackendConfig, gameExe: URL) -> Bool {
+        dxmtShipsNVIDIAExtensions(backend) && DLSSDetector.gameShipsDLSS(exe: gameExe)
+    }
+
     // MARK: - Full pipeline
 
     /// Launch a game **co-resident in a shared prefix** (the Steam bottle) under GPTK, where a running
@@ -260,7 +291,8 @@ public struct LaunchOrchestrator: Sendable {
             gameExe: gameExe, prefix: prefix, logURL: logURL, desktopGeometry: desktopGeometry,
             steamArguments: SteamAppInfo.windowsLaunch(steamRoot: app.libraryPath,
                                                        appID: app.appID)?.arguments ?? [],
-            altLoaderSocket: socket)
+            altLoaderSocket: socket,
+            dxmtDLSS: graphics == .dxmt && config.envFlags.metalFX && Self.dxmtDLSS(backend: backend, gameExe: gameExe))
         return try await spawn(plan)
     }
 
@@ -328,7 +360,9 @@ public struct LaunchOrchestrator: Sendable {
         let plan = try Self.makePlan(
             config: game.gameConfig, backend: backend, graphics: graphics, wine: launchWine,
             gameExe: game.executablePath, workingDirectory: game.workingDirectory, prefix: prefix, logURL: logURL,
-            sharedBottle: false, desktopGeometry: desktopGeometry, altLoaderSocket: socket)
+            sharedBottle: false, desktopGeometry: desktopGeometry, altLoaderSocket: socket,
+            dxmtDLSS: graphics == .dxmt && game.envFlags.metalFX
+                && Self.dxmtDLSS(backend: backend, gameExe: game.executablePath))
         return try await spawn(plan)
     }
 

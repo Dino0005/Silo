@@ -93,6 +93,33 @@ struct RuntimeVariantsTests {
         #expect(try read(tmp, "\(clone)/x86_64-windows/d3d11.dll") == "DXMT")
     }
 
+    @Test("A DXMT built with its NVIDIA extensions gets ITS nvapi64/nvngx in the clone, not GPTK's, not none")
+    func dxmtNVIDIAExtensionsReachTheClone() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let wine = try makeWine(tmp)
+        try addWineD3D(tmp)
+        let variants = RuntimeVariants()
+        _ = try variants.prepare(backend: .gptk, baseWine: wine, libDir: try makeFullGPTK(tmp))   // base: GPTK's nvapi64
+        let dxmt = try makeDXMT(tmp)
+        let clone = "wine-dxmt/lib/wine"
+        _ = try variants.prepare(backend: .dxmt, baseWine: wine, libDir: dxmt)
+        let fm = FileManager.default
+        #expect(!fm.fileExists(atPath: tmp.url.appendingPathComponent("\(clone)/x86_64-windows/nvapi64.dll").path))
+
+        // A later release adds the pair with an UNCHANGED d3d11.dll: still copied in, and kept on later launches.
+        for module in ["nvapi64.dll", "nvngx.dll"] {
+            try tmp.write("dxmt/lib/wine/x86_64-windows/\(module)", "DXMT:\(module)")
+        }
+        for _ in 0..<2 {
+            _ = try variants.prepare(backend: .dxmt, baseWine: wine, libDir: dxmt)
+            #expect(try read(tmp, "\(clone)/x86_64-windows/nvapi64.dll") == "DXMT:nvapi64.dll")
+            #expect(try read(tmp, "\(clone)/x86_64-windows/nvngx.dll") == "DXMT:nvngx.dll")
+        }
+        #expect((try? fm.destinationOfSymbolicLink(   // GPTK's bridge for that name is gone
+            atPath: tmp.url.appendingPathComponent("\(clone)/x86_64-unix/nvapi64.so").path)) == nil)
+        #expect(try read(tmp, "wine/lib/wine/x86_64-windows/nvapi64.dll") == "GPTK:nvapi64.dll")   // base untouched
+    }
+
     @Test("Wine's originals are kept once, from the clean runtime — never from one GPTK already overlaid")
     func originalsOnlyFromCleanRuntime() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

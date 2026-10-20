@@ -144,17 +144,23 @@ rm -rf build build32 install
 # type (64-bit game → x86_64-windows, 32-bit game → i386-windows) with no per-game selection — 32-bit-only
 # titles like Overcooked 2 need the i386 tree. The unix winemetal.so is host-arch (x86_64) and shared by
 # both PE ABIs (new-WoW64), so the i386 PE winemetal.dll thunks into the same x86_64-unix/winemetal.so.
-build_abi() {  # $1 = meson cross-file, $2 = build dir
+#
+# win64 also builds DXMT's NVIDIA extensions (nvapi64 + nvngx: DLSS → MetalFX's temporal scaler), which Silo
+# enables per game through its MetalFX option. 64-bit only: nvapi64 does not compile for i386, and CrossOver
+# ships the pair for x86_64 alone.
+build_abi() {  # $1 = meson cross-file, $2 = build dir, then extra meson options
+  local cross="$1" dir="$2"; shift 2
   $ARCH meson setup \
-    --cross-file "$1" --native-file silo-osx.txt \
+    --cross-file "$cross" --native-file silo-osx.txt \
     -Dnative_llvm_path="$LLVM15" \
     -Dwine_install_path="$WINE_INSTALL" \
     -Dwine_builtin_dll=true \
-    "$2" --buildtype release --prefix "$SRC/install" --strip
-  $ARCH meson compile -C "$2"
-  $ARCH meson install -C "$2"
+    "$@" \
+    "$dir" --buildtype release --prefix "$SRC/install" --strip
+  $ARCH meson compile -C "$dir"
+  $ARCH meson install -C "$dir"
 }
-build_abi build-win64.txt build      # → install/x86_64-windows + install/x86_64-unix
+build_abi build-win64.txt build -Denable_nvapi=true -Denable_nvngx=true   # → install/x86_64-windows + x86_64-unix
 build_abi build-win32.txt build32    # → install/i386-windows (shares the x86_64-unix winemetal.so)
 
 echo "==> Verify the artifacts Silo overlays (GraphicsLinker.overlayDXMT)"
@@ -169,6 +175,7 @@ done
 [ -e "$UNIXDIR/winemetal.so" ] || missing="$missing $UNIXDIR/winemetal.so"
 if [ -n "$missing" ]; then echo "ERROR: build did not produce:$missing"; exit 1; fi
 echo "    all present: {x86_64,i386}-windows d3d11/dxgi/d3d10core/winemetal.dll + x86_64-unix/winemetal.so"
+"$ROOT/Scripts/check-dxmt-nvext.sh" install "$WINE_INSTALL/bin/winebuild"
 # winemetal.so MUST be x86_64 or it won't load in the x86_64 CrossOver Wine.
 file "$UNIXDIR/winemetal.so" | grep -q "x86_64" \
   || { echo "ERROR: winemetal.so is not x86_64 — it can't load in the x86_64 CrossOver Wine."; exit 1; }

@@ -3,18 +3,22 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
-- **📋 TODO (user, 2026-10-20): DLSS under DXMT, via DXMT's own nvapi/nvngx (→ MetalFX temporal scaler).**
-  DXMT v0.72 already ships `src/nvapi` + `src/nvngx` (DLSS calls → MetalFX temporal upscaler, the
-  `TemporalUpscale` encoder), but they are off at build time (`meson.options`: `enable_nvapi` / `enable_nvngx`
-  default `false`) and at run time (`DXMT_ENABLE_NVEXT=1` makes dxgi register the NVIDIA keys that NGX looks for).
-  Our release has only d3d10core/d3d11/dxgi/winemetal, and Silo's DXMT launches emit `nvapi64,nvngx=`
-  (disabled) — DLSS support is GPTK-only today. CrossOver 26 does it: its
-  `lib/dxmt/x86_64-windows/` carries `nvapi64.dll` + `nvngx.dll`. Work: (1) build with
-  `-Denable_nvapi=true -Denable_nvngx=true` in `build-dxmt.sh` + `build-dxmt.yml` (check the artifact list and
-  `overlayDXMT`); (2) Silo: for DXMT launches route `nvapi64`/`nvngx` to DXMT's builtins, set
-  `DXMT_ENABLE_NVEXT=1`, and handle `system32\nvngx.dll` the way `GraphicsLinker` does for GPTK (NGX loads it from
-  there; see the DLSS/Streamline notes below) — likely a per-game option, since NVEXT makes the GPU look like an
-  NVIDIA one; (3) test on GoW (FSR now fine on DXMT, DLSS on GPTK had MetalFX stutter/artefacts) and TEKKEN 8.
+- **✅ DLSS under DXMT (2026-10-21, verified by the user on God of War; local, DXMT CI rebuild pending).**
+  DXMT v0.72's own `nvapi64` + `nvngx` (DLSS → MetalFX temporal scaler, D3D11 only) are now built (win64 only —
+  nvapi64 doesn't compile for i386) by `build-dxmt.sh` + `build-dxmt.yml`; `Scripts/check-dxmt-nvext.sh`
+  requires both and the "Wine builtin DLL" marker (a manual install copied them unmarked → Wine fell back to
+  system32 → DLSS "not supported"). Silo: `isDXMTModule` now includes them, so `overlayDXMT` copies them into the
+  clone and `restoreWineModules` stops deleting them (it treated them as GPTK leftovers); the overlay re-copies
+  when a module is missing even with an unchanged d3d11. Launch (`makePlan`, `dxmtDLSS:`): with `metalFX` on
+  under DXMT, a game that ships `nvngx_dlss.dll` (`DLSSDetector`: beside the exe, or under an Unreal root,
+  bounded) with a DXMT that ships `nvngx` gets `DXMT_ENABLE_NVEXT=1` + `nvapi64,nvngx=b`; any other DXMT game
+  keeps `DXMT_METALFX_SPATIAL_SWAPCHAIN=1` (user's decision). `installDXMTPrefixLoaders` seeds system32 nvngx
+  (DXMT's) / nvapi64 (placeholder) only when absent — DLSS worked with GPTK's shim AND with DXMT's file there.
+  Measured: no fake device id/name needed (`dxgi.customDeviceId/Desc` tried, removed); DXMT's nvngx `DllMain`
+  refuses to load unless NVEXT is on; only `NvAPI_DRS_CreateSession` is unimplemented (harmless). Image on GoW
+  comparable to D3DMetal DLSS Quality; same slight motion artefact on Atreus's fur tips (FSR a bit better there).
+  **Left:** push, then CI rebuild of `dxmt-v0.72-cx26.3.0` (the installed runtime carries locally built nv DLLs
+  until then). GoW's armour flash on the menu also happens on GPTK — the game's, not DXMT's.
 - **✅ FIXED (2026-10-14): Steam stuck at startup — Silo's webhelper wrapper deleted a Steam update's NEW webhelper.**
   Symptom: Steam starts, connectivity OK, the UI's shared JS context is created and "setting locale" logged, then
   nothing — the UI never opens its websocket to steam.exe (`CWebSocketConnection … websocket open` missing), no

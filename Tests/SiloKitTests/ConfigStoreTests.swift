@@ -307,9 +307,11 @@ struct ConfigStoreTests {
         #expect(gptk["D3DM_ENABLE_METALFX"] == "1")
         #expect(gptk["D3DM_SUPPORT_DXR"] == "1")
         #expect(gptk["DXMT_METALFX_SPATIAL_SWAPCHAIN"] == nil)
-        // DXMT: its own MetalFX var, and NO D3DM_* (DXR is DX12-only, which DXMT doesn't do).
+        // DXMT: nothing here — its MetalFX (DLSS on DXMT's nvngx) depends on the installed DXMT, so
+        // `makePlan` emits it (DXMTDLSSTests) — and NO D3DM_* (DXR is DX12-only, which DXMT doesn't do).
         let dxmt = flags.environment(graphics: .dxmt)
-        #expect(dxmt["DXMT_METALFX_SPATIAL_SWAPCHAIN"] == "1")
+        #expect(dxmt["DXMT_METALFX_SPATIAL_SWAPCHAIN"] == nil)
+        #expect(dxmt["DXMT_ENABLE_NVEXT"] == nil)
         #expect(dxmt["D3DM_ENABLE_METALFX"] == nil)
         #expect(dxmt["D3DM_SUPPORT_DXR"] == nil)
     }
