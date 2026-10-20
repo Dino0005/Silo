@@ -3,7 +3,10 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
-- **✅ DLSS under DXMT (2026-10-21, verified by the user on God of War; local, DXMT CI rebuild pending).**
+- **✅ DLSS under DXMT (2026-10-21, verified by the user on God of War). Published:** 4f0bf91 pushed; CI
+  `build-dxmt.yml` run 39511283776 (non-draft) replaced `dxmt-v0.72-cx26.3.0`'s assets (`dxmt.tar.xz` 8814200 B,
+  passes its `.sha256`; x86_64-windows now carries builtin-marked nvapi64 + nvngx); the user reinstalled it and DLSS
+  Quality is offered on GoW. A Silo older than this commit ignores the two modules and keeps the spatial upscale.
   DXMT v0.72's own `nvapi64` + `nvngx` (DLSS → MetalFX temporal scaler, D3D11 only) are now built (win64 only —
   nvapi64 doesn't compile for i386) by `build-dxmt.sh` + `build-dxmt.yml`; `Scripts/check-dxmt-nvext.sh`
   requires both and the "Wine builtin DLL" marker (a manual install copied them unmarked → Wine fell back to
@@ -17,8 +20,7 @@
   Measured: no fake device id/name needed (`dxgi.customDeviceId/Desc` tried, removed); DXMT's nvngx `DllMain`
   refuses to load unless NVEXT is on; only `NvAPI_DRS_CreateSession` is unimplemented (harmless). Image on GoW
   comparable to D3DMetal DLSS Quality; same slight motion artefact on Atreus's fur tips (FSR a bit better there).
-  **Left:** push, then CI rebuild of `dxmt-v0.72-cx26.3.0` (the installed runtime carries locally built nv DLLs
-  until then). GoW's armour flash on the menu also happens on GPTK — the game's, not DXMT's.
+  GoW's armour flash on the menu also happens on GPTK — the game's, not DXMT's.
 - **✅ FIXED (2026-10-14): Steam stuck at startup — Silo's webhelper wrapper deleted a Steam update's NEW webhelper.**
   Symptom: Steam starts, connectivity OK, the UI's shared JS context is created and "setting locale" logged, then
   nothing — the UI never opens its websocket to steam.exe (`CWebSocketConnection … websocket open` missing), no
