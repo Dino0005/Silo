@@ -25,8 +25,8 @@ the commit message says why.
   patches fix it: out-of-range buffer reads and writes now behave as on Windows (for every game), and God of War's
   shaders are compiled without fast math (`d3d11.disableFastMath`, on by default for God of War only). Checked
   on device with FSR Ultra Performance and Quality, and without FSR at 80 % render scale.
-  **`dxmt-v0.72-cx26.3.0` has to be re-downloaded** (*Settings → DXMT*: remove, then install again) once the
-  rebuilt runtime is published.
+  **`dxmt-v0.72-cx26.3.0` has to be re-downloaded** (*Settings → DXMT*: remove, then install again); the
+  rebuilt runtime is published under the same name.
   Still open: on the main menu, before a game is started, Kratos's shoulder armour flashes white for an instant
   when opening the settings.
 
