@@ -25,10 +25,14 @@ public struct SteamBottle: Sendable {
     /// Which bottle this instance operates on. Everything below — prefix, client dir, exe, CEF dir, log —
     /// follows from it, so the same type drives the normal bottle and its Media Foundation clone.
     public let kind: AppPaths.SteamBottleKind
+    /// Where `disableWebHelperWrapperFlag` is read from. Injectable so a test can flip it without touching
+    /// the process environment.
+    private let environment: [String: String]
 
     public init(
         runner: ProcessRunning, session: URLSession = .shared, paths: AppPaths,
         kind: AppPaths.SteamBottleKind = .standard,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
         coreFontDigests: [String: String] = Silo.coreFontSHA256,
         d3dCabDigests: [String: String] = [
             Silo.d3dCompiler47X64Member: Silo.d3dCompiler47X64CabSHA256,
@@ -39,6 +43,7 @@ public struct SteamBottle: Sendable {
         self.session = session
         self.paths = paths
         self.kind = kind
+        self.environment = environment
         self.coreFontDigests = coreFontDigests
         self.d3dCabDigests = d3dCabDigests
     }
@@ -560,7 +565,7 @@ public struct SteamBottle: Sendable {
     /// back instead — see `restoreRealWebHelpers`. No-op if Steam isn't installed yet.
     public func installWebHelperWrapper(wine: URL) throws {
         let wrapper = WineRuntimeLayout(wineBinary: wine).wrapperExe
-        guard fileManager.fileExists(atPath: wrapper.path) else { return try restoreRealWebHelpers() }
+        guard usesWebHelperWrapper(wine: wine) else { return try restoreRealWebHelpers() }
         // Wrap EVERY CEF dir's webhelper, not just one: a Steam update can add a new dir (e.g. cef.win64)
         // alongside the old (cef.win7x64) and switch to it, stranding a single-dir wrapper in the unused
         // one while Steam runs the unwrapped binary → black window.
@@ -716,8 +721,21 @@ public struct SteamBottle: Sendable {
     /// (`Scripts/steamwebhelper-wrapper.c`); the wrapper owns no window and must not take the one-shot
     /// host. Without a wrapper (`installWebHelperWrapper` restores the real binary) it's `steamwebhelper`.
     public func webHelperHostExeName(wine: URL) -> String {
-        fileManager.fileExists(atPath: WineRuntimeLayout(wineBinary: wine).wrapperExe.path)
-            ? "steamwebhelper_orig" : "steamwebhelper"
+        usesWebHelperWrapper(wine: wine) ? "steamwebhelper_orig" : "steamwebhelper"
+    }
+
+    /// Set to `1` to run Steam WITHOUT the steamwebhelper wrapper even on a runtime that ships one: the
+    /// bottle gets the real webhelper back, exactly as on a runtime with no wrapper. The switch for measuring
+    /// whether a runtime still needs the wrapper (Silo patch 0004, Wine bug 60263) — the wrapper stays the
+    /// default until that is shown.
+    static let disableWebHelperWrapperFlag = "SILO_DISABLE_WEBHELPER_WRAPPER"
+
+    /// Whether Steam runs behind Silo's wrapper on `wine`'s runtime: the runtime ships one and it isn't
+    /// switched off (`disableWebHelperWrapperFlag`). `installWebHelperWrapper` and the Steam host's
+    /// whitelist both follow it, so they can't disagree about which webhelper owns the window.
+    func usesWebHelperWrapper(wine: URL) -> Bool {
+        environment[Self.disableWebHelperWrapperFlag] != "1"
+            && fileManager.fileExists(atPath: WineRuntimeLayout(wineBinary: wine).wrapperExe.path)
     }
 
     /// Launch Steam for a one-time first-run self-update, ROOTLESS (no `explorer /desktop`) so no window is

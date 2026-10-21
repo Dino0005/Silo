@@ -347,6 +347,45 @@ struct SteamBottleTests {
         #expect(try String(contentsOf: orig, encoding: .utf8) == "REAL")
     }
 
+    @Test("SILO_DISABLE_WEBHELPER_WRAPPER=1 runs Steam unwrapped on a runtime that ships the wrapper")
+    func webHelperWrapperSwitchedOff() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (wrapping, _, paths) = make(tmp)
+        let off = SteamBottle(runner: FakeProcessRunner(), session: FakeURLProtocol.makeSession(), paths: paths,
+                              environment: [SteamBottle.disableWebHelperWrapperFlag: "1"])
+        let wine = tmp.url.appendingPathComponent("own/bin/wine64")
+        let shipped = tmp.url.appendingPathComponent("own/share/silo/steamwebhelper-wrapper.exe")
+        try FileManager.default.createDirectory(at: shipped.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Self.wrapperBytes.write(to: shipped)
+        let helper = paths.steamBottleCEFDir.appendingPathComponent("cef.win64/steamwebhelper.exe")
+        let orig = helper.deletingLastPathComponent().appendingPathComponent("steamwebhelper_orig.exe")
+        try FileManager.default.createDirectory(at: helper.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "REAL".write(to: helper, atomically: true, encoding: .utf8)
+
+        try wrapping.installWebHelperWrapper(wine: wine)              // the default: wrapped
+        #expect(try Data(contentsOf: helper) == Self.wrapperBytes)
+        #expect(wrapping.webHelperHostExeName(wine: wine) == "steamwebhelper_orig")
+
+        try off.installWebHelperWrapper(wine: wine)                   // switched off: the real one is back
+        #expect(try String(contentsOf: helper, encoding: .utf8) == "REAL")
+        #expect(FileManager.default.fileExists(atPath: orig.path) == false)
+        // …and the host's whitelist follows, or the window owner would never be handed over.
+        #expect(off.webHelperHostExeName(wine: wine) == "steamwebhelper")
+    }
+
+    @Test("Only exactly \"1\" switches the wrapper off")
+    func webHelperWrapperSwitchNeedsExactlyOne() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
+        let wine = tmp.url.appendingPathComponent("own/bin/wine64")
+        try tmp.write("own/share/silo/steamwebhelper-wrapper.exe", "MZ")
+        for value in ["0", "", "yes"] {
+            let bottle = SteamBottle(runner: FakeProcessRunner(), paths: paths,
+                                     environment: [SteamBottle.disableWebHelperWrapperFlag: value])
+            #expect(bottle.usesWebHelperWrapper(wine: wine))
+        }
+    }
+
     @Test("Unwrapping never puts an older preserved webhelper over a newer real one from a Steam update")
     func webHelperUnwrapKeepsNewerReal() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
