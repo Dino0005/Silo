@@ -6,7 +6,9 @@ import Testing
 @Suite("GameLibraryViewModel")
 struct GameLibraryViewModelTests {
 
-    private func make(_ tmp: TempDir, wine: Bool = true)
+    /// - Parameter readinessTimeout: how long a cold start waits for the (fake, never-signing-in) Steam —
+    ///   0 skips the wait; a test watching what the user sees DURING it gives it a little time.
+    private func make(_ tmp: TempDir, wine: Bool = true, readinessTimeout: Double = 0)
         -> (GameLibraryViewModel, FakeProcessRunner, AppPaths) {
         let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
         let fake = FakeProcessRunner()
@@ -16,7 +18,7 @@ struct GameLibraryViewModelTests {
         if wine { backend.wineBinaryPath = URL(fileURLWithPath: "/w/wine64") }
         let session = SteamClientSession(bottle: bottle, orchestrator: orchestrator)
         session.updateWine(backend.wineBinaryPath)
-        session.readinessTimeout = 0   // no readiness wait for the (fake) Steam in tests
+        session.readinessTimeout = readinessTimeout   // 0: no readiness wait for the (fake) Steam
         // The MF bottle's own client, mirrored from the normal one: play() picks between the two.
         let mfSession = SteamClientSession(
             bottle: SteamBottle(runner: fake, session: FakeURLProtocol.makeSession(),
@@ -453,6 +455,22 @@ struct GameLibraryViewModelTests {
         try await waitUntil { vm.statusMessage?.contains("Switch this game's graphics to DXMT") == true }
         #expect(await persistedLearned(paths, 220) == nil)            // pinned → never auto-learns
         #expect(await persistedGraphics(paths, 220) == .gptk)         // the pin is untouched
+    }
+
+    @Test("a game that has to bring Steam up says so in the status bar, then reports the launch")
+    func playSaysSteamIsStarting() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (vm, _, paths) = make(tmp, readinessTimeout: 0.6)
+        try installSteam(paths)
+        let game = try installedGame(paths, appID: 220, name: "HL2", dir: "HL2")
+
+        let launch = Task { await vm.play(game) }
+        // Steam isn't running, so play() brings it up and waits for its sign-in (which the fake never
+        // does — the failsafe ends the wait). During that wait the status bar must say what's happening.
+        try await waitUntil { vm.statusMessage == "Starting Steam for HL2…" }
+        #expect(vm.statusMessage == "Starting Steam for HL2…")   // waitUntil alone gives up silently
+        await launch.value
+        #expect(vm.statusMessage == "Launched HL2.")
     }
 
     @Test("the status line self-clears after its visible window (a stale 'Launched …' doesn't linger)")

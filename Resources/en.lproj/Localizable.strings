@@ -400,6 +400,7 @@
 "Close Leftover Game Processes" = "Close Leftover Game Processes";
 "Steam is already open." = "Steam is already open.";
 "Starting Steam…" = "Starting Steam…";
+"Starting Steam for %@…" = "Starting Steam for %@…";
 "Steam is open." = "Steam is open.";
 "Couldn't start Steam: %@" = "Couldn't start Steam: %@";
 

@@ -8,6 +8,13 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Changed
+- **Starting a Steam game says when Steam is coming up first.** With Steam closed, the status bar now reads
+  *Starting Steam for <game>…* while Silo waits for Steam to sign in, then *<game> launched* as before. Until now
+  the only sign of that wait — often tens of seconds — was the Steam button's animation.
+
 ## 0.7.0
 
 ### Added
