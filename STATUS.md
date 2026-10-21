@@ -3,6 +3,27 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🗄️ ARCHIVED (2026-10-21): Wine bug 60263 patch (Highball 0007 by Gauthier Piarrette) does NOT remove the need
+  for the webhelper wrapper — measured, not carried.** Source: gauthierpiarrette/highball-engine
+  patches/0007-winemac-cross-process-child-swapchains.patch @ ac5cc83bb7d9 (blob bdef368a10), LGPL; author's own
+  header: "compile-checked … not yet run". Step 1: crossover-sources-26.3.0 = Wine 11.0, no CAContext/CALayerHost
+  route in its winemac.drv nor in CrossOver's own winemac.so (so CrossOver doesn't paint Steam's CEF that way; no
+  Steam/CEF strings in its binaries or crossover.tie either). Step 2: it applies ALONE, no fuzz; athei/wine
+  ddbdcd53b9 + e1e9291773 are NOT prerequisites (e1e9291773 only overlaps textually in macdrv_DestroyWindow and must
+  precede it if ever added). Cost had it stayed: one patch, +1090 −33 in 6 winemac.drv files (incl. CrossOver's
+  CW-HACK 22435 d3dmetal.c), private CoreAnimation API, every Metal client surface reworked; high rebase risk, and
+  obsolete once CrossOver moves to Wine ≥ 11.11. Built locally as Silo patch 0004 → runtime
+  `wine-cx-26.3.0-p60263` (CAContext/CALayerHost present on macOS 27.0.1). **Measured with the wrapper OFF**
+  (`SILO_DISABLE_WEBHELPER_WRAPPER=1`, kept — b889402): (a) as Silo launches Steam today, the startup popup and the
+  main window stay BLACK; the GPU process runs `--use-angle=swiftshader-webgl` and SwiftShader's VK_KHR_win32_surface
+  presents through GDI (`GetDC` + `StretchDIBits`), so the patch's Metal path is never reached — the black window is
+  cross-process GDI into a child of another process, not a Metal swapchain. (b) With Steam's GPU enabled (temporary
+  switch dropping `-cef-disable-gpu*`, removed again) the GPU process loads D3DMetal/d3d11/dxgi — exactly bug
+  60263's case, patch reached — and still NO Steam window; the GPU process kept restarting (29 s old vs 2 min 35
+  for the rest), Spider-Man then failed "Failed to initialize Steam." Verdict: patch dropped from the series (local
+  commit removed, never pushed); the wrapper stays. Open question narrowed: why cross-process GDI presentation into
+  a foreign child window stays black on our winemac.drv (and why the imported CrossOver Wine runs no separate GPU
+  process at all — 2026-10-04). OneClick (boogiemaster7) only pointed to the sources; nothing taken from it.
 - **✅ Silo 0.7.0 RELEASED (2026-10-21)** — tag v0.7.0 (752e2d5), release run 39586072335 + pages run
   39586070639 green; published as latest (`Silo.zip` 3790671 B, passes its `.sha256`, app reports 0.7.0); the
   site shows 0.7.0. Contents: DLSS under DXMT, God of War's FSR 2 darkness fixed on DXMT (DXMT 0004 + 0005), no
