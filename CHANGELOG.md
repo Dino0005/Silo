@@ -8,7 +8,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.7.0
 
 ### Added
 - **No screen saver while a game runs.** Playing only with a controller, macOS saw no activity (it counts the
@@ -20,8 +20,9 @@ the commit message says why.
   also inside Unreal's plugin folders) now offers DLSS, and runs it on MetalFX's temporal upscaler — the same
   thing D3DMetal does under GPTK. It uses DXMT's own NVIDIA modules (`nvapi64`, `nvngx`), which the DXMT runtime
   now ships (64-bit only); the GPU is shown to the game as an NVIDIA one only for these games. A DXMT game without
-  DLSS keeps what *MetalFX upscaling* did on DXMT before: MetalFX's spatial upscale of the final image. Checked on
-  God of War: image comparable to D3DMetal's DLSS Quality, smooth once shaders are built. Needs the rebuilt
+  DLSS keeps what *MetalFX upscaling* did on DXMT before: MetalFX's spatial upscale of the final image (checked on
+  FATAL FURY: City of the Wolves). Checked on God of War: image comparable to D3DMetal's DLSS Quality, smooth once
+  shaders are built. Needs the rebuilt
   `dxmt-v0.72-cx26.3.0` (re-download it in *Settings → DXMT*); with an older one nothing changes.
 
 ### Fixed
