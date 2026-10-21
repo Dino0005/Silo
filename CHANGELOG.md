@@ -1,7 +1,8 @@
 # Changelog
 
-This fork's history. It starts at 0.5.0, the first release built on top of
-[mikaelhug/Silo](https://github.com/mikaelhug/Silo); anything earlier belongs to upstream.
+This fork's history. It was forked from [mikaelhug/Silo](https://github.com/mikaelhug/Silo) at upstream
+**0.4.1** (released 2026-07-14), and it starts at 0.5.0, the fork's first release; anything up to 0.4.1
+belongs to upstream. Upstream's later releases (0.4.2 onwards) are not part of this history.
 
 Upstream commits are integrated selectively — each one judged on its own, several deliberately left out
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
