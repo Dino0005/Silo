@@ -10,6 +10,12 @@ the commit message says why.
 
 ## Unreleased
 
+### Fixed
+- **Silo's Wine no longer leaks memory in the wineserver when a game waits on several things at once.** In
+  CrossOver's msync, a wait that ended early never took its registration back, so the wineserver grew without
+  bound in games that wait in a tight loop — 23 to 60 MB in 30 seconds in our test, then on and on. Patch by
+  Gauthier Piarrette (Highball, highball#224), carried as Silo patch 0004; in the next Wine build.
+
 ### Changed
 - **Starting a Steam game says when Steam is coming up first.** With Steam closed, the status bar now reads
   *Starting Steam for <game>…* while Silo waits for Steam to sign in, then *<game> launched* as before. Until now

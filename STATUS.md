@@ -3,6 +3,29 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ KEPT (2026-10-21, user): Silo patch 0004 = Highball 0014 — msync, a multi-object wait that returns early takes
+  its registration back.** Source: gauthierpiarrette/highball-engine patches/0014-msync-unregister-early-return.patch
+  @ ac5cc83bb7d9 (blob 474c82cc40), author Gauthier Piarrette (highball#224), LGPL; 2 files (dlls/ntdll/unix/msync.c,
+  server/msync.c), applies alone, no fuzz; defect present verbatim in crossover-sources-26.3.0. **Measured** with
+  `msyncleak.exe` (worker sets an auto-reset event in a loop, main waits on {quit, work}; built with mingw, run in a
+  throwaway /tmp prefix, WINEMSYNC=1, msync confirmed "up and running" in both runs): published wine-cx-26.3.0 →
+  wineserver 23 → 60 MB in 30 s, linear, 6,910,834 "node memory pool exhausted" lines, 7.1 M waits; with 0004 →
+  18 MB flat, 0 lines, 26.8 M waits (≈ 3.8× the throughput). Local runtime `wine-cx-26.3.0-msync` (+ `-dxmt`): TEKKEN 8
+  20 min, wineserver 7–22 MB; TEKKEN 8 (Steam cold), Spider-Man, God of War (DXMT) ×4 normal. **Open case:** ONE God of
+  War start (20:50) hung 5 min in run_wineboot's 2-object wait (`init_startup_info → NtWaitForMultipleObjects →
+  msync_wait_objs`, then "boot event wait timed out") — the path the patch touches; it came right after Steam was
+  quit from the Dock with TWO Silo instances open (dist + /Applications), its host had failed to come up and the game
+  started without it. Not reproduced: 155 synthetic cold starts (with and without a forced prefix update) on both
+  runtimes, 0 hangs; 7 later real starts normal. Watch for "boot event wait timed out" in launch logs. Not yet in a
+  published runtime: run it daily for a few days first, then a Wine rebuild.
+- **🐞 TODO: Silo can think Steam is still running right after it was quit from the Dock.** `isRunning` =
+  `ActiveProcess` pid in user.reg AND the prefix's wineserver alive; quitting via the Dock may leave the pid and the
+  wineserver lingers a few seconds, so a game started in that window skips the Steam start — the game's launcher
+  then starts a bare steam.exe itself (`steam.exe steam://run/1778820//…`: no host, no Silo flags, "Steam service
+  error" dialog). Seen 2026-10-21 with TEKKEN 8. Fix idea: also require a live steam.exe/webhelper process in the
+  prefix, or wait for the wineserver to go quiet after a recent quit.
+- **✅ (2026-10-21, 020aace, verified by the user):** starting a Steam game with Steam closed now shows "Starting
+  Steam for <game>…" in the status bar during the sign-in wait (was silent — only the toolbar animation showed it).
 - **🗄️ ARCHIVED (2026-10-21): Wine bug 60263 patch (Highball 0007 by Gauthier Piarrette) does NOT remove the need
   for the webhelper wrapper — measured, not carried.** Source: gauthierpiarrette/highball-engine
   patches/0007-winemac-cross-process-child-swapchains.patch @ ac5cc83bb7d9 (blob bdef368a10), LGPL; author's own
