@@ -3,6 +3,11 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Silo 0.7.0 RELEASED (2026-10-21)** — tag v0.7.0 (752e2d5), release run 39586072335 + pages run
+  39586070639 green; published as latest (`Silo.zip` 3790671 B, passes its `.sha256`, app reports 0.7.0); the
+  site shows 0.7.0. Contents: DLSS under DXMT, God of War's FSR 2 darkness fixed on DXMT (DXMT 0004 + 0005), no
+  screen saver while a game runs. Both DXMT changes need `dxmt-v0.72-cx26.3.0` re-downloaded (said first in the
+  release notes).
 - **✅ DLSS under DXMT (2026-10-21, verified by the user on God of War). Published:** 4f0bf91 pushed; CI
   `build-dxmt.yml` run 39511283776 (non-draft) replaced `dxmt-v0.72-cx26.3.0`'s assets (`dxmt.tar.xz` 8814200 B,
   passes its `.sha256`; x86_64-windows now carries builtin-marked nvapi64 + nvngx); the user reinstalled it and DLSS
