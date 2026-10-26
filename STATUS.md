@@ -18,12 +18,146 @@
   started without it. Not reproduced: 155 synthetic cold starts (with and without a forced prefix update) on both
   runtimes, 0 hangs; 7 later real starts normal. Watch for "boot event wait timed out" in launch logs. Not yet in a
   published runtime: run it daily for a few days first, then a Wine rebuild.
-- **🐞 TODO: Silo can think Steam is still running right after it was quit from the Dock.** `isRunning` =
-  `ActiveProcess` pid in user.reg AND the prefix's wineserver alive; quitting via the Dock may leave the pid and the
-  wineserver lingers a few seconds, so a game started in that window skips the Steam start — the game's launcher
-  then starts a bare steam.exe itself (`steam.exe steam://run/1778820//…`: no host, no Silo flags, "Steam service
-  error" dialog). Seen 2026-10-21 with TEKKEN 8. Fix idea: also require a live steam.exe/webhelper process in the
-  prefix, or wait for the wineserver to go quiet after a recent quit.
+- **🔎 OPEN (2026-10-26): God of War on DXMT — changing the DLSS mode loops the selector and the DualSense stops
+  responding** (mouse still works). Was seen first in NotProton (2026-10-20, DXMT + DXMT_ENABLE_NVEXT, a trace showed
+  the game re-opening its controllers in a cycle while winebus got no more events); now in Silo too since DLSS
+  under DXMT exists here (4f0bf91). Same on `-np` and `-msync` → not msync patch 0004. Launch logs show nothing at
+  the moment of the change. **Narrowed (user, 2026-10-26):** GPTK/D3DMetal never loops; DXMT with MetalFX off (FSR
+  modes) never loops; FSR modes also fine with MetalFX on; DXMT + DLSS is playable when the mode is already set at
+  start — ONLY changing the DLSS profile in the menu triggers it. DXMT clones verified clean (no GPTK module; the
+  GPTK beta doesn't matter). **Suspect:** `D3D11 TemporalUpscale` (src/d3d11/d3d11_context_impl.cpp ~4909) builds a
+  new MetalFX temporal scaler per (input/output size, formats, auto-exposure) with
+  `requires_synchronous_initialization = true`, blocking the render thread; if the menu's preview varies the input
+  size frame to frame it would rebuild almost every frame (cache only grows). Not proven. **Next:** user changes
+  the profile until it loops, says "loop", and I `sample` GoW.exe during the loop (render thread in
+  newTemporalScaler? input thread stuck?). Optional: DXMT_LOG_LEVEL/DXMT_LOG_PATH for nvngx/d3d11 logs.
+  **Sampled during the loop (2026-10-26 20:00, 5 s, host pid 72107):** the scaler theory is WRONG — render
+  (DxRenderThread, dxmt-encode/finish) idle-waiting, MetalFX encoding normally, nothing in newTemporalScaler. The
+  game's window thread instead loops through window/display churn: `set_window_long_internal → macdrv_SetWindowStyle
+  → set_cocoa_window_state` (75/289 samples), `macdrv_handle_event → display_mode_changed →
+  macdrv_UpdateDisplayDevices` (EDID / CGDisplay mode queries, display-device registry rebuilt), focus changes
+  (`set_foreground_window`, `macdrv_window_got_focus`), user callbacks nested ~500 deep. So macOS keeps reporting a
+  display change → Wine broadcasts it → the game re-applies its window style (and re-enumerates its pads, as the
+  NotProton trace showed). settings.ini: `DisplayMode=Borderless`, **`HDR=On`**. Lead: DXMT switches the
+  CAMetalLayer's EDR colour space when the swapchain is rebuilt (`ApplyLayerProps` → `changeLayerProperties`), which
+  can make macOS post screen-parameter changes. Next test: HDR Off in the game, then change the DLSS profile.
+  **Caveats found right after (user):** Sidecar was on (Xcode on the iPad) and the user clicked there to send
+  "loop", so the focus/display churn in that sample may be ours; and the loop STOPS as soon as the game loses focus
+  — so it is input-driven while focused. A background `sample` every 6 s from game start killed the pad before the
+  menu appeared (so sampling at start-up is off-limits). Stall hypothesis tested on GPTK with SIGSTOP of the host
+  process: 2 s → pad fine; 8 s while holding the d-pad → pad fine, no runaway. So a plain stall does NOT reproduce
+  it. Next: on DXMT, take samples on a timer (scheduled from a "pronto" sent before triggering the loop), compare
+  with a no-loop baseline.
+  **Not reproducible later the same evening (20:31 session, DXMT + DLSS, start profile UltraQuality):** many
+  profile changes, no loop — with a launch env byte-identical to the 19:58 session that looped. Sidecar excluded by
+  the user (normally never used). So the bug is intermittent; samples so far say nothing. Next time it happens:
+  ask whether the pad is still dead after the loop is stopped by switching window — if so, sample THAT state
+  (input threads, winebus in winedevice.exe) instead of the loop itself.
+  **Later (20:45–21:29):** without any recorder the loop came back 3/3 → sampling the GAME (1 ms or 10 ms, ~100
+  suspensions/s) is what suppressed it: a timing race. Wired USB loops too → not Bluetooth. Samples of ONLY the
+  bottle's winedevice.exe during a loop (20:57:50–20:58:20): winebus (SDL path: `sdl_bus_wait`, HIDAPI rumble thread
+  idle, IOHID read thread receiving reports) is healthy — not blocked; only difference: `DARWIN_JoystickDetect`
+  (SDL re-scanning joysticks) in 3/3 loop samples vs 0/2 before (weak). A `+timestamp,+pid,+tid,+hid,+plugplay`
+  trace of winedevice (bottle pre-started by me so winedevice inherits WINEDEBUG; game env untouched) → no loop in
+  that session; kept as a no-loop baseline: ~/Downloads/Progetti/Silo/gow-traces/gow-hid-noloop-20261026-2114.log.gz.
+  It shows GoW opening/closing its HID handles ~2×/s all the time (`pdo_create`/`pdo_close`, libScePad's presence
+  polling). Next: a lighter trace (`+plugplay` only, or hid warn) to catch a loop, and compare open/close +
+  report delivery around the profile change.
+  **🎯 ROOT CAUSE FOUND (21:23–21:52): msync.** (1) `+plugplay`-only winedevice trace → loop reproduced, and the
+  DualSense was NEVER removed/re-added during it (PnP stable). (2) Game-side `+timestamp,+tid,+hid,+xinput`
+  (envFlags.extra WINEDEBUG) → loop reproduced: GoW reads the pad on ONE dedicated thread (HID reads +
+  `HidP_GetUsages`, not XInput — XInput Get/SetState polling and 60 Hz vibration continue throughout); that thread
+  parsed reports until 21:32:43 then went silent for the whole loop → it waits for a read completion it is never
+  woken for, while winebus keeps receiving reports. The game keeps the last state (d-pad) → runaway selector;
+  a keyboard key resets it (keyboard works; not a focus problem). (3) **Sync = None → 3 launches, 10+ profile
+  changes each, NO loop** (thread kept parsing to the end). So: a lost wake-up in msync (base msync — `-np`
+  without 0004 loops too), timing-sensitive (any sampling hides it), exposed by DXMT+DLSS's profile change.
+  Not yet located in the code. Side finding — **Silo bug:** for a manual game with Sync None/ESync the launch
+  fails ("Server is running with WINEMSYNC but this process is not") because `AltLoaderSession.applyRegistry`
+  runs `regedit` with `Silo.msyncWineEnvironment` and starts the bottle's wineserver in msync first; the test
+  only worked with the bottle pre-started without msync by hand (then the host regedit fails → no host icon).
+  Fix: use the game's sync mode for the host regedit in an isolated manual bottle.
+  **Existing fixes checked (2026-10-26, no build yet):** **Highball 0005 `ntdll-yield-after-auto-event-set`**
+  (Gauthier Piarrette, LGPL, gauthierpiarrette/highball-engine @ e497c41, "not sent" upstream) — after an
+  auto-reset event goes 0→1 (msync, `msync_set_event_obj`) or the server reports a 0→1 set (sync.c), `sched_yield()`
+  so the woken waiter runs before the setter can signal again; without Windows' wake boost a hand-off that signals
+  twice loses the second wake-up (his case: CS:GO legacy map-load freeze, macOS 26, Rosetta). Matches our symptom
+  (lost wake-up, timing-sensitive, msync); `patch --dry-run` applies cleanly on .wine-build's source (which has
+  0004). Strongest candidate. **WineForge** (Alien4042x @ df3d347, Wine 11.20, v0.6.0.7): no msync at all — its own
+  sync layer `wfusync` (~2,900 lines, ulock/os_sync wait-on-address); nothing small to take for msync. marzent's
+  original msync: not checked yet. **Next session:** local Wine build with 0004 + Highball 0005 (as
+  Scripts/patches/0005-…), test GoW with msync and DLSS profile changes.
+- **⚠️ 2026-10-26, prefix-update boot hang reproduced WITHOUT patch 0004:** switching GoW's runtime
+  `-msync-dxmt` → `-np-dxmt` made Wine update the prefix; GoW.exe and Silo's `regedit /S C:\silo-altloader.reg` both
+  sat in `init_startup_info → NtWaitForMultipleObjects → msync_wait_objs` with no explorer.exe until the 5-min
+  timeout; the next start hung the same way until `wineserver -k`, after which explorer came up at once. So the
+  21 Oct "boot event wait timed out" is not 0004's. Side effect: a failed/killed host regedit makes Silo start the
+  game without the host (generic icon) — by design.
+- **🗄️ MEASURED + REJECTED (2026-10-22, user): GPU-accelerated Steam UI — the software (SwiftShader) wrapper stays.**
+  The UI is CPU-drawn today (wrapper `--disable-gpu --disable-gpu-compositing --in-process-gpu` + Silo's
+  `-cef-disable-gpu*`), which is why dropdowns feel slow: each is its own Wine window, rasterised by SwiftShader
+  under Rosetta. Never-measured combination tried: the wrapper's `--in-process-gpu` (GPU inside the window-owning
+  process, so bug 60263's cross-process child swapchain doesn't arise) with the GPU ON. Test-only wrapper (drops
+  every `--disable-gpu*`/`--use-gl=`/`--use-angle=` token, appends flags from a `steamwebhelper_gputest.txt` next
+  to it) in an APFS clone `wine-cx-26.3.0-msync-gputest`; no Silo change. Results:
+  - **ANGLE D3D11 → D3DMetal: works** — first GPU-drawn Steam UI on our Wine (`--use-angle=d3d11`, no
+    `--type=gpu-process`, ANGLE compiling HLSL), BUT every dropdown's unused area (the popup window is larger
+    than its items and meant to be transparent) shows **black**. `--disable-direct-composition` changes nothing →
+    the opaque Metal surface of a layered/transparent Wine window, not a Chromium flag. User: at the limit of
+    usability, the CPU version looks better — not offered as an option.
+  - ANGLE GL: absent from Steam's Windows CEF (`gl_factory_win.cc NOTREACHED`, no context, "killing unresponsive
+    browser").
+  - ANGLE Vulkan → MoltenVK: opens, menus empty grey boxes; `GL error 0x502` in `vk_helpers.cpp
+    ImageHelper::initMemory…`.
+  - ANGLE D3D11 → DXMT (DXMT's d3d10core/d3d11/dxgi/winemetal swapped into the clone): webhelper dies at start,
+    relaunched every ~10 s (DXMT loaded — "Failed to set Metal cache path" — no Chromium log, no dump).
+  Revisit only if Wine/D3DMetal gain alpha for Metal surfaces in transparent windows.
+- **🚫 SET ASIDE (2026-10-22, user): a Sevoflurane-style WebKit Steam UI — don't re-propose.**
+  kageroumado/sevoflurane (MIT, studied @ 2df6f9b): steam.exe + its CEF still run in Wine, hidden (`-silent
+  -cef-enable-debugging -devtools-port 8765`); Steam's own `steamui` bundle is loaded into `WKWebView`s with a
+  ~1000-line `steamclient_shim.js` supplying `window.SteamClient`, every call replayed into the client's
+  `SharedJSContext` over the Chrome DevTools Protocol (bridge + windows ≈ 12k lines of its ~100k; Silo is ~17k).
+  Would fix the black window / wrapper and the Dock/Stage Manager identity of Steam's UI, but NOT the client's
+  crashes or self-updates — Steam stays under Wine — and the shim tracks Valve's UI internals (the project ships
+  near-daily). Cost far outweighs a cosmetic gain; the mid-session-update black window gets the small re-wrap fix
+  instead. If Steam ever leaves Wine, it's via native macOS Steam (lsteamclient, NotProton-style), not this.
+- **⏸️ NOT CONSIDERED (2026-10-22, user): Highball 0015 (winecoreaudio, highball#127).** Before
+  `AudioUnitInitialize` it lowers a render stream's `kAudioDevicePropertyBufferFrameSize` to half a period (240
+  frames at 48 kHz, from 512 = 10.7 ms > Wine's 10 ms period), fixing dropouts/crackle DURING playback in games that
+  keep only ~one period queued (author: CS2 menu music at 48 kHz). None of the user's games shows that symptom; the
+  only crackle heard is a sometimes-click when TEKKEN 8 quits, Mac speakers only (never headphones) — a stream torn
+  down mid-buffer, which 0015 (stream open) doesn't touch. Revisit only if a game crackles while playing.
+- **🗄️ WITHDRAWN (2026-10-23): "Silo can think Steam is still running right after it was quit from the Dock."**
+  The only case behind it (2026-10-21, TEKKEN 8: the launcher's bare `steam.exe steam://run/1778820//…` at 21:20, no
+  host, no Silo flags, "Steam service error") was NOT a skipped start: bootstrap_log shows Silo starting Steam at
+  21:18:52 with its own flags, which then crashed at 21:19:01 (`crash_steam.exe_20261021211901`, the `pipes.cpp`
+  assert below); the launcher's bare steam.exe came after that. No measured case of `isRunning` reading a quit Steam
+  as up remains, so the "wait for the wineserver after a recent quit" fix was not written. Reopen only with a log
+  where Silo skips the Steam start (no bootstrap_log "Startup" at the Play click) and the game's launcher starts it.
+- **📝 2026-10-22, Steam session on wine-cx-26.3.0-np (measured, nothing changed in Silo):**
+  - **Black Steam window = Steam self-updated mid-session.** Silo wrapped the webhelper, then Steam's bootstrapper
+    installed client 1792618285 (21:13:07–12) and restarted itself; the update put Valve's real
+    `cef.win64/steamwebhelper.exe` back over the wrapper, so that session ran unwrapped (separate GPU process) →
+    black. The game (RE Requiem) still started. Next Steam start through Silo re-wrapped (the `isSiloWebHelperWrapper`
+    branch of `installWebHelperWrapper`) → window fine. **Possible fix (not done):** notice the wrapper was replaced
+    while Steam runs (or the bootstrapper's update restart) and re-wrap + restart Steam, or tell the user.
+  - **Steam crash at auto-login** (twice: 2026-10-21 21:19:01 on -msync, 2026-10-22 21:29:30 on -np): ~7–9 s after
+    start, right at `CCMInterface::SetSteamID`, steam.exe hits `Assert( CClientPipe::BWriteAndReadResult: BWrite
+    failed ) pipes.cpp:879`; crashhandler64 writes `dumps/crash_steam.exe_*.dmp` (no exception code; stack
+    steamui → tier0 → crashhandler64), the webhelper then quits. Not runtime-specific.
+    **Corrected 2026-10-23 — "restarted seconds after the previous session" is NOT the cause** (bootstrap_log +
+    connection_log + dumps/, re-read): (1) the two gaps were 59 s (21:17:53 → 21:18:52) and 11 s (21:29:12 →
+    21:29:23), and in the second the old wineserver was already gone at 21:29:16, so nothing of the previous session
+    was left in the prefix; (2) quick restarts that did NOT crash: 2026-10-22 21:38:30 → 21:38:45 (15 s), 2026-10-21
+    18:38:52 → 18:39:27 (35 s); (3) a THIRD dump with the identical assert, `crash_steam.exe_20261021192227`, came
+    ~3 min into a session started 19:19:12 — not at login. So the assert is a Steam-internal pipe failing, also
+    mid-session, and waiting for the wineserver before a start would not have prevented any of the three. Next step
+    if pursued: read the three minidumps (which thread writes, to which pipe; whether a webhelper had just died).
+  - **Second Dock tile "wine" = steam.exe**, Foreground with only hidden windows (a 500×500 off-screen one + menu-bar
+    windows). It happens exactly on the starts whose bootstrap_log has "Checking for update on startup", which Steam
+    does only after an unclean end (update restart or crash): 21:22 and 21:35 → 2 tiles, 21:38:45 (after a clean
+    quit) → 1 tile. The bootstrapper's update-check window activates steam.exe and Wine leaves it Foreground. Gone
+    on the next clean start; not Silo, not the runtime (winemac.so identical on -np and -msync).
 - **✅ (2026-10-21, 020aace, verified by the user):** starting a Steam game with Steam closed now shows "Starting
   Steam for <game>…" in the status bar during the sign-in wait (was silent — only the toolbar animation showed it).
 - **🗄️ ARCHIVED (2026-10-21): Wine bug 60263 patch (Highball 0007 by Gauthier Piarrette) does NOT remove the need
@@ -114,6 +248,27 @@
      **SoulCalibur VI (MF bottle) with beta 3: Steam Input works** even though `SteamOverlayDXGIPatch` does not apply
      to beta 3's dxgi.dll, **and Shift+Tab opens the overlay** — confirmed: Apple fixed the overlay hooking in beta 3, so
      the WineForge-derived patch is only needed (and only applied) for beta 2. Still to do: a DXMT game (Fatal Fury).
+     **❌ DMC5 (601150, GPTK/D3D12) is broken under beta 3, fine under beta 2 (user, 2026-10-23, same runtime
+     `wine-cx-26.3.0-msync`, same game files):** with beta 3 the start looks frozen and grabs the screen (no window
+     switching). Measured: the game DOES run (105% CPU at 3½ min, no msync wait in `sample`) but its 1440×900 window
+     sits at y = −900, i.e. off-screen; in its own menu it shows "Schermo pieno 1440×960 120 Hz" with the picture
+     shifted (black band on top, right edge cut) and the mouse off. 1440×960 is in NEITHER Wine's
+     `EnumDisplaySettings` list nor beta 3's DXGI `GetDisplayModeList` (132 modes, all real Mac modes — 1728×1117
+     current). dmc5config.ini (`FullScreenDisplayMode=19`, `WindowMode=FullScreen`) is rewritten by the game itself
+     even from a bare `[Render]`-only file, so it isn't the cause. Switching the overlay back to beta 2 → starts
+     normally. Not found by me (I chased Sidecar, the ini and the local runtime's macOS-27 SDK first — the SDK
+     difference vs the CI runtime is real, minos/sdk 27.0 vs 26.0/26.5, but not this bug). Keep beta 2 for DMC5;
+     re-test with the next GPTK.
+     **2026-10-25/26, beta 3 re-released (Apple's 20 Oct build, re-imported):** same start at a wrong mode (1200×800);
+     scrolling the resolution list in DMC5's menu stalls the game ~30 s per step in Silo, ~5 s in CrossOver — with
+     beta 2 too (user, 2026-10-26), so NOT a beta-3 bug; the Silo/CX gap is unexplained (maybe msync patch 0004, A/B
+     on `wine-cx-26.3.0` pending; next: `sample` the game during a stall). **Resolved (user, 2026-10-26): no lag in
+     borderless-window mode, on both `-np` and `-msync`** — the stall belongs to the game's exclusive-fullscreen
+     mode; msync patch 0004 is not involved. The user
+     set 1728×1117 by hand. **Cause of the wrong start mode found:** `FullScreenDisplayMode` in dmc5config.ini is an
+     INDEX into the DXGI mode list, not a size — the only difference between the beta-2 ini of 2026-10-23 and today's
+     is 19 → 27, both meaning 1728×1117. Beta 3 lists more modes, so a beta-2 index lands on another mode (and vice
+     versa); switching GPTK version means re-picking the resolution in the game once.
 - **▶️ NEXT TASK (user's decision, 2026-10-13): make the depth fix a Silo feature — a per-game option
   "Correzione profondità" (EN "Depth fix"), with Silo preparing the copy and the proxy by itself.** Proven by
   hand on GoW the evening before (GPTK: proxy, see the GoW entries below and `Experiments/d3d11-depth-proxy/`;
