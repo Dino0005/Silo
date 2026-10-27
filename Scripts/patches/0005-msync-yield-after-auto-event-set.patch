@@ -10,8 +10,9 @@ changed in its menu: the d-pad state sticks, the selector runs by itself, the pa
 keyboard key resets the input. Measured 2026-10-26: the game reads the pad on one dedicated thread (HID reads
 + HidP_GetUsages); in the loop that thread stops parsing reports while winebus keeps receiving them and the
 DualSense is never removed — a lost wake-up. Sync = None: 3 launches, 10+ profile changes each, no loop;
-msync: a loop almost every launch. Timing-sensitive (any sampling of the game hides it). This is the one
-known msync lost-wake-up fix; whether it is THIS one is what the test of this patch decides.
+msync: a loop almost every launch. Timing-sensitive (any sampling of the game hides it). Verified
+2026-10-27 by the user with this patch on top of 0004 (local runtime wine-cx-26.3.0-msync-0005, DXMT clone,
+WINEMSYNC=1): 3 launches, 10-15 profile changes each, no loop, the pad kept working.
 
 ---- Highball's description (patches/README.md) ----
 

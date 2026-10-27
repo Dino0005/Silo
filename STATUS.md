@@ -87,6 +87,13 @@
   sync layer `wfusync` (~2,900 lines, ulock/os_sync wait-on-address); nothing small to take for msync. marzent's
   original msync: not checked yet. **Next session:** local Wine build with 0004 + Highball 0005 (as
   Scripts/patches/0005-…), test GoW with msync and DLSS profile changes.
+  **✅ FIXED by Highball 0005 (2026-10-27, verified by the user):** Silo patch
+  `0005-msync-yield-after-auto-event-set.patch` (hunks unchanged, origin e497c41 / blob aeed6129d3). Applied on
+  .wine-build's source (with 0004), only `ntdll.so` rebuilt, installed into local runtime
+  `wine-cx-26.3.0-msync-0005` (APFS clone of -msync, wine.inf mtime kept → no prefix update, ntdll.so ad-hoc
+  re-signed). GoW on its DXMT clone with WINEMSYNC=1: 3 launches, 10–15 DLSS profile changes each, no loop.
+  Not published: goes out with 0004 in the next Wine build, on the user's word. Still open: the Silo bug with
+  Sync None (host regedit forces msync).
 - **⚠️ 2026-10-26, prefix-update boot hang reproduced WITHOUT patch 0004:** switching GoW's runtime
   `-msync-dxmt` → `-np-dxmt` made Wine update the prefix; GoW.exe and Silo's `regedit /S C:\silo-altloader.reg` both
   sat in `init_startup_info → NtWaitForMultipleObjects → msync_wait_objs` with no explorer.exe until the 5-min
