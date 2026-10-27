@@ -6,7 +6,11 @@
 - **✅ Wine 0004 + 0005 PUBLISHED (2026-10-27):** pushed 2ffd770; `build-wine.yml` run 40540459619 (non-draft,
   crossover 26.3.0) replaced `wine-cx-26.3.0`'s assets (`wine.tar.xz` 99013368 B, passes its `.sha256`; its
   `ntdll.so` carries 0005's two extra `sched_yield` calls). Users get it by removing + reinstalling Wine. Silo 0.7.1
-  prepared (version, CHANGELOG, RELEASE_NOTES, docs) — tag pending the user's word.
+  prepared (version, CHANGELOG, RELEASE_NOTES, docs).
+- **✅ Silo 0.7.1 RELEASED (2026-10-27)** — tag v0.7.1 (6681379); Release run 40560865058 + pages green; latest,
+  not draft (`Silo.zip` 3791558 B, sha256 7a6e8a73… matches its `.sha256`, app reports 0.7.1); site shows 0.7.1
+  (EN + IT). Contents: GoW DLSS-profile pad fix (Wine 0005), msync memory leak (Wine 0004), non-Steam Sync
+  Off/ESync launch fix; the two Wine fixes need `wine-cx-26.3.0` reinstalled (said first in the notes).
 - **✅ KEPT (2026-10-21, user): Silo patch 0004 = Highball 0014 — msync, a multi-object wait that returns early takes
   its registration back.** Source: gauthierpiarrette/highball-engine patches/0014-msync-unregister-early-return.patch
   @ ac5cc83bb7d9 (blob 474c82cc40), author Gauthier Piarrette (highball#224), LGPL; 2 files (dlls/ntdll/unix/msync.c,
