@@ -1,0 +1,61 @@
+Silo patch 0005 — msync: yield after an auto-reset event is set, so a woken waiter runs first
+
+Origin: gauthierpiarrette/highball-engine, patches/0005-ntdll-yield-after-auto-event-set.patch at
+commit e497c41 (git blob aeed6129d3), last changed in 5fcbfb7. Author: Gauthier Piarrette (Highball).
+License: LGPL-2.1-or-later, like Wine. The hunks below are unchanged; Highball's patch has no header of its
+own, so its description is quoted from Highball's patches/README.md.
+
+Why Silo carries it: God of War (GOG, DXMT + DLSS, msync) loses the DualSense when the DLSS profile is
+changed in its menu: the d-pad state sticks, the selector runs by itself, the pad stops responding until a
+keyboard key resets the input. Measured 2026-10-26: the game reads the pad on one dedicated thread (HID reads
++ HidP_GetUsages); in the loop that thread stops parsing reports while winebus keeps receiving them and the
+DualSense is never removed — a lost wake-up. Sync = None: 3 launches, 10+ profile changes each, no loop;
+msync: a loop almost every launch. Timing-sensitive (any sampling of the game hides it). This is the one
+known msync lost-wake-up fix; whether it is THIS one is what the test of this patch decides.
+
+---- Highball's description (patches/README.md) ----
+
+0005 ntdll-yield-after-auto-event-set: after an auto-reset event goes 0→1 (msync) or the server reports a
+0→1 set (sync=none), yield once so the woken waiter runs before the setter can signal again. Windows boosts
+the woken thread; without it a job hand-off that signals twice loses the second wake-up (CS:GO legacy's
+map-load freeze on macOS 26 under Rosetta, reproduced 2026-09-04). Not sent upstream.
+
+diff -ruN a/dlls/ntdll/unix/msync.c b/dlls/ntdll/unix/msync.c
+--- a/dlls/ntdll/unix/msync.c	2026-09-04 15:37:32
++++ b/dlls/ntdll/unix/msync.c	2026-09-04 15:37:32
+@@ -700,7 +700,16 @@
+     LONG current;
+ 
+     if (!(current = __atomic_exchange_n( &event->signaled, 1, __ATOMIC_SEQ_CST )))
++    {
+         signal_all( (void *)event, obj );
++        /* Highball: Windows boosts the thread woken by an auto-reset event so it usually runs
++         * before the setter continues. Without that, a setter that signals twice in a row
++         * before the waiter is scheduled loses the second wake-up (the event is already
++         * signaled) and a job hand-off that relies on one wake per signal deadlocks. Seen in
++         * CS:GO's map load on macOS 26 under Rosetta. Yield after the transition so the
++         * waiter gets the CPU first. */
++        if (event->msync_type == MSYNC_AUTO_EVENT) sched_yield();
++    }
+ 
+     if (prev_state) *prev_state = current;
+ 
+diff -ruN a/dlls/ntdll/unix/sync.c b/dlls/ntdll/unix/sync.c
+--- a/dlls/ntdll/unix/sync.c	2026-09-04 15:37:32
++++ b/dlls/ntdll/unix/sync.c	2026-09-04 15:37:32
+@@ -1268,7 +1268,14 @@
+         req->handle = wine_server_obj_handle( handle );
+         req->op     = SET_EVENT;
+         ret = wine_server_call( req );
+-        if (!ret && prev_state) *prev_state = reply->state;
++        if (!ret)
++        {
++            if (prev_state) *prev_state = reply->state;
++            /* Highball: let a thread the server just woke run before we signal again
++             * (see msync_set_event_obj); the server does not tell us the event type, and
++             * the yield is cheap, so it applies to every 0->1 transition here. */
++            if (!reply->state) sched_yield();
++        }
+     }
+     SERVER_END_REQ;
+     return ret;
