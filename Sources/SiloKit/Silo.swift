@@ -204,8 +204,24 @@ public enum Silo {
     /// `wineEnvironment` + `enforceMsync` — the base env for anything Silo runs inside a bottle that must
     /// share that bottle's wineserver.
     public static func msyncWineEnvironment(prefix: URL, wine: URL) -> [String: String] {
+        syncWineEnvironment(prefix: prefix, wine: wine, syncMode: .msync)
+    }
+
+    /// `wineEnvironment` with exactly `syncMode`'s sync variable — for a helper that runs right before a
+    /// game in that game's OWN isolated bottle (a manual game), where the game honors its Sync setting
+    /// instead of `enforceMsync`. The helper's wineserver is still alive when the game starts, and a
+    /// game whose mode differs is refused by it ("Server is running with WINEMSYNC but this process is
+    /// not", measured 2026-10-26 with Sync = Off), so the two must agree. `.msync` is
+    /// `msyncWineEnvironment`.
+    public static func syncWineEnvironment(prefix: URL, wine: URL, syncMode: SyncMode) -> [String: String] {
         var env = wineEnvironment(prefix: prefix, wine: wine)
-        enforceMsync(&env)
+        env["WINEMSYNC"] = nil
+        env["WINEESYNC"] = nil
+        switch syncMode {
+        case .msync: enforceMsync(&env)
+        case .esync: env["WINEESYNC"] = "1"
+        case .none: break
+        }
         return env
     }
 }

@@ -110,6 +110,9 @@ public struct AltLoaderSession: Sendable {
     ///     that is what Wine matches on (`AltLoaderWhitelist.exeName`).
     ///   - iconICO: the exe's icon from `PEIcon`, if any.
     ///   - playLink: the game's `silo://play/…` link for the bundle (see `GameHostBundle.playLink`).
+    ///   - syncMode: the sync mode the game will launch with. The registry import's wineserver is still
+    ///     up when the game starts, so it must match (see `Silo.syncWineEnvironment`): `.msync` in the
+    ///     shared Steam bottle, the game's own setting in a manual game's isolated bottle.
     public func prepare(
         gameName: String,
         gameID: String,
@@ -119,6 +122,7 @@ public struct AltLoaderSession: Sendable {
         prefix: URL,
         wine: URL,
         hostAppsDir: URL,
+        syncMode: SyncMode = .msync,
         fileManager: FileManager = .default
     ) async -> URL? {
         // Gate Wine's hand-over to THIS exe. Without it the socket is consumed by the first process the
@@ -126,7 +130,7 @@ public struct AltLoaderSession: Sendable {
         await prepare(
             bundle: GameHostBundle(name: gameName, id: gameID, playLink: playLink),
             whitelist: [AltLoaderWhitelist.exeName(for: gameExe.lastPathComponent)],
-            iconICO: iconICO, socketID: gameID, prefix: prefix, wine: wine,
+            iconICO: iconICO, socketID: gameID, syncMode: syncMode, prefix: prefix, wine: wine,
             hostAppsDir: hostAppsDir, fileManager: fileManager)
     }
 
@@ -179,6 +183,7 @@ public struct AltLoaderSession: Sendable {
         socketID: String,
         hostWaitSeconds: Int? = nil,
         activate: Bool = true,
+        syncMode: SyncMode = .msync,
         prefix: URL,
         wine: URL,
         hostAppsDir: URL,
@@ -195,14 +200,14 @@ public struct AltLoaderSession: Sendable {
 
         guard await applyRegistry(AltLoaderWhitelist.enableReg(exeNames: exeNames),
                                   named: "silo-altloader.reg", prefix: prefix, wine: wine,
-                                  fileManager: fileManager)
+                                  syncMode: syncMode, fileManager: fileManager)
         else { return nil }
 
         let socket = Self.socketPath(forGameID: socketID, temporaryDirectory: temporaryDirectory)
         // Better no hand-over than a truncated one: a truncated bind looks like it worked and then
         // silently costs the icon (see `maxSocketPathLength`).
         guard socket.path.utf8.count <= Self.maxSocketPathLength else {
-            await cleanup(prefix: prefix, wine: wine, fileManager: fileManager)
+            await cleanup(prefix: prefix, wine: wine, syncMode: syncMode, fileManager: fileManager)
             return nil
         }
         // Remove any socket left by an earlier run BEFORE starting the host. The host cannot clean up
@@ -224,7 +229,7 @@ public struct AltLoaderSession: Sendable {
             environment: [:], currentDirectory: nil),
               result.succeeded
         else {
-            await cleanup(prefix: prefix, wine: wine, fileManager: fileManager)
+            await cleanup(prefix: prefix, wine: wine, syncMode: syncMode, fileManager: fileManager)
             return nil
         }
 
@@ -233,7 +238,7 @@ public struct AltLoaderSession: Sendable {
         // `connect()` first, get ENOENT, and fork. Waiting for the socket file to appear IS the readiness
         // signal: it comes into existence at `bind`, and `listen` follows immediately.
         guard await waitForSocket(socket, fileManager: fileManager) else {
-            await cleanup(prefix: prefix, wine: wine, fileManager: fileManager)
+            await cleanup(prefix: prefix, wine: wine, syncMode: syncMode, fileManager: fileManager)
             return nil
         }
         return socket
@@ -257,23 +262,24 @@ public struct AltLoaderSession: Sendable {
     /// Leaving the key behind is not neutral: an `UseAltLoader` that exists but no longer lists the exe
     /// matches nothing, which would silently exclude *every* executable from the alt loader — the state a
     /// half-finished `reg delete` produced during the experiments. `disableReg` deletes the key outright.
-    public func cleanup(prefix: URL, wine: URL, fileManager: FileManager = .default) async {
+    public func cleanup(prefix: URL, wine: URL, syncMode: SyncMode = .msync,
+                        fileManager: FileManager = .default) async {
         _ = await applyRegistry(AltLoaderWhitelist.disableReg(),
                                 named: "silo-altloader-off.reg", prefix: prefix, wine: wine,
-                                fileManager: fileManager)
+                                syncMode: syncMode, fileManager: fileManager)
     }
 
     /// Import a `.reg` through `wine regedit /S`, the same way `SteamBottle.applyWineDefaults` does —
     /// one import instead of per-value `reg add` calls, which hung repeatedly when driven by hand.
     private func applyRegistry(_ text: String, named name: String, prefix: URL, wine: URL,
-                               fileManager: FileManager) async -> Bool {
+                               syncMode: SyncMode, fileManager: FileManager) async -> Bool {
         let driveC = prefix.appendingPathComponent("drive_c")
         try? fileManager.createDirectory(at: driveC, withIntermediateDirectories: true)
         let file = driveC.appendingPathComponent(name)
         guard (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil else { return false }
         let result = try? await runner.run(
             executable: wine, arguments: ["regedit", "/S", "C:\\\(name)"],
-            environment: Silo.msyncWineEnvironment(prefix: prefix, wine: wine),
+            environment: Silo.syncWineEnvironment(prefix: prefix, wine: wine, syncMode: syncMode),
             currentDirectory: prefix)
         try? fileManager.removeItem(at: file)
         return result?.succeeded == true

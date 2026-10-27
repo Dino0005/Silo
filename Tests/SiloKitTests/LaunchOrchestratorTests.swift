@@ -749,6 +749,30 @@ struct LaunchAltLoaderPipelineTests {
             atPath: open.arguments[2] + "/Contents/MacOS/SiloGameHost"))
     }
 
+    /// Sync = Off on a manual game used to make it unlaunchable: the host's registry import started the
+    /// bottle's wineserver with msync, and the game (no msync) was refused by it (measured 2026-10-26).
+    @Test("A manual game's sync mode reaches both the host's registry import and the game")
+    func manualLaunchUsesTheGamesSyncModeForTheHandOver() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let sockets = try socketRoot(); defer { try? FileManager.default.removeItem(at: sockets) }
+        let fake = FakeProcessRunner()
+        var (backend, game, prefix) = try manualSetup(tmp)
+        game.envFlags.syncMode = .none
+
+        _ = try await orchestrator(fake, host: try fakeHost(in: tmp), socketRoot: sockets).launchManualGame(
+            game, backend: backend, graphics: .gptk, prefix: prefix,
+            logURL: tmp.url.appendingPathComponent("m.log"),
+            altLoaderTarget: .init(gameName: game.name, gameID: game.id.uuidString,
+                                   hostAppsDir: tmp.url.appendingPathComponent("HostApps")))
+
+        let reg = try #require(fake.invocations.first { $0.arguments.first == "regedit" })
+        #expect(reg.environment["WINEMSYNC"] == nil)
+        #expect(reg.environment["WINEESYNC"] == nil)
+        let spawn = try #require(fake.invocations.last { $0.detached })
+        #expect(spawn.environment["WINEMSYNC"] == nil)
+        #expect(spawn.environment["WINEESYNC"] == nil)
+    }
+
     /// No target — the launch must be byte-identical to the one that shipped before this feature.
     @Test("Without a target nothing is prepared and no socket reaches the game")
     func withoutATargetTheLaunchIsUntouched() async throws {

@@ -305,7 +305,7 @@ public struct LaunchOrchestrator: Sendable {
     /// its own exe, so a leftover naming the previous game is harmless (that exe simply isn't adopted).
     /// `AltLoaderSession.cleanup` stays available for a deliberate teardown.
     private func prepareAltLoader(
-        target: AltLoaderSession.Target?, gameExe: URL, prefix: URL, wine: URL
+        target: AltLoaderSession.Target?, gameExe: URL, prefix: URL, wine: URL, syncMode: SyncMode = .msync
     ) async -> URL? {
         guard let target else { return nil }
         // The process that will own the window. For an Unreal launcher that is NOT the exe being launched
@@ -316,7 +316,8 @@ public struct LaunchOrchestrator: Sendable {
             .flatMap(PEIcon.icoData(fromExecutable:))
         return await altLoader.prepare(
             gameName: target.gameName, gameID: target.gameID, gameExe: windowOwner, iconICO: icon,
-            playLink: target.playLink, prefix: prefix, wine: wine, hostAppsDir: target.hostAppsDir)
+            playLink: target.playLink, prefix: prefix, wine: wine, hostAppsDir: target.hostAppsDir,
+            syncMode: syncMode)
     }
 
     /// Prepare the Steam client's hand-over for `bottle` (see `AltLoaderSession.prepareSteamClient`),
@@ -354,8 +355,11 @@ public struct LaunchOrchestrator: Sendable {
                          depthFix: game.envFlags.depthFix)
         var socket = altLoaderSocket
         if socket == nil {
+            // The game's own sync mode: its isolated bottle honors it (`makePlan`, `sharedBottle: false`),
+            // and the host's registry import runs just before it on the same wineserver.
             socket = await prepareAltLoader(
-                target: altLoaderTarget, gameExe: game.executablePath, prefix: prefix, wine: launchWine)
+                target: altLoaderTarget, gameExe: game.executablePath, prefix: prefix, wine: launchWine,
+                syncMode: game.envFlags.syncMode)
         }
         let plan = try Self.makePlan(
             config: game.gameConfig, backend: backend, graphics: graphics, wine: launchWine,

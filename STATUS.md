@@ -92,8 +92,13 @@
   .wine-build's source (with 0004), only `ntdll.so` rebuilt, installed into local runtime
   `wine-cx-26.3.0-msync-0005` (APFS clone of -msync, wine.inf mtime kept → no prefix update, ntdll.so ad-hoc
   re-signed). GoW on its DXMT clone with WINEMSYNC=1: 3 launches, 10–15 DLSS profile changes each, no loop.
-  Not published: goes out with 0004 in the next Wine build, on the user's word. Still open: the Silo bug with
-  Sync None (host regedit forces msync).
+  Not published: goes out with 0004 in the next Wine build, on the user's word.
+  **✅ Silo side (2026-10-27, 793 tests green):** the host's registry import (`AltLoaderSession.prepare`/`cleanup`
+  → `applyRegistry`) now runs with the game's sync mode — new `Silo.syncWineEnvironment(prefix:wine:syncMode:)`;
+  `launchManualGame` passes `game.envFlags.syncMode`, the Steam bottle keeps `.msync`. Tests: the import's
+  WINEMSYNC/WINEESYNC per mode, and a Sync-Off manual launch with a host target. Other manual-bottle helpers
+  still use msync (provisioning kills its server with `wineserver -k`; `runWineTool`/installers are not run
+  right before a game) — left as is. **Verified by the user (2026-10-27):** GoW with Sync Off from dist/Silo.app starts normally with its host icon; set back to MSync.
 - **⚠️ 2026-10-26, prefix-update boot hang reproduced WITHOUT patch 0004:** switching GoW's runtime
   `-msync-dxmt` → `-np-dxmt` made Wine update the prefix; GoW.exe and Silo's `regedit /S C:\silo-altloader.reg` both
   sat in `init_startup_info → NtWaitForMultipleObjects → msync_wait_objs` with no explorer.exe until the 5-min

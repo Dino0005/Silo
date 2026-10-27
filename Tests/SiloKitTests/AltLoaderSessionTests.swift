@@ -37,7 +37,8 @@ struct AltLoaderSessionTests {
     }
 
     private func prepare(
-        runner: FakeProcessRunner, root: URL, prefix: URL, host: URL?, disable: Bool = false
+        runner: FakeProcessRunner, root: URL, prefix: URL, host: URL?, disable: Bool = false,
+        syncMode: SyncMode = .msync
     ) async -> URL? {
         var env: [String: String] = [:]
         if let host { env["SILO_ALTLOADER_HOST"] = host.path }
@@ -47,7 +48,7 @@ struct AltLoaderSessionTests {
                                       socketWaitTimeout: .zero).prepare(
             gameName: "Blocco Note", gameID: "220", gameExe: gameExe, iconICO: nil,
             prefix: prefix, wine: wine,
-            hostAppsDir: root.appendingPathComponent("HostApps", isDirectory: true))
+            hostAppsDir: root.appendingPathComponent("HostApps", isDirectory: true), syncMode: syncMode)
     }
 
     // MARK: - Degrading to the old launch path
@@ -100,6 +101,19 @@ struct AltLoaderSessionTests {
         #expect(open.arguments[2].hasSuffix("220/Blocco Note.app"))
         #expect(open.arguments[3] == "--args")
         #expect(open.arguments[4] == socket.path)
+    }
+
+    /// The registry import's wineserver is still up when the game starts, and a wineserver refuses a
+    /// client whose sync mode differs — so the import must use the game's mode, not always msync.
+    @Test(arguments: [(SyncMode.msync, "1", nil), (.esync, nil, "1"), (.none, nil, nil)] as [(SyncMode, String?, String?)])
+    func theRegistryImportRunsWithTheGamesSyncMode(mode: SyncMode, msync: String?, esync: String?) async throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let runner = FakeProcessRunner()
+        _ = await prepare(runner: runner, root: root, prefix: try makePrefix(in: root),
+                          host: try fakeHost(in: root), syncMode: mode)
+        let reg = try #require(runner.invocations.first { $0.arguments.first == "regedit" })
+        #expect(reg.environment["WINEMSYNC"] == msync)
+        #expect(reg.environment["WINEESYNC"] == esync)
     }
 
     /// The host really is installed in the per-game bundle, so LaunchServices has something to start.
