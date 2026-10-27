@@ -3,6 +3,10 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Wine 0004 + 0005 PUBLISHED (2026-10-27):** pushed 2ffd770; `build-wine.yml` run 40540459619 (non-draft,
+  crossover 26.3.0) replaced `wine-cx-26.3.0`'s assets (`wine.tar.xz` 99013368 B, passes its `.sha256`; its
+  `ntdll.so` carries 0005's two extra `sched_yield` calls). Users get it by removing + reinstalling Wine. Silo 0.7.1
+  prepared (version, CHANGELOG, RELEASE_NOTES, docs) — tag pending the user's word.
 - **✅ KEPT (2026-10-21, user): Silo patch 0004 = Highball 0014 — msync, a multi-object wait that returns early takes
   its registration back.** Source: gauthierpiarrette/highball-engine patches/0014-msync-unregister-early-return.patch
   @ ac5cc83bb7d9 (blob 474c82cc40), author Gauthier Piarrette (highball#224), LGPL; 2 files (dlls/ntdll/unix/msync.c,

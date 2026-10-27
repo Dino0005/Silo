@@ -8,13 +8,27 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.7.1
 
 ### Fixed
+- **God of War's controller no longer dies when the DLSS profile is changed on DXMT.** Changing the profile in
+  the game's menu made the selector run through the profiles by itself, and the DualSense stopped responding (the
+  mouse and keyboard kept working). The game reads the pad on one thread that sleeps until a report arrives; with
+  msync that thread sometimes missed its wake-up, so the game kept the last d-pad state forever. In CrossOver's
+  msync, an auto-reset event signalled twice before the woken thread ran lost the second signal — Windows gives
+  the woken thread priority, msync didn't. With Sync off it never happened. Patch by Gauthier Piarrette
+  (Highball), carried as Silo patch 0005: after such an event is set, the setter yields so the waiter runs first.
+  Checked on God of War (DXMT, DLSS, msync): three launches, 10–15 profile changes each, no loop. In the rebuilt
+  `wine-cx-26.3.0` (remove Wine in *Settings → Wine* and install it again).
 - **Silo's Wine no longer leaks memory in the wineserver when a game waits on several things at once.** In
   CrossOver's msync, a wait that ended early never took its registration back, so the wineserver grew without
   bound in games that wait in a tight loop — 23 to 60 MB in 30 seconds in our test, then on and on. Patch by
-  Gauthier Piarrette (Highball, highball#224), carried as Silo patch 0004; in the next Wine build.
+  Gauthier Piarrette (Highball, highball#224), carried as Silo patch 0004; in the rebuilt `wine-cx-26.3.0`.
+- **A non-Steam game set to Sync *Off* or *ESync* starts again.** Before the game, Silo imports a small registry
+  key for the game's host (its icon in the Dock) — and that import always ran with msync, which left the bottle's
+  wineserver running in msync mode for a few seconds; the game, started right after in another mode, was turned
+  away ("Server is running with WINEMSYNC but this process is not") and never appeared. The import now uses the
+  game's own Sync setting. Steam games are unaffected: their shared bottle is always msync.
 
 ### Changed
 - **Starting a Steam game says when Steam is coming up first.** With Steam closed, the status bar now reads

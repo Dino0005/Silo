@@ -1,32 +1,27 @@
-# Silo 0.7.0
+# Silo 0.7.1
 
-DLSS for DirectX 11 games on DXMT, God of War's lighting fixed on DXMT, and no screen saver while you play.
+God of War's controller fixed on DXMT, a Wine that no longer leaks memory, and non-Steam games with Sync off
+starting again.
 
-## DXMT: reinstall once
+## Wine: reinstall once
 
-Both DXMT changes below need the rebuilt runtime `dxmt-v0.72-cx26.3.0`, published under the same name. To get
-it, remove DXMT in *Settings → DXMT* and install it again. With the old copy, games keep running as before.
+The two Wine fixes below are in the rebuilt runtime `wine-cx-26.3.0`, published under the same name. To get it,
+remove Wine in *Settings → Wine* and install it again. With the old copy, games keep running as before.
 
-## DLSS on DXMT
+## God of War: the controller no longer dies when you change DLSS on DXMT
 
-With *MetalFX upscaling* on in a game's settings, a DXMT game that ships DLSS now offers it, and Silo runs it on
-MetalFX's temporal upscaler — what D3DMetal already does under GPTK. Silo checks the game's folder for NVIDIA's
-DLSS file and turns this on only for those games, which then see an NVIDIA graphics card. A DXMT game without DLSS
-keeps what *MetalFX upscaling* did there before: a sharper upscale of the final image.
+Changing the DLSS profile in the game's menu made the selector run through the profiles by itself, and the
+DualSense stopped responding until you pressed a key. The game waits for the controller on a thread of its own,
+and with Silo's default sync (MSync) that thread sometimes missed being woken up, so the game kept the last button
+it had seen. A fix by Gauthier Piarrette (Highball) makes Wine let a woken thread run first, as Windows does.
+Tested on God of War with DXMT and DLSS: three launches, 10–15 profile changes each, no loop.
 
-Tested on God of War with DLSS Quality: the image is comparable to D3DMetal's, and smooth once shaders are built.
-FATAL FURY: City of the Wolves, which has no DLSS, keeps the upscale of the final image.
+## Wine no longer grows until memory runs out
 
-## God of War no longer dark on DXMT with FSR 2
+In games that wait on several things at once in a tight loop, Wine's server kept a little memory for every wait
+that ended early, and grew without limit over a long session. Also a fix by Gauthier Piarrette (Highball).
 
-With AMD FSR 2 on, God of War was much darker on DXMT than with FSR off or on GPTK, and darker the lower the FSR
-mode. The game sets its exposure from a brightness measurement it makes on the GPU, and with FSR on it writes past
-the end of one of the buffers it uses. Windows ignores that; DXMT read unrelated data instead, so the exposure came
-out far too low. DXMT now behaves as Windows does for every game, and compiles God of War's shaders without fast
-math. Tested with FSR Ultra Performance and Quality, and without FSR at 80 % render scale.
+## Non-Steam games with Sync off or ESync start again
 
-## No screen saver while a game runs
-
-Playing with a controller alone, macOS saw no activity and could start the screen saver or turn the display off
-during a long session. A game started from Silo now keeps the display awake for as long as it runs — even with
-Silo closed, and for games started from the Games app — and lets go the moment it ends.
+A non-Steam game set to Sync *Off* or *ESync* in its settings didn't start: Silo prepared the game's icon with
+MSync just before, and Wine turned the game away. Silo now prepares it with the game's own setting.
