@@ -85,8 +85,19 @@ public struct SystemProcessRunner: ProcessRunning {
         "DYLD_INSERT_LIBRARIES", "DYLD_FORCE_FLAT_NAMESPACE", "DYLD_LIBRARY_PATH",
     ]
 
+    /// Core Animation debug switches dropped from the INHERITED environment only. Some developer shells
+    /// (Xcode's, measured 2026-10-28) export them, and a wine child inheriting them hangs every D3DMetal
+    /// game: D3DMetal configures its `CAMetalLayer` off the main thread (`setNonDefaultColorspace:`), the
+    /// assertion makes Core Animation `abort()` while it holds its transaction lock, and the game's main
+    /// thread then blocks on that lock forever — a transparent window. Unlike the injection set, an
+    /// explicit override (a user's `EnvFlags.extra`) still goes through, for deliberate debugging.
+    static let inheritedDebugDenylist: Set<String> = [
+        "CA_ASSERT_MAIN_THREAD_TRANSACTIONS", "CA_DEBUG_TRANSACTIONS",
+    ]
+
     static func mergedEnvironment(_ overrides: [String: String]) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
+        for key in inheritedDebugDenylist { env[key] = nil }   // before the overrides → an explicit one wins
         for (key, value) in overrides { env[key] = value }
         for key in injectionDenylist { env[key] = nil }   // applied LAST → also strips a user-set override
         return env

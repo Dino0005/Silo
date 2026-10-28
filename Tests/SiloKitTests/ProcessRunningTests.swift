@@ -72,6 +72,24 @@ struct SystemProcessRunnerTests {
         #expect(merged["WINEPREFIX"] == "/p/220")
     }
 
+    @Test("mergedEnvironment drops inherited Core Animation debug switches, but keeps an explicit override")
+    func mergedEnvironmentDropsInheritedCADebug() async throws {
+        // What Xcode's shell exports: inherited by a game, it makes D3DMetal hang on a CA abort().
+        setenv("CA_ASSERT_MAIN_THREAD_TRANSACTIONS", "1", 1)
+        setenv("CA_DEBUG_TRANSACTIONS", "1", 1)
+        defer { unsetenv("CA_ASSERT_MAIN_THREAD_TRANSACTIONS"); unsetenv("CA_DEBUG_TRANSACTIONS") }
+
+        let inherited = SystemProcessRunner.mergedEnvironment(["WINEPREFIX": "/p/1778820"])
+        #expect(inherited["CA_ASSERT_MAIN_THREAD_TRANSACTIONS"] == nil)
+        #expect(inherited["CA_DEBUG_TRANSACTIONS"] == nil)
+        #expect(inherited["WINEPREFIX"] == "/p/1778820")
+
+        // Set on purpose (e.g. a game's EnvFlags.extra), it is the user's call and survives.
+        let explicit = SystemProcessRunner.mergedEnvironment(["CA_DEBUG_TRANSACTIONS": "1"])
+        #expect(explicit["CA_DEBUG_TRANSACTIONS"] == "1")
+        #expect(explicit["CA_ASSERT_MAIN_THREAD_TRANSACTIONS"] == nil)
+    }
+
     @Test("spawnDetached writes child output to the log file")
     func spawnDetached() async throws {
         let tmp = try TempDir()

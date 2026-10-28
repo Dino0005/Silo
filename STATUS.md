@@ -3,6 +3,15 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Inherited Core Animation debug switches no longer reach games (2026-10-28, 794 tests green).**
+  `SystemProcessRunner.inheritedDebugDenylist` drops `CA_ASSERT_MAIN_THREAD_TRANSACTIONS` +
+  `CA_DEBUG_TRANSACTIONS` from the environment Silo inherits (before overrides, so a deliberate
+  `EnvFlags.extra` still wins). Measured: Xcode's agent shell exports both; a wine child carrying them hangs
+  every D3DMetal game — D3DMetal's off-main-thread `-[CAMetalLayer setNonDefaultColorspace:]` trips
+  `CA::CA_ABORT_ON_NON_MAIN_THREAD_TRANSACTION_PUSH()` → `abort()` with `CA::Transaction::transaction_lock`
+  held (lldb: `GameThread` owns it) → the main thread's `displayIfNeeded` blocks forever, transparent
+  window. A Finder-launched Silo never had them. **Unverified:** the 2026-09-24/25 TEKKEN + Spider-Man
+  freezes below have the same lock shape and may be this, if Silo was started from that shell.
 - **✅ Wine 0004 + 0005 PUBLISHED (2026-10-27):** pushed 2ffd770; `build-wine.yml` run 40540459619 (non-draft,
   crossover 26.3.0) replaced `wine-cx-26.3.0`'s assets (`wine.tar.xz` 99013368 B, passes its `.sha256`; its
   `ntdll.so` carries 0005's two extra `sched_yield` calls). Users get it by removing + reinstalling Wine. Silo 0.7.1
