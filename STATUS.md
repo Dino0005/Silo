@@ -3,7 +3,11 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
-- **✅ Silo patch 0006 tested, queued for the next Wine build (2026-10-30, user's choice: quality fix, not a game fix).**
+- **✅ Silo patch 0006 PUBLISHED (2026-10-30, user's choice: quality fix, not a game fix).** Pushed ad3e4d7;
+  `build-wine.yml` run 41110786193 (non-draft, crossover 26.3.0) replaced `wine-cx-26.3.0`'s assets (`wine.tar.xz`
+  99014892 B, passes its `.sha256`). Its `winegstreamer.so` differs from the previous release by ONE instruction: the
+  `"autoplug-select"` `g_signal_connect_data` user-data arg went from `%r14` (stream) to `%r15` (parser). Users get it
+  by removing + reinstalling Wine.
   `0006-winegstreamer-autoplug-select-user-data.patch` — from Nectarine's codecs/0002: the per-stream decodebin's
   `autoplug-select` was connected with the `wg_parser_stream` while `autoplug_select_cb` casts to `wg_parser`
   (also in upstream Wine master). Here the callback only touches `sink_caps`, so no visible effect is known.
@@ -20,7 +24,7 @@
   BWrite failed` assert right after the MF client started. That assert also appears in the 2026-10-25 dumps, before
   this patch, and the second try worked. Test state reverted: default Wine back to `wine-cx-26.3.0`, the original
   `winegstreamer.so`, the MF marker + font paths in both bottles' `.reg` restored, the clone deleted (backups in
-  `Backups/gst0006-cleanup-20261030`). Ships with the next Wine build.
+  `Backups/gst0006-cleanup-20261030`).
 - **✅ Inherited Core Animation debug switches no longer reach games (2026-10-28, 794 tests green).**
   `SystemProcessRunner.inheritedDebugDenylist` drops `CA_ASSERT_MAIN_THREAD_TRANSACTIONS` +
   `CA_DEBUG_TRANSACTIONS` from the environment Silo inherits (before overrides, so a deliberate
