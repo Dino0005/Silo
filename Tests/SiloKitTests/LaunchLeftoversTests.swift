@@ -129,6 +129,44 @@ struct LaunchLeftoversTests {
         #expect(census.leftovers.map(\.id).sorted() == [49718, 49751])
     }
 
+    /// A launcher's hand-off: UNCHARTED's `tll-l.exe` (adopted, then gone) started `u4-l.exe` through Wine,
+    /// so `ps` shows the Windows path (verbatim shape from 2026-10-30). The host's exit must not read the
+    /// real game as a leftover — that is what stopped Uncharted 4 ~4 s after every launch.
+    @Test func aGameStartedByItsLauncherIsAGame() {
+        let installDir = "Uncharted Legacy of Thieves Collection"
+        let unchartedUnix = "/Volumes/Extreme Pro/CX Steam Library/SteamLibrary/steamapps/common/\(installDir)"
+        let u4 = LaunchLeftovers.Process(
+            id: 50001, command: #"Y:\SteamLibrary\steamapps\common\Uncharted Legacy of Thieves Collection\u4-l.exe"#)
+        let census = LaunchLeftovers.classify(
+            all: afterQuitting + [u4], inPrefix: inPrefix.union([50001]),
+            gameExecutables: [unchartedUnix, LaunchLeftovers.windowsMarker(forSteamInstallDir: installDir)])
+        #expect(census.games.map(\.id) == [50001])
+        #expect(!census.isOnlyLeftovers)
+    }
+
+    /// The same Windows marker must not turn a game's crash handler into a game: it would hold the Dock
+    /// tile forever. Covers the root-level handler (Spider-Man) and the one in a subfolder (UNCHARTED's `crs\`).
+    @Test func aCrashHandlerInTheGamesFolderStaysALeftover() {
+        let spiderManDir = "Marvel's Spider-Man Remastered"
+        let rootHelper = LaunchLeftovers.Process(
+            id: 49751, command: #"Y:\SteamLibrary\steamapps\common\Marvel's Spider-Man Remastered\crs-handler.exe"#)
+        let subfolderHelper = LaunchLeftovers.Process(
+            id: 49752, command: #"Y:\SteamLibrary\steamapps\common\Marvel's Spider-Man Remastered\crs\crs-handler.exe --pid 1452"#)
+        let census = LaunchLeftovers.classify(
+            all: afterQuitting + [rootHelper, subfolderHelper], inPrefix: inPrefix.union([49751, 49752]),
+            gameExecutables: [spiderMan, LaunchLeftovers.windowsMarker(forSteamInstallDir: spiderManDir)])
+        #expect(census.games.isEmpty)
+        #expect(census.leftovers.map(\.id).sorted() == [49718, 49751, 49752])
+    }
+
+    @Test func crashHelperIsJudgedByTheImageNameOnly() {
+        #expect(LaunchLeftovers.isCrashHelper(#"Y:\steamapps\common\Game\UnityCrashHandler64.exe --attach 12"#))
+        #expect(LaunchLeftovers.isCrashHelper(#"C:\Game\CrashReportClient.exe"#))
+        // A game whose FOLDER mentions "crash" is still the game.
+        #expect(!LaunchLeftovers.isCrashHelper(#"Y:\steamapps\common\Crash Bandicoot N. Sane Trilogy\CrashBandicootNSaneTrilogy.exe"#))
+        #expect(!LaunchLeftovers.isCrashHelper(#"Y:\steamapps\common\Uncharted Legacy of Thieves Collection\u4-l.exe"#))
+    }
+
     /// Even with NO game list at all, an adopted game is still recognised — the host binary in its
     /// command line is the tell. That is the safety net that matters: a caller that forgets to pass its
     /// library can still never be told to kill a playing game.

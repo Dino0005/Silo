@@ -340,10 +340,14 @@ public final class AppEnvironment {
     /// this covers the un-adopted case — no host installed, or `SILO_DISABLE_ALTLOADER=1`.
     private func knownGameExecutables() -> [String] {
         gameLibrary.manualGames.map(\.executablePath.path)
-            + gameLibrary.games.map {
-                $0.libraryPath
-                    .appendingPathComponent("steamapps/common", isDirectory: true)
-                    .appendingPathComponent($0.installDir, isDirectory: true).path
+            + gameLibrary.games.flatMap {
+                [
+                    $0.libraryPath
+                        .appendingPathComponent("steamapps/common", isDirectory: true)
+                        .appendingPathComponent($0.installDir, isDirectory: true).path,
+                    // A process Wine started itself (a launcher's hand-off) shows its Windows path.
+                    LaunchLeftovers.windowsMarker(forSteamInstallDir: $0.installDir),
+                ]
             }
     }
 

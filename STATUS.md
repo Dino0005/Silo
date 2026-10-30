@@ -3,6 +3,18 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🟡 Post-game cleanup stopped a launcher's hand-off (2026-10-30, 797 tests green, awaiting the user's check).**
+  UNCHARTED: Legacy of Thieves Collection: `tll-l.exe` (adopted by the host) reads
+  `Uncharted4_data/boot.info` (`"boot-mode" : "u4"` once Uncharted 4 is picked in the collection's menu), starts
+  `u4-l.exe` through Wine and exits. The host terminating ran `watchGameExitsForLeftovers`. Its census matched
+  games on the UNIX install path, but a Wine-started process shows its WINDOWS path in `ps`
+  (`Y:\SteamLibrary\steamapps\common\…\u4-l.exe`), so Uncharted 4 read as a leftover and was SIGTERMed ~4 s in.
+  Measured: launched directly in the bottle it runs (90 s, reaches D3D12). Fix: `knownGameExecutables` also passes
+  `LaunchLeftovers.windowsMarker` (`steamapps\common\<installDir>\`), matching is case-insensitive, and
+  `isCrashHelper` (image name: crs-handler, crashhandler, crashreport, crashpad, errorreporter) keeps a game's
+  crash handler a leftover (the Spider-Man tile case). 3 new tests. `dist/Silo.app` rebuilt. Side findings the same
+  day: The Lost Legacy runs with Steam Input OFF (`empty.vdf`); the DualSense does not drive it, and the music
+  stutters. Both still open. D3DMetal rejects 8 root signatures (`0x80004005`) in both games.
 - **✅ Silo patch 0006 PUBLISHED (2026-10-30, user's choice: quality fix, not a game fix).** Pushed ad3e4d7;
   `build-wine.yml` run 41110786193 (non-draft, crossover 26.3.0) replaced `wine-cx-26.3.0`'s assets (`wine.tar.xz`
   99014892 B, passes its `.sha256`). Its `winegstreamer.so` differs from the previous release by ONE instruction: the

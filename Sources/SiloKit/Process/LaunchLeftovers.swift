@@ -65,6 +65,29 @@ public struct LaunchLeftovers: Sendable {
         "steam.exe", "steamwebhelper", "steamservice.exe", "gameoverlayui", "steamerrorreporter",
     ]
 
+    /// How a Steam game's processes appear in `ps` when Wine, not Silo, started them: Wine shows the
+    /// Windows command line, so the unix install path never matches. Measured 2026-10-30 on UNCHARTED:
+    /// Legacy of Thieves Collection — `tll-l.exe` (adopted by the host) hands off to `u4-l.exe`
+    /// (`Y:\SteamLibrary\steamapps\common\Uncharted Legacy of Thieves Collection\u4-l.exe`) and exits;
+    /// the host terminating triggered the post-game cleanup, which read Uncharted 4 as a leftover and
+    /// stopped it ~4 s in. Any launcher that starts the real game and quits does the same.
+    static func windowsMarker(forSteamInstallDir installDir: String) -> String {
+        #"steamapps\common\"# + installDir + #"\"#
+    }
+
+    /// Image-name fragments of crash handlers/reporters. A game's crash handler lives in the game's folder
+    /// (Sony's `crs-handler.exe`) and outlives the game, holding its Dock tile: it must stay a leftover
+    /// even though its path matches the game's.
+    static let crashHelpers = ["crs-handler", "crashhandler", "crashreport", "crashpad", "errorreporter"]
+
+    /// Whether the executable named by `command` (up to its first `.exe`) is a crash helper.
+    static func isCrashHelper(_ command: String) -> Bool {
+        let lower = command.lowercased()
+        let exe = lower.range(of: ".exe").map { String(lower[..<$0.upperBound]) } ?? lower
+        let image = exe.split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? exe
+        return crashHelpers.contains { image.contains($0) }
+    }
+
     // MARK: - Pure classification
 
     /// `pid command…` lines from `ps -eo pid,command`, ignoring its header and anything unparsable.
@@ -102,7 +125,9 @@ public struct LaunchLeftovers: Sendable {
             if SteamBottle.isSteamHostProcess(command) {
                 continue
             } else if command.contains(GameHostBundle.executableName)
-                || gameExecutables.contains(where: { !$0.isEmpty && command.contains($0) }) {
+                || (!isCrashHelper(command) && gameExecutables.contains(where: {
+                    !$0.isEmpty && command.range(of: $0, options: .caseInsensitive) != nil
+                })) {
                 games.append(process)
             } else if plumbing.contains(where: { command.contains($0) })
                         || steamClient.contains(where: { command.contains($0) })
