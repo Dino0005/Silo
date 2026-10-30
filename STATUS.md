@@ -15,6 +15,18 @@
   crash handler a leftover (the Spider-Man tile case). 3 new tests. `dist/Silo.app` rebuilt. Side findings the same
   day: The Lost Legacy runs with Steam Input OFF (`empty.vdf`); the DualSense does not drive it, and the music
   stutters. Both still open. D3DMetal rejects 8 root signatures (`0x80004005`) in both games.
+  **Same evening, more measurements:** pinning `u4-l.exe` (game settings → Executable) starts Uncharted 4 directly,
+  and it ran 11 min (23:20–23:31). Both games crash ON QUIT at the same engine code (`test rcx,rcx; je; mov rax,[rcx];
+  call [rax+0x10]`, a virtual call on a dead object: `tll-l.exe+0x16eb986`, `u4-l.exe+0x15ffe46`). The menu's
+  "switch to Uncharted 4" quits TLL, so it crashes too, after writing `boot.info`; the next start then hands off.
+  The only cost is `crash.info` → a safe-mode prompt. With Steam Input ON the pad drives the game (XInput template
+  `controller_ps5_gamepad_fps.vdf`, no mouse/key bindings), but the selection jumps back and the glyphs flip to
+  keyboard. Untested hypothesis: Wine mouse-move events with the cursor over the menu. **Audio crackles from the intro, on
+  the speakers too (not the AirPods' headset profile).** Lead: the game renders through `ISpatialAudioObjectRenderStream`
+  (165× `fixme:mmdevapi:SAO_SetVolume`). Wine's `spatialaudio.c` initializes the shared client with a buffer of ONE
+  device period and `BeginUpdatingAudioObjects` always asks for a full period without checking padding → underruns
+  when late, a failed `GetBuffer` (skipped block) when early. Unmeasured. Identical in Wine master (2026-10-30).
+  Candidate Wine patch: a multi-period buffer + request only the free space.
 - **✅ Silo patch 0006 PUBLISHED (2026-10-30, user's choice: quality fix, not a game fix).** Pushed ad3e4d7;
   `build-wine.yml` run 41110786193 (non-draft, crossover 26.3.0) replaced `wine-cx-26.3.0`'s assets (`wine.tar.xz`
   99014892 B, passes its `.sha256`). Its `winegstreamer.so` differs from the previous release by ONE instruction: the
