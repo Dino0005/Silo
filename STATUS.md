@@ -3,6 +3,24 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **✅ Silo patch 0006 tested, queued for the next Wine build (2026-10-30, user's choice: quality fix, not a game fix).**
+  `0006-winegstreamer-autoplug-select-user-data.patch` — from Nectarine's codecs/0002: the per-stream decodebin's
+  `autoplug-select` was connected with the `wg_parser_stream` while `autoplug_select_cb` casts to `wg_parser`
+  (also in upstream Wine master). Here the callback only touches `sink_caps`, so no visible effect is known.
+  `patch -p1 --forward --dry-run` applies cleanly on crossover-sources-26.3.0. **Measured 2026-10-30:** applied
+  on .wine-build's source, only `winegstreamer.so` rebuilt, relocated like the published one (`@rpath`,
+  `libproxy-intl`), ad-hoc signed, in local runtime `wine-cx-26.3.0-gst0006` (APFS clone of `wine-cx-26.3.0`).
+  An `IMFSourceReader` probe (NV12/PCM, scratch prefixes in /tmp) gives identical counts on both runtimes:
+  two DMC5 ASF movies 480 + 188 and 1971 + 770 samples (`asfdemux` → `avdec_vc1` + `avdec_wmapro`), SC6
+  `TITLE_LOOP.mp4` 151 frames (`qtdemux` → `h264parse` → `vtdec_hw`). The decoders are picked in the nested
+  decodebin, so the patched callback ran. The `gst_video_info_from_caps` CRITICAL on the MP4 shows on both,
+  so it predates the patch. **In game (user, 2026-10-30):** DMC5 skill previews play in the normal bottle (the path
+  through the patched callback). FATAL FURY + SoulCalibur VI: title/menu videos play in the MF bottle (Microsoft DLLs,
+  `winegstreamer` never loaded there). FATAL FURY's first try hit a Steam-side `CClientPipe::BWriteAndReadResult:
+  BWrite failed` assert right after the MF client started. That assert also appears in the 2026-10-25 dumps, before
+  this patch, and the second try worked. Test state reverted: default Wine back to `wine-cx-26.3.0`, the original
+  `winegstreamer.so`, the MF marker + font paths in both bottles' `.reg` restored, the clone deleted (backups in
+  `Backups/gst0006-cleanup-20261030`). Ships with the next Wine build.
 - **✅ Inherited Core Animation debug switches no longer reach games (2026-10-28, 794 tests green).**
   `SystemProcessRunner.inheritedDebugDenylist` drops `CA_ASSERT_MAIN_THREAD_TRANSACTIONS` +
   `CA_DEBUG_TRANSACTIONS` from the environment Silo inherits (before overrides, so a deliberate

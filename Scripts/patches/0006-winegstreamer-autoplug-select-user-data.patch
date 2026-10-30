@@ -1,0 +1,28 @@
+Silo patch 0006 — winegstreamer: give the nested decodebin's autoplug-select callback the parser
+
+Origin: Reedo22/nectarine, patches/codecs/0002-winegstreamer-pass-parser-to-autoplug-callback.patch
+(Nectarine 0.1.0-alpha, commit 3ef4bdd), written against Proton's Wine; re-made here against
+crossover-sources-26.3.0. License: LGPL-2.1-or-later, like Wine.
+
+The bug: stream_decodebin_create() connects "autoplug-select" with the wg_parser_stream as user data,
+but autoplug_select_cb() casts its user data to struct wg_parser (the top-level decodebin, ~line 1846,
+correctly passes the parser). Still present in upstream Wine master as of 2026-10-30.
+
+Why Silo carries it: a quality fix, not a fix for any game. In this source the callback only touches
+parser->sink_caps: it reads that offset out of the stream struct and, only if a demuxer gets plugged
+into the per-stream decodebin (rare — that decodebin is fed an already-demuxed stream), writes a
+g_strdup'd pointer there. In Proton's variant the same offset is read as an error flag, which is what
+broke DirectShow/WM Format WMV decoding for Nectarine; no such effect has been seen on CrossOver's.
+
+diff -ruN a/dlls/winegstreamer/wg_parser.c b/dlls/winegstreamer/wg_parser.c
+--- a/dlls/winegstreamer/wg_parser.c	2026-10-30 08:46:19
++++ b/dlls/winegstreamer/wg_parser.c	2026-10-30 08:46:19
+@@ -1004,7 +1004,7 @@
+     gst_bin_add(GST_BIN(parser->container), stream->decodebin);
+
+     g_signal_connect(stream->decodebin, "pad-added", G_CALLBACK(stream_decodebin_pad_added_cb), stream);
+-    g_signal_connect(stream->decodebin, "autoplug-select", G_CALLBACK(autoplug_select_cb), stream);
++    g_signal_connect(stream->decodebin, "autoplug-select", G_CALLBACK(autoplug_select_cb), parser);
+     g_signal_connect(stream->decodebin, "no-more-pads", G_CALLBACK(stream_decodebin_no_more_pads_cb), stream);
+
+     pthread_mutex_lock(&parser->mutex);
