@@ -71,7 +71,14 @@
   tips tell users to answer No to the safe-mode prompt). Action: Feedback Assistant report to Apple; known issue for
   users. lldb notes: attaching during Wine's startup freezes the process under Rosetta's debugserver, so attach
   once the game has more than 30 threads. `image lookup` doesn't know PE modules, so map PE vtables with the dump's module list.
-  **Still unverified:** the hand-off fix itself (`boot.info` = u4 → `tll-l.exe` → `u4-l.exe` with the rebuilt Silo).
+  **✅ Hand-off fix verified (user, 2026-10-31 15:04):** Executable = Auto-detect, `boot.info` = u4, launched from
+  the rebuilt Silo: `tll-l.exe` handed off to `u4-l.exe`, which stayed up and reached the menu. Cosmetic side effect:
+  only the whitelisted exe is adopted (`UseAltLoader` lists just `tll-l`, and the host unlinks its socket after the
+  first connection). So `u4-l.exe` runs as a bare Wine process: a second Dock icon ("wine", with the exe's icon), a
+  generic icon in Stage Manager, and the host shows "exited-with-subordinates" with macOS's "running in background"
+  notice. Workaround: pin Executable to the real game. Future: a host that also adopts a launcher's hand-off (keep
+  the socket alive and spawn a host per game exe, as CrossOver's Menu Helper does).
+  **(was) Still unverified:** the hand-off fix itself (`boot.info` = u4 → `tll-l.exe` → `u4-l.exe` with the rebuilt Silo).
   The 23:12 try crashed in TLL's quit before the hand-off, and the later runs pinned `u4-l.exe` directly. To verify:
   Executable back to Auto-detect, `boot.info` = u4, launch. **UI defect noted:** the per-game Sync picker is shown for
   Steam games, but the Steam bottle always forces msync (`Silo.enforceMsync`, co-residency with the client). The

@@ -26,6 +26,8 @@ the commit message says why.
   UNCHARTED's collection hands Uncharted 4 from `tll-l.exe` to `u4-l.exe` this way, and Uncharted 4 was stopped
   about 4 seconds after every launch. The game's folder now counts in its Windows form too, and a game's crash
   handler (`crs-handler.exe` and the like) is still closed, so it can't keep the Dock icon alive.
+  Started this way, the game still shows a second, generic icon in the Dock and Stage Manager, because only the
+  executable Silo starts gets the game's own app. Setting *Executable* to the real game avoids that.
 - **Games no longer hang when Silo was started from a developer shell.** Xcode's shell exports two Core Animation
   debug switches (`CA_ASSERT_MAIN_THREAD_TRANSACTIONS`, `CA_DEBUG_TRANSACTIONS`). Inherited by a game, they made
   Core Animation abort while D3DMetal set up its layer, and the game was left as a transparent window. Silo now
