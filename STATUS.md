@@ -45,8 +45,11 @@
   coreaudio.c, which is Wine 11.0's plus 18 lines. Highball carries the same fixes as its 0015 and 0023; WineForge (Wine
   11.20) has the period part. Checked Highball/WineForge first, on the user's request. Built locally, `winecoreaudio.so`
   swapped into `wine-cx-26.3.0` (original in `Backups/wine-cx-26.3.0-winecoreaudio-orig`). **User-verified
-  2026-10-31: Uncharted in "Automatico (Tradizionale)" no longer crackles.** Not published yet; ships with the next
-  Wine build. Dry-run clean on crossover-sources-26.3.0.
+  2026-10-31: Uncharted in "Automatico (Tradizionale)" no longer crackles.** **PUBLISHED 2026-10-31:** pushed
+  ad3e4d7..ab5e98b; `build-wine.yml` run 41189626049 (attempt 2, after attempt 1 lost the FFmpeg download to a
+  connection reset) replaced `wine-cx-26.3.0`'s assets (`wine.tar.xz` 99031120 B, passes its `.sha256`). Its
+  `winecoreaudio.so` carries the SpatialMixer code (absent from the previous release). Users get it, with 0006, by
+  removing + reinstalling Wine.
   **Quit crash (both games, 11 dumps, 2026-10-30/31), still open.** The faulting code is a COM release in the engine's
   quit path, `if (p) { p->Release(); owner->p = NULL; }` (vtable slot 0x10), run on a job FIBER (`start_fiber`). The
   main thread is in `Sleep` and no thread is in ExitProcess. In EVERY dump the released pointer is host memory
