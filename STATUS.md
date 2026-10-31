@@ -47,6 +47,18 @@
   swapped into `wine-cx-26.3.0` (original in `Backups/wine-cx-26.3.0-winecoreaudio-orig`). **User-verified
   2026-10-31: Uncharted in "Automatico (Tradizionale)" no longer crackles.** Not published yet; ships with the next
   Wine build. Dry-run clean on crossover-sources-26.3.0.
+  **Quit crash (both games, 11 dumps, 2026-10-30/31), still open.** The faulting code is a COM release in the engine's
+  quit path, `if (p) { p->Release(); owner->p = NULL; }` (vtable slot 0x10), run on a job FIBER (`start_fiber`). The
+  main thread is in `Sleep` and no thread is in ExitProcess. In EVERY dump the released pointer is host memory
+  (`0x7f…`, not the PE heap where Wine's COM objects live) with a dead vtable (0, 0x1f, 0xffffffff…). Likely
+  D3DMetal object freed before the game's last Release (inferred, not proven). Same on GPTK 4 b3 (Metal 3 and 4)
+  and b2. Quitting from Steam doesn't crash, but that is a termination, so the teardown never runs. Highball and
+  WineForge have nothing for Uncharted. Web: no Windows/Proton reports of a quit crash. `DataCollection` is
+  already 0. `MallocStackLogging=1` can't be used to find the allocator: with it the game crashes ~5 s in, inside a
+  system library, while attaching to Steam. The host process can't take it either, since the env arrives after
+  libmalloc init. Next candidate if pursued: lldb on the release site, testing the "window destroyed before
+  swapchain released" ordering in CX's D3DMetal↔winemac swapchain hand-off (hack 22435). Practical: quit via Steam;
+  switch games via Silo's Executable setting, not the collection's menu.
   **Still unverified:** the hand-off fix itself (`boot.info` = u4 → `tll-l.exe` → `u4-l.exe` with the rebuilt Silo).
   The 23:12 try crashed in TLL's quit before the hand-off, and the later runs pinned `u4-l.exe` directly. To verify:
   Executable back to Auto-detect, `boot.info` = u4, launch. **UI defect noted:** the per-game Sync picker is shown for
