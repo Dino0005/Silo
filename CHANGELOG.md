@@ -41,7 +41,8 @@ the commit message says why.
 ### Known issues
 - **UNCHARTED crashes when you quit from its menu**, and when you switch between the two games there. The game's
   crash reporter appears, and the next start offers safe mode (answer *No*). Saves are not affected. The crash is
-  in the game's shutdown, releasing a graphics object that is already gone, and is the same on GPTK 4 beta 2 and beta 3.
+  in the game's shutdown: D3DMetal (Apple's Game Porting Toolkit) has already destroyed a Direct3D 12 object the
+  game still releases, the same on GPTK 4 beta 2 and beta 3 and on CrossOver. It has been reported to Apple.
   Quitting from Steam avoids it. To pick a game directly, set *Executable* in the game's settings (`u4-l.exe` or
   `tll-l.exe`).
 - The per-game *Sync* setting has no effect on Steam games: the shared Steam bottle always uses MSync, so a game

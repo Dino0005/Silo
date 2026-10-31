@@ -62,6 +62,15 @@
   libmalloc init. Next candidate if pursued: lldb on the release site, testing the "window destroyed before
   swapchain released" ordering in CX's D3DMetal↔winemac swapchain hand-off (hack 22435). Practical: quit via Steam;
   switch games via Silo's Executable setting, not the collection's menu.
+  **lldb result (2026-10-31 14:40–14:42):** a conditional breakpoint at the release site (`u4-l.exe+0x15ffe46`,
+  host-memory objects only) caught releases of objects whose memory is host-side (`0x7feef2d…`) and whose vtable
+  is in **GPTK's `d3d12.dll` (+0xb440)**, i.e. D3DMetal D3D12 objects. The crash a minute later (dump 2bfd9e79) is
+  on an object in the same region with a dead vtable (0x1f), owned by the same structure as the 2026-10-30 dump
+  (`0x7054702980`, deterministic). So the quit crash is **D3DMetal destroying a D3D12 object before the game's last
+  Release**, a refcount/lifetime bug in Apple's closed binary, not fixable in Wine. Same on CrossOver (CodeWeavers'
+  tips tell users to answer No to the safe-mode prompt). Action: Feedback Assistant report to Apple; known issue for
+  users. lldb notes: attaching during Wine's startup freezes the process under Rosetta's debugserver, so attach
+  once the game has more than 30 threads. `image lookup` doesn't know PE modules, so map PE vtables with the dump's module list.
   **Still unverified:** the hand-off fix itself (`boot.info` = u4 → `tll-l.exe` → `u4-l.exe` with the rebuilt Silo).
   The 23:12 try crashed in TLL's quit before the hand-off, and the later runs pinned `u4-l.exe` directly. To verify:
   Executable back to Auto-detect, `boot.info` = u4, launch. **UI defect noted:** the per-game Sync picker is shown for
