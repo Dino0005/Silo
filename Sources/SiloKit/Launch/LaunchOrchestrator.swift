@@ -8,17 +8,32 @@ public struct LaunchOrchestrator: Sendable {
     private let runner: ProcessRunning
     private let linker: GraphicsLinker
     private let presenceInstaller: SteamPresenceInstaller
+    /// The Windows Steam install in the bottle. `appcache/appinfo.vdf`, Steam's launch configuration, lives
+    /// there — and ONLY there, not in a secondary library folder. Looked up first, before `app.libraryPath`.
+    private let steamClientRoot: URL?
 
     public init(
         runner: ProcessRunning,
         linker: GraphicsLinker,
         presenceInstaller: SteamPresenceInstaller = SteamPresenceInstaller(),
-        altLoader: AltLoaderSession? = nil
+        altLoader: AltLoaderSession? = nil,
+        steamClientRoot: URL? = nil
     ) {
         self.runner = runner
         self.linker = linker
         self.presenceInstaller = presenceInstaller
         self.altLoader = altLoader ?? AltLoaderSession(runner: runner)
+        self.steamClientRoot = steamClientRoot
+    }
+
+    /// Steam's own launch entry for `app`. The Steam install is asked first: with `app.libraryPath` alone, a
+    /// game in a second library (`Y:\SteamLibrary`) never found `appinfo.vdf` and fell back to the biggest
+    /// exe — `tll-l.exe` for UNCHARTED, whose only launch entry is `u4.exe` (measured 2026-10-31).
+    func steamLaunchEntry(for app: SteamApp) -> SteamAppInfo.LaunchEntry? {
+        for root in [steamClientRoot, app.libraryPath].compactMap({ $0 }) {
+            if let entry = SteamAppInfo.windowsLaunch(steamRoot: root, appID: app.appID) { return entry }
+        }
+        return nil
     }
 
     /// Set up the per-launch hand-over so the game's window carries its own icon (`AltLoaderSession`).
@@ -289,8 +304,7 @@ public struct LaunchOrchestrator: Sendable {
         let plan = try Self.makePlan(
             config: config, backend: backend, graphics: graphics, wine: launchWine,
             gameExe: gameExe, prefix: prefix, logURL: logURL, desktopGeometry: desktopGeometry,
-            steamArguments: SteamAppInfo.windowsLaunch(steamRoot: app.libraryPath,
-                                                       appID: app.appID)?.arguments ?? [],
+            steamArguments: steamLaunchEntry(for: app)?.arguments ?? [],
             altLoaderSocket: socket,
             dxmtDLSS: graphics == .dxmt && config.envFlags.metalFX && Self.dxmtDLSS(backend: backend, gameExe: gameExe))
         return try await spawn(plan)
@@ -493,7 +507,7 @@ public struct LaunchOrchestrator: Sendable {
         // Steam knows exactly which binary it would run — use that before guessing. The heuristic picks the
         // BIGGEST exe in the tree, which for Source titles is a model viewer buried in bin/ rather than the
         // 250 KB launcher at the root.
-        if let entry = SteamAppInfo.windowsLaunch(steamRoot: app.libraryPath, appID: app.appID) {
+        if let entry = steamLaunchEntry(for: app) {
             let exe = installURL.appendingPathComponent(entry.executable)
             if FileManager.default.fileExists(atPath: exe.path) { return exe }
         }

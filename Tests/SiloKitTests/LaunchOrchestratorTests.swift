@@ -571,6 +571,58 @@ struct ExecutableResolverTests {
     }
 }
 
+/// Steam's launch entry is read from the Steam INSTALL, not the game's library folder: `appinfo.vdf` exists
+/// only in `<Steam>/appcache`. A game in a second library (UNCHARTED on `Y:\SteamLibrary`, 2026-10-31) used to
+/// miss it and launch the biggest exe (`tll-l.exe`) instead of Steam's `u4.exe`.
+@Suite("LaunchOrchestrator: Steam launch entry lookup")
+struct SteamLaunchEntryLookupTests {
+    /// A v40 (inline-key) appinfo.vdf with one Windows launch entry for `appID`.
+    private func appInfo(appID: UInt32, executable: String) -> Data {
+        func u32(_ v: UInt32) -> Data { withUnsafeBytes(of: v.littleEndian) { Data($0) } }
+        func key(_ type: UInt8, _ name: String) -> Data { Data([type]) + Data(name.utf8) + Data([0]) }
+        func str(_ name: String, _ value: String) -> Data { key(0x01, name) + Data(value.utf8) + Data([0]) }
+        let end = Data([0x08])
+        let entry = key(0x00, "0") + str("executable", executable)
+            + key(0x00, "config") + str("oslist", "windows") + end + end
+        let kv = key(0x00, "appinfo") + key(0x00, "config") + key(0x00, "launch") + entry + end + end + end + end
+        let body = Data(count: 60) + kv                    // the fixed per-app record, then the KeyValues blob
+        return u32(0x07564428) + u32(1) + u32(appID) + u32(UInt32(body.count)) + body + u32(0)
+    }
+
+    private func uncharted(in tmp: TempDir) throws -> (SteamApp, URL) {
+        let library = try tmp.makeDir("SteamLibrary")
+        let dir = "Uncharted Legacy of Thieves Collection"
+        try tmp.write("SteamLibrary/steamapps/common/\(dir)/u4.exe", String(repeating: "A", count: 1000))
+        try tmp.write("SteamLibrary/steamapps/common/\(dir)/tll-l.exe", String(repeating: "B", count: 9000))
+        let steam = try tmp.makeDir("Steam")
+        try tmp.makeDir("Steam/appcache")
+        try appInfo(appID: 1659420, executable: "u4.exe")
+            .write(to: steam.appendingPathComponent("appcache/appinfo.vdf"))
+        let app = SteamApp(appID: 1659420, name: "UNCHARTED", installDir: dir, stateFlags: StateFlags(rawValue: 4),
+                           sizeOnDisk: 0, libraryPath: library)
+        return (app, steam)
+    }
+
+    @Test("a game in a second library launches Steam's exe, found in the Steam install's appcache")
+    func secondLibraryUsesSteamsExe() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (app, steam) = try uncharted(in: tmp)
+        let orchestrator = LaunchOrchestrator(runner: FakeProcessRunner(), linker: GraphicsLinker(),
+                                              steamClientRoot: steam)
+        #expect(orchestrator.resolvedExecutable(app: app, config: GameConfig(appID: 1659420))?
+            .lastPathComponent == "u4.exe")
+    }
+
+    @Test("without the Steam install, the library alone has no appinfo and the biggest exe wins (old behaviour)")
+    func libraryAloneFallsBackToBiggest() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (app, _) = try uncharted(in: tmp)
+        let orchestrator = LaunchOrchestrator(runner: FakeProcessRunner(), linker: GraphicsLinker())
+        #expect(orchestrator.resolvedExecutable(app: app, config: GameConfig(appID: 1659420))?
+            .lastPathComponent == "tll-l.exe")
+    }
+}
+
 /// The alt-loader hand-over socket (`AltLoaderSession`): Wine reads `CX_ALT_LOADER_SOCKET` and gives
 /// the new process to our bundled host instead of forking it, which is what puts the game's icon on the
 /// window in Mission Control and Stage Manager.

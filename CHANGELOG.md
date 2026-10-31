@@ -20,6 +20,12 @@ the commit message says why.
   Mascellani, February–October 2026), applied to CrossOver 26.3's driver (Highball carries the same two fixes). Checked on
   Uncharted by ear in both output modes. In the rebuilt `wine-cx-26.3.0` (remove Wine in *Settings → Wine* and
   install it again).
+- **Steam games in a second library launch the executable Steam would.** Silo reads Steam's own launch entry
+  (the exe and its arguments) from `appinfo.vdf`, but looked for it in the game's library folder, where it never
+  is: it lives only in the Steam install's `appcache`. A game on another drive (`Y:\SteamLibrary`) fell back to the
+  biggest exe in its folder. For UNCHARTED that was `tll-l.exe` instead of Steam's `u4.exe` (the `-l` builds are the
+  ones for processors without AVX2). Silo now asks the Steam install first. Games that need launch arguments from
+  Steam (Source mods) get them on any library, too.
 - **A game started by its own launcher is no longer closed a few seconds in.** After the game Silo starts quits,
   Silo closes what that launch left behind in the bottle. It recognised a game by its macOS path, but a program
   that Wine starts itself shows its Windows path (`Y:\SteamLibrary\…\u4-l.exe`), so it was taken for a leftover.

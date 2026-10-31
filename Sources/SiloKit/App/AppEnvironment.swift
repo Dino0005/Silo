@@ -89,7 +89,8 @@ public final class AppEnvironment {
         let configStore = ConfigStore(paths: paths)
         let linker = GraphicsLinker()
         let discovery = DiscoveryEngine()
-        let orchestrator = LaunchOrchestrator(runner: runner, linker: linker)
+        let orchestrator = LaunchOrchestrator(runner: runner, linker: linker,
+                                              steamClientRoot: paths.steamBottleClientDir)
         let runtimeManager = RuntimeManager(paths: paths, runner: runner, session: runtimeSession)
 
         self.configStore = configStore

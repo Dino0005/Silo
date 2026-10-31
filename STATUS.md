@@ -3,6 +3,15 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🟡 Steam launch entry now read from the Steam install (2026-10-31, 799 tests green, `dist/Silo.app` rebuilt;
+  awaiting the user's launch).** `SteamAppInfo.windowsLaunch(steamRoot: app.libraryPath, …)` looked for
+  `appcache/appinfo.vdf` in the game's LIBRARY, but it exists only in `<Steam>/appcache`. Every game on a second
+  library (`Y:\SteamLibrary`) therefore fell back to `ExecutableResolver`'s biggest exe and lost Steam's launch
+  arguments. For UNCHARTED (only launch entry: `u4.exe`) Silo ran `tll-l.exe`. `LaunchOrchestrator` takes
+  `steamClientRoot` (`paths.steamBottleClientDir`) and `steamLaunchEntry(for:)` asks it first, then the library.
+  2 tests with a synthetic v40 appinfo. Measured: `u4.exe` has 121 AVX2/FMA instructions and `u4-l.exe` has 1 (both
+  use AVX), so `-l` is the non-AVX2 "legacy" build. Rosetta handles AVX2 with `ROSETTA_ADVERTISE_AVX=1` (Silo's
+  default); `u4.exe` still has to be tried.
 - **🟡 Post-game cleanup stopped a launcher's hand-off (2026-10-30, 797 tests green, awaiting the user's check).**
   UNCHARTED: Legacy of Thieves Collection: `tll-l.exe` (adopted by the host) reads
   `Uncharted4_data/boot.info` (`"boot-mode" : "u4"` once Uncharted 4 is picked in the collection's menu), starts
