@@ -38,8 +38,15 @@
   DLL again. Measured with thread-safe counters in winecoreaudio (an earlier `WARN` from CoreAudio's IO thread
   crashed the game): the 8-ch stream had 0 underruns and 0 samples beyond full scale in 97–126 s (peak 0.11). So
   the data reaching Wine is clean and the artefact appears in the 8→2 fold (or in how Wine hands that stream to
-  the AUHAL). Workaround for the user: Output mode = Spaziale. **Open:** the traditional multichannel→stereo path,
-  which likely affects any game that outputs 5.1/7.1 on a stereo Mac.
+  the AUHAL). Workaround for the user: Output mode = Spaziale.
+  **✅ FIXED the same morning: Silo patch 0007 = upstream Wine's winecoreaudio work** (Zhiyi Zhang, Aug–Oct 2026:
+  device period frame size set to Wine's period, and an AUSpatialMixer that mixes a stream with more channels than
+  the device; + Giovanni Mascellani's div-by-zero fix). Nine commits squashed; they apply cleanly to CX 26.3's
+  coreaudio.c, which is Wine 11.0's plus 18 lines. Highball carries the same fixes as its 0015 and 0023; WineForge (Wine
+  11.20) has the period part. Checked Highball/WineForge first, on the user's request. Built locally, `winecoreaudio.so`
+  swapped into `wine-cx-26.3.0` (original in `Backups/wine-cx-26.3.0-winecoreaudio-orig`). **User-verified
+  2026-10-31: Uncharted in "Automatico (Tradizionale)" no longer crackles.** Not published yet; ships with the next
+  Wine build. Dry-run clean on crossover-sources-26.3.0.
   **Still unverified:** the hand-off fix itself (`boot.info` = u4 → `tll-l.exe` → `u4-l.exe` with the rebuilt Silo).
   The 23:12 try crashed in TLL's quit before the hand-off, and the later runs pinned `u4-l.exe` directly. To verify:
   Executable back to Auto-detect, `boot.info` = u4, launch. **UI defect noted:** the per-game Sync picker is shown for
