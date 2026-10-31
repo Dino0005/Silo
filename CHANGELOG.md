@@ -8,6 +8,45 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Fixed
+- **Surround games no longer crackle on a stereo Mac.** UNCHARTED: Legacy of Thieves Collection, in its default
+  audio output mode ("Automatic (Traditional)"), renders a 7.1 stream; folded to the Mac's two channels, it
+  crackled through the speakers and AirPods alike. The data reaching Wine was clean (no underruns, nothing beyond
+  full scale over two minutes, measured), so the fold was at fault. Silo patch 0007 carries upstream Wine's recent
+  work on the macOS audio driver: the device buffer now matches Wine's period, and a stream with more channels than
+  the device is mixed down by Apple's AUSpatialMixer. Nine upstream commits (eight by Zhiyi Zhang, one by Giovanni
+  Mascellani, February–October 2026), applied to CrossOver 26.3's driver (Highball carries the same two fixes). Checked on
+  Uncharted by ear in both output modes. In the rebuilt `wine-cx-26.3.0` (remove Wine in *Settings → Wine* and
+  install it again).
+- **A game started by its own launcher is no longer closed a few seconds in.** After the game Silo starts quits,
+  Silo closes what that launch left behind in the bottle. It recognised a game by its macOS path, but a program
+  that Wine starts itself shows its Windows path (`Y:\SteamLibrary\…\u4-l.exe`), so it was taken for a leftover.
+  UNCHARTED's collection hands Uncharted 4 from `tll-l.exe` to `u4-l.exe` this way, and Uncharted 4 was stopped
+  about 4 seconds after every launch. The game's folder now counts in its Windows form too, and a game's crash
+  handler (`crs-handler.exe` and the like) is still closed, so it can't keep the Dock icon alive.
+- **Games no longer hang when Silo was started from a developer shell.** Xcode's shell exports two Core Animation
+  debug switches (`CA_ASSERT_MAIN_THREAD_TRANSACTIONS`, `CA_DEBUG_TRANSACTIONS`). Inherited by a game, they made
+  Core Animation abort while D3DMetal set up its layer, and the game was left as a transparent window. Silo now
+  drops them from what it passes on; a value set on purpose in a game's extra variables still applies. A Silo
+  opened from the Finder or the Dock never had them.
+
+### Changed
+- **Wine: a small GStreamer correction.** In `winegstreamer`, each stream's decoder chain passed the wrong object
+  to a callback that expects the parser. On CrossOver's code it has no known visible effect. Found by Nectarine
+  (Reedo22) on Proton's Wine; the same bug is still in upstream Wine. Carried as Silo patch 0006, in the rebuilt
+  `wine-cx-26.3.0`. Checked on DMC5's movies, and on SoulCalibur VI and FATAL FURY in the Media Foundation bottle.
+
+### Known issues
+- **UNCHARTED crashes when you quit from its menu**, and when you switch between the two games there. The game's
+  crash reporter appears, and the next start offers safe mode (answer *No*). Saves are not affected. The crash is
+  in the game's shutdown, releasing a graphics object that is already gone, and is the same on GPTK 4 beta 2 and beta 3.
+  Quitting from Steam avoids it. To pick a game directly, set *Executable* in the game's settings (`u4-l.exe` or
+  `tll-l.exe`).
+- The per-game *Sync* setting has no effect on Steam games: the shared Steam bottle always uses MSync, so a game
+  stays in step with the Steam client.
+
 ## 0.7.1
 
 ### Fixed
