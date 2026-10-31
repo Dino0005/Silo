@@ -24,7 +24,8 @@ the commit message says why.
   (the exe and its arguments) from `appinfo.vdf`, but looked for it in the game's library folder, where it never
   is: it lives only in the Steam install's `appcache`. A game on another drive (`Y:\SteamLibrary`) fell back to the
   biggest exe in its folder. For UNCHARTED that was `tll-l.exe` instead of Steam's `u4.exe` (the `-l` builds are the
-  ones for processors without AVX2). Silo now asks the Steam install first. Games that need launch arguments from
+  ones for processors without AVX2; on a Mac `u4.exe` itself restarts as `u4-l.exe`). Silo now asks the Steam install
+  first. Games that need launch arguments from
   Steam (Source mods) get them on any library, too.
 - **A game started by its own launcher is no longer closed a few seconds in.** After the game Silo starts quits,
   Silo closes what that launch left behind in the bottle. It recognised a game by its macOS path, but a program
@@ -33,7 +34,9 @@ the commit message says why.
   about 4 seconds after every launch. The game's folder now counts in its Windows form too, and a game's crash
   handler (`crs-handler.exe` and the like) is still closed, so it can't keep the Dock icon alive.
   Started this way, the game still shows a second, generic icon in the Dock and Stage Manager, because only the
-  executable Silo starts gets the game's own app. Setting *Executable* to the real game avoids that.
+  executable Silo starts gets the game's own app. Setting *Executable* to the real game avoids that. When such a
+  game quits, Silo now also closes what it left behind (the bottle's desktop process), which kept its Dock icon
+  up: until now that happened only when the executable Silo started was the one that quit.
 - **Games no longer hang when Silo was started from a developer shell.** Xcode's shell exports two Core Animation
   debug switches (`CA_ASSERT_MAIN_THREAD_TRANSACTIONS`, `CA_DEBUG_TRANSACTIONS`). Inherited by a game, they made
   Core Animation abort while D3DMetal set up its layer, and the game was left as a transparent window. Silo now

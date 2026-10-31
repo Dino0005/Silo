@@ -221,6 +221,14 @@ struct LeftoverAggregationTests {
 
     /// A bottle where someone is playing has leftovers too (the desktop owner), but it must NOT be
     /// offered: the action would then sit one click away from a running game.
+    /// After a launcher's host ends, the watch keeps waiting while ANY bottle still runs a game (the handed-off
+    /// one), and stops once none does — only leftovers, or nothing at all.
+    @Test func theWatchWaitsWhileAGameRunsAnywhere() {
+        #expect(AppEnvironment.aGameIsRunning(in: [census(games: [], leftovers: [2]), census(games: [7], leftovers: [])]))
+        #expect(!AppEnvironment.aGameIsRunning(in: [census(games: [], leftovers: [2, 3])]))
+        #expect(!AppEnvironment.aGameIsRunning(in: []))
+    }
+
     @Test func aBottleWithAGameRunningContributesNothing() {
         #expect(AppEnvironment.leftoverCount(from: [census(games: [1], leftovers: [2, 3])]) == 0)
     }

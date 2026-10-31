@@ -11,7 +11,13 @@
   `steamClientRoot` (`paths.steamBottleClientDir`) and `steamLaunchEntry(for:)` asks it first, then the library.
   2 tests with a synthetic v40 appinfo. Measured: `u4.exe` has 121 AVX2/FMA instructions and `u4-l.exe` has 1 (both
   use AVX), so `-l` is the non-AVX2 "legacy" build. Rosetta handles AVX2 with `ROSETTA_ADVERTISE_AVX=1` (Silo's
-  default); `u4.exe` still has to be tried.
+  default), but **measured 15:23:** `u4.exe` starts, then relaunches `u4-l.exe` itself 2 s later (GfeSDK log
+  `u4-l_1500.log`, Steam's ProcID 1448 → 1500). So on a Mac it is a launcher too: two Dock icons. Pin `u4-l.exe`
+  / `tll-l.exe` to avoid the hand-off. **Also fixed:** after a hand-off the bottle's `explorer.exe /desktop`
+  kept the host registration ("exited-with-subordinates") and its Dock tile, because the post-exit cleanup only
+  ran 3 s and 10 s after the HOST ended, while the game was still up. `watchGameExitsForLeftovers` now keeps
+  polling every 15 s (up to 6 h) while `aGameIsRunning(in:)` and closes the leftovers once the game is gone. 1 test,
+  800 green.
 - **🟡 Post-game cleanup stopped a launcher's hand-off (2026-10-30, 797 tests green, awaiting the user's check).**
   UNCHARTED: Legacy of Thieves Collection: `tll-l.exe` (adopted by the host) reads
   `Uncharted4_data/boot.info` (`"boot-mode" : "u4"` once Uncharted 4 is picked in the collection's menu), starts

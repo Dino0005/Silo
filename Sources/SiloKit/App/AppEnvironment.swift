@@ -243,6 +243,12 @@ public final class AppEnvironment {
     /// Only bottles with **no game running** contribute. A bottle where someone is playing has leftovers
     /// too (the desktop owner), but offering to clear them there would put a running game one click away
     /// from being killed — so those don't count and aren't acted on.
+    /// Whether any bottle still has a game running — what the post-exit watch waits out when a launcher's host
+    /// ended but the game it started is still playing.
+    nonisolated static func aGameIsRunning(in censuses: [LaunchLeftovers.Census]) -> Bool {
+        censuses.contains { !$0.games.isEmpty }
+    }
+
     nonisolated static func leftoverCount(from censuses: [LaunchLeftovers.Census]) -> Int {
         censuses.filter(\.isOnlyLeftovers).reduce(0) { $0 + $1.leftovers.count }
     }
@@ -300,6 +306,21 @@ public final class AppEnvironment {
                     if self?.isManualGameHost(bundleID) == true, let runner = self?.runner {
                         await HostSystemServices(runner: runner).stopLeftoverServices(ofHost: bundleID)
                     }
+                }
+                // A launcher that handed off to the real game (UNCHARTED's `u4.exe` → `u4-l.exe`, measured
+                // 2026-10-31) ends its host while the game plays on, so both passes above found a game and
+                // rightly closed nothing. When that game quits no host terminates, and the bottle's desktop
+                // owner kept the game's Dock tile up. So while a game is still running, keep looking — every
+                // 15 s, bounded — and close the leftovers once it is gone.
+                var waited = Duration.zero
+                while AppEnvironment.aGameIsRunning(in: await self?.censusAllBottles() ?? []),
+                      waited < .seconds(6 * 3600) {
+                    try? await Task.sleep(for: .seconds(15))
+                    waited += .seconds(15)
+                }
+                if waited > .zero {
+                    await self?.refreshLaunchLeftovers()
+                    if (self?.launchLeftoverCount ?? 0) > 0 { await self?.closeLaunchLeftovers() }
                 }
             }
         }
