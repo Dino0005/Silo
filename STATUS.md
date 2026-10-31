@@ -27,6 +27,11 @@
   device period and `BeginUpdatingAudioObjects` always asks for a full period without checking padding → underruns
   when late, a failed `GetBuffer` (skipped block) when early. Unmeasured. Identical in Wine master (2026-10-30).
   Candidate Wine patch: a multi-period buffer + request only the free space.
+  **Still unverified:** the hand-off fix itself (`boot.info` = u4 → `tll-l.exe` → `u4-l.exe` with the rebuilt Silo).
+  The 23:12 try crashed in TLL's quit before the hand-off, and the later runs pinned `u4-l.exe` directly. To verify:
+  Executable back to Auto-detect, `boot.info` = u4, launch. **UI defect noted:** the per-game Sync picker is shown for
+  Steam games, but the Steam bottle always forces msync (`Silo.enforceMsync`, co-residency with the client). The
+  23:39 launch had `WINEMSYNC=1` with the setting at "none". Hide it or label it for Steam games.
 - **✅ Silo patch 0006 PUBLISHED (2026-10-30, user's choice: quality fix, not a game fix).** Pushed ad3e4d7;
   `build-wine.yml` run 41110786193 (non-draft, crossover 26.3.0) replaced `wine-cx-26.3.0`'s assets (`wine.tar.xz`
   99014892 B, passes its `.sha256`). Its `winegstreamer.so` differs from the previous release by ONE instruction: the
