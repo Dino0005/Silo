@@ -27,6 +27,19 @@
   device period and `BeginUpdatingAudioObjects` always asks for a full period without checking padding → underruns
   when late, a failed `GetBuffer` (skipped block) when early. Unmeasured. Identical in Wine master (2026-10-30).
   Candidate Wine patch: a multi-period buffer + request only the free space.
+  **Resolved 2026-10-31: the crackle is in the game's TRADITIONAL output path, not the spatial one.** Uncharted's
+  *Options → Audio → Compatibility → Output mode* defaults to "Automatico (Tradizionale)", which renders a normal
+  **8-channel (7.1) IAudioClient** stream that CoreAudio has to fold to the stereo device. That crackles.
+  "Spaziale" (`ISpatialAudioObjectRenderStream`) is clean. The user A/B'd it on the speakers and the AirPods, and
+  it is clean even with Wine's ORIGINAL mmdevapi (09:38 launch, 68516× `SAO_SetVolume`). So the spatial-buffer
+  patch (6-period buffer + 2-period silent prefill) is **discarded**. It fixed lost blocks in a probe with
+  artificial 12 ms jitter (6 → 0 failed `GetBuffer`), but nothing audible here. Kept locally only:
+  `.wine-build/experiments/0007-spatialaudio-prefill-DISCARDED.diff` + `saprobe.c`; the runtime has the original
+  DLL again. Measured with thread-safe counters in winecoreaudio (an earlier `WARN` from CoreAudio's IO thread
+  crashed the game): the 8-ch stream had 0 underruns and 0 samples beyond full scale in 97–126 s (peak 0.11). So
+  the data reaching Wine is clean and the artefact appears in the 8→2 fold (or in how Wine hands that stream to
+  the AUHAL). Workaround for the user: Output mode = Spaziale. **Open:** the traditional multichannel→stereo path,
+  which likely affects any game that outputs 5.1/7.1 on a stereo Mac.
   **Still unverified:** the hand-off fix itself (`boot.info` = u4 → `tll-l.exe` → `u4-l.exe` with the rebuilt Silo).
   The 23:12 try crashed in TLL's quit before the hand-off, and the later runs pinned `u4-l.exe` directly. To verify:
   Executable back to Auto-detect, `boot.info` = u4, launch. **UI defect noted:** the per-game Sync picker is shown for
