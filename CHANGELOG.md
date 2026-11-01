@@ -18,7 +18,8 @@ the commit message says why.
   work on the macOS audio driver: the device buffer now matches Wine's period, and a stream with more channels than
   the device is mixed down by Apple's AUSpatialMixer. Nine upstream commits (eight by Zhiyi Zhang, one by Giovanni
   Mascellani, February–October 2026), applied to CrossOver 26.3's driver (Highball carries the same two fixes). Checked on
-  Uncharted by ear in both output modes. In the rebuilt `wine-cx-26.3.0` (remove Wine in *Settings → Wine* and
+  Uncharted by ear with the output mode set to *Traditional* or *Spatial*. The default, *Automatic (Traditional)*,
+  still crackles, so pick one of the two explicitly. In the rebuilt `wine-cx-26.3.0` (remove Wine in *Settings → Wine* and
   install it again).
 - **Steam games in a second library launch the executable Steam would.** Silo reads Steam's own launch entry
   (the exe and its arguments) from `appinfo.vdf`, but looked for it in the game's library folder, where it never
@@ -55,7 +56,7 @@ the commit message says why.
   in the game's shutdown: D3DMetal (Apple's Game Porting Toolkit) has already destroyed a Direct3D 12 object the
   game still releases, the same on GPTK 4 beta 2 and beta 3 and on CrossOver. Silo can't fix it on its side.
   Quitting from Steam avoids it. To pick a game directly, set *Executable* in the game's settings (`u4-l.exe` or
-  `tll-l.exe`).
+  `tll-l.exe`; on a Mac these `-l` builds are the ones that end up running anyway).
 - The per-game *Sync* setting has no effect on Steam games: the shared Steam bottle always uses MSync, so a game
   stays in step with the Steam client.
 

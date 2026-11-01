@@ -3,6 +3,10 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **UNCHARTED audio, refined (user, 2026-11-01):** with patch 0007 the explicit *Tradizionale* and *Spaziale* modes are
+  clean, but the default *Automatico (Tradizionale)* still crackles, so the two are not the same path. Advice: pick
+  one explicitly. To measure if pursued: the stream format/channels under *Automatico* (counters as on 2026-10-31).
+  Exe advice: pin `u4-l.exe` / `tll-l.exe` (on a Mac `u4.exe` relaunches `u4-l.exe` itself).
 - **🟡 Steam launch entry now read from the Steam install (2026-10-31, 799 tests green, `dist/Silo.app` rebuilt;
   awaiting the user's launch).** `SteamAppInfo.windowsLaunch(steamRoot: app.libraryPath, …)` looked for
   `appcache/appinfo.vdf` in the game's LIBRARY, but it exists only in `<Steam>/appcache`. Every game on a second
