@@ -32,8 +32,7 @@ the commit message says why.
   (the exe and its arguments) from `appinfo.vdf`, but looked for it in the game's library folder, where it never
   is: it lives only in the Steam install's `appcache`. A game on another drive (`Y:\SteamLibrary`) fell back to the
   biggest exe in its folder. For UNCHARTED that was `tll-l.exe` instead of Steam's `u4.exe` (the `-l` builds are the
-  ones for processors without AVX2; on a Mac `u4.exe` itself restarts as `u4-l.exe`). Silo now asks the Steam install
-  first. Games that need launch arguments from
+  ones for processors without AVX2). Silo now asks the Steam install first. Games that need launch arguments from
   Steam (Source mods) get them on any library, too.
 - **A game started by its own launcher is no longer closed a few seconds in.** After the game Silo starts quits,
   Silo closes what that launch left behind in the bottle. It recognised a game by its macOS path, but a program
@@ -63,7 +62,7 @@ the commit message says why.
   in the game's shutdown: D3DMetal (Apple's Game Porting Toolkit) has already destroyed a Direct3D 12 object the
   game still releases, the same on GPTK 4 beta 2 and beta 3 and on CrossOver. Silo can't fix it on its side.
   Quitting from Steam avoids it. To pick a game directly, set *Executable* in the game's settings (`u4-l.exe` or
-  `tll-l.exe`; on a Mac these `-l` builds are the ones that end up running anyway).
+  `tll.exe`).
 - The per-game *Sync* setting has no effect on Steam games: the shared Steam bottle always uses MSync, so a game
   stays in step with the Steam client.
 

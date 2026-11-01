@@ -11,11 +11,16 @@
   (cpuid.exe, no host) the variable gives AVX2+FMA+F16C+BMI1/2+XCR0 ymm (no AVX-512). Fix: `prepare(…,
   hostEnvironment:)` → `--env K=V` before `-a`; `LaunchOrchestrator.hostEnvironment(for:)` passes it when
   `envFlags.advertiseAVX` (Steam + manual games). 2 tests + one pipeline test made position-independent. Expected
-  effect: UNCHARTED's `u4.exe` should no longer relaunch `u4-l.exe`. To verify.
+  effect: UNCHARTED's `u4.exe` should no longer relaunch `u4-l.exe`. **✅ Verified 2026-11-01 08:23:** launched from
+  the rebuilt Silo with Executable = Auto-detect → `u4.exe` with `ROSETTA_ADVERTISE_AVX=1`. Steam saw ONE game
+  process (ProcID 1448) until quit, the GfeSDK log is `u4_1448.log` (no `u4-l`), so the AVX2 build ran. One Dock
+  icon, nothing left after quit. The quit-from-menu crash is the same D3DMetal one (`u4.exe+0x15fa756`, same byte
+  pattern, host-memory rcx, vtable 0x1f). So for UNCHARTED: Auto-detect (u4.exe, AVX2) is now right; the
+  `-l` advice is obsolete, and only an explicit `tll.exe` pin is needed for The Lost Legacy.
 - **UNCHARTED audio, refined (user, 2026-11-01):** with patch 0007 the explicit *Tradizionale* and *Spaziale* modes are
   clean, but the default *Automatico (Tradizionale)* still crackles, so the two are not the same path. Advice: pick
   one explicitly. To measure if pursued: the stream format/channels under *Automatico* (counters as on 2026-10-31).
-  Exe advice: pin `u4-l.exe` / `tll-l.exe` (on a Mac `u4.exe` relaunches `u4-l.exe` itself).
+  Exe advice (superseded the same morning by the AVX fix): Auto-detect → `u4.exe`; pin `tll.exe` for The Lost Legacy.
 - **🟡 Steam launch entry now read from the Steam install (2026-10-31, 799 tests green, `dist/Silo.app` rebuilt;
   awaiting the user's launch).** `SteamAppInfo.windowsLaunch(steamRoot: app.libraryPath, …)` looked for
   `appcache/appinfo.vdf` in the game's LIBRARY, but it exists only in `<Steam>/appcache`. Every game on a second
