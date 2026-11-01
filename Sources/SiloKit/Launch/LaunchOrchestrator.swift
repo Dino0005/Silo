@@ -299,7 +299,8 @@ public struct LaunchOrchestrator: Sendable {
         var socket = altLoaderSocket
         if socket == nil {
             socket = await prepareAltLoader(
-                target: altLoaderTarget, gameExe: gameExe, prefix: prefix, wine: launchWine)
+                target: altLoaderTarget, gameExe: gameExe, prefix: prefix, wine: launchWine,
+                hostEnvironment: Self.hostEnvironment(for: config.envFlags))
         }
         let plan = try Self.makePlan(
             config: config, backend: backend, graphics: graphics, wine: launchWine,
@@ -318,8 +319,15 @@ public struct LaunchOrchestrator: Sendable {
     /// process — deleting it here would race the hand-over away. Instead every launch rewrites the key for
     /// its own exe, so a leftover naming the previous game is harmless (that exe simply isn't adopted).
     /// `AltLoaderSession.cleanup` stays available for a deliberate teardown.
+    /// What the game's host process must have from its own start, not later from the socket: Rosetta reads
+    /// `ROSETTA_ADVERTISE_AVX` at exec (see `AltLoaderSession.prepare`).
+    static func hostEnvironment(for flags: EnvFlags) -> [String: String] {
+        flags.advertiseAVX ? ["ROSETTA_ADVERTISE_AVX": "1"] : [:]
+    }
+
     private func prepareAltLoader(
-        target: AltLoaderSession.Target?, gameExe: URL, prefix: URL, wine: URL, syncMode: SyncMode = .msync
+        target: AltLoaderSession.Target?, gameExe: URL, prefix: URL, wine: URL, syncMode: SyncMode = .msync,
+        hostEnvironment: [String: String] = [:]
     ) async -> URL? {
         guard let target else { return nil }
         // The process that will own the window. For an Unreal launcher that is NOT the exe being launched
@@ -331,7 +339,7 @@ public struct LaunchOrchestrator: Sendable {
         return await altLoader.prepare(
             gameName: target.gameName, gameID: target.gameID, gameExe: windowOwner, iconICO: icon,
             playLink: target.playLink, prefix: prefix, wine: wine, hostAppsDir: target.hostAppsDir,
-            syncMode: syncMode)
+            syncMode: syncMode, hostEnvironment: hostEnvironment)
     }
 
     /// Prepare the Steam client's hand-over for `bottle` (see `AltLoaderSession.prepareSteamClient`),
@@ -373,7 +381,7 @@ public struct LaunchOrchestrator: Sendable {
             // and the host's registry import runs just before it on the same wineserver.
             socket = await prepareAltLoader(
                 target: altLoaderTarget, gameExe: game.executablePath, prefix: prefix, wine: launchWine,
-                syncMode: game.envFlags.syncMode)
+                syncMode: game.envFlags.syncMode, hostEnvironment: Self.hostEnvironment(for: game.envFlags))
         }
         let plan = try Self.makePlan(
             config: game.gameConfig, backend: backend, graphics: graphics, wine: launchWine,

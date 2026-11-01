@@ -21,6 +21,13 @@ the commit message says why.
   Uncharted by ear with the output mode set to *Traditional* or *Spatial*. The default, *Automatic (Traditional)*,
   still crackles, so pick one of the two explicitly. In the rebuilt `wine-cx-26.3.0` (remove Wine in *Settings → Wine* and
   install it again).
+- **The AVX2 setting works again for games with their own Dock icon.** A game's *AVX2* option sets
+  `ROSETTA_ADVERTISE_AVX`, which Rosetta reads only when a process starts. Since games run inside their own app
+  (for the Dock icon), that app was started without it: the variable reached the game only later, too late, so
+  games saw a processor with no AVX or AVX2 at all. Measured with a test app: AVX/FMA/AVX2/BMI2 all off when
+  started the way Silo did, all on with the variable passed at start. Games that need AVX2 refused to run or took
+  a slower path; UNCHARTED's `u4.exe` fell back to its build for older processors. Silo now starts the game's app
+  with the variable when the option is on.
 - **Steam games in a second library launch the executable Steam would.** Silo reads Steam's own launch entry
   (the exe and its arguments) from `appinfo.vdf`, but looked for it in the game's library folder, where it never
   is: it lives only in the Steam install's `appcache`. A game on another drive (`Y:\SteamLibrary`) fell back to the

@@ -123,6 +123,7 @@ public struct AltLoaderSession: Sendable {
         wine: URL,
         hostAppsDir: URL,
         syncMode: SyncMode = .msync,
+        hostEnvironment: [String: String] = [:],
         fileManager: FileManager = .default
     ) async -> URL? {
         // Gate Wine's hand-over to THIS exe. Without it the socket is consumed by the first process the
@@ -130,8 +131,8 @@ public struct AltLoaderSession: Sendable {
         await prepare(
             bundle: GameHostBundle(name: gameName, id: gameID, playLink: playLink),
             whitelist: [AltLoaderWhitelist.exeName(for: gameExe.lastPathComponent)],
-            iconICO: iconICO, socketID: gameID, syncMode: syncMode, prefix: prefix, wine: wine,
-            hostAppsDir: hostAppsDir, fileManager: fileManager)
+            iconICO: iconICO, socketID: gameID, syncMode: syncMode, hostEnvironment: hostEnvironment,
+            prefix: prefix, wine: wine, hostAppsDir: hostAppsDir, fileManager: fileManager)
     }
 
     /// The Steam client's hand-over: the bottle's `steamwebhelper` — the process that owns Steam's
@@ -184,6 +185,7 @@ public struct AltLoaderSession: Sendable {
         hostWaitSeconds: Int? = nil,
         activate: Bool = true,
         syncMode: SyncMode = .msync,
+        hostEnvironment: [String: String] = [:],
         prefix: URL,
         wine: URL,
         hostAppsDir: URL,
@@ -224,7 +226,14 @@ public struct AltLoaderSession: Sendable {
             // merely activates that one, so nothing binds the new socket and the launch silently goes
             // back to the old path (measured 2026-09-24: a second launch adopted nothing while the first
             // game's host was still alive).
-            arguments: ["-n"] + (activate ? [] : ["-g"]) + ["-a", app.path, "--args", socket.path]
+            // `--env`: what the host's OWN process needs at exec. The game's environment reaches the host
+            // later, through the socket, which is too late for Rosetta: it reads `ROSETTA_ADVERTISE_AVX` when
+            // the process starts. Launched without it, every adopted game saw no AVX/AVX2 (measured
+            // 2026-11-01 with an x86_64 probe app: 0/0/0/0 via plain `open -n -a`, 1/1/1/1 with `--env`), and
+            // UNCHARTED's `u4.exe` fell back to its non-AVX2 `u4-l.exe`.
+            arguments: ["-n"] + (activate ? [] : ["-g"])
+                + hostEnvironment.sorted { $0.key < $1.key }.flatMap { ["--env", "\($0.key)=\($0.value)"] }
+                + ["-a", app.path, "--args", socket.path]
                 + (hostWaitSeconds.map { [String($0)] } ?? []),
             environment: [:], currentDirectory: nil),
               result.succeeded

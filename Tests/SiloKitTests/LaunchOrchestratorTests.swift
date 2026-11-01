@@ -789,16 +789,21 @@ struct LaunchAltLoaderPipelineTests {
         let reg = try #require(fake.invocations.first { $0.arguments.first == "regedit" })
         #expect(reg.environment["WINEPREFIX"] == prefix.path)
         let open = try #require(fake.invocations.first { $0.executable.path == "/usr/bin/open" })
-        #expect(open.arguments[2].hasSuffix("\(game.id.uuidString)/My Game.app"))
+        // Positions relative to `-a`/`--args`: the host's own environment (`--env …`) may come first.
+        let app = try #require(open.arguments.firstIndex(of: "-a").map { open.arguments[$0 + 1] })
+        let socketArg = try #require(open.arguments.firstIndex(of: "--args").map { open.arguments[$0 + 1] })
+        #expect(app.hasSuffix("\(game.id.uuidString)/My Game.app"))
+        // The manual game's default flags advertise AVX, so the host starts with it.
+        #expect(open.arguments.contains("ROSETTA_ADVERTISE_AVX=1"))
 
         let spawn = try #require(fake.invocations.last { $0.detached })
-        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"] == open.arguments[4])
+        #expect(spawn.environment["CX_ALT_LOADER_SOCKET"] == socketArg)
         // Short by design: `sun_path` truncates silently past 103 bytes (see AltLoaderSessionTests).
         #expect(spawn.environment["CX_ALT_LOADER_SOCKET"]?
             .hasPrefix(sockets.appendingPathComponent("silo-al-").path) == true)
         // The host really is in the bundle LaunchServices was asked to start.
         #expect(FileManager.default.isExecutableFile(
-            atPath: open.arguments[2] + "/Contents/MacOS/SiloGameHost"))
+            atPath: app + "/Contents/MacOS/SiloGameHost"))
     }
 
     /// Sync = Off on a manual game used to make it unlaunchable: the host's registry import started the

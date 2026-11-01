@@ -38,7 +38,7 @@ struct AltLoaderSessionTests {
 
     private func prepare(
         runner: FakeProcessRunner, root: URL, prefix: URL, host: URL?, disable: Bool = false,
-        syncMode: SyncMode = .msync
+        syncMode: SyncMode = .msync, hostEnvironment: [String: String] = [:]
     ) async -> URL? {
         var env: [String: String] = [:]
         if let host { env["SILO_ALTLOADER_HOST"] = host.path }
@@ -48,7 +48,8 @@ struct AltLoaderSessionTests {
                                       socketWaitTimeout: .zero).prepare(
             gameName: "Blocco Note", gameID: "220", gameExe: gameExe, iconICO: nil,
             prefix: prefix, wine: wine,
-            hostAppsDir: root.appendingPathComponent("HostApps", isDirectory: true), syncMode: syncMode)
+            hostAppsDir: root.appendingPathComponent("HostApps", isDirectory: true), syncMode: syncMode,
+            hostEnvironment: hostEnvironment)
     }
 
     // MARK: - Degrading to the old launch path
@@ -101,6 +102,28 @@ struct AltLoaderSessionTests {
         #expect(open.arguments[2].hasSuffix("220/Blocco Note.app"))
         #expect(open.arguments[3] == "--args")
         #expect(open.arguments[4] == socket.path)
+    }
+
+    /// The host process needs `ROSETTA_ADVERTISE_AVX` from its own start: Rosetta reads it at exec, and the
+    /// game's environment only reaches the host later, through the socket. So it rides on `open --env`.
+    @Test func theHostIsStartedWithItsOwnEnvironment() async throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let host = try fakeHost(in: root)
+        let runner = FakeProcessRunner()
+        let socket = try #require(await prepare(runner: runner, root: root, prefix: try makePrefix(in: root),
+                                                host: host, hostEnvironment: ["ROSETTA_ADVERTISE_AVX": "1"]))
+        let open = try #require(runner.invocations.last)
+        #expect(open.executable.path == "/usr/bin/open")
+        #expect(Array(open.arguments.prefix(4)) == ["-n", "--env", "ROSETTA_ADVERTISE_AVX=1", "-a"])
+        #expect(open.arguments.suffix(2) == ["--args", socket.path])
+    }
+
+    @Test func onlyTheAVXFlagGoesToTheHost() {
+        var flags = EnvFlags()
+        flags.advertiseAVX = true
+        #expect(LaunchOrchestrator.hostEnvironment(for: flags) == ["ROSETTA_ADVERTISE_AVX": "1"])
+        flags.advertiseAVX = false
+        #expect(LaunchOrchestrator.hostEnvironment(for: flags).isEmpty)
     }
 
     /// The registry import's wineserver is still up when the game starts, and a wineserver refuses a

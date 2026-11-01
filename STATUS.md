@@ -3,6 +3,15 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🟡 `ROSETTA_ADVERTISE_AVX` never reached host-adopted games (found 2026-11-01, fixed, 802 tests green, app rebuilt;
+  awaiting a game check).** `AltLoaderSession` started the host with `open -n -a <app> --args <socket>` and an EMPTY
+  environment, so the host process (which becomes the game) started without the variable. The game's environment
+  arrives later over the socket, and Rosetta reads it only at exec. Measured with an x86_64 probe .app: plain
+  `open -n -a` gives AVX/FMA/AVX2/BMI2 = 0/0/0/0; `open --env ROSETTA_ADVERTISE_AVX=1` gives 1/1/1/1. Inside Wine
+  (cpuid.exe, no host) the variable gives AVX2+FMA+F16C+BMI1/2+XCR0 ymm (no AVX-512). Fix: `prepare(…,
+  hostEnvironment:)` → `--env K=V` before `-a`; `LaunchOrchestrator.hostEnvironment(for:)` passes it when
+  `envFlags.advertiseAVX` (Steam + manual games). 2 tests + one pipeline test made position-independent. Expected
+  effect: UNCHARTED's `u4.exe` should no longer relaunch `u4-l.exe`. To verify.
 - **UNCHARTED audio, refined (user, 2026-11-01):** with patch 0007 the explicit *Tradizionale* and *Spaziale* modes are
   clean, but the default *Automatico (Tradizionale)* still crackles, so the two are not the same path. Advice: pick
   one explicitly. To measure if pursued: the stream format/channels under *Automatico* (counters as on 2026-10-31).
