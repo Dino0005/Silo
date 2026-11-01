@@ -3,7 +3,7 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
-- **🟡 Silo 0.7.2 prepared (2026-11-01), not tagged or pushed yet.** `versions.env` 0.7.2 (+ `gen-versions.sh`),
+- **✅ Silo 0.7.2 RELEASED (2026-11-01)**: pushed ab5e98b..9941e32, tag v0.7.2. Release run 41285832760 (app, notify, site) and pages 41285831345 green. Latest, not draft (`Silo.zip` 3801593 B, sha256 99388ad6… matches its `.sha256`, app reports 0.7.2, signature valid). Site shows 0.7.2 (EN + IT). Earlier prep note: `versions.env` 0.7.2 (+ `gen-versions.sh`),
   CHANGELOG `## 0.7.2`, RELEASE_NOTES, site version (EN + IT). Contents: Wine 0006 + 0007 (both already in the
   published `wine-cx-26.3.0`, reinstall needed), the AVX fix (`open --env`), Steam launch entry from the Steam
   install, launcher hand-off kept alive plus leftover cleanup after it, CA debug vars dropped. Known issues: UNCHARTED's
