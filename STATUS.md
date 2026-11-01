@@ -3,6 +3,7 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **📏 UNCHARTED memory measured (2026-11-01): no leak in a 27-minute session.** Uncharted 4, D3DMetal, Silo host, sampled every 30 s (RSS, VSZ, `footprint` phys_footprint) of the hosted game process (`HostApps/1659420/…/SiloGameHost`, which IS the Wine process; ps shows the socket path, not `u4.exe`) and the wineserver. Game footprint 6 → 11 GB while loading (first ~3 min), then flat at 11–12 GB (peak 12 GB) to the end; RSS ~1.2 GB; wineserver flat at 31 MB. The 28–40 GB reports on CodeWeavers' forum did not reproduce here. Highball 0018 (commit charge = footprint; CX 26.3 still reports Mach virtual_size as PagefileUsage, `process.c:1495`) does not apply: the exes import only `GlobalMemoryStatusEx`, not `GetProcessMemoryInfo`. Sampler: `/tmp/u4mem/sample.sh <hostAppDir> <csv> <secs>`.
 - **✅ Silo 0.7.2 RELEASED (2026-11-01)**: pushed ab5e98b..9941e32, tag v0.7.2. Release run 41285832760 (app, notify, site) and pages 41285831345 green. Latest, not draft (`Silo.zip` 3801593 B, sha256 99388ad6… matches its `.sha256`, app reports 0.7.2, signature valid). Site shows 0.7.2 (EN + IT). Earlier prep note: `versions.env` 0.7.2 (+ `gen-versions.sh`),
   CHANGELOG `## 0.7.2`, RELEASE_NOTES, site version (EN + IT). Contents: Wine 0006 + 0007 (both already in the
   published `wine-cx-26.3.0`, reinstall needed), the AVX fix (`open --env`), Steam launch entry from the Steam
