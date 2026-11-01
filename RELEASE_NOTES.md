@@ -1,27 +1,46 @@
-# Silo 0.7.1
+# Silo 0.7.2
 
-God of War's controller fixed on DXMT, a Wine that no longer leaks memory, and non-Steam games with Sync off
-starting again.
+Surround sound without crackling, the AVX2 setting finally reaching games, and Steam games on a second drive
+starting the way Steam starts them.
 
 ## Wine: reinstall once
 
-The two Wine fixes below are in the rebuilt runtime `wine-cx-26.3.0`, published under the same name. To get it,
+The two Wine fixes below are in the rebuilt runtime `wine-cx-26.3.0`, published under the same name. To get them,
 remove Wine in *Settings → Wine* and install it again. With the old copy, games keep running as before.
 
-## God of War: the controller no longer dies when you change DLSS on DXMT
+## Surround games no longer crackle on a stereo Mac
 
-Changing the DLSS profile in the game's menu made the selector run through the profiles by itself, and the
-DualSense stopped responding until you pressed a key. The game waits for the controller on a thread of its own,
-and with Silo's default sync (MSync) that thread sometimes missed being woken up, so the game kept the last button
-it had seen. A fix by Gauthier Piarrette (Highball) makes Wine let a woken thread run first, as Windows does.
-Tested on God of War with DXMT and DLSS: three launches, 10–15 profile changes each, no loop.
+A game that plays 7.1 sound, such as UNCHARTED: Legacy of Thieves Collection, crackled on the Mac's speakers and on
+AirPods, because Wine had to fold eight channels into two. Silo's Wine now carries upstream Wine's newest work on the
+Mac audio driver, which mixes the extra channels down with Apple's own spatial mixer. In UNCHARTED, set the audio
+output mode to *Traditional* or *Spatial*: the default, *Automatic (Traditional)*, still crackles.
 
-## Wine no longer grows until memory runs out
+## The AVX2 setting now reaches your games
 
-In games that wait on several things at once in a tight loop, Wine's server kept a little memory for every wait
-that ended early, and grew without limit over a long session. Also a fix by Gauthier Piarrette (Highball).
+A game's *AVX2* option tells Rosetta to offer AVX and AVX2 to the game, but since games run in their own app (for
+their Dock icon), that app started without it, and games saw a processor without AVX at all. Games that need AVX2
+refused to start or took a slower path. Silo now starts the game's app with the setting.
 
-## Non-Steam games with Sync off or ESync start again
+## Steam games on a second drive start like they do from Steam
 
-A non-Steam game set to Sync *Off* or *ESync* in its settings didn't start: Silo prepared the game's icon with
-MSync just before, and Wine turned the game away. Silo now prepares it with the game's own setting.
+For a game installed in another Steam library, Silo couldn't find Steam's launch settings and guessed the
+executable instead, often the wrong one. It now reads them from the Steam installation, so these games start with
+the same executable and arguments Steam uses.
+
+## Games started by a launcher stay open
+
+When a game's own launcher started the real game and quit, Silo took the game for a leftover and closed it a few
+seconds later. That no longer happens, and when such a game quits, its Dock icon goes away as it should.
+
+## Also
+
+- A small fix in Wine's media playback (GStreamer), found by the Nectarine project.
+- Games no longer hang with a transparent window when Silo was opened from Xcode's terminal.
+
+## Known issues
+
+- UNCHARTED crashes when you quit it from its own menu, or switch between its two games there. This is a bug in
+  Apple's D3DMetal and happens in CrossOver too. Saves are not affected. Quit from Steam instead, and pick the game
+  with *Executable* in its settings (`u4.exe` or `tll.exe`). If the game offers safe mode at the next start, answer
+  *No*.
+- The *Sync* setting has no effect on Steam games, which always use MSync.

@@ -8,7 +8,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.7.2
 
 ### Fixed
 - **Surround games no longer crackle on a stereo Mac.** UNCHARTED: Legacy of Thieves Collection, in its default
@@ -21,7 +21,7 @@ the commit message says why.
   Uncharted by ear with the output mode set to *Traditional* or *Spatial*. The default, *Automatic (Traditional)*,
   still crackles, so pick one of the two explicitly. In the rebuilt `wine-cx-26.3.0` (remove Wine in *Settings → Wine* and
   install it again).
-- **The AVX2 setting works again for games with their own Dock icon.** A game's *AVX2* option sets
+- **The AVX2 setting now reaches games that run in their own app.** A game's *AVX2* option sets
   `ROSETTA_ADVERTISE_AVX`, which Rosetta reads only when a process starts. Since games run inside their own app
   (for the Dock icon), that app was started without it: the variable reached the game only later, too late, so
   games saw a processor with no AVX or AVX2 at all. Measured with a test app: AVX/FMA/AVX2/BMI2 all off when

@@ -3,6 +3,11 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🟡 Silo 0.7.2 prepared (2026-11-01), not tagged or pushed yet.** `versions.env` 0.7.2 (+ `gen-versions.sh`),
+  CHANGELOG `## 0.7.2`, RELEASE_NOTES, site version (EN + IT). Contents: Wine 0006 + 0007 (both already in the
+  published `wine-cx-26.3.0`, reinstall needed), the AVX fix (`open --env`), Steam launch entry from the Steam
+  install, launcher hand-off kept alive plus leftover cleanup after it, CA debug vars dropped. Known issues: UNCHARTED's
+  quit crash (D3DMetal), the Sync setting ignored for Steam games. Next: user OK → push + tag v0.7.2.
 - **🟡 `ROSETTA_ADVERTISE_AVX` never reached host-adopted games (found 2026-11-01, fixed, 802 tests green, app rebuilt;
   awaiting a game check).** `AltLoaderSession` started the host with `open -n -a <app> --args <socket>` and an EMPTY
   environment, so the host process (which becomes the game) started without the variable. The game's environment
