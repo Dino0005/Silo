@@ -12,7 +12,7 @@ struct ManualGameTileView: View {
     /// Opens the game card. Called instead of `onSettings` only when the game has a Steam association —
     /// without one there's nothing to show, so the tile keeps its original behaviour.
     let onDetails: () -> Void
-    @State private var confirmingRemove = false
+    @ViewState private var confirmingRemove = false
 
     var body: some View {
         let lib = env.gameLibrary
@@ -92,8 +92,8 @@ struct ManualGameArtwork: View {
     /// A chosen cover, already resolved to an existing file. Wins over the `.exe` icon and fills the tile
     /// the way Steam artwork does; a cover deleted from Finder resolves to nil and the icon comes back.
     var cover: URL? = nil
-    @State private var icon: NSImage?
-    @State private var art: NSImage?
+    @ViewState private var icon: NSImage?
+    @ViewState private var art: NSImage?
 
     var body: some View {
         // The gradient always; the controller only when there's nothing else. The placeholder draws that

@@ -4,7 +4,7 @@ import SwiftUI
 struct OnboardingView: View {
     @Environment(AppEnvironment.self) private var env
     /// Non-nil while the "download or import from CrossOver?" question is up.
-    @State private var crossOverOffer: CrossOverWineImporter.Found?
+    @ViewState private var crossOverOffer: CrossOverWineImporter.Found?
 
     var body: some View {
         let runtime = env.runtime

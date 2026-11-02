@@ -14,7 +14,7 @@ struct SharedSaveFolderPicker: View {
 
     /// What was already shared when the sheet opened — the baseline "Share" is compared against.
     private let initialSelection: Set<String>
-    @State private var selected: Set<String>
+    @ViewState private var selected: Set<String>
 
     init(gameName: String,
          candidates: [SharedSaveCandidate],

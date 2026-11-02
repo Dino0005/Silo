@@ -3,7 +3,7 @@ import AppKit   // NSAlert + NSApplicationDelegate: the quit prompt has no Swift
 
 /// The SwiftUI application. Call `SiloApp.main()` to launch (see the `silo` executable target).
 public struct SiloApp: App {
-    @State private var environment = AppEnvironment()
+    @ViewState private var environment = AppEnvironment()
     @Environment(\.scenePhase) private var scenePhase
     @NSApplicationDelegateAdaptor(QuitGuard.self) private var quitGuard
 

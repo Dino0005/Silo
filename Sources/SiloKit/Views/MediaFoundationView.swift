@@ -7,7 +7,7 @@ import SwiftUI
 /// once Steam itself is set up.
 struct MediaFoundationView: View {
     @Environment(AppEnvironment.self) private var env
-    @State private var confirmingBottleRemoval = false
+    @ViewState private var confirmingBottleRemoval = false
 
     var body: some View {
         @Bindable var vm = env.mediaFoundation

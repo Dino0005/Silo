@@ -17,11 +17,11 @@ struct ManualGameDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let game: ManualGame
     let onSettings: () -> Void
-    @State private var details: SteamStoreDetails?
-    @State private var coverArt: NSImage?
-    @State private var loading = true
-    @State private var showRequirements = false
-    @State private var confirmingRemove = false
+    @ViewState private var details: SteamStoreDetails?
+    @ViewState private var coverArt: NSImage?
+    @ViewState private var loading = true
+    @ViewState private var showRequirements = false
+    @ViewState private var confirmingRemove = false
 
     var body: some View {
         let lib = env.gameLibrary

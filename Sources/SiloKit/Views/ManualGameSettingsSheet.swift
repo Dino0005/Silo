@@ -8,15 +8,15 @@ struct ManualGameSettingsSheet: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.dismiss) private var dismiss
     /// A local editable copy — only written back on Save.
-    @State var game: ManualGame
+    @ViewState var game: ManualGame
     /// Whether the chosen executable needs D3D12 (drives the DXMT warning). Recomputed whenever the user
     /// picks a different exe, since that changes the answer.
-    @State private var needsD3D12 = false
+    @ViewState private var needsD3D12 = false
     /// What's typed in the Steam app ID field, before it's been checked against the store.
-    @State private var appIDField = ""
-    @State private var checkingCard = false
+    @ViewState private var appIDField = ""
+    @ViewState private var checkingCard = false
     /// Set when a lookup fails, so the sheet can say so without borrowing the library's status bar.
-    @State private var cardProblem: String?
+    @ViewState private var cardProblem: String?
 
     /// Check the entered app ID against the Steam store and, if it resolves, keep it.
     ///

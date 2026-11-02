@@ -4,7 +4,7 @@ import SwiftUI
 /// (so the logo reads in light and dark mode alike), the blue arcs on top in their own colour.
 struct SteamThrobberView: View {
     let animation: SteamThrobber.Animation
-    @State private var start = Date()
+    @ViewState private var start = Date()
 
     var body: some View {
         TimelineView(.animation) { context in

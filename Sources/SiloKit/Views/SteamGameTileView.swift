@@ -12,7 +12,7 @@ import AppKit
 struct SteamHeaderArt: View {
     @Environment(AppEnvironment.self) private var env
     let game: SteamApp
-    @State private var artwork: NSImage?
+    @ViewState private var artwork: NSImage?
 
     var body: some View {
         ZStack {
@@ -46,7 +46,7 @@ struct SteamGameTileView: View {
     let game: SteamApp
     let onSettings: () -> Void
     let onDetails: () -> Void
-    @State private var confirmingUninstall = false
+    @ViewState private var confirmingUninstall = false
 
     var body: some View {
         let lib = env.gameLibrary

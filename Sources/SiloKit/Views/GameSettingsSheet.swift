@@ -4,18 +4,18 @@ struct GameSettingsSheet: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.dismiss) private var dismiss
     let game: SteamApp
-    @State private var vm: GameSettingsViewModel?
-    @State private var executables: [String] = []
+    @ViewState private var vm: GameSettingsViewModel?
+    @ViewState private var executables: [String] = []
     /// Whether the game needs D3D12 — decided once when the sheet opens, off the main actor, and handed to
     /// the note as a plain value. Computing it inside the note (keyed on an executable that arrived a render
     /// later) never produced a visible warning.
-    @State private var needsD3D12 = false
+    @ViewState private var needsD3D12 = false
     /// Non-nil while the shared-save picker is up. Populated when the Media Foundation toggle is turned ON:
     /// that bottle is a clone, so from the first launch on that side the game keeps a SECOND set of saves.
-    @State private var saveCandidates: [SharedSaveCandidate]?
+    @ViewState private var saveCandidates: [SharedSaveCandidate]?
     /// The shared folders as PERSISTED when the sheet opened. `vm.config` is edited in place by the picker,
     /// so this is the only record of what was shared before — and unsharing is a diff against it.
-    @State private var sharedSavesAtOpen: [SharedSaveFolder] = []
+    @ViewState private var sharedSavesAtOpen: [SharedSaveFolder] = []
 
     var body: some View {
         NavigationStack {
@@ -217,7 +217,7 @@ struct GameSettingsSheet: View {
 
     /// - Parameter shared: the game's current folders. Passed IN rather than read from `vm`: the
     ///   non-optional view model exists only inside `form(_:)`, which rebinds it with `@Bindable` — out
-    ///   here `vm` is the `@State` optional, and this method doesn't need the model at all.
+    ///   here `vm` is the `@ViewState` optional, and this method doesn't need the model at all.
     private func presentSaveFolderPicker(sharing shared: [SharedSaveFolder]) {
         let paths = env.paths
         Task {

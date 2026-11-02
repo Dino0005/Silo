@@ -230,6 +230,9 @@ each VC++ DLL in `system32` that isn't a Wine builtin (its PE header at offset 6
   `Foundation.Process` directly outside `SystemProcessRunner`.
 
 ## Conventions
+- **Write `@ViewState`, never `@State`** in SwiftUI views (`Views/ViewState.swift`). From the 27.2 SDK `@State` is
+  a macro whose `SwiftUIMacros` plugin ships only with Xcode, so it does not compile under the Command Line Tools
+  (constraint #1). Toolchain pins `XCODE_VERSION`/`MACOS_SDK_VERSION` = 27.2 in `versions.env` (from upstream 86719cf).
 - Resources are read via `Bundle.module`. Absolute paths everywhere (expand `~`).
 - The launch builder `makePlan` is a **pure function** — no side effects, exhaustively table-tested.
 - New code ships with tests. Tests use **Swift Testing** (`import Testing`, `@Test`/`#expect`),
