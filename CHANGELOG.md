@@ -8,6 +8,21 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Added
+- **The Library can be filtered by kind of game.** A filter button in the toolbar, next to the Steam / Add /
+  Refresh group, shows *All*, *Steam* or *Non-Steam* games. Its icon fills in while a filter other than *All* is
+  on, so a shorter list doesn't look like games went missing, and the game count under the title counts only what
+  is shown. Silo remembers the choice across launches.
+
+### Changed
+- **Games are listed in one alphabetical order.** Steam games came first, in alphabetical order, and non-Steam
+  games after them; now both kinds share one list sorted by name, ignoring case.
+- **Builds with Xcode / Command Line Tools 27.2.** From the 27.2 SDK, SwiftUI's `@State` is a macro whose plugin
+  ships only with Xcode, so Silo no longer built with the Command Line Tools alone. Ported from upstream
+  (mikaelhug/Silo 86719cf). No visible change in the app.
+
 ## 0.7.2
 
 ### Fixed
