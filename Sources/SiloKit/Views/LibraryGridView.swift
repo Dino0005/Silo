@@ -16,6 +16,8 @@ struct LibraryGridView: View {
     /// required steps doesn't yank the user straight into the library — they click "Done" when ready.
     /// Persisted so it doesn't reappear.
     @AppStorage("onboardingDone") private var onboardingDone = false
+    /// The toolbar filter (All / Steam / Non-Steam), remembered across launches.
+    @AppStorage("libraryKindFilter") private var kindFilter: LibraryKindFilter = .all
     /// "Not Now" on the Rosetta prompt — for this session only, so it asks again at the next launch.
     @ViewState private var rosettaPromptDismissed = false
     /// Steam's loading animation, read from the bottle's Steam install (never bundled — it's Valve's).
@@ -28,14 +30,13 @@ struct LibraryGridView: View {
     var body: some View {
         @Bindable var lib = env.gameLibrary
         // Compute the filter+sort ONCE; reused by the subtitle count + the grid.
-        let steamShown = lib.filtered
-        let manualShown = lib.filteredManual
+        let shown = LibraryEntry.merged(steam: lib.filtered, manual: lib.filteredManual, filter: kindFilter)
         let showLibrary = env.setupComplete && onboardingDone
         Group {
             if env.bottlesDisconnected {
                 BottlesDisconnectedView()          // a relocated drive is unplugged — reconnect, not re-setup
             } else if showLibrary {
-                grid(lib, steam: steamShown, manual: manualShown)
+                grid(lib, entries: shown)
             } else {
                 OnboardingView()
             }
@@ -56,6 +57,11 @@ struct LibraryGridView: View {
         // `Scripts/platform-version.sh`. This form is the documented one and stays.
         .toolbar {
             if showLibrary {
+                // In a group of its own, ahead of the Steam / Add / Refresh capsule.
+                ToolbarItem { filterMenu }
+                if #available(macOS 26, *) {
+                    ToolbarSpacer(.fixed)
+                }
                 ToolbarItem {
                     openSteamControl(lib) {
                         Label {
@@ -142,7 +148,7 @@ struct LibraryGridView: View {
             ManualGameDetailView(game: game,
                                  onSettings: { manualDetailTarget = nil; manualSettingsTarget = game })
         }
-        .navigationSubtitle(showLibrary ? subtitle(steamShown.count + manualShown.count) : "")
+        .navigationSubtitle(showLibrary ? subtitle(shown.count) : "")
         .searchable(text: $lib.searchText, placement: .toolbar, prompt: "Search games")
     }
 
@@ -170,6 +176,23 @@ struct LibraryGridView: View {
     /// interpolation formatting for numeric values isn't practical to hand-verify without a compiler here.
     private var isItalianLocale: Bool {
         Locale.preferredLanguages.first?.hasPrefix("it") ?? false
+    }
+
+    /// The filter menu: which kind of game the grid shows. The icon fills in while a filter other than
+    /// All is on, so a shorter list never looks like games went missing.
+    private var filterMenu: some View {
+        Menu {
+            Picker("Show", selection: $kindFilter) {
+                Text("All").tag(LibraryKindFilter.all)
+                Text("Steam").tag(LibraryKindFilter.steam)
+                Text("Non-Steam").tag(LibraryKindFilter.nonSteam)
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Label("Filter", systemImage: kindFilter == .all ? "line.3.horizontal.decrease"
+                                                            : "line.3.horizontal.decrease.circle.fill")
+        }
+        .help("Filter games")
     }
 
     /// "Open Steam" — opens the bottle's Steam client so the user can browse + install games.
@@ -221,7 +244,7 @@ struct LibraryGridView: View {
     private let columns = [GridItem(.adaptive(minimum: 250), spacing: 16)]
 
     @ViewBuilder
-    private func grid(_ lib: GameLibraryViewModel, steam: [SteamApp], manual: [ManualGame]) -> some View {
+    private func grid(_ lib: GameLibraryViewModel, entries: [LibraryEntry]) -> some View {
         VStack(spacing: 0) {
             switch lib.loadState {
             case .notReady:
@@ -244,15 +267,17 @@ struct LibraryGridView: View {
             default:
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(steam) { game in
-                            SteamGameTileView(game: game,
-                                              onSettings: { settingsTarget = game },
-                                              onDetails: { detailTarget = game })
-                        }
-                        ForEach(manual) { game in
-                            ManualGameTileView(game: game,
-                                               onSettings: { manualSettingsTarget = game },
-                                               onDetails: { manualDetailTarget = game })
+                        ForEach(entries) { entry in
+                            switch entry {
+                            case .steam(let game):
+                                SteamGameTileView(game: game,
+                                                  onSettings: { settingsTarget = game },
+                                                  onDetails: { detailTarget = game })
+                            case .manual(let game):
+                                ManualGameTileView(game: game,
+                                                   onSettings: { manualSettingsTarget = game },
+                                                   onDetails: { manualDetailTarget = game })
+                            }
                         }
                     }
                     .padding()
