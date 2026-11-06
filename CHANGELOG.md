@@ -28,6 +28,9 @@ the commit message says why.
 - **A long title shows in full in the card's tooltip.**
 
 ### Changed
+- **The status line floats on Liquid Glass.** Messages like "Starting Steam…" used to sit in a strip of their own
+  under the Library; they now float over the foot of the grid, which scrolls under them, so the covers show
+  through while the text stays readable (a blurred material on macOS 15).
 - **Games are listed in one alphabetical order.** Steam games came first, in alphabetical order, and non-Steam
   games after them; now both kinds share one list sorted by name, ignoring case.
 - **Builds with Xcode / Command Line Tools 27.2.** From the 27.2 SDK, SwiftUI's `@State` is a macro whose plugin
