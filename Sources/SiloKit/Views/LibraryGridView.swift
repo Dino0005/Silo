@@ -261,7 +261,7 @@ struct LibraryGridView: View {
 
     @ViewBuilder
     private func grid(_ lib: GameLibraryViewModel, entries: [LibraryEntry]) -> some View {
-        VStack(spacing: 0) {
+        Group {
             switch lib.loadState {
             case .notReady:
                 ContentUnavailableView("Set up the Steam bottle", systemImage: "shippingbox",
@@ -299,9 +299,17 @@ struct LibraryGridView: View {
                     .padding()
                 }
             }
+        }
+        // The status line floats over the grid's foot on glass, so the covers show through while it's up.
+        // An inset rather than a row of its own: the grid scrolls under it and its last row can still be
+        // scrolled clear of it. Regular glass, not clear: the text has to stay readable over any cover.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if let message = lib.statusMessage {
-                Text(LocalizedStringKey(message)).font(.callout).foregroundStyle(.secondary)
-                    .padding(10).frame(maxWidth: .infinity, alignment: .leading).background(.bar)
+                Text(LocalizedStringKey(message)).font(.callout)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .tileGlass(cornerRadius: 14)
+                    .padding(.horizontal, 12).padding(.bottom, 10)
             }
         }
         // Switching bottles means quitting the other one's Steam, which would take any game running
