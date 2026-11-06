@@ -1,41 +1,39 @@
-# Silo 0.7.2
+# Silo 0.7.3
 
-Surround sound without crackling, the AVX2 setting finally reaching games, and Steam games on a second drive
-starting the way Steam starts them.
+A reworked Library: a filter, one alphabetical list, three layouts to choose from, and the status line on glass.
 
-## Wine: reinstall once
+## Filter the Library
 
-The two Wine fixes below are in the rebuilt runtime `wine-cx-26.3.0`, published under the same name. To get them,
-remove Wine in *Settings → Wine* and install it again. With the old copy, games keep running as before.
+A new filter button in the toolbar shows *All*, *Steam* or *Non-Steam* games. Its icon fills in while a filter is
+on, so a shorter list never looks like games went missing, and the count under the title counts what is shown.
+Silo remembers your choice.
 
-## Surround games no longer crackle on a stereo Mac
+## One alphabetical list
 
-A game that plays 7.1 sound, such as UNCHARTED: Legacy of Thieves Collection, crackled on the Mac's speakers and on
-AirPods, because Wine had to fold eight channels into two. Silo's Wine now carries upstream Wine's newest work on the
-Mac audio driver, which mixes the extra channels down with Apple's own spatial mixer. In UNCHARTED, set the audio
-output mode to *Traditional* or *Spatial*: the default, *Automatic (Traditional)*, still crackles.
+Steam games used to come first and non-Steam games after them. Now all your games share one list, sorted by name.
 
-## The AVX2 setting now reaches your games
+## Three layouts
 
-A game's *AVX2* option tells Rosetta to offer AVX and AVX2 to the game, but since games run in their own app (for
-their Dock icon), that app started without it, and games saw a processor without AVX at all. Games that need AVX2
-refused to start or took a slower path. Silo now starts the game's app with the setting.
+The same menu picks how games are shown:
 
-## Steam games on a second drive start like they do from Steam
+- **Classic**, the default: the card you know, now with the game's whole cover. The old card cut the cover to a
+  thin band, losing its top and bottom, and some titles with it.
+- **Icons**: one row per game, like Apple's Games app, with the game's own app icon and a Play button. A game you
+  haven't started from Silo yet shows its cover in the icon's place until its first launch.
+- **Portrait**: Steam's tall library covers filling the card, with the title and Play on a glass panel at the
+  bottom. Silo uses the covers Steam has already downloaded and fetches the sharper version once. Non-Steam games
+  tied to a Steam app get theirs too.
 
-For a game installed in another Steam library, Silo couldn't find Steam's launch settings and guessed the
-executable instead, often the wrong one. It now reads them from the Steam installation, so these games start with
-the same executable and arguments Steam uses.
+A long title now shows in full when you hover over its card.
 
-## Games started by a launcher stay open
+## The status line on glass
 
-When a game's own launcher started the real game and quit, Silo took the game for a leftover and closed it a few
-seconds later. That no longer happens, and when such a game quits, its Dock icon goes away as it should.
+Messages like *Starting Steam…* now float over the bottom of the Library on Liquid Glass, so your covers show
+through while the text stays easy to read. On macOS 15 it uses a blurred background instead.
 
 ## Also
 
-- A small fix in Wine's media playback (GStreamer), found by the Nectarine project.
-- Games no longer hang with a transparent window when Silo was opened from Xcode's terminal.
+- Silo builds with Xcode and the Command Line Tools 27.2 (from upstream). Nothing changes in the app.
 
 ## Known issues
 

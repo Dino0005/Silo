@@ -8,7 +8,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.7.3
 
 ### Added
 - **The Library can be filtered by kind of game.** A filter button in the toolbar, next to the Steam / Add /
