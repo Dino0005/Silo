@@ -20,7 +20,7 @@
 A personal fork of [mikaelhug/Silo](https://github.com/mikaelhug/Silo), tracking it selectively —
 see the [changelog](CHANGELOG.md) for what's been added here.
 
-<img src="docs/images/dashboard.png" width="820" alt="Silo library in its Classic layout — a ten-game library in alphabetical order, Steam and non-Steam games together: Batman Arkham Knight, Devil May Cry 5, Fatal Fury: City of the Wolves, God of War, Marvel's Spider-Man Remastered and Mortal Kombat 1, each with its whole cover, install size or "non-Steam game", a graphics-backend badge (GPTK or DXMT), an MF badge on the games in the Media Foundation bottle, and a Play button; below them Resident Evil Requiem, Soulcalibur VI and Tekken 8 show through a Liquid Glass status line reading "Starting Steam…"" />
+<img src="docs/images/dashboard.png" width="820" alt="Silo library in its Classic layout — a ten-game library in alphabetical order, Steam and non-Steam games together: Batman Arkham Knight, Devil May Cry 5, Fatal Fury: City of the Wolves, God of War, Marvel's Spider-Man Remastered and Mortal Kombat 1, each with its whole cover, install size or “non-Steam game”, a graphics-backend badge (GPTK or DXMT), an MF badge on the games in the Media Foundation bottle, and a Play button; below them Resident Evil Requiem, Soulcalibur VI and Tekken 8 show through a Liquid Glass status line reading “Starting Steam…”" />
 
 </div>
 
