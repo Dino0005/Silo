@@ -18,6 +18,8 @@ struct LibraryGridView: View {
     @AppStorage("onboardingDone") private var onboardingDone = false
     /// The toolbar filter (All / Steam / Non-Steam), remembered across launches.
     @AppStorage("libraryKindFilter") private var kindFilter: LibraryKindFilter = .all
+    /// The tile layout (Classic / Icons / Portrait), remembered across launches.
+    @AppStorage(TileStyle.storageKey) private var tileStyle: TileStyle = .classic
     /// "Not Now" on the Rosetta prompt — for this session only, so it asks again at the next launch.
     @ViewState private var rosettaPromptDismissed = false
     /// Steam's loading animation, read from the bottle's Steam install (never bundled — it's Valve's).
@@ -188,6 +190,12 @@ struct LibraryGridView: View {
                 Text("Non-Steam").tag(LibraryKindFilter.nonSteam)
             }
             .pickerStyle(.inline)
+            Picker("Tile Style", selection: $tileStyle) {
+                Text("Classic").tag(TileStyle.classic)
+                Text("Icons").tag(TileStyle.icons)
+                Text("Portrait").tag(TileStyle.portrait)
+            }
+            .pickerStyle(.inline)
         } label: {
             Label("Filter", systemImage: kindFilter == .all ? "line.3.horizontal.decrease"
                                                             : "line.3.horizontal.decrease.circle.fill")
@@ -241,7 +249,15 @@ struct LibraryGridView: View {
         return nil
     }()
 
-    private let columns = [GridItem(.adaptive(minimum: 250), spacing: 16)]
+    /// Portrait covers are narrow, so more of them fit in a row.
+    private var columns: [GridItem] {
+        let minimum: CGFloat = switch tileStyle {
+        case .portrait: 170
+        case .icons: 300
+        default: 250
+        }
+        return [GridItem(.adaptive(minimum: minimum), spacing: 16)]
+    }
 
     @ViewBuilder
     private func grid(_ lib: GameLibraryViewModel, entries: [LibraryEntry]) -> some View {

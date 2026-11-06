@@ -22,10 +22,18 @@ struct ManualGameTileView: View {
             helpText: game.steamAppID == nil ? "Edit settings" : "Show details",
             onPlay: { Task { await lib.playManual(game) } },
             onTap: game.steamAppID == nil ? onSettings : onDetails
-        ) {
-            ManualGameArtwork(exe: game.executablePath,
-                              cover: CoverArtStore(coversDir: env.paths.coversDir)
-                                  .url(named: game.coverArtFileName))
+        ) { style in
+            let art = ManualGameArtwork(exe: game.executablePath,
+                                        cover: CoverArtStore(coversDir: env.paths.coversDir)
+                                            .url(named: game.coverArtFileName))
+            // A game tied to a Steam app ID can borrow that app's portrait cover, if the bottle's Steam has it.
+            if style == .portrait, let appID = game.steamAppID {
+                SteamPortraitArt(appID: appID) { art }
+            } else if style == .icons {
+                GameAppIcon(hostID: game.id.uuidString) { art }
+            } else {
+                art
+            }
         } subtitle: {
             Text("Non-Steam game").font(.caption).foregroundStyle(.secondary)
             BackendTag(choice: game.graphics)

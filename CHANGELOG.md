@@ -15,6 +15,17 @@ the commit message says why.
   Refresh group, shows *All*, *Steam* or *Non-Steam* games. Its icon fills in while a filter other than *All* is
   on, so a shorter list doesn't look like games went missing, and the game count under the title counts only what
   is shown. Silo remembers the choice across launches.
+- **Three Library layouts.** The same filter menu picks how games are shown, also remembered across launches:
+  - *Classic*, the default: the card as before, but with the game's whole cover. The old card cut Steam's
+    460×215 header to a thin band, losing its top and bottom; UNCHARTED's title was cut off.
+  - *Icons*: one row per game like Apple's Games app — the game's own app icon, its title and a Play capsule.
+    The icon is the one of the app Silo makes for the game at its first launch; a game never launched shows its
+    cover in the icon's place until then.
+  - *Portrait*: Steam's 2:3 library cover filling the card, with the title, tags and Play on a Liquid Glass
+    panel at its foot (a blurred material on macOS 15). The cover shows at once from what the bottle's Steam has
+    already downloaded, and is replaced by Steam's sharper 600×900 one from its CDN, fetched once and kept on disk. Non-Steam
+    games use it too when they are tied to a Steam app ID.
+- **A long title shows in full in the card's tooltip.**
 
 ### Changed
 - **Games are listed in one alphabetical order.** Steam games came first, in alphabetical order, and non-Steam

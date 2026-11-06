@@ -40,6 +40,98 @@ struct SteamHeaderArt: View {
     }
 }
 
+/// Steam's portrait cover for a tile, read from the bottle client's own `librarycache` (nothing fetched).
+/// Without one, the landscape `fallback` is shown whole, over a blurred copy of itself filling the tile.
+struct SteamPortraitArt<Fallback: View>: View {
+    @Environment(AppEnvironment.self) private var env
+    let appID: Int
+    @ViewBuilder let fallback: () -> Fallback
+    @ViewState private var portrait: NSImage?
+    @ViewState private var looked = false
+
+    var body: some View {
+        ZStack {
+            if let portrait {
+                Image(nsImage: portrait).resizable().aspectRatio(contentMode: .fill)
+            } else if looked {
+                fallback().blur(radius: 24).overlay(Color.black.opacity(0.25))
+                fallback()
+                    .aspectRatio(TileStyle.headerAspect, contentMode: .fit)
+                    .clipped()
+            } else {
+                GameArtworkPlaceholder()
+            }
+        }
+        .task(id: appID) { await load() }
+    }
+
+    /// The stored HD copy first; else what the bottle's Steam already has, shown at once; then the CDN,
+    /// asked once per session per app (a 404 isn't retried on every redraw).
+    private func load() async {
+        let store = SteamArtworkStore(dir: env.paths.artworkDir)
+        let appID = appID
+        if let stored = store.cachedPortrait(appID: appID), let image = NSImage(contentsOf: stored) {
+            portrait = image
+            looked = true
+            return
+        }
+        let dirs = AppPaths.SteamBottleKind.allCases.map { env.paths.steamBottleClientDir($0) }
+        // Off the main actor: the bottles can live on a slow external drive.
+        let local = await Task.detached { SteamLibraryCache.portrait(appID: appID, clientDirs: dirs) }.value
+        if let local, let image = NSImage(contentsOf: local) { portrait = image }
+        if !PortraitFetchMemo.tried.contains(appID) {
+            PortraitFetchMemo.tried.insert(appID)
+            let fetched = await Task.detached { await store.refreshPortrait(appID: appID) }.value
+            if let fetched, let image = NSImage(contentsOf: fetched) { portrait = image }
+        }
+        looked = true
+    }
+}
+
+/// A game's app icon for the `.icons` tile: its host app's icon as macOS draws it (already in the system's
+/// rounded-square shape), the same one Apple's Games app shows. A game never launched has no host app yet;
+/// it gets `fallback` cropped to the same rounded square.
+struct GameAppIcon<Fallback: View>: View {
+    @Environment(AppEnvironment.self) private var env
+    /// The host app's folder name: the Steam app ID, or a manual game's UUID.
+    let hostID: String
+    @ViewBuilder let fallback: () -> Fallback
+    @ViewState private var icon: NSImage?
+    @ViewState private var looked = false
+
+    var body: some View {
+        Group {
+            if let icon {
+                Image(nsImage: icon).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+            } else if looked {
+                // Inset like a system icon, which leaves a margin inside its frame. Framed square and
+                // clipped first: the artwork fills, and unframed it spilled over the title beside it.
+                let side = TileStyle.iconSize * 0.84
+                fallback()
+                    .frame(width: side, height: side)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: TileStyle.iconSize * 0.2, style: .continuous))
+                    .frame(width: TileStyle.iconSize, height: TileStyle.iconSize)
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: hostID) {
+            if let app = HostAppLookup.bundle(forID: hostID, in: env.paths.hostAppsDir) {
+                let image = NSWorkspace.shared.icon(forFile: app.path)
+                image.size = NSSize(width: 512, height: 512)   // ask for a large representation
+                icon = image
+            }
+            looked = true
+        }
+    }
+}
+
+/// App IDs whose portrait cover was already asked of the CDN this session.
+@MainActor enum PortraitFetchMemo {
+    static var tried: Set<Int> = []
+}
+
 struct SteamGameTileView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.openWindow) private var openWindow
@@ -56,8 +148,14 @@ struct SteamGameTileView: View {
             helpText: "Show details",
             onPlay: { Task { await lib.play(game) } },
             onTap: onDetails
-        ) {
-            SteamHeaderArt(game: game)
+        ) { style in
+            if style == .portrait {
+                SteamPortraitArt(appID: game.appID) { SteamHeaderArt(game: game) }
+            } else if style == .icons {
+                GameAppIcon(hostID: String(game.appID)) { SteamHeaderArt(game: game) }
+            } else {
+                SteamHeaderArt(game: game)
+            }
         } subtitle: {
             if let size = lib.sizeString(game) {
                 Text(size).font(.caption).foregroundStyle(.secondary)

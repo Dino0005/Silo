@@ -74,6 +74,36 @@ public struct SteamArtworkStore: Sendable {
         return save(data, appID: appID)
     }
 
+    // MARK: Portrait (2:3) covers, for the Portrait tile style
+
+    private func portraitFile(for appID: Int) -> URL {
+        dir.appendingPathComponent("\(appID)-portrait.jpg", isDirectory: false)
+    }
+
+    /// The stored portrait cover, or nil. Kept next to the header, under its own name.
+    public func cachedPortrait(appID: Int) -> URL? {
+        let url = portraitFile(for: appID)
+        return fileManager.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// The CDN's portrait cover: the `_2x` (600×900) first, then the plain 300×450 — the same images the Steam
+    /// client caches, but reachable for games that aren't in the bottle's Steam account (a manual game tied
+    /// to an app ID). Stored once; nil when neither exists (newer apps only have hashed asset URLs).
+    public func refreshPortrait(appID: Int, session: URLSession = .shared) async -> URL? {
+        for name in ["library_600x900_2x.jpg", "library_600x900.jpg"] {
+            guard let url = URL(string: "https://cdn.cloudflare.steamstatic.com/steam/apps/\(appID)/\(name)"),
+                  let data = await Self.fetch(url, session: session) else { continue }
+            do {
+                try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+                try data.write(to: portraitFile(for: appID), options: .atomic)
+                return portraitFile(for: appID)
+            } catch {
+                return nil
+            }
+        }
+        return nil
+    }
+
     /// nil for anything that isn't a 200 with a body — a 404 has to read as "no image", not as an image.
     private static func fetch(_ url: URL, session: URLSession) async -> Data? {
         guard let (data, response) = try? await session.data(from: url),
