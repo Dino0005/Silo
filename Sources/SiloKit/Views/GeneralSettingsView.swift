@@ -67,10 +67,28 @@ struct GeneralSettingsView: View {
     /// Where Silo keeps its Wine bottles — movable to another disk / external drive.
     @ViewBuilder private var bottlesSection: some View {
         Section {
-            LabeledContent("Location") {
-                Text(env.paths.bottlesRelocated ? env.paths.bottlesRoot.path : "Application Support (default)")
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+            // Like the Steam bottle's rows: what it is on the left, the current place and its buttons on the right.
+            LabeledContent {
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text(env.paths.bottlesRelocated ? env.paths.bottlesRoot.path : "Application Support (default)")
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                    if !env.bottles.busy {
+                        HStack {
+                            if env.paths.bottlesRelocated {
+                                Button("Reset to Default") { Task { await env.bottles.resetBottlesLocation() } }
+                            }
+                            Button("Move…") {
+                                if let dir = chooseDirectory(message: String(localized: "Choose a folder for Silo's bottles.")) {
+                                    Task { await env.bottles.moveBottles(to: dir) }
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Text("Location")
+                SettingsDescription("Where Silo keeps every bottle: Steam, Media Foundation and those of non-Steam games. You can move them to a Silo Bottles folder wherever you choose, an external drive too (APFS or Mac OS Extended). Close games and Steam first.")
             }
             if env.paths.bottlesRelocated && !env.paths.bottlesRootReachable {
                 Label("This location isn't reachable — is the drive connected?",
@@ -91,16 +109,6 @@ struct GeneralSettingsView: View {
                     }
                 }
             } else {
-                HStack {
-                    Button("Move…") {
-                        if let dir = chooseDirectory(message: String(localized: "Choose a folder for Silo's bottles.")) {
-                            Task { await env.bottles.moveBottles(to: dir) }
-                        }
-                    }
-                    if env.paths.bottlesRelocated {
-                        Button("Reset to Default") { Task { await env.bottles.resetBottlesLocation() } }
-                    }
-                }
                 // The move action itself refuses (with a message) if a bottle is live — so the button stays
                 // enabled rather than showing a nag that only refreshes on an incidental re-render.
                 if let message = env.bottles.message {

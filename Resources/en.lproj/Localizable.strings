@@ -434,3 +434,4 @@
 "Show in Finder" = "Show in Finder";
 "Bottle folder" = "Bottle folder";
 "Shows in the Finder the Silo folder that holds the Steam bottle." = "Shows in the Finder the Silo folder that holds the Steam bottle.";
+"Where Silo keeps every bottle: Steam, Media Foundation and those of non-Steam games. You can move them to a Silo Bottles folder wherever you choose, an external drive too (APFS or Mac OS Extended). Close games and Steam first." = "Where Silo keeps every bottle: Steam, Media Foundation and those of non-Steam games. You can move them to a Silo Bottles folder wherever you choose, an external drive too (APFS or Mac OS Extended). Close games and Steam first.";

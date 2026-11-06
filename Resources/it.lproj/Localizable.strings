@@ -436,3 +436,4 @@
 "Show in Finder" = "Mostra nel Finder";
 "Bottle folder" = "Cartella della bottiglia";
 "Shows in the Finder the Silo folder that holds the Steam bottle." = "Mostra nel Finder la cartella di Silo che contiene la bottiglia di Steam.";
+"Where Silo keeps every bottle: Steam, Media Foundation and those of non-Steam games. You can move them to a Silo Bottles folder wherever you choose, an external drive too (APFS or Mac OS Extended). Close games and Steam first." = "Dove Silo tiene tutte le bottiglie: Steam, Media Foundation e quelle dei giochi non Steam. Puoi spostarle in una cartella Silo Bottles dove scegli, anche su un disco esterno (APFS o Mac OS esteso). Chiudi prima i giochi e Steam.";
