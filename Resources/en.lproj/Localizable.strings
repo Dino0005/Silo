@@ -433,4 +433,4 @@
 "Settings panels opened inside the bottle: Wine's configuration, the Windows registry, the Control Panel, and the game controllers the bottle sees." = "Settings panels opened inside the bottle: Wine's configuration, the Windows registry, the Control Panel, and the game controllers the bottle sees.";
 "Show in Finder" = "Show in Finder";
 "Bottle folder" = "Bottle folder";
-"The bottle's Windows drive and registry, where Steam and its games are installed." = "The bottle's Windows drive and registry, where Steam and its games are installed.";
+"Shows in the Finder the Silo folder that holds the Steam bottle." = "Shows in the Finder the Silo folder that holds the Steam bottle.";

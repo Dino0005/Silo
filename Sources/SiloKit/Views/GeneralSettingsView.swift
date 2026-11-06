@@ -300,20 +300,29 @@ struct SteamBottleControls: View {
             SettingsDescription("What Steam and Wine wrote while running in the bottle. Useful when something goes wrong.")
         }
         LabeledContent {
-            // Two rows of two: four across truncates every label in the settings pane's width.
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Button("Wine Config") { Task { await env.openWineTool("winecfg") } }
-                    Button("Registry") { Task { await env.openWineTool("regedit") } }
+            // Two rows of two: four across truncates every label in the settings pane's width. A Grid, not two
+            // HStacks, so the columns line up — and `fixedSize` makes each column as wide as its longest
+            // button, which the `maxWidth: .infinity` labels then fill: both buttons of a column are equal.
+            Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+                GridRow {
+                    Button { Task { await env.openWineTool("winecfg") } } label: {
+                        Text("Wine Config").frame(maxWidth: .infinity)
+                    }
+                    Button { Task { await env.openWineTool("regedit") } } label: {
+                        Text("Registry").frame(maxWidth: .infinity)
+                    }
                 }
-                HStack(spacing: 8) {
-                    Button("Control Panel") { Task { await env.openWineTool("control") } }
+                GridRow {
+                    Button { Task { await env.openWineTool("control") } } label: {
+                        Text("Control Panel").frame(maxWidth: .infinity)
+                    }
                     // Straight to joy.cpl: the panel people actually come here for, without the grid.
-                    Button("Game Controllers…") {
-                        Task { await env.openWineTool("control", arguments: ["joy.cpl"]) }
+                    Button { Task { await env.openWineTool("control", arguments: ["joy.cpl"]) } } label: {
+                        Text("Game Controllers…").frame(maxWidth: .infinity)
                     }
                 }
             }
+            .fixedSize()
             .disabled(env.wineBinary == nil || !bottle.steamInstalled)
         } label: {
             Text("Repair")
@@ -325,7 +334,7 @@ struct SteamBottleControls: View {
             }
         } label: {
             Text("Bottle folder")
-            SettingsDescription("The bottle's Windows drive and registry, where Steam and its games are installed.")
+            SettingsDescription("Shows in the Finder the Silo folder that holds the Steam bottle.")
         }
         if bottle.busy {
             ProgressView().controlSize(.small)     // indeterminate (warm-up / install / other work)

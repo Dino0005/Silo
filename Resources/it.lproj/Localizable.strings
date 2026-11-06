@@ -435,4 +435,4 @@
 "Settings panels opened inside the bottle: Wine's configuration, the Windows registry, the Control Panel, and the game controllers the bottle sees." = "Pannelli di impostazioni aperti dentro la bottiglia: la configurazione di Wine, il registro di Windows, il Pannello di controllo e i controller di gioco che la bottiglia vede.";
 "Show in Finder" = "Mostra nel Finder";
 "Bottle folder" = "Cartella della bottiglia";
-"The bottle's Windows drive and registry, where Steam and its games are installed." = "Il disco Windows e il registro della bottiglia, dove sono installati Steam e i suoi giochi.";
+"Shows in the Finder the Silo folder that holds the Steam bottle." = "Mostra nel Finder la cartella di Silo che contiene la bottiglia di Steam.";
