@@ -27,9 +27,12 @@ struct GeneralSettingsView: View {
     @ViewBuilder private var bottleToolsSection: some View {
         let configured = env.wineBinary != nil
         Section {
-            Toggle("Retina / HiDPI mode", isOn: Binding(
+            Toggle(isOn: Binding(
                 get: { env.backendSettings.config.retinaMode },
-                set: { on in Task { await env.setSteamBottleRetina(on) } }))
+                set: { on in Task { await env.setSteamBottleRetina(on) } })) {
+                Text("Retina / HiDPI mode")
+                SettingsDescription("Games in the Steam bottle get the display's full Retina resolution instead of a scaled one. Try changing it if a game's window or text comes out the wrong size. Applies from the next launch.")
+            }
                 .disabled(!configured || env.bottleToolsBusy)
             if let message = env.bottleToolsMessage {
                 Text(LocalizedStringKey(message)).font(.caption).foregroundStyle(.secondary)
@@ -44,7 +47,7 @@ struct GeneralSettingsView: View {
     /// the choice is meaningful from the first launch.
     @ViewBuilder private var shortcutsSection: some View {
         Section {
-            Picker("Create shortcuts in", selection: Binding(
+            Picker(selection: Binding(
                 get: { env.backendSettings.config.shortcutsInApplications },
                 set: { inApps in
                     env.backendSettings.config.shortcutsInApplications = inApps
@@ -52,6 +55,9 @@ struct GeneralSettingsView: View {
                 })) {
                 Text("Desktop").tag(false)
                 Text("Applications").tag(true)
+            } label: {
+                Text("Create shortcuts in")
+                SettingsDescription("Where a game's Create Shortcut puts the app that starts it.")
             }
         } header: {
             Text("Shortcuts")
@@ -263,16 +269,37 @@ struct SteamBottleControls: View {
     let logURL: URL
 
     var body: some View {
-        Button("Set up Steam bottle") { Task { await bottle.setUp() } }
-            .disabled(!bottle.canSetUp)
-        Button("Launch Steam") { Task { await bottle.launchSteam() } }
-            .disabled(bottle.busy || !bottle.steamInstalled)
-        Button("Reset Steam login") { Task { await bottle.resetLogin() } }
-            .disabled(bottle.busy || !bottle.steamInstalled)
-        Button("Open bottle log") {
-            openWindow(id: LogTarget.windowID, value: LogTarget(title: logWindowTitle, url: logURL))
+        // Each row as in System Settings: what it is and what it does on the left, a short button on the right.
+        LabeledContent {
+            Button("Set up") { Task { await bottle.setUp() } }
+                .disabled(!bottle.canSetUp)
+        } label: {
+            Text("Bottle setup")
+            SettingsDescription("Creates the bottle and installs Steam with what games need: fonts, Visual C++, d3dcompiler. Parts already there are skipped, so it also finishes an interrupted setup.")
         }
-        LabeledContent("Repair") {
+        LabeledContent {
+            Button("Launch") { Task { await bottle.launchSteam() } }
+                .disabled(bottle.busy || !bottle.steamInstalled)
+        } label: {
+            Text("Steam")
+            SettingsDescription("Opens the bottle's Steam, to sign in and install games. Games you start from the Library open it by themselves.")
+        }
+        LabeledContent {
+            Button("Reset") { Task { await bottle.resetLogin() } }
+                .disabled(bottle.busy || !bottle.steamInstalled)
+        } label: {
+            Text("Steam login")
+            SettingsDescription("Forgets the saved login, so Steam asks you to sign in at its next start. For a login that won't go through, or to change account.")
+        }
+        LabeledContent {
+            Button("Open") {
+                openWindow(id: LogTarget.windowID, value: LogTarget(title: logWindowTitle, url: logURL))
+            }
+        } label: {
+            Text("Bottle log")
+            SettingsDescription("What Steam and Wine wrote while running in the bottle. Useful when something goes wrong.")
+        }
+        LabeledContent {
             // Two rows of two: four across truncates every label in the settings pane's width.
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
@@ -288,9 +315,17 @@ struct SteamBottleControls: View {
                 }
             }
             .disabled(env.wineBinary == nil || !bottle.steamInstalled)
+        } label: {
+            Text("Repair")
+            SettingsDescription("Settings panels opened inside the bottle: Wine's configuration, the Windows registry, the Control Panel, and the game controllers the bottle sees.")
         }
-        Button("Reveal Bottle in Finder") {
-            NSWorkspace.shared.activateFileViewerSelecting([env.paths.steamBottle])
+        LabeledContent {
+            Button("Show in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([env.paths.steamBottle])
+            }
+        } label: {
+            Text("Bottle folder")
+            SettingsDescription("The bottle's Windows drive and registry, where Steam and its games are installed.")
         }
         if bottle.busy {
             ProgressView().controlSize(.small)     // indeterminate (warm-up / install / other work)
@@ -298,5 +333,14 @@ struct SteamBottleControls: View {
         if !bottle.status.isEmpty {
             Text(bottle.status).font(.caption).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// The secondary line under a settings row's title: what the row does, in a sentence or two.
+struct SettingsDescription: View {
+    let text: LocalizedStringKey
+    init(_ text: LocalizedStringKey) { self.text = text }
+    var body: some View {
+        Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
     }
 }
