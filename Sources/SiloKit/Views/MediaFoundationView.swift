@@ -63,21 +63,27 @@ struct MediaFoundationView: View {
                 Section {
                     // Two per row, like the General tab does for the normal bottle's tools. NOT all three
                     // on one line: the Italian labels ("Pannello di controllo", "Controller di Gioco…") are
-                    // much longer than the English ones and three of them crowd the row.
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            Button("Control Panel") {
-                                Task { await env.openWineTool("control", mediaFoundation: true) }
+                    // much longer than the English ones and three of them crowd the row. The same Grid as
+                    // General's: aligned columns, and each column's buttons as wide as its longest one.
+                    Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                        GridRow {
+                            Button { Task { await env.openWineTool("control", mediaFoundation: true) } } label: {
+                                Text("Control Panel").frame(maxWidth: .infinity)
                             }
-                            Button("Game Controllers…") {
+                            Button {
                                 Task { await env.openWineTool("control", arguments: ["joy.cpl"],
                                                               mediaFoundation: true) }
+                            } label: {
+                                Text("Game Controllers…").frame(maxWidth: .infinity)
                             }
                         }
-                        Button("Wine Config…") {
-                            Task { await env.openWineTool("winecfg", mediaFoundation: true) }
+                        GridRow {
+                            Button { Task { await env.openWineTool("winecfg", mediaFoundation: true) } } label: {
+                                Text("Wine Config…").frame(maxWidth: .infinity)
+                            }
                         }
                     }
+                    .fixedSize()
                 } header: {
                     Text("Control Panels")
                 } footer: {
