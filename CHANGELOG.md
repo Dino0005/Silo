@@ -8,6 +8,27 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Changed
+- **Game Mode is declared outright.** A game's host app now carries `LSSupportsGameMode` next to the games
+  category. Apple's documentation warns that without the key Game Mode "might not turn on"; on this Mac it already
+  did through the category alone, so nothing changes in practice, but it no longer rests on that. The Steam
+  client's host still declares neither, so Steam itself never enters Game Mode. Existing games pick it up at their
+  next launch, since the host's `Info.plist` is rewritten every time.
+- **Settings → General reads like System Settings.** Every row of the Steam bottle section has a title and a short
+  description on the left and a short button on the right (Configure, Start, Reset, Open, Show in Finder);
+  Retina / HiDPI mode and the shortcuts folder have a description too. The bottles' location row explains what it
+  holds (the Steam and Media Foundation bottles and those of non-Steam games) and that it can move to a *Silo
+  Bottles* folder, external disks included (APFS or Mac OS Extended), with games and Steam closed first; Move… and
+  Restore Default sit on the right under the path.
+- **Control Panel buttons line up.** In General and in Media Foundation they sit in a grid: aligned columns, and the
+  buttons of a column share one width.
+
+### Fixed
+- **The Library screenshot shows again in the README and on the site.** Its alternative text, written for 0.7.3,
+  contained straight double quotes that ended the `alt` attribute early, so GitHub dropped the image.
+
 ## 0.7.3
 
 ### Added
