@@ -4119,6 +4119,15 @@
   Proton code, ported by NotProton) and how Silo would launch through macOS Steam. Also a macOS 28 concern
   (Rosetta's announced reduction makes an x86 Windows Steam client in Wine a liability). Expect CrossOver to move
   the same way. Meanwhile the user plays Steam games via the NotProton fork with Silo's Wine.
+- **Winetricks, later and not urgent (user, 2026-11-07).** Useful for games that need what Silo doesn't install
+  (`dotnet48`, `xact`, `d3dx9`, `vcrun2010`, `physx`, `quartz`…), mostly non-Steam games. Plan, in small steps:
+  (1) build `cabextract` from source into Silo's Wine (`Runtimes/wine-cx-26.3.0/bin` has none; CrossOver's is a
+  product binary, constraint #7); (2) an "Install with Winetricks…" action for **non-Steam bottles** first, running
+  a winetricks script downloaded at a pinned release + SHA-256 (it is LGPL, never shipped — as NotProton does,
+  `PrefixTools.winetricksRelease`), log written into the bottle; the shared Steam bottle only with a backup first;
+  (3) maybe a searchable package list later. Write our own code: NotProton is GPL-3 and Silo LGPL-2.1, so its
+  `WinetricksCatalog`/`WinetricksView` can inspire but not be copied.
+
 
 ## BLOCKED
 - **HW-accelerated Steam *UI* (M92, on-device test):** flip Advanced → Steam bottle → "Hardware-accelerated
