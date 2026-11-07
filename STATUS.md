@@ -1236,6 +1236,9 @@
   the window now belongs to a bundle in the games category, so Game Mode engages in full screen. A
   bundle-less Wine process had no category to read, so it very likely never did — but the pre-0.6.3 state
   was never measured. Keep the key; its effect on performance under Wine/Rosetta is unmeasured.
+  **2026-11-07:** the game host now also declares `LSSupportsGameMode = true` (games category only, so never
+  the Steam client's host). Apple's docs: without it Game Mode "might not turn on"; NotProton's game bundles
+  carry both keys. The host's Info.plist is rewritten on every launch, so existing games pick it up at once.
 - **📌 After the Wine work: the Steam CLIENT's icon in Stage Manager (user, 2026-09-26 — not urgent).**
   `SteamBottle.launchSteam` doesn't go through the alt-loader host (only the two game launch paths do), so
   Silo's Steam window shows a generic icon. CrossOver DOES get it right — measured live 2026-09-26 (Steam in

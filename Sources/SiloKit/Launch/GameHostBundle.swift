@@ -84,6 +84,8 @@ public struct GameHostBundle: Sendable {
     /// macOS treat the game as a game — Game Mode turns on in full screen and Command-Esc opens the system's
     /// game overlay (brightness, volume, controller). Seen on TEKKEN 8 under the host (user, 2026-09-26,
     /// "Modalità di gioco: Sì", DualSense listed). A bundle-less Wine process had no category to read.
+    /// A game also declares `LSSupportsGameMode`: Apple's documentation warns that without it Game Mode
+    /// "might not turn on", the category alone notwithstanding (NotProton's game bundles carry both).
     public func infoPlist() -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -104,11 +106,13 @@ public struct GameHostBundle: Sendable {
         """
     }
 
-    /// The `LSApplicationCategoryType` entry (ending in the next line's indent), or nothing when `category`
-    /// is `nil`.
+    /// The `LSApplicationCategoryType` entry (ending in the next line's indent), plus `LSSupportsGameMode`
+    /// for the games category, or nothing when `category` is `nil`.
     private var categoryEntry: String {
         guard let category else { return "" }
-        return "<key>LSApplicationCategoryType</key><string>\(xmlEscaped(category))</string>\n    "
+        let entry = "<key>LSApplicationCategoryType</key><string>\(xmlEscaped(category))</string>\n    "
+        guard category == Self.gamesCategory else { return entry }
+        return entry + "<key>LSSupportsGameMode</key><true/>\n    "
     }
 
     /// Named in `CFBundleExecutable`, and — since the alt-loader route was proven (2026-09-23) — the

@@ -38,13 +38,22 @@ struct GameHostBundleTests {
         let dict = try #require(try PropertyListSerialization.propertyList(
             from: Data(plist.utf8), format: nil) as? [String: Any])
         #expect(dict["LSApplicationCategoryType"] as? String == "public.app-category.games")
+        #expect(dict["LSSupportsGameMode"] as? Bool == true)
         #expect(dict["LSMinimumSystemVersion"] as? String == "15.0")
+    }
+
+    /// Game Mode is for games only: another category gets no `LSSupportsGameMode`.
+    @Test func onlyTheGamesCategorySupportsGameMode() {
+        let plist = GameHostBundle(name: "T", id: "2", category: "public.app-category.utilities").infoPlist()
+        #expect(plist.contains("public.app-category.utilities"))
+        #expect(!plist.contains("LSSupportsGameMode"))
     }
 
     /// The Steam client's host declares no category at all: Steam is a launcher, not a game.
     @Test func noCategoryLeavesTheKeyOutAndThePlistValid() throws {
         let plist = GameHostBundle(name: "Steam", id: "steam-client", category: nil).infoPlist()
         #expect(!plist.contains("LSApplicationCategoryType"))
+        #expect(!plist.contains("LSSupportsGameMode"))
         let dict = try #require(try PropertyListSerialization.propertyList(
             from: Data(plist.utf8), format: nil) as? [String: Any])
         #expect(dict["CFBundleName"] as? String == "Steam")

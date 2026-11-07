@@ -203,6 +203,7 @@ struct AltLoaderSessionTests {
             "steam-client/Steam.app/Contents/Info.plist"), encoding: .utf8)
         #expect(plist.contains("<string>Steam</string>"))
         #expect(!plist.contains("LSApplicationCategoryType"))
+        #expect(!plist.contains("LSSupportsGameMode"))
     }
 
     /// Steam started for a game opens its host in the background (`open -g`) so it doesn't cover the game;
