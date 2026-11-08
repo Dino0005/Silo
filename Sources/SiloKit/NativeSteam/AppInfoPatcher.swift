@@ -1,0 +1,215 @@
+import Foundation
+
+/// The edits that make stock macOS Steam install and launch a Windows-only game through Silo, applied to one
+/// app's `appinfo.vdf` entry (see `AppInfoCache`). Pure: no file I/O, so every rule is table-tested.
+///
+/// What it does, and why each part is needed (all measured on macOS Steam, 2026-11-08):
+/// - `common.oslist` and every Windows depot's `oslist` gain `macos`, so Steam offers Install and downloads the
+///   Windows depots as if they were the game's Mac build.
+/// - A launch entry (`SiloLaunch.entryKey`) whose executable is Silo's shim, pinned to macOS + 64-bit; the
+///   game's own entries are pinned to Windows, otherwise an entry without an `oslist` matches every platform
+///   and Steam asks which one to run.
+/// - `osarch = 64` on `common`, which Steam reads as "this macOS build is 64-bit".
+/// - Steam Cloud: every `ufs.savefiles` rule is made to apply on all platforms, and `ufs.rootoverrides` maps the
+///   Windows roots it uses onto the bottle's user folder for macOS — Steam's own mechanism (Feral's ports use
+///   it) so cloud file names stay the Windows ones and saves remain shared with Windows PCs.
+/// The approach is the one mont127/Neutron (Apache-2.0) proved; this is an independent implementation.
+public enum AppInfoPatcher {
+    /// Silo's launch entry key: far from Valve's own (which count up from 0).
+    public static let entryKey = "9000"
+
+    public struct Result: Sendable, Equatable {
+        public var changes: [String] = []
+        public var changed: Bool { !changes.isEmpty }
+    }
+
+    /// Prepares `app` to be installed and played through Silo.
+    /// - Parameters:
+    ///   - shim: the launch entry's executable, relative to the game's install dir (Steam resolves it there),
+    ///     e.g. `../Silo Runtime/silo-launch`.
+    ///   - preferWindows: for a game that ALSO has a macOS build, hide that build so Steam installs the Windows
+    ///     one. Off: a game Steam already considers macOS-eligible is left alone (its native build wins).
+    public static func enableSiloLaunch(_ app: inout AppInfoCache.App, shim: String,
+                                        preferWindows: Bool = false) -> Result {
+        var result = Result()
+        var info = app.info
+        // Already patched by Silo (a re-apply after Steam refreshed the entry, or a second run): the "macos" in
+        // its oslist is ours, so it must not be mistaken for a native Mac build.
+        let alreadyOurs = info.map("config")?.map("launch")?.map(entryKey) != nil
+        let wasMacEligible = !alreadyOurs
+            && (info.map("common")?.string("oslist") ?? "").osList.contains("macos")
+        if wasMacEligible, !preferWindows { return result }
+        // A game that never ran on macOS can still carry a dead Mac depot or launch entry (left over from a
+        // dropped port); Steam would pick that over ours, so it is hidden exactly like an unwanted Mac build.
+        let hideMacContent = preferWindows || !wasMacEligible
+
+        info.editMap("common") { common in
+            if addOS(&common, "oslist") { result.changes.append("common.oslist += macos") }
+            if common.string("osarch") != "64" {
+                common.setString("osarch", "64")
+                result.changes.append("common.osarch = 64")
+            }
+        }
+
+        info.editMap("depots") { depots in
+            for i in depots.indices {
+                guard depots[i].key.allSatisfy(\.isNumber), case .map(var depot) = depots[i].value else { continue }
+                let key = depots[i].key
+                depot.editMap("config") { config in
+                    let os = (config.string("oslist") ?? "").osList
+                    if hideMacContent, os.contains("macos"), !os.contains("windows") {
+                        if dropOS(&config, "oslist") { result.changes.append("depot \(key): mac build hidden") }
+                    } else if os.contains("windows"), addOS(&config, "oslist") {
+                        result.changes.append("depot \(key).oslist += macos")
+                    }
+                }
+                depots[i].value = .map(depot)
+            }
+        }
+
+        var windowsExe: String?
+        info.editMap("config", create: true) { config in
+            config.editMap("launch", create: true) { launches in
+                launches.remove(entryKey)
+                for i in launches.indices {
+                    guard case .map(var entry) = launches[i].value else { continue }
+                    let key = launches[i].key
+                    entry.editMap("config", create: true) { cfg in
+                        let os = (cfg.string("oslist") ?? "").trimmingCharacters(in: .whitespaces)
+                        if os.isEmpty {
+                            cfg.setString("oslist", "windows")
+                            result.changes.append("launch \(key) pinned to windows")
+                        } else if hideMacContent, os.osList.contains("macos"), dropOS(&cfg, "oslist") {
+                            result.changes.append("launch \(key): mac entry hidden")
+                        }
+                    }
+                    let os = (entry.map("config")?.string("oslist") ?? "").osList
+                    if windowsExe == nil, os.contains("windows"), let exe = entry.string("executable"),
+                       !isHelperExecutable(exe) {
+                        windowsExe = exe
+                    }
+                    launches[i].value = .map(entry)
+                }
+                var arguments = "--appid \(app.appID)"
+                if let windowsExe { arguments += " --exe \"\(windowsExe)\"" }
+                launches.append(BinaryKVEntry(entryKey, .map([
+                    BinaryKVEntry("executable", .string(shim)),
+                    BinaryKVEntry("arguments", .string(arguments)),
+                    BinaryKVEntry("type", .string("default")),
+                    BinaryKVEntry("config", .map([
+                        BinaryKVEntry("oslist", .string("macos")),
+                        BinaryKVEntry("osarch", .string("64")),
+                    ])),
+                ])))
+                result.changes.append("launch \(entryKey) -> \(shim)")
+            }
+        }
+        app.info = info
+        return result
+    }
+
+    /// Steam re-downloads an entry whose change number is older than the one its servers report, which wipes
+    /// these edits on the next start; a pinned high number keeps the local copy looking current.
+    /// ⚠️ Open question: this may also hide genuine metadata changes (new builds/depots) from Steam.
+    public static let pinnedChangeNumber: UInt32 = 0xFFFF_FFF0
+
+    public static func pinChangeNumber(_ app: inout AppInfoCache.App) -> Result {
+        guard app.changeNumber != pinnedChangeNumber else { return Result() }
+        let old = app.changeNumber
+        app.changeNumber = pinnedChangeNumber
+        return Result(changes: ["change number \(old) pinned"])
+    }
+
+    /// Where each Windows Steam Cloud root lives inside a Wine user folder (`drive_c/users/<user>`).
+    public static let windowsRootSubpaths: [String: String] = [
+        "WinMyDocuments": "Documents",
+        "WinAppDataLocal": "AppData/Local",
+        "WinAppDataLocalLow": "AppData/LocalLow",
+        "WinAppDataRoaming": "AppData/Roaming",
+        "WinSavedGames": "Saved Games",
+    ]
+
+    /// Makes the app's Steam Cloud rules work on macOS against a bottle.
+    /// - Parameter userFolderFromHome: the bottle's Wine user folder relative to the macOS home folder, e.g.
+    ///   `Library/Application Support/Silo/SteamNative/drive_c/users/crossover` (Steam's `MacHome` root).
+    /// Rules rooted at the game's install dir need nothing; a root Silo can't place is reported, not guessed.
+    public static func enableCloud(_ app: inout AppInfoCache.App, userFolderFromHome: String) -> Result {
+        var result = Result()
+        var info = app.info
+        guard info.map("ufs") != nil else { return result }
+        var roots: [String] = []
+        info.editMap("ufs") { ufs in
+            ufs.editMap("savefiles") { rules in
+                for i in rules.indices {
+                    guard case .map(var rule) = rules[i].value else { continue }
+                    if let root = rule.string("root"), !roots.contains(root) { roots.append(root) }
+                    let platforms = rule.map("platforms")?.compactMap { $0.value.stringValue } ?? []
+                    if !platforms.contains(where: { $0.caseInsensitiveCompare("all") == .orderedSame }) {
+                        rule.set("platforms", .map([BinaryKVEntry("1", .string("all"))]))
+                        result.changes.append("savefiles \(rules[i].key): all platforms")
+                    }
+                    rules[i].value = .map(rule)
+                }
+            }
+            var overrides: [BinaryKVEntry] = []
+            for root in roots {
+                guard let sub = windowsRootSubpaths[root] else {
+                    if root.caseInsensitiveCompare("gameinstall") != .orderedSame {
+                        result.changes.append("root \(root): not mapped")
+                    }
+                    continue
+                }
+                overrides.append(BinaryKVEntry(String(overrides.count), .map([
+                    BinaryKVEntry("root", .string(root)),
+                    BinaryKVEntry("os", .string("MacOS")),
+                    BinaryKVEntry("oscompare", .string("=")),
+                    BinaryKVEntry("useinstead", .string("MacHome")),
+                    BinaryKVEntry("addpath", .string("\(userFolderFromHome)/\(sub)")),
+                ])))
+                result.changes.append("root \(root) -> ~/\(userFolderFromHome)/\(sub)")
+            }
+            // Ours replace any macOS overrides Valve shipped (they point at a native port's folders); other
+            // platforms' overrides are kept.
+            var kept = (ufs.map("rootoverrides") ?? []).filter {
+                ($0.value.children?.string("os") ?? "").caseInsensitiveCompare("MacOS") != .orderedSame
+            }
+            for entry in overrides { kept.append(BinaryKVEntry(String(kept.count), entry.value)) }
+            if !kept.isEmpty {
+                for i in kept.indices { kept[i].key = String(i) }
+                ufs.set("rootoverrides", .map(kept))
+            }
+        }
+        app.info = info
+        return result
+    }
+
+    /// Launchers, uninstallers and config tools a game lists next to its real executable.
+    static func isHelperExecutable(_ exe: String) -> Bool {
+        let lower = exe.lowercased()
+        return ["legacy", "cfg.exe", "unins", "redist", "vcredist", "dxsetup"].contains { lower.contains($0) }
+    }
+
+    @discardableResult
+    static func addOS(_ map: inout [BinaryKVEntry], _ key: String, _ os: String = "macos") -> Bool {
+        var list = (map.string(key) ?? "").osList
+        guard !list.contains(os) else { return false }
+        list.append(os)
+        map.setString(key, list.joined(separator: ","))
+        return true
+    }
+
+    @discardableResult
+    static func dropOS(_ map: inout [BinaryKVEntry], _ key: String, _ os: String = "macos") -> Bool {
+        let list = (map.string(key) ?? "").osList
+        guard list.contains(os) else { return false }
+        map.setString(key, list.filter { $0 != os }.joined(separator: ","))
+        return true
+    }
+}
+
+extension String {
+    /// A Steam `oslist` value ("windows,macos") as its lowercase parts.
+    var osList: [String] {
+        split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty }
+    }
+}
