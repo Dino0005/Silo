@@ -56,8 +56,10 @@ public struct NativeSteamLauncher: Sendable {
         let context = try BottleResolver(paths: paths).steam(backend: chosen, config: backend)
         let bottle = NativeSteamBottle(paths: paths, runner: runner)
         log("bottle \(paths.nativeSteamBottle.path), backend \(chosen), wine \(context.wineBinary.path)")
-        try await bottle.ensureBottle()
-        try bottle.stageRuntime(wine: context.wineBinary)
+        let source = bottle.bridgeSource(wine: context.wineBinary)
+        log("bridge from \(source)")
+        try await bottle.ensureBottle(source: source)
+        if case .devFolder = source { try bottle.stageRuntime(wine: context.wineBinary) }
 
         let pid = try await orchestrator.launchInBottle(
             app: app, config: config, backend: backend, graphics: chosen,

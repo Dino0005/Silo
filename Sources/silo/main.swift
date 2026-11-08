@@ -44,7 +44,10 @@ if CommandLine.arguments.contains("--smoke")
     }
     do {
         guard !steamRunning() else { print("Quit Steam first."); exit(1) }
-        try await NativeSteamBottle(paths: paths, runner: SystemProcessRunner()).ensureBottle()
+        let bottle = NativeSteamBottle(paths: paths, runner: SystemProcessRunner())
+        let backend = await ConfigStore(paths: paths).load().backend
+        let wine = try? BottleResolver(paths: paths).steam(backend: .gptk, config: backend).wineBinary
+        try await bottle.ensureBottle(source: bottle.bridgeSource(wine: wine))
         let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path + "/"
         let users = paths.nativeSteamBottle.appendingPathComponent("drive_c/users")
         let user = (try? FileManager.default.contentsOfDirectory(atPath: users.path))?

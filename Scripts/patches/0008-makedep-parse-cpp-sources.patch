@@ -1,0 +1,24 @@
+Silo patch 0008 — makedep: scan .cpp sources like .c ones
+
+Why: Silo builds Valve's Proton lsteamclient (the Windows steam_api → macOS Steam bridge, see
+Scripts/add-lsteamclient.sh) inside this Wine tree. Its unix half is ~210 C++ files marked
+"#pragma makedep unix". Upstream makedep only scans .c/.h/.m/... for that pragma, so the .cpp files were
+built as PE objects and lsteamclient.so came out empty. Proton's own Wine fork carries full C++ support;
+this is the one line Silo needs: with the pragma seen, makedep routes them to the unix lib and compiles them
+with $(CC) — clang picks C++ from the .cpp extension.
+
+Inert for everything else: no CrossOver module has .cpp sources.
+
+Verify (2026-11-08, 26.3.0 tree): makedep lists dlls/lsteamclient/*.o (unix) as lsteamclient.so's objects;
+the .so builds (2.39 MB) and TEKKEN 8 runs through it against macOS Steam.
+
+--- a/tools/makedep.c
++++ b/tools/makedep.c
+@@ -1237,6 +1237,7 @@
+ } parse_functions[] =
+ {
+     { ".c",   parse_c_file },
++    { ".cpp", parse_c_file },
+     { ".h",   parse_c_file },
+     { ".inl", parse_c_file },
+     { ".l",   parse_c_file },

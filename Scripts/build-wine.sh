@@ -46,6 +46,10 @@ for p in "$ROOT"/Scripts/patches/*.patch; do
     || { echo "ERROR: $(basename "$p") did not apply to CrossOver source $VER — rebase it"; exit 1; }
 done
 
+# The native-macOS-Steam bridge (Valve's Proton lsteamclient + steam.exe helper) becomes two more modules of
+# this tree, so it is built by the same make with the same compilers. See the script's header.
+"$ROOT/Scripts/add-lsteamclient.sh" source "$WORK/$WINE_SRC" "$WORK"
+
 echo "==> Build CrossOver's GStreamer $(sed -n "s/^ *version *: *'\([0-9.]*\)'.*/\1/p" "$WORK/src/sources/gstreamer/meson.build" | head -1) from this source (+ libav + matroska)"
 # winegstreamer must compile against the SAME GStreamer/glib it will run on — CrossOver's (1.24.4 / 2.78,
 # from this very tarball). Built against Homebrew's newer glib it imports g_once_init_enter_pointer, which
@@ -144,6 +148,7 @@ ln -sfn "$DEPS_PREFIX/lib" "$WORK/lib64"
 $ARCH /usr/bin/make -j"$(sysctl -n hw.ncpu)"
 $ARCH /usr/bin/make install
 rm -f "$WORK/lib64"
+"$ROOT/Scripts/add-lsteamclient.sh" install "$WORK/$WINE_SRC" "$WORK/install"
 
 echo "==> Build the steamwebhelper wrapper (forces CEF --in-process-gpu + software GL so Steam's UI paints)"
 mkdir -p "$WORK/install/share/silo"
