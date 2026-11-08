@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SiloKit
 
@@ -31,6 +32,40 @@ if CommandLine.arguments.contains("--smoke")
         exit(try await NativeSteamLauncher(paths: paths).run(request, log: log))
     } catch {
         log("failed: \(error)")
+        exit(1)
+    }
+} else if let idx = CommandLine.arguments.firstIndex(of: "--native-steam-enable") {
+    // Dev/on-device: wire macOS Steam to Silo for the given app ids — the SteamNative bottle (cloned on first
+    // use), the launcher script in every Steam library, and the appinfo.vdf edits (Steam must be closed).
+    let paths = AppPaths.standard()
+    let ids = CommandLine.arguments[(idx + 1)...].compactMap { UInt32($0) }
+    let steamRunning: @Sendable () -> Bool = {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: "com.valvesoftware.steam").isEmpty
+    }
+    do {
+        guard !steamRunning() else { print("Quit Steam first."); exit(1) }
+        try await NativeSteamBottle(paths: paths, runner: SystemProcessRunner()).ensureBottle()
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path + "/"
+        let users = paths.nativeSteamBottle.appendingPathComponent("drive_c/users")
+        let user = (try? FileManager.default.contentsOfDirectory(atPath: users.path))?
+            .first { $0 != "Public" && !$0.hasPrefix(".") }
+        let userFolder = user.map { users.appendingPathComponent($0).standardizedFileURL.path }
+        let cloud = userFolder.flatMap { $0.hasPrefix(home) ? String($0.dropFirst(home.count)) : nil }
+        let installer = NativeSteamInstaller(
+            steamRoot: FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/Application Support/Steam"),
+            backupDir: paths.supportDir.appendingPathComponent("NativeSteam"), isSteamRunning: steamRunning)
+        let siloExe = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
+        let launcher = try installer.installLauncher(siloExecutable: siloExe)
+        print("launcher -> \(siloExe.path)")
+        launcher.installed.forEach { print("  installed \($0.path)") }
+        launcher.unreachable.forEach { print("  unreachable library \($0.path)") }
+        let results = try installer.patch(ids.map { .init(appID: $0, cloudUserFolderFromHome: cloud) })
+        for id in ids {
+            print("\(id): \(results[id].map { $0.changes.joined(separator: "; ") } ?? "not in Steam's cache")")
+        }
+    } catch {
+        print("failed: \(error)")
         exit(1)
     }
 } else if CommandLine.arguments.contains("--setup-steam") {
