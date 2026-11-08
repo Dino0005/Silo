@@ -43,6 +43,10 @@ struct NativeSteamBottleTests {
                            encoding: .utf8) == "WINDOWS STEAM")
         #expect(try String(contentsOf: paths.nativeSteamBottle.appendingPathComponent(
             "drive_c/windows/syswow64/lsteamclient.dll"), encoding: .utf8) == "bridge:i386-windows/lsteamclient.dll")
+        #expect(try String(contentsOf: steam.appendingPathComponent("lsteamclient.dll"), encoding: .utf8)
+                == "bridge:x86_64-windows/lsteamclient.dll")
+        #expect(try String(contentsOf: steam.appendingPathComponent("lsteamclient.so"), encoding: .utf8)
+                == "bridge:x86_64-unix/lsteamclient.so")
         // The classic bottle is untouched.
         #expect(try String(contentsOf: paths.steamBottle.appendingPathComponent(
             "drive_c/Program Files (x86)/Steam/steam.exe"), encoding: .utf8) == "WINDOWS STEAM")

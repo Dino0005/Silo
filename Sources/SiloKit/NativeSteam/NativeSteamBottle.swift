@@ -58,6 +58,13 @@ public struct NativeSteamBottle: Sendable {
             try fileManager.moveItem(at: client, to: original)
         }
         try Self.copyIfDifferent(shim, to: client, fileManager: fileManager)
+        // Patch 0003 loads lsteamclient along steamclient64.dll's own load path — this folder — and finds it
+        // nowhere else (measured 2026-11-08: with the copy only in the runtime's lib/wine, "lsteamclient.dll
+        // could not be loaded" and the game asked Steam to restart it). Its unix half sits beside it.
+        try Self.copyIfDifferent(paths.nativeSteamBridgeDir.appendingPathComponent("x86_64-windows/lsteamclient.dll"),
+                                 to: steamDir.appendingPathComponent("lsteamclient.dll"), fileManager: fileManager)
+        try Self.copyIfDifferent(paths.nativeSteamBridgeDir.appendingPathComponent("x86_64-unix/lsteamclient.so"),
+                                 to: steamDir.appendingPathComponent("lsteamclient.so"), fileManager: fileManager)
         // 32-bit games load lsteamclient from syswow64 (where Proton's own prefixes carry it).
         let syswow64 = bottle.appendingPathComponent("drive_c/windows/syswow64", isDirectory: true)
         if fileManager.fileExists(atPath: syswow64.path) {
@@ -66,8 +73,9 @@ public struct NativeSteamBottle: Sendable {
         }
     }
 
-    /// Puts `lsteamclient` into the runtime a launch uses, as builtin modules next to Wine's own — so no
-    /// `WINEDLLPATH` is needed. Inert for every other launch: patch 0003 only loads it with `SILO_LSTEAMCLIENT=1`.
+    /// Puts `lsteamclient` into the runtime a launch uses, as builtin modules next to Wine's own. Inert for every
+    /// other launch: patch 0003 only loads it with `SILO_LSTEAMCLIENT=1`. ⚠️ The working TEKKEN launch loaded the
+    /// copy in the bottle's Steam folder; whether this runtime copy is needed at all is still to be checked.
     /// Repeated at every launch because a Wine reinstall (or a fresh DXMT clone) starts without it.
     public func stageRuntime(wine: URL, fileManager: FileManager = .default) throws {
         let layout = WineRuntimeLayout(wineBinary: wine)
