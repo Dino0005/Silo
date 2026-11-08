@@ -893,7 +893,7 @@ public final class GameLibraryViewModel {
     /// The refusal message if the resolved backend can't run this executable's bitness — a 32-bit game pinned
     /// to GPTK (64-bit-only), or one routed to a DXMT build with no i386 modules — else nil. Pure, and shared
     /// by `play` and `playManual` so their guards (and the "needs the 32-bit DXMT build" text) can't drift.
-    private static func bitnessRefusal(
+    nonisolated static func bitnessRefusal(
         name: String, choice: GraphicsChoice, chosen: GraphicsBackend,
         is32: Bool, dxmtConfigured: Bool, dxmtSupports32Bit: Bool
     ) -> String? {
@@ -912,14 +912,14 @@ public final class GameLibraryViewModel {
 
     /// The message when a 32-bit (i386) game is refused under an explicit GPTK choice. GPTK / D3DMetal is
     /// 64-bit-only (Apple ships no 32-bit D3DMetal), so the game is steered to DXMT / Automatic. Pure.
-    static func unsupported32BitMessage(name: String, dxmtAvailable: Bool) -> String {
+    nonisolated static func unsupported32BitMessage(name: String, dxmtAvailable: Bool) -> String {
         "\(name) is a 32-bit game — GPTK / D3DMetal is 64-bit-only and can't run it. "
             + dxmtSteer(dxmtAvailable: dxmtAvailable)
     }
 
     /// The DXMT-steering suffix shared by the graphics-fallback and 32-bit-refusal messages, adapting to
     /// DXMT readiness. Both Steam and manual games expose a per-game Graphics setting.
-    private static func dxmtSteer(dxmtAvailable: Bool) -> String {
+    nonisolated private static func dxmtSteer(dxmtAvailable: Bool) -> String {
         dxmtAvailable
             ? "Switch this game's graphics to DXMT in its settings."
             : "Set up DXMT in Settings → DXMT first."

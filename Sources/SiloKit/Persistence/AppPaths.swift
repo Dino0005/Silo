@@ -90,6 +90,18 @@ public struct AppPaths: Sendable, Hashable {
         bottlesRoot.appendingPathComponent("SteamBottleMF", isDirectory: true)
     }
 
+    /// The bottle for Windows games started by **macOS** Steam (`NativeSteamBottle`): a clone of `steamBottle`
+    /// whose Windows Steam client is replaced by the bridge's stand-in `steam.exe`. Separate so the classic
+    /// mode (Windows Steam in `steamBottle`) keeps working unchanged.
+    /// TODO(native-steam): not yet in `bottleDirNames` — a bottles move leaves it behind.
+    public var nativeSteamBottle: URL {
+        bottlesRoot.appendingPathComponent("SteamNative", isDirectory: true)
+    }
+    /// The bridge files staged into that bottle and its runtime (stand-in `steam.exe`, `lsteamclient`).
+    public var nativeSteamBridgeDir: URL {
+        runtimesDir.appendingPathComponent("native-steam-bridge", isDirectory: true)
+    }
+
     /// Which of the two Steam bottles a path refers to. They're identical in layout — the MF one is a
     /// clone — so everything below is the same shape with a different root, and a separate log so two
     /// clients can never overwrite each other's output.

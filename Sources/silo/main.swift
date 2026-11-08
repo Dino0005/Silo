@@ -7,6 +7,32 @@ setbuf(stdout, nil)   // unbuffered so progress shows immediately under non-TTY
 if CommandLine.arguments.contains("--smoke")
     || ProcessInfo.processInfo.environment["SILO_SMOKE"] == "1" {
     print("\(Silo.appName) \(Silo.version) — smoke ok")
+} else if let idx = CommandLine.arguments.firstIndex(of: NativeSteamInstaller.launchFlag) {
+    // macOS Steam's Play on a Windows game (the `silo-launch` script): launch headless and stay alive until the
+    // game ends — Steam treats this process as the game. Nothing reaches the user from stdout here, so every
+    // step goes to Logs/native-steam-launch.log.
+    let paths = AppPaths.standard()
+    let logURL = paths.logsDir.appendingPathComponent("native-steam-launch.log")
+    try? FileManager.default.createDirectory(at: paths.logsDir, withIntermediateDirectories: true)
+    let log: (String) -> Void = { line in
+        let stamped = "\(Date().formatted(.iso8601)) \(line)\n"
+        if let handle = try? FileHandle(forWritingTo: logURL) {
+            handle.seekToEndOfFile(); handle.write(Data(stamped.utf8)); try? handle.close()
+        } else {
+            try? Data(stamped.utf8).write(to: logURL)
+        }
+    }
+    let args = Array(CommandLine.arguments[(idx + 1)...])
+    log("request: \(args) cwd: \(FileManager.default.currentDirectoryPath)")
+    do {
+        let request = try NativeSteamLaunchRequest.parse(
+            args, workingDirectory: URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true),
+            environment: ProcessInfo.processInfo.environment)
+        exit(try await NativeSteamLauncher(paths: paths).run(request, log: log))
+    } catch {
+        log("failed: \(error)")
+        exit(1)
+    }
 } else if CommandLine.arguments.contains("--setup-steam") {
     // CLI harness (dev/on-device validation): run the whole guided setup — Wine + DXMT download, then the
     // bottle's ordered component installs + first-run warm-up — against the real bottle, streaming progress.
