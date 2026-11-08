@@ -100,7 +100,8 @@ public struct LaunchOrchestrator: Sendable {
         desktopGeometry: String? = nil,
         steamArguments: [String] = [],
         altLoaderSocket: URL? = nil,
-        dxmtDLSS: Bool = false
+        dxmtDLSS: Bool = false,
+        steamBridge: NativeSteamBridge? = nil
     ) throws -> LaunchPlan {
         guard let wine = wine ?? backend.wineBinaryPath else {
             throw LaunchError.wineNotConfigured
@@ -198,8 +199,17 @@ public struct LaunchOrchestrator: Sendable {
         // Steam's own launch options first, then the user's — anything they typed by hand WINS and Steam's
         // copy of it is dropped (see `mergeArguments`), so a hand-added switch extends the game's required
         // arguments instead of duplicating them.
-        var arguments = Self.invocation(for: gameExe, viaStart: altLoaderSocket != nil)
-            + Self.mergeArguments(steam: steamArguments, user: config.customArgs)
+        let gameArguments = Self.mergeArguments(steam: steamArguments, user: config.customArgs)
+        var arguments = Self.invocation(for: gameExe, viaStart: altLoaderSocket != nil) + gameArguments
+        // A game started by macOS Steam (`NativeSteamBridge`): the stand-in client creates it — which is also
+        // a real process creation, so the alt-loader hand-over needs no `start` — and the bridge's routing is
+        // added after the backend's and the user's overrides (its three modules must resolve that way).
+        if let steamBridge {
+            arguments = steamBridge.arguments(gameExe: gameExe, gameArguments: gameArguments)
+            for (key, value) in steamBridge.environment { environment[key] = value }
+            environment["WINEDLLOVERRIDES"] = mergeOverride(environment["WINEDLLOVERRIDES"],
+                                                            NativeSteamBridge.dllOverrides)
+        }
         // winemac.drv only ever honors a ChangeDisplaySettings/fullscreen request against what IT considers
         // the PRIMARY adapter (see dlls/winemac.drv/display.c — a deliberate upstream Wine limitation, not
         // a Silo bug: it rejects (fakes success on) any other adapter, "Changing non-primary adapter
@@ -285,7 +295,8 @@ public struct LaunchOrchestrator: Sendable {
         app: SteamApp, config: GameConfig, backend: BackendConfig,
         graphics: GraphicsBackend, wine: URL? = nil, prefix: URL, logURL: URL,
         gameExe: URL? = nil, desktopGeometry: String? = nil,
-        altLoaderSocket: URL? = nil, altLoaderTarget: AltLoaderSession.Target? = nil
+        altLoaderSocket: URL? = nil, altLoaderTarget: AltLoaderSession.Target? = nil,
+        steamBridge: NativeSteamBridge? = nil
     ) async throws -> Int32 {
         guard let launchWine = wine ?? backend.wineBinaryPath else { throw LaunchError.wineNotConfigured }
         // Reuse the exe the caller already resolved (the VM resolves it once to pick the backend), else
@@ -307,7 +318,8 @@ public struct LaunchOrchestrator: Sendable {
             gameExe: gameExe, prefix: prefix, logURL: logURL, desktopGeometry: desktopGeometry,
             steamArguments: steamLaunchEntry(for: app)?.arguments ?? [],
             altLoaderSocket: socket,
-            dxmtDLSS: graphics == .dxmt && config.envFlags.metalFX && Self.dxmtDLSS(backend: backend, gameExe: gameExe))
+            dxmtDLSS: graphics == .dxmt && config.envFlags.metalFX && Self.dxmtDLSS(backend: backend, gameExe: gameExe),
+            steamBridge: steamBridge)
         return try await spawn(plan)
     }
 
