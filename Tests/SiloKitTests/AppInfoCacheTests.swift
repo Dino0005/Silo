@@ -169,7 +169,7 @@ struct AppInfoPatcherTests {
         let once = app
         let again = AppInfoPatcher.enableSiloLaunch(&app, shim: shim)
         #expect(app.root == once.root)
-        #expect(again.changes == ["launch 9000 -> \(shim)"])
+        #expect(again.changes.isEmpty)   // an identical re-application is no change
         #expect(app.info.map("config")?.map("launch")?.filter { $0.key == "9000" }.count == 1)
     }
 

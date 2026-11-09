@@ -35,9 +35,9 @@ public enum AppInfoPatcher {
         var info = app.info
         // Already patched by Silo (a re-apply after Steam refreshed the entry, or a second run): the "macos" in
         // its oslist is ours, so it must not be mistaken for a native Mac build.
-        let alreadyOurs = info.map("config")?.map("launch")?.map(entryKey) != nil
-        let wasMacEligible = !alreadyOurs
-            && (info.map("common")?.string("oslist") ?? "").osList.contains("macos")
+        // "Mac-eligible" = a real Mac build of its own, not a `macos` Silo added (an earlier protect/enable pass —
+        // Steam keeps that edit across sessions, so the oslist alone can't tell the two apart).
+        let wasMacEligible = hasNativeMacBuild(info)
         if wasMacEligible, !preferWindows { return result }
         // A game that never ran on macOS can still carry a dead Mac depot or launch entry (left over from a
         // dropped port); Steam would pick that over ours, so it is hidden exactly like an unwanted Mac build.
@@ -71,6 +71,7 @@ public enum AppInfoPatcher {
         var windowsExe: String?
         info.editMap("config", create: true) { config in
             config.editMap("launch", create: true) { launches in
+                let previous = launches.first { $0.key == entryKey }
                 launches.remove(entryKey)
                 for i in launches.indices {
                     guard case .map(var entry) = launches[i].value else { continue }
@@ -93,7 +94,7 @@ public enum AppInfoPatcher {
                 }
                 var arguments = "--appid \(app.appID)"
                 if let windowsExe { arguments += " --exe \"\(windowsExe)\"" }
-                launches.append(BinaryKVEntry(entryKey, .map([
+                let entry = BinaryKVEntry(entryKey, .map([
                     BinaryKVEntry("executable", .string(shim)),
                     BinaryKVEntry("arguments", .string(arguments)),
                     BinaryKVEntry("type", .string("default")),
@@ -101,8 +102,10 @@ public enum AppInfoPatcher {
                         BinaryKVEntry("oslist", .string("macos")),
                         BinaryKVEntry("osarch", .string("64")),
                     ])),
-                ])))
-                result.changes.append("launch \(entryKey) -> \(shim)")
+                ]))
+                launches.append(entry)
+                // Re-applying an identical entry is no change (the guard runs this after every Steam exit).
+                if previous != entry { result.changes.append("launch \(entryKey) -> \(shim)") }
             }
         }
         app.info = info

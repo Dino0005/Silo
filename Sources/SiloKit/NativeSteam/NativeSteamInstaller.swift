@@ -152,8 +152,8 @@ public struct NativeSteamInstaller: Sendable {
         return ids
     }
 
-    /// Applies `AppInfoPatcher.protectWindowsInstall` to every installed app, so no Windows game in any library
-    /// can be wiped by macOS Steam. Must run with Steam closed — before it starts (Silo's guard runs it after
+    /// Applies `AppInfoPatcher.protectWindowsInstall` and Silo's launch entry (`enableSiloLaunch`) to every
+    /// installed Windows game, so none can be wiped by macOS Steam and Play runs each through Silo. Must run with Steam closed — before it starts (Silo's guard runs it after
     /// every Steam exit, because Steam writes `appinfo.vdf` back then). Writes nothing when nothing changed.
     /// Returns the apps it changed.
     @discardableResult
@@ -164,7 +164,12 @@ public struct NativeSteamInstaller: Sendable {
         for id in installedAppIDs(fileManager: fileManager) {
             let cache = try AppInfoCache(data: data)
             guard var app = try cache.app(id) else { continue }
-            let result = AppInfoPatcher.protectWindowsInstall(&app)
+            // Protection, then Silo's launch entry: a protected game without it makes Steam exec the Windows exe
+            // on Play ("OS Error 0", FATAL FURY 2026-11-10). Cloud rules are left alone (per game, later).
+            var result = AppInfoPatcher.protectWindowsInstall(&app)
+            if AppInfoPatcher.isWindowsGame(app.info) {
+                result.changes += AppInfoPatcher.enableSiloLaunch(&app, shim: Self.launcherRelativePath).changes
+            }
             guard result.changed else { continue }
             results[id] = result
             data = try cache.replacing(app)

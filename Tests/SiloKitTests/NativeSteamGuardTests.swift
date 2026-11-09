@@ -116,6 +116,16 @@ struct NativeSteamGuardTests {
         #expect(try FileManager.default.attributesOfItem(atPath: cacheURL.path)[.modificationDate] as? Date == stamp)
     }
 
+    @Test("A protected-only game gets Silo's launch entry on the next pass (Play would exec the .exe otherwise)")
+    func protectedGameGetsLaunchEntry() throws {
+        var app = tekken
+        _ = AppInfoPatcher.protectWindowsInstall(&app)
+        #expect(app.info.map("config")?.map("launch")?.map(AppInfoPatcher.entryKey) == nil)
+        let result = AppInfoPatcher.enableSiloLaunch(&app, shim: "../Silo Runtime/silo-launch")
+        #expect(result.changes.contains("launch 9000 -> ../Silo Runtime/silo-launch"))
+        #expect(app.info.map("config")?.map("launch")?.map("9000")?.string("arguments") == "--appid 1778820 --exe \"TEKKEN 8.exe\"")
+    }
+
     @Test("The guard protects when it starts with Steam closed and on every Steam exit, never while it runs")
     func watchEdges() {
         var watch = NativeSteamGuard.Watch()
