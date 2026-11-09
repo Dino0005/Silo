@@ -112,6 +112,16 @@ public struct NativeSteamInstaller: Sendable {
         return ids.sorted()
     }
 
+    /// The installed apps that are Windows games (`AppInfoPatcher.isWindowsGame`), read from Steam's cache.
+    public func installedWindowsGameIDs(fileManager: FileManager = .default) throws -> Set<UInt32> {
+        let cache = try AppInfoCache(contentsOf: appInfoURL)
+        var ids: Set<UInt32> = []
+        for id in installedAppIDs(fileManager: fileManager) {
+            if let app = try cache.app(id), AppInfoPatcher.isWindowsGame(app.info) { ids.insert(id) }
+        }
+        return ids
+    }
+
     /// Applies `AppInfoPatcher.protectWindowsInstall` to every installed app, so no Windows game in any library
     /// can be wiped by macOS Steam. Must run with Steam closed — before it starts (Silo's guard runs it after
     /// every Steam exit, because Steam writes `appinfo.vdf` back then). Writes nothing when nothing changed.
@@ -158,7 +168,6 @@ public struct NativeSteamInstaller: Sendable {
                 if let folder = game.cloudUserFolderFromHome {
                     result.changes += AppInfoPatcher.enableCloud(&app, userFolderFromHome: folder).changes
                 }
-                result.changes += AppInfoPatcher.pinChangeNumber(&app).changes
             }
             results[game.appID] = result
             if result.changed { data = try cache.replacing(app) }

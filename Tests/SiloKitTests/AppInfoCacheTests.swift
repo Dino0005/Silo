@@ -189,14 +189,6 @@ struct AppInfoPatcherTests {
         #expect(launches.map("9000")?.string("arguments") == "--appid 203160 --exe \"TombRaider.exe\"")
     }
 
-    @Test("The change number is pinned once")
-    func pinChangeNumber() {
-        var app = AppInfoFixtures.tekken
-        #expect(AppInfoPatcher.pinChangeNumber(&app).changes == ["change number 346 pinned"])
-        #expect(app.changeNumber == AppInfoPatcher.pinnedChangeNumber)
-        #expect(!AppInfoPatcher.pinChangeNumber(&app).changed)
-    }
-
     @Test("Cloud rules run on every platform and the Windows root maps into the bottle on macOS")
     func cloud() throws {
         var app = AppInfoFixtures.tekken
@@ -247,10 +239,9 @@ struct AppInfoPatcherTests {
         var app = try #require(try cache.app(1_778_820))
         _ = AppInfoPatcher.enableSiloLaunch(&app, shim: shim)
         _ = AppInfoPatcher.enableCloud(&app, userFolderFromHome: "x")
-        _ = AppInfoPatcher.pinChangeNumber(&app)
         let reread = try #require(try AppInfoCache(data: cache.replacing(app)).app(1_778_820))
         #expect(reread.root == app.root)
-        #expect(reread.changeNumber == AppInfoPatcher.pinnedChangeNumber)
+        #expect(reread.changeNumber == app.changeNumber)
     }
 }
 

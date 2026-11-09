@@ -115,8 +115,11 @@ public enum AppInfoPatcher {
     /// game whose depots are all `oslist windows`, the Mac depot set is empty, so the first auto-update or
     /// validate macOS Steam runs on it commits that empty set and removes every file. Adding `macos` to
     /// `common.oslist` and to each Windows depot makes Steam treat the Windows files as the Mac build — the same
-    /// edit `enableSiloLaunch` makes, without its launch entry or cloud rules. The change number is pinned too,
-    /// so Steam keeps this copy instead of re-fetching the entry (which would undo the edit mid-session).
+    /// edit `enableSiloLaunch` makes, without its launch entry or cloud rules.
+    /// Why the edit survives a running Steam (measured 2026-11-09): when Steam's servers announce a new change
+    /// number it compares the entry's content hash (the header's text SHA-1, which Silo leaves untouched) and, if
+    /// it is unchanged, keeps its local — patched — copy and only stores the new number. Only a real metadata
+    /// change on Valve's side brings the unpatched entry back mid-session; `NativeSteamShadow` covers that case.
     /// `common.osextended` gains `macos64`, the flag Steam reads as "64-bit Mac build" (native 64-bit ports carry
     /// it: Dota 2, Tomb Raider…); without it Steam shows the red "macOS can't run 32-bit games like this" banner.
     /// Left alone: a game with a native Mac build (`hasNativeMacBuild`), and one with no `oslist` at all
@@ -124,8 +127,7 @@ public enum AppInfoPatcher {
     public static func protectWindowsInstall(_ app: inout AppInfoCache.App) -> Result {
         var result = Result()
         var info = app.info
-        let os = (info.map("common")?.string("oslist") ?? "").osList
-        guard os.contains("windows"), !hasNativeMacBuild(info) else { return result }
+        guard isWindowsGame(info) else { return result }
         info.editMap("common") { common in
             if addOS(&common, "oslist") { result.changes.append("common.oslist += macos") }
             if addOS(&common, "osextended", "macos64") { result.changes.append("common.osextended += macos64") }
@@ -143,20 +145,7 @@ public enum AppInfoPatcher {
             }
         }
         app.info = info
-        if result.changed { result.changes += pinChangeNumber(&app).changes }
         return result
-    }
-
-    /// Steam re-downloads an entry whose change number is older than the one its servers report, which wipes
-    /// these edits on the next start; a pinned high number keeps the local copy looking current.
-    /// ⚠️ Open question: this may also hide genuine metadata changes (new builds/depots) from Steam.
-    public static let pinnedChangeNumber: UInt32 = 0xFFFF_FFF0
-
-    public static func pinChangeNumber(_ app: inout AppInfoCache.App) -> Result {
-        guard app.changeNumber != pinnedChangeNumber else { return Result() }
-        let old = app.changeNumber
-        app.changeNumber = pinnedChangeNumber
-        return Result(changes: ["change number \(old) pinned"])
     }
 
     /// Where each Windows Steam Cloud root lives inside a Wine user folder (`drive_c/users/<user>`).
@@ -220,6 +209,11 @@ public enum AppInfoPatcher {
         }
         app.info = info
         return result
+    }
+
+    /// A Windows game Silo looks after: a Windows `oslist` and no native Mac build of its own.
+    public static func isWindowsGame(_ info: [BinaryKVEntry]) -> Bool {
+        (info.map("common")?.string("oslist") ?? "").osList.contains("windows") && !hasNativeMacBuild(info)
     }
 
     /// Whether the app ships its own Mac build: a depot for macOS but not Windows, or a launch entry for macOS

@@ -96,6 +96,10 @@ if CommandLine.arguments.contains("--smoke")
                 log(changed.isEmpty ? "all installed Windows games already protected"
                     : changed.keys.sorted().map { "protected \($0): \(changed[$0]!.changes.joined(separator: "; "))" }
                         .joined(separator: "\n"))
+                // The safety net: undo a wipe Steam made mid-session, keep the copy-on-write shadows current.
+                let shadows = NativeSteamShadow(isSteamRunning: steamRunning).sync(
+                    libraries: installer.libraries(), windowsGames: try installer.installedWindowsGameIDs())
+                for action in shadows { log("shadow: \(action)") }
             } catch NativeSteamInstaller.Failure.steamRunning {
                 log("Steam started again before the check; retrying after it quits")
                 watch = NativeSteamGuard.Watch()

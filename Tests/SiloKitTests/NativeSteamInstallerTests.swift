@@ -85,7 +85,7 @@ struct NativeSteamInstallerTests {
         let tekken = try #require(try cache.app(1_778_820))
         #expect(tekken.info.map("config")?.map("launch")?.map("9000")?.string("executable") == "../Silo Runtime/silo-launch")
         #expect(tekken.info.map("ufs")?.map("rootoverrides")?.map("0")?.string("addpath") == "B/drive_c/users/crossover/AppData/Local")
-        #expect(tekken.changeNumber == AppInfoPatcher.pinnedChangeNumber)
+        #expect(tekken.changeNumber == AppInfoFixtures.tekken.changeNumber)   // Steam's own number is kept
         #expect(try cache.app(2_531_310)?.root == AppInfoFixtures.tlou.root)   // not requested, untouched
 
         // A second run keeps the FIRST backup — Steam's untouched cache — not the already-patched one.

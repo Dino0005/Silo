@@ -7,7 +7,7 @@ struct NativeSteamGuardTests {
     /// A Windows-only game with a redistributable depot, an OS-less depot and a launch entry.
     var tekken: AppInfoCache.App { AppInfoFixtures.tekken }
 
-    @Test("A Windows-only game gets macos on common and on every Windows depot, and its change number pinned")
+    @Test("A Windows-only game gets macos on common and on every Windows depot, its change number untouched")
     func protectsWindowsOnly() throws {
         var app = tekken
         let result = AppInfoPatcher.protectWindowsInstall(&app)
@@ -17,7 +17,7 @@ struct NativeSteamGuardTests {
         #expect(app.info.map("common")?.string("osextended") == "macos64")   // no red 32-bit banner
         #expect(app.info.map("depots")?.map("228989")?.map("config")?.string("oslist") == "windows,macos")
         #expect(app.info.map("depots")?.map("1778821")?.map("config") == nil)   // no oslist = every platform already
-        #expect(app.changeNumber == AppInfoPatcher.pinnedChangeNumber)
+        #expect(app.changeNumber == tekken.changeNumber)
         // Nothing else: no launch entry, no cloud rule.
         #expect(app.info.map("config")?.map("launch")?.map(AppInfoPatcher.entryKey) == nil)
         #expect(app.info.map("ufs") == tekken.info.map("ufs"))
