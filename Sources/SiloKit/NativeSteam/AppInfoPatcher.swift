@@ -108,6 +108,42 @@ public enum AppInfoPatcher {
         return result
     }
 
+    /// The minimal edit that keeps stock macOS Steam from DELETING an installed Windows-only game.
+    ///
+    /// Measured 2026-11-08/09 (five games lost, `content_log.txt`: "finished update, 0 mounted depots"): for a
+    /// game whose depots are all `oslist windows`, the Mac depot set is empty, so the first auto-update or
+    /// validate macOS Steam runs on it commits that empty set and removes every file. Adding `macos` to
+    /// `common.oslist` and to each Windows depot makes Steam treat the Windows files as the Mac build — the same
+    /// edit `enableSiloLaunch` makes, without its launch entry or cloud rules. The change number is pinned too,
+    /// so Steam keeps this copy instead of re-fetching the entry (which would undo the edit mid-session).
+    /// Left alone: a game with a native Mac build (its own `macos`, not Silo's), and one with no `oslist` at all
+    /// (Steam already counts its files for every platform).
+    public static func protectWindowsInstall(_ app: inout AppInfoCache.App) -> Result {
+        var result = Result()
+        var info = app.info
+        let os = (info.map("common")?.string("oslist") ?? "").osList
+        let ours = info.map("config")?.map("launch")?.map(entryKey) != nil
+        guard os.contains("windows"), ours || !os.contains("macos") else { return result }
+        info.editMap("common") { common in
+            if addOS(&common, "oslist") { result.changes.append("common.oslist += macos") }
+        }
+        info.editMap("depots") { depots in
+            for i in depots.indices {
+                guard depots[i].key.allSatisfy(\.isNumber), case .map(var depot) = depots[i].value else { continue }
+                let key = depots[i].key
+                depot.editMap("config") { config in
+                    if (config.string("oslist") ?? "").osList.contains("windows"), addOS(&config, "oslist") {
+                        result.changes.append("depot \(key).oslist += macos")
+                    }
+                }
+                depots[i].value = .map(depot)
+            }
+        }
+        app.info = info
+        if result.changed { result.changes += pinChangeNumber(&app).changes }
+        return result
+    }
+
     /// Steam re-downloads an entry whose change number is older than the one its servers report, which wipes
     /// these edits on the next start; a pinned high number keeps the local copy looking current.
     /// ⚠️ Open question: this may also hide genuine metadata changes (new builds/depots) from Steam.

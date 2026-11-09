@@ -99,6 +99,47 @@ public struct NativeSteamInstaller: Sendable {
     /// Steam only caches apps it has seen, so a game not yet shown in the library appears on a later run.
     /// - Returns: per game, what changed (empty for a game left alone, e.g. a native Mac build).
     @discardableResult
+    /// App ids installed in every reachable library, from their `steamapps/appmanifest_<id>.acf` files.
+    public func installedAppIDs(fileManager: FileManager = .default) -> [UInt32] {
+        var ids: Set<UInt32> = []
+        for library in libraries(fileManager: fileManager) {
+            let steamapps = library.appendingPathComponent("steamapps", isDirectory: true)
+            for name in (try? fileManager.contentsOfDirectory(atPath: steamapps.path)) ?? []
+            where name.hasPrefix("appmanifest_") && name.hasSuffix(".acf") {
+                if let id = UInt32(name.dropFirst("appmanifest_".count).dropLast(".acf".count)) { ids.insert(id) }
+            }
+        }
+        return ids.sorted()
+    }
+
+    /// Applies `AppInfoPatcher.protectWindowsInstall` to every installed app, so no Windows game in any library
+    /// can be wiped by macOS Steam. Must run with Steam closed — before it starts (Silo's guard runs it after
+    /// every Steam exit, because Steam writes `appinfo.vdf` back then). Writes nothing when nothing changed.
+    /// Returns the apps it changed.
+    @discardableResult
+    public func protectInstalledWindowsGames(fileManager: FileManager = .default) throws -> [UInt32: AppInfoPatcher.Result] {
+        guard !isSteamRunning() else { throw Failure.steamRunning }
+        guard var data = try? Data(contentsOf: appInfoURL) else { throw Failure.noAppInfoCache }
+        var results: [UInt32: AppInfoPatcher.Result] = [:]
+        for id in installedAppIDs(fileManager: fileManager) {
+            let cache = try AppInfoCache(data: data)
+            guard var app = try cache.app(id) else { continue }
+            let result = AppInfoPatcher.protectWindowsInstall(&app)
+            guard result.changed else { continue }
+            results[id] = result
+            data = try cache.replacing(app)
+        }
+        guard !results.isEmpty else { return results }
+        try fileManager.createDirectory(at: backupDir, withIntermediateDirectories: true)
+        if !fileManager.fileExists(atPath: originalBackupURL.path) {
+            try Data(contentsOf: appInfoURL).write(to: originalBackupURL, options: .atomic)
+        }
+        // Steam must not have started meanwhile: it would overwrite the file on exit anyway, and a half-read is worse.
+        guard !isSteamRunning() else { throw Failure.steamRunning }
+        try data.write(to: appInfoURL, options: .atomic)
+        return results
+    }
+
     public func patch(_ games: [GameRequest], fileManager: FileManager = .default) throws
         -> [UInt32: AppInfoPatcher.Result] {
         guard !isSteamRunning() else { throw Failure.steamRunning }
