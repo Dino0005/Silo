@@ -13,7 +13,7 @@ import Foundation
 /// Steam's look. A timer puts them back if React re-renders the row.
 public enum SteamLibraryFilters {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 1
+    public static let version = 2
 
     /// The file that makes Steam open its CEF debugging port (127.0.0.1:8080) at every start, in the folder
     /// of the `steam_osx` binary (measured 2026-11-09; the same file in Steam's data folder does nothing).
@@ -99,11 +99,14 @@ public enum SteamLibraryFilters {
           for (let j = 0; j < 8 && steamButton(d) && steamActive(steamButton(d)) !== on; j++) await tick();
         }
       }
+      // Steam's stylesheet sets the icons' path fill itself (the Apple logo ignores `color`), so the active blue
+      // goes on the paths too.
       function render(d) {
         for (const el of d.querySelectorAll('.SiloFilter')) {
           const on = el.dataset.mode === S.mode;
           el.style.opacity = on ? '1' : '';
           el.style.color = on ? '#1a9fff' : '';
+          for (const p of el.querySelectorAll('svg path')) p.style.fill = on ? '#1a9fff' : '';
         }
       }
       // Off first, so Steam drops its cached result; then on, now answered by the getter for the new side.
@@ -144,8 +147,12 @@ public enum SteamLibraryFilters {
         if (S.mode === null && steamActive(b)) setSteam(d, false);
         render(d);
       }
+      // A newer script replaces an older one's buttons and timer (their handlers belong to the old code).
+      if (S.timer) clearInterval(S.timer);
+      const d0 = doc();
+      if (d0) for (const el of d0.querySelectorAll('.SiloFilter')) el.remove();
       install();
-      if (!S.timer) S.timer = setInterval(install, 1000);
+      S.timer = setInterval(install, 1000);
       S.installed = true;
       return 'silo filters v' + S.version + ': ' + S.win.size + ' Windows games';
     })()
