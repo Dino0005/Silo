@@ -105,8 +105,27 @@ if CommandLine.arguments.contains("--smoke")
     func log(_ line: String) { print("\(ISO8601DateFormatter().string(from: Date())) \(line)"); fflush(stdout) }
     log("guard started")
     var watch = NativeSteamGuard.Watch()
+    let cef = SteamCEFClient()
+    var filtersLive = false
+    var nextFilterCheck = Date.distantPast
     while true {
-        if watch.shouldProtect(steamRunning: steamRunning()) {
+        let running = steamRunning()
+        // Silo's Apple / Windows library filters: (re)injected whenever this version isn't live in Steam's UI —
+        // a new Steam session, or its SharedJSContext reloaded. Checked often until it's in, then every 10 s.
+        if running, Date() >= nextFilterCheck {
+            let live = (try? await cef.evaluate(SteamLibraryFilters.probe)) == "true"
+            if !live, let ids = try? installer.windowsGameIDsInCache(),
+               let reply = try? await cef.evaluate(SteamLibraryFilters.script(windowsGames: ids)) {
+                log("library filters: \(reply)")
+                filtersLive = reply.hasPrefix("silo filters")
+            } else if live != filtersLive {
+                filtersLive = live
+            }
+            nextFilterCheck = Date().addingTimeInterval(filtersLive ? 10 : 2)
+        }
+        if !running { filtersLive = false }
+        if watch.shouldProtect(steamRunning: running) {
+            SteamLibraryFilters.enableDebugPort(steamRoot: installer.steamRoot)
             // Let Steam finish writing appinfo.vdf on its way out.
             try? await Task.sleep(for: .seconds(3))
             do {
@@ -145,8 +164,14 @@ if CommandLine.arguments.contains("--smoke")
         let domain = "gui/\(getuid())"
         _ = try? await runner.run(executable: launchctl, arguments: ["bootout", "\(domain)/\(NativeSteamGuard.label)"],
                                   environment: [:], currentDirectory: nil)
-        let result = try await runner.run(executable: launchctl, arguments: ["bootstrap", domain, agent.path],
+        // bootout returns before launchd has finished removing the old job; bootstrap fails (EIO) until it has.
+        var result = try await runner.run(executable: launchctl, arguments: ["bootstrap", domain, agent.path],
                                           environment: [:], currentDirectory: nil)
+        for _ in 0..<10 where result.exitCode != 0 {
+            try? await Task.sleep(for: .milliseconds(500))
+            result = try await runner.run(executable: launchctl, arguments: ["bootstrap", domain, agent.path],
+                                          environment: [:], currentDirectory: nil)
+        }
         print(result.exitCode == 0 ? "guard installed: \(agent.path) -> \(siloExe.path)"
               : "launchctl bootstrap failed (\(result.exitCode)): \(String(decoding: result.standardError, as: UTF8.self))")
         if result.exitCode != 0 { exit(1) }

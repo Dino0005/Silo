@@ -127,6 +127,13 @@ public struct NativeSteamInstaller: Sendable {
         return ids.sorted()
     }
 
+    /// Every app in Steam's cache that is a Windows game (`AppInfoPatcher.isWindowsGame`), installed or not —
+    /// the "Windows" side of `SteamLibraryFilters`. Readable while Steam runs (it rewrites the file as it goes).
+    public func windowsGameIDsInCache() throws -> [UInt32] {
+        let cache = try AppInfoCache(contentsOf: appInfoURL)
+        return try cache.appIDs.filter { id in try cache.app(id).map { AppInfoPatcher.isWindowsGame($0.info) } ?? false }
+    }
+
     /// The installed apps that are Windows games (`AppInfoPatcher.isWindowsGame`), read from Steam's cache.
     public func installedWindowsGameIDs(fileManager: FileManager = .default) throws -> Set<UInt32> {
         let cache = try AppInfoCache(contentsOf: appInfoURL)
