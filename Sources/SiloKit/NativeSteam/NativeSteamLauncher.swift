@@ -71,7 +71,11 @@ public struct NativeSteamLauncher: Sendable {
         log("started \(app.name) (pid \(pid))")
         _ = try? await ConfigStore(paths: paths).updateGame(appID: app.appID) { $0.lastPlayed = Date() }
 
-        // The wine launcher lives as long as the stand-in client, which waits for the game.
+        // The wine launcher lives as long as the stand-in client, which waits for the game. Meanwhile the guard
+        // keeps away from Steam's UI.
+        let playing = NativeSteamPlaying(paths: paths)
+        playing.begin(appID: app.appID)
+        defer { playing.end(appID: app.appID) }
         while runner.isRunning(pid: pid) {
             try? await Task.sleep(for: pollInterval)
         }

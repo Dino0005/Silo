@@ -108,11 +108,22 @@ if CommandLine.arguments.contains("--smoke")
     let cef = SteamCEFClient()
     var filtersLive = false
     var nextFilterCheck = Date.distantPast
+    let playing = NativeSteamPlaying(paths: paths)
+    var wasPlaying = false
     while true {
         let running = steamRunning()
+        // While a game started through Silo runs, nothing touches Steam's UI: the filters' timer is paused once
+        // and no probe is sent until the game ends.
+        let isPlaying = running && playing.isPlaying()
+        if isPlaying != wasPlaying {
+            _ = try? await cef.evaluate(SteamLibraryFilters.pause(isPlaying))
+            log(isPlaying ? "game running: Steam UI checks paused" : "game ended: Steam UI checks resumed")
+            wasPlaying = isPlaying
+            nextFilterCheck = Date()
+        }
         // Silo's Apple / Windows library filters: (re)injected whenever this version isn't live in Steam's UI —
         // a new Steam session, or its SharedJSContext reloaded. Checked often until it's in, then every 10 s.
-        if running, Date() >= nextFilterCheck {
+        if running, !isPlaying, Date() >= nextFilterCheck {
             let live = (try? await cef.evaluate(SteamLibraryFilters.probe)) == "true"
             if !live, let ids = try? installer.windowsGameIDsInCache(),
                let reply = try? await cef.evaluate(SteamLibraryFilters.script(windowsOnly: ids.windowsOnly,

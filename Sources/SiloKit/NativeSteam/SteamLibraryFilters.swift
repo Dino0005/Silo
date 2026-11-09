@@ -14,7 +14,7 @@ import Foundation
 /// Steam's look. A timer puts them back if React re-renders the row.
 public enum SteamLibraryFilters {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 4
+    public static let version = 5
 
     /// The file that makes Steam open its CEF debugging port (127.0.0.1:8080) at every start, in the folder
     /// of the `steam_osx` binary (measured 2026-11-09; the same file in Steam's data folder does nothing).
@@ -30,6 +30,12 @@ public enum SteamLibraryFilters {
         guard fileManager.fileExists(atPath: marker.deletingLastPathComponent().path) else { return false }
         if fileManager.fileExists(atPath: marker.path) { return true }
         return fileManager.createFile(atPath: marker.path, contents: Data())
+    }
+
+    /// Stops (true) or restarts (false) the script's 1-second timer that keeps the buttons in place — paused while
+    /// a game runs, so Silo does nothing at all inside Steam's UI during play.
+    public static func pause(_ on: Bool) -> String {
+        "String(!!(window.__siloFilters && window.__siloFilters.pause && window.__siloFilters.pause(\(on))))"
     }
 
     /// JavaScript that answers whether this version of the filters is live in the page.
@@ -162,6 +168,11 @@ public enum SteamLibraryFilters {
       if (d0) for (const el of d0.querySelectorAll('.SiloFilter')) el.remove();
       install();
       S.timer = setInterval(install, 1000);
+      S.pause = (on) => {
+        if (on) { if (S.timer) clearInterval(S.timer); S.timer = null; }
+        else if (!S.timer) { install(); S.timer = setInterval(install, 1000); }
+        return true;
+      };
       S.installed = true;
       return 'silo filters v' + S.version + ': ' + S.win.size + ' with a Windows build, ' + S.winOnly.size + ' Windows-only';
     })()

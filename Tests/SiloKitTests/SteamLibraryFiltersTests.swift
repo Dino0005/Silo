@@ -60,3 +60,28 @@ struct SteamLibraryFiltersTests {
         #expect(lists.windowsBuild.sorted() == [203_160, 1_778_820, 2_531_310])
     }
 }
+
+@Suite("NativeSteamPlaying")
+struct NativeSteamPlayingTests {
+    @Test("A running launcher's file counts until it ends; a dead pid's file doesn't and is cleaned up")
+    func playing() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let playing = NativeSteamPlaying(paths: AppPaths(supportDir: tmp.url))
+        #expect(!playing.isPlaying())
+        playing.begin(appID: 1_778_820, pid: 4242)
+        #expect(playing.isPlaying(isAlive: { $0 == 4242 }))
+        #expect(!playing.isPlaying(isAlive: { _ in false }))   // crashed launcher
+        #expect(!FileManager.default.fileExists(atPath: playing.dir.appendingPathComponent("1778820").path))
+        playing.begin(appID: 1_778_820)                         // this test process: alive
+        #expect(playing.isPlaying())
+        playing.end(appID: 1_778_820)
+        #expect(!playing.isPlaying())
+    }
+
+    @Test("The pause call reaches the injected script and is harmless without it")
+    func pauseScript() {
+        #expect(SteamLibraryFilters.pause(true).contains("pause(true)"))
+        #expect(SteamLibraryFilters.pause(false).contains("window.__siloFilters &&"))
+        #expect(SteamLibraryFilters.script(windowsOnly: [], windowsBuild: []).contains("S.pause = (on) =>"))
+    }
+}
