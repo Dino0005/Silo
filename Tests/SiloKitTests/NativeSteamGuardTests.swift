@@ -14,6 +14,7 @@ struct NativeSteamGuardTests {
         #expect(result.changes.contains("common.oslist += macos"))
         #expect(result.changes.contains("depot 228989.oslist += macos"))
         #expect(app.info.map("common")?.string("oslist") == "windows,macos")
+        #expect(app.info.map("common")?.string("osextended") == "macos64")   // no red 32-bit banner
         #expect(app.info.map("depots")?.map("228989")?.map("config")?.string("oslist") == "windows,macos")
         #expect(app.info.map("depots")?.map("1778821")?.map("config") == nil)   // no oslist = every platform already
         #expect(app.changeNumber == AppInfoPatcher.pinnedChangeNumber)
@@ -23,6 +24,32 @@ struct NativeSteamGuardTests {
         // Idempotent.
         let again = AppInfoPatcher.protectWindowsInstall(&app)
         #expect(!again.changed)
+    }
+
+    @Test("A game protected before osextended existed gets macos64 on the next pass, and nothing else")
+    func upgradesOlderProtection() {
+        var app = tekken
+        app.info.editMap("common") { $0.setString("oslist", "windows,macos") }
+        app.info.editMap("depots") { depots in
+            depots.editMap("228989") { depot in depot.editMap("config") { $0.setString("oslist", "windows,macos") } }
+        }
+        let result = AppInfoPatcher.protectWindowsInstall(&app)
+        #expect(result.changes.first == "common.osextended += macos64")
+        #expect(!result.changes.contains("common.oslist += macos"))
+    }
+
+    @Test("A Mac-only launch entry counts as a native Mac build even without a Mac depot")
+    func nativeByLaunchEntry() {
+        var app = AppInfoCache.App(appID: 220, header: AppInfoFixtures.header(), root: [BinaryKVEntry("appinfo", .map([
+            BinaryKVEntry("common", .map([BinaryKVEntry("oslist", .string("windows,macos,linux"))])),
+            BinaryKVEntry("config", .map([BinaryKVEntry("launch", .map([
+                BinaryKVEntry("0", AppInfoFixtures.launch("hl2.exe", os: "windows")),
+                BinaryKVEntry("1", AppInfoFixtures.launch("hl2_osx", os: "macos")),
+            ]))])),
+            BinaryKVEntry("depots", .map([BinaryKVEntry("221", AppInfoFixtures.depot(nil))])),
+        ]))])
+        let result = AppInfoPatcher.protectWindowsInstall(&app)
+        #expect(!result.changed)
     }
 
     @Test("A native Mac build and an app without an oslist are left alone")

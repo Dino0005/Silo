@@ -49,6 +49,7 @@ public enum AppInfoPatcher {
                 common.setString("osarch", "64")
                 result.changes.append("common.osarch = 64")
             }
+            if addOS(&common, "osextended", "macos64") { result.changes.append("common.osextended += macos64") }
         }
 
         info.editMap("depots") { depots in
@@ -116,16 +117,18 @@ public enum AppInfoPatcher {
     /// `common.oslist` and to each Windows depot makes Steam treat the Windows files as the Mac build — the same
     /// edit `enableSiloLaunch` makes, without its launch entry or cloud rules. The change number is pinned too,
     /// so Steam keeps this copy instead of re-fetching the entry (which would undo the edit mid-session).
-    /// Left alone: a game with a native Mac build (its own `macos`, not Silo's), and one with no `oslist` at all
+    /// `common.osextended` gains `macos64`, the flag Steam reads as "64-bit Mac build" (native 64-bit ports carry
+    /// it: Dota 2, Tomb Raider…); without it Steam shows the red "macOS can't run 32-bit games like this" banner.
+    /// Left alone: a game with a native Mac build (`hasNativeMacBuild`), and one with no `oslist` at all
     /// (Steam already counts its files for every platform).
     public static func protectWindowsInstall(_ app: inout AppInfoCache.App) -> Result {
         var result = Result()
         var info = app.info
         let os = (info.map("common")?.string("oslist") ?? "").osList
-        let ours = info.map("config")?.map("launch")?.map(entryKey) != nil
-        guard os.contains("windows"), ours || !os.contains("macos") else { return result }
+        guard os.contains("windows"), !hasNativeMacBuild(info) else { return result }
         info.editMap("common") { common in
             if addOS(&common, "oslist") { result.changes.append("common.oslist += macos") }
+            if addOS(&common, "osextended", "macos64") { result.changes.append("common.osextended += macos64") }
         }
         info.editMap("depots") { depots in
             for i in depots.indices {
@@ -217,6 +220,21 @@ public enum AppInfoPatcher {
         }
         app.info = info
         return result
+    }
+
+    /// Whether the app ships its own Mac build: a depot for macOS but not Windows, or a launch entry for macOS
+    /// other than Silo's. A Windows game Silo protected or enabled has neither (its depots read "windows,macos").
+    static func hasNativeMacBuild(_ info: [BinaryKVEntry]) -> Bool {
+        for depot in info.map("depots") ?? [] where depot.key.allSatisfy(\.isNumber) {
+            guard case .map(let map) = depot.value else { continue }
+            let os = (map.map("config")?.string("oslist") ?? "").osList
+            if os.contains("macos"), !os.contains("windows") { return true }
+        }
+        for entry in info.map("config")?.map("launch") ?? [] where entry.key != entryKey {
+            guard case .map(let map) = entry.value else { continue }
+            if (map.map("config")?.string("oslist") ?? "").osList.contains("macos") { return true }
+        }
+        return false
     }
 
     /// Launchers, uninstallers and config tools a game lists next to its real executable.
