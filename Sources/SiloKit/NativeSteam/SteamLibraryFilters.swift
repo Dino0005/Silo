@@ -14,7 +14,7 @@ import Foundation
 /// Steam's look. A timer puts them back if React re-renders the row.
 public enum SteamLibraryFilters {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 3
+    public static let version = 4
 
     /// The file that makes Steam open its CEF debugging port (127.0.0.1:8080) at every start, in the folder
     /// of the `steam_osx` binary (measured 2026-11-09; the same file in Steam's data folder does nothing).
@@ -61,10 +61,14 @@ public enum SteamLibraryFilters {
       const sample = appStore.GetAppOverviewByAppID(570) || [...(appStore.allApps || [])][0];
       if (!sample) return 'no app overviews yet';
       const proto = Object.getPrototypeOf(sample);
+      // Steam's own getter is saved once; the wrapper is redefined on every injection, so a newer script's
+      // rule replaces an older one's.
       if (!S.origGetter) {
         const d = Object.getOwnPropertyDescriptor(proto, 'is_available_on_current_platform');
         if (!d || !d.get) return 'no platform getter';
         S.origGetter = d.get;
+      }
+      {
         Object.defineProperty(proto, 'is_available_on_current_platform', {
           configurable: true,
           get() {
