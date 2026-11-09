@@ -93,4 +93,22 @@ struct NativeSteamInstallerTests {
         #expect(try Data(contentsOf: installer.originalBackupURL) == original)
         #expect(try AppInfoCache(contentsOf: cacheURL).app(2_531_310)?.info.map("config")?.map("launch")?.map("9000") != nil)
     }
+    @Test("Restoring puts Steam's own entry back from an untouched cache, only for the given ids")
+    func restoresOriginal() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (steam, _, _) = try fakeSteam(tmp)
+        let cacheURL = steam.appendingPathComponent("appcache/appinfo.vdf")
+        let pristine = tmp.url.appendingPathComponent("pristine.vdf")
+        try FileManager.default.copyItem(at: cacheURL, to: pristine)
+        let installer = NativeSteamInstaller(steamRoot: steam, backupDir: tmp.url.appendingPathComponent("bk"),
+                                             isSteamRunning: { false })
+        try installer.patch([.init(appID: 1_778_820), .init(appID: 2_531_310)])
+        #expect(try installer.restoreOriginal([2_531_310, 42], from: pristine) == [2_531_310])
+        let cache = try AppInfoCache(contentsOf: cacheURL)
+        #expect(try cache.app(2_531_310)?.root == AppInfoFixtures.tlou.root)
+        #expect(try cache.app(1_778_820)?.info.map("config")?.map("launch")?.map("9000") != nil)   // still enabled
+        let busy = NativeSteamInstaller(steamRoot: steam, backupDir: tmp.url.appendingPathComponent("bk"),
+                                        isSteamRunning: { true })
+        #expect(throws: NativeSteamInstaller.Failure.steamRunning) { try busy.restoreOriginal([1_778_820], from: pristine) }
+    }
 }

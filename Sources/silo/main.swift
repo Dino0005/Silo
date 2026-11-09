@@ -73,6 +73,24 @@ if CommandLine.arguments.contains("--smoke")
         print("failed: \(error)")
         exit(1)
     }
+} else if let idx = CommandLine.arguments.firstIndex(of: "--native-steam-restore"), idx + 2 < CommandLine.arguments.count {
+    // Dev: put Steam's own appinfo entry back for the given app ids, from an untouched appinfo.vdf copy
+    // (`--native-steam-restore <pristine appinfo.vdf> <appid>…`). Steam must be closed.
+    let paths = AppPaths.standard()
+    let pristine = URL(fileURLWithPath: CommandLine.arguments[idx + 1])
+    let ids = CommandLine.arguments[(idx + 2)...].compactMap { UInt32($0) }
+    let installer = NativeSteamInstaller(
+        steamRoot: FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Steam"),
+        backupDir: paths.supportDir.appendingPathComponent("NativeSteam"),
+        isSteamRunning: { !NSRunningApplication.runningApplications(withBundleIdentifier: "com.valvesoftware.steam").isEmpty })
+    do {
+        let restored = try installer.restoreOriginal(ids, from: pristine)
+        print("restored: \(restored.map(String.init).joined(separator: " "))")
+    } catch {
+        print("failed: \(error)")
+        exit(1)
+    }
 } else if CommandLine.arguments.contains(NativeSteamGuard.flag) {
     // The LaunchAgent's loop: protect every installed Windows game at start and after each Steam exit, so stock
     // macOS Steam can never "update" one to its empty Mac depot set and delete it (2026-11-09).

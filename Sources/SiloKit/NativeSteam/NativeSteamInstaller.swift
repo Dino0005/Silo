@@ -95,10 +95,25 @@ public struct NativeSteamInstaller: Sendable {
         }
     }
 
-    /// Patches Steam's cache for `games` (Steam must be closed). Games missing from the cache are skipped —
-    /// Steam only caches apps it has seen, so a game not yet shown in the library appears on a later run.
-    /// - Returns: per game, what changed (empty for a game left alone, e.g. a native Mac build).
+    /// Puts back Steam's own entry for each app, taken from an untouched `appinfo.vdf` (e.g. `originalBackupURL`):
+    /// undoes every Silo edit for those games. Only with Steam closed. Returns the ids restored; ids missing from
+    /// either cache are skipped.
+    /// ⚠️ An installed Windows game restored this way is unprotected until the guard's next pass.
     @discardableResult
+    public func restoreOriginal(_ appIDs: [UInt32], from pristine: URL) throws -> [UInt32] {
+        guard !isSteamRunning() else { throw Failure.steamRunning }
+        guard var data = try? Data(contentsOf: appInfoURL) else { throw Failure.noAppInfoCache }
+        let source = try AppInfoCache(contentsOf: pristine)
+        var restored: [UInt32] = []
+        for id in appIDs {
+            guard let original = try source.app(id), try AppInfoCache(data: data).app(id) != nil else { continue }
+            data = try AppInfoCache(data: data).replacing(original)
+            restored.append(id)
+        }
+        if !restored.isEmpty { try data.write(to: appInfoURL, options: .atomic) }
+        return restored
+    }
+
     /// App ids installed in every reachable library, from their `steamapps/appmanifest_<id>.acf` files.
     public func installedAppIDs(fileManager: FileManager = .default) -> [UInt32] {
         var ids: Set<UInt32> = []
@@ -150,6 +165,10 @@ public struct NativeSteamInstaller: Sendable {
         return results
     }
 
+    /// Patches Steam's cache for `games` (Steam must be closed). Games missing from the cache are skipped —
+    /// Steam only caches apps it has seen, so a game not yet shown in the library appears on a later run.
+    /// - Returns: per game, what changed (empty for a game left alone, e.g. a native Mac build).
+    @discardableResult
     public func patch(_ games: [GameRequest], fileManager: FileManager = .default) throws
         -> [UInt32: AppInfoPatcher.Result] {
         guard !isSteamRunning() else { throw Failure.steamRunning }
