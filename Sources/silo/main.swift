@@ -115,7 +115,8 @@ if CommandLine.arguments.contains("--smoke")
         if running, Date() >= nextFilterCheck {
             let live = (try? await cef.evaluate(SteamLibraryFilters.probe)) == "true"
             if !live, let ids = try? installer.windowsGameIDsInCache(),
-               let reply = try? await cef.evaluate(SteamLibraryFilters.script(windowsGames: ids)) {
+               let reply = try? await cef.evaluate(SteamLibraryFilters.script(windowsOnly: ids.windowsOnly,
+                                                                             windowsBuild: ids.windowsBuild)) {
                 log("library filters: \(reply)")
                 filtersLive = reply.hasPrefix("silo filters")
             } else if live != filtersLive {

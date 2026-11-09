@@ -127,11 +127,19 @@ public struct NativeSteamInstaller: Sendable {
         return ids.sorted()
     }
 
-    /// Every app in Steam's cache that is a Windows game (`AppInfoPatcher.isWindowsGame`), installed or not —
-    /// the "Windows" side of `SteamLibraryFilters`. Readable while Steam runs (it rewrites the file as it goes).
-    public func windowsGameIDsInCache() throws -> [UInt32] {
+    /// The two lists `SteamLibraryFilters` needs, over every app in Steam's cache (installed or not): Windows
+    /// games with no Mac build of their own (`AppInfoPatcher.isWindowsGame`), and every app with a Windows build
+    /// (`common.oslist` has `windows` — Silo only ever adds `macos`, so this is the original platform list).
+    /// Readable while Steam runs (it rewrites the file as it goes).
+    public func windowsGameIDsInCache() throws -> (windowsOnly: [UInt32], windowsBuild: [UInt32]) {
         let cache = try AppInfoCache(contentsOf: appInfoURL)
-        return try cache.appIDs.filter { id in try cache.app(id).map { AppInfoPatcher.isWindowsGame($0.info) } ?? false }
+        var only: [UInt32] = [], build: [UInt32] = []
+        for id in cache.appIDs {
+            guard let info = try cache.app(id)?.info else { continue }
+            if (info.map("common")?.string("oslist") ?? "").osList.contains("windows") { build.append(id) }
+            if AppInfoPatcher.isWindowsGame(info) { only.append(id) }
+        }
+        return (only, build)
     }
 
     /// The installed apps that are Windows games (`AppInfoPatcher.isWindowsGame`), read from Steam's cache.

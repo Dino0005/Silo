@@ -4,10 +4,11 @@ import Testing
 
 @Suite("Steam library filters")
 struct SteamLibraryFiltersTests {
-    @Test("The script carries Silo's Windows list and version, and hooks Steam's platform getter and Apple button")
+    @Test("The script carries Silo's two lists and version, and hooks Steam's platform getter and Apple button")
     func script() {
-        let js = SteamLibraryFilters.script(windowsGames: [1_778_820, 570, 1_817_070])
-        #expect(js.contains("S.win = new Set([570,1778820,1817070]);"))
+        let js = SteamLibraryFilters.script(windowsOnly: [1_778_820, 1_817_070], windowsBuild: [203_160, 1_778_820, 1_817_070])
+        #expect(js.contains("S.winOnly = new Set([1778820,1817070]);"))
+        #expect(js.contains("S.win = new Set([203160,1778820,1817070]);"))
         #expect(js.contains("S.version = \(SteamLibraryFilters.version);"))
         #expect(js.contains("'is_available_on_current_platform'"))
         #expect(js.contains("svg.SVGIcon_AppleLogo"))
@@ -46,7 +47,7 @@ struct SteamLibraryFiltersTests {
         }
     }
 
-    @Test("Every cached Windows game is on the Windows side, installed or not; a native Mac build is not")
+    @Test("A dual-build game is on the Windows side but not Windows-only; installed or not doesn't matter")
     func windowsSide() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let steam = try tmp.makeDir("Steam")
@@ -54,6 +55,8 @@ struct SteamLibraryFiltersTests {
         try AppInfoFixtures.cacheData([AppInfoFixtures.tekken, AppInfoFixtures.tlou, AppInfoFixtures.dualBuild])
             .write(to: steam.appendingPathComponent("appcache/appinfo.vdf"))
         let installer = NativeSteamInstaller(steamRoot: steam, backupDir: tmp.url, isSteamRunning: { true })
-        #expect(try installer.windowsGameIDsInCache().sorted() == [1_778_820, 2_531_310])
+        let lists = try installer.windowsGameIDsInCache()
+        #expect(lists.windowsOnly.sorted() == [1_778_820, 2_531_310])
+        #expect(lists.windowsBuild.sorted() == [203_160, 1_778_820, 2_531_310])
     }
 }

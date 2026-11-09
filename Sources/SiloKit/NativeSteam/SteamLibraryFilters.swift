@@ -1,8 +1,9 @@
 import Foundation
 
-/// Silo's two library filter buttons inside macOS Steam — an Apple one (native Mac games only) and a Windows one
-/// (the Windows games Silo runs) — in place of Steam's own Apple button, which counts every game Silo protects as
-/// a Mac game (they carry `oslist macos`, see `AppInfoPatcher.protectWindowsInstall`). Neither on: every game.
+/// Silo's two library filter buttons inside macOS Steam — an Apple one (games with a native Mac build) and a
+/// Windows one (games with a Windows build, including those that have a Mac one too) — in place of Steam's own
+/// Apple button, which counts every game Silo protects as a Mac game (they carry `oslist macos`, see
+/// `AppInfoPatcher.protectWindowsInstall`). Neither on: every game.
 ///
 /// Injected through Steam's CEF debugging port (`SteamCEFClient`) into its SharedJSContext, where the library
 /// lives. It reuses Steam's own "works on this platform" filter (measured 2026-11-09: that filter is
@@ -13,7 +14,7 @@ import Foundation
 /// Steam's look. A timer puts them back if React re-renders the row.
 public enum SteamLibraryFilters {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 2
+    public static let version = 3
 
     /// The file that makes Steam open its CEF debugging port (127.0.0.1:8080) at every start, in the folder
     /// of the `steam_osx` binary (measured 2026-11-09; the same file in Steam's data folder does nothing).
@@ -34,19 +35,23 @@ public enum SteamLibraryFilters {
     /// JavaScript that answers whether this version of the filters is live in the page.
     public static let probe = "String(window.__siloFilters && window.__siloFilters.version === \(version) && window.__siloFilters.installed === true)"
 
-    /// The script, with Silo's list of Windows games (`AppInfoPatcher.isWindowsGame`).
-    public static func script(windowsGames: [UInt32]) -> String {
-        let ids = windowsGames.sorted().map(String.init).joined(separator: ",")
+    /// The script, with Silo's two lists: `windowsOnly` — Windows games without a Mac build of their own
+    /// (`AppInfoPatcher.isWindowsGame`), kept off the Apple side even though Silo marks them `macos` — and
+    /// `windowsBuild` — every game with a Windows build (the Windows side).
+    public static func script(windowsOnly: [UInt32], windowsBuild: [UInt32]) -> String {
+        func list(_ ids: [UInt32]) -> String { ids.sorted().map(String.init).joined(separator: ",") }
         return template
             .replacingOccurrences(of: "__SILO_VERSION__", with: String(version))
-            .replacingOccurrences(of: "__SILO_WINDOWS_GAMES__", with: ids)
+            .replacingOccurrences(of: "__SILO_WINDOWS_ONLY__", with: list(windowsOnly))
+            .replacingOccurrences(of: "__SILO_WINDOWS_BUILD__", with: list(windowsBuild))
     }
 
     static let template = #"""
     (() => {
       const S = window.__siloFilters || (window.__siloFilters = {});
       S.version = __SILO_VERSION__;
-      S.win = new Set([__SILO_WINDOWS_GAMES__]);
+      S.winOnly = new Set([__SILO_WINDOWS_ONLY__]);
+      S.win = new Set([__SILO_WINDOWS_BUILD__]);
       if (S.mode === undefined) S.mode = null;
       const it = /LANGUAGE=italian/.test(location.href);
       const TITLE = { mac: it ? 'Mostra solo i giochi macOS' : 'Show only macOS games',
@@ -64,7 +69,7 @@ public enum SteamLibraryFilters {
           configurable: true,
           get() {
             const steam = S.origGetter.call(this);
-            if (S.mode === 'mac') return !!steam && !S.win.has(this.appid);
+            if (S.mode === 'mac') return !!steam && !S.winOnly.has(this.appid);
             if (S.mode === 'win') return S.win.has(this.appid);
             return steam;
           },
@@ -154,7 +159,7 @@ public enum SteamLibraryFilters {
       install();
       S.timer = setInterval(install, 1000);
       S.installed = true;
-      return 'silo filters v' + S.version + ': ' + S.win.size + ' Windows games';
+      return 'silo filters v' + S.version + ': ' + S.win.size + ' with a Windows build, ' + S.winOnly.size + ' Windows-only';
     })()
     """#
 }
