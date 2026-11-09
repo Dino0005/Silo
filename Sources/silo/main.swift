@@ -53,7 +53,9 @@ if CommandLine.arguments.contains("--smoke")
         let user = (try? FileManager.default.contentsOfDirectory(atPath: users.path))?
             .first { $0 != "Public" && !$0.hasPrefix(".") }
         let userFolder = user.map { users.appendingPathComponent($0).standardizedFileURL.path }
-        let cloud = userFolder.flatMap { $0.hasPrefix(home) ? String($0.dropFirst(home.count)) : nil }
+        // --no-cloud: leave the games' Steam Cloud rules alone (protect a Windows install without moving its saves).
+        let cloud = CommandLine.arguments.contains("--no-cloud") ? nil
+            : userFolder.flatMap { $0.hasPrefix(home) ? String($0.dropFirst(home.count)) : nil }
         let installer = NativeSteamInstaller(
             steamRoot: FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent("Library/Application Support/Steam"),
