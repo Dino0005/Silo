@@ -25,6 +25,9 @@ if CommandLine.arguments.contains("--smoke")
     }
     let args = Array(CommandLine.arguments[(idx + 1)...])
     log("request: \(args) cwd: \(FileManager.default.currentDirectoryPath)")
+    // What Steam tells the game about controllers (Steam Input's ignore lists, virtual gamepad hints).
+    let steamEnv = ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("SDL_") || $0.key.hasPrefix("STEAM_INPUT") }
+    log("steam env: " + steamEnv.keys.sorted().map { "\($0)=\(steamEnv[$0]!)" }.joined(separator: " "))
     do {
         let request = try NativeSteamLaunchRequest.parse(
             args, workingDirectory: URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true),
