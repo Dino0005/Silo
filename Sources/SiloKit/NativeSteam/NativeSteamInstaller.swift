@@ -19,6 +19,12 @@ public struct NativeSteamInstaller: Sendable {
     public enum Failure: Error, Equatable {
         case steamRunning
         case noAppInfoCache
+        /// `prepareInstall`: the app isn't in Steam's cache (Steam hasn't shown it yet).
+        case notInCache(UInt32)
+        /// `prepareInstall`: the app has a native Mac build, or no Windows one — nothing for Silo to install.
+        case notAWindowsGame(UInt32)
+        /// `prepareInstall`: the target library isn't mounted.
+        case libraryUnreachable(URL)
     }
 
     /// The macOS Steam data folder, `~/Library/Application Support/Steam`.
@@ -183,6 +189,74 @@ public struct NativeSteamInstaller: Sendable {
         guard !isSteamRunning() else { throw Failure.steamRunning }
         try data.write(to: appInfoURL, options: .atomic)
         return results
+    }
+
+    /// Where a new game goes by default: the first reachable library besides Steam's own folder (games live on
+    /// the external drive, not the Mac's disk), else Steam's own folder.
+    public func defaultGameLibrary(fileManager: FileManager = .default) -> URL {
+        libraries(fileManager: fileManager).dropFirst().first { fileManager.fileExists(atPath: $0.path) } ?? steamRoot
+    }
+
+    /// What `prepareInstall` did.
+    public enum PrepareOutcome: Sendable, Equatable {
+        /// A new placeholder manifest, plus the protection / launch-entry changes (empty if already protected).
+        case prepared(manifest: URL, changes: [String])
+        /// A library already holds a manifest for the app; nothing was written there.
+        case alreadyInLibrary(URL)
+    }
+
+    /// Readies a Windows game that isn't installed for download into `library` (Steam must be closed): writes a
+    /// placeholder `appmanifest_<id>.acf` there — Steam reads manifests only at start and then updates the app
+    /// in the library that holds it (`app_install` itself always uses Steam's own folder, measured 2026-11-10) —
+    /// and protects + enables the game like the guard does, so the next Steam start downloads the Windows depots
+    /// as an ordinary update, visible and pausable in Steam's Downloads panel.
+    @discardableResult
+    public func prepareInstall(_ appID: UInt32, in library: URL, fileManager: FileManager = .default) throws
+        -> PrepareOutcome {
+        guard !isSteamRunning() else { throw Failure.steamRunning }
+        let name = "appmanifest_\(appID).acf"
+        if let existing = libraries(fileManager: fileManager)
+            .map({ $0.appendingPathComponent("steamapps/\(name)") })
+            .first(where: { fileManager.fileExists(atPath: $0.path) }) {
+            return .alreadyInLibrary(existing)
+        }
+        guard fileManager.fileExists(atPath: library.path) else { throw Failure.libraryUnreachable(library) }
+        guard let data = try? Data(contentsOf: appInfoURL) else { throw Failure.noAppInfoCache }
+        guard let app = try AppInfoCache(data: data).app(appID) else { throw Failure.notInCache(appID) }
+        guard AppInfoPatcher.isWindowsGame(app.info) else { throw Failure.notAWindowsGame(appID) }
+        let title = app.info.map("common")?.string("name") ?? "App \(appID)"
+        let installDir = app.info.map("config")?.string("installdir") ?? title
+        let steamapps = library.appendingPathComponent("steamapps", isDirectory: true)
+        try fileManager.createDirectory(at: steamapps, withIntermediateDirectories: true)
+        let manifest = steamapps.appendingPathComponent(name)
+        try Data(Self.placeholderManifest(appID: appID, name: title, installDir: installDir).utf8)
+            .write(to: manifest, options: .atomic)
+        let changes = try protectInstalledWindowsGames(fileManager: fileManager)[appID]?.changes ?? []
+        return .prepared(manifest: manifest, changes: changes)
+    }
+
+    /// The smallest manifest Steam accepts as "update required" for an app with nothing on disk yet.
+    static func placeholderManifest(appID: UInt32, name: String, installDir: String) -> String {
+        func quoted(_ s: String) -> String {
+            "\"" + s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        }
+        return """
+            "AppState"
+            {
+            \t"appid"\t\t\(quoted(String(appID)))
+            \t"universe"\t\t"1"
+            \t"name"\t\t\(quoted(name))
+            \t"StateFlags"\t\t"2"
+            \t"installdir"\t\t\(quoted(installDir))
+            \t"SizeOnDisk"\t\t"0"
+            \t"buildid"\t\t"0"
+            \t"AutoUpdateBehavior"\t\t"0"
+            \t"InstalledDepots"
+            \t{
+            \t}
+            }
+
+            """
     }
 
     /// Patches Steam's cache for `games` (Steam must be closed). Games missing from the cache are skipped —

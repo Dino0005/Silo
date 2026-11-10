@@ -91,6 +91,31 @@ if CommandLine.arguments.contains("--smoke")
         print("failed: \(error)")
         exit(1)
     }
+} else if let idx = CommandLine.arguments.firstIndex(of: "--native-steam-prepare-install"),
+          idx + 1 < CommandLine.arguments.count, let appID = UInt32(CommandLine.arguments[idx + 1]) {
+    // Dev/on-device: ready a Windows game that isn't installed for download into a library (default: the first
+    // external one) — `--native-steam-prepare-install <appid> [library path]`. Steam must be closed; its next
+    // start downloads the Windows build there.
+    let paths = AppPaths.standard()
+    let installer = NativeSteamInstaller(
+        steamRoot: FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Steam"),
+        backupDir: paths.supportDir.appendingPathComponent("NativeSteam"),
+        isSteamRunning: { !NSRunningApplication.runningApplications(withBundleIdentifier: "com.valvesoftware.steam").isEmpty })
+    let library = idx + 2 < CommandLine.arguments.count && !CommandLine.arguments[idx + 2].hasPrefix("--")
+        ? URL(fileURLWithPath: CommandLine.arguments[idx + 2], isDirectory: true) : installer.defaultGameLibrary()
+    do {
+        switch try installer.prepareInstall(appID, in: library) {
+        case .prepared(let manifest, let changes):
+            print("prepared \(manifest.path)")
+            changes.forEach { print("  \($0)") }
+        case .alreadyInLibrary(let manifest):
+            print("already in a library: \(manifest.path)")
+        }
+    } catch {
+        print("failed: \(error)")
+        exit(1)
+    }
 } else if CommandLine.arguments.contains(NativeSteamGuard.flag) {
     // The LaunchAgent's loop: protect every installed Windows game at start and after each Steam exit, so stock
     // macOS Steam can never "update" one to its empty Mac depot set and delete it (2026-11-09).
