@@ -82,7 +82,10 @@ public struct NativeSteamLauncher: Sendable {
             logURL: paths.log(forAppID: app.appID), gameExe: exe,
             altLoaderTarget: .init(gameName: app.name, gameID: String(app.appID),
                                    hostAppsDir: paths.hostAppsDir, playLink: .playSteam(appID: app.appID)),
-            steamBridge: NativeSteamBridge(clientInstallPath: NativeSteamBridge.defaultClientInstallPath()))
+            steamBridge: NativeSteamBridge(
+                clientInstallPath: NativeSteamBridge.defaultClientInstallPath(),
+                nativeVCRuntime: NativeSteamBridge.nativeVCRuntime(
+                    inSystem32: bottle.prefix.appendingPathComponent("drive_c/windows/system32"))))
         log("started \(app.name) (pid \(pid))")
         _ = try? await ConfigStore(paths: paths).updateGame(appID: app.appID) { $0.lastPlayed = Date() }
 

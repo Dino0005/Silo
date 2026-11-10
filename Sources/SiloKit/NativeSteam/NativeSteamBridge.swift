@@ -18,9 +18,48 @@ public struct NativeSteamBridge: Sendable, Equatable {
     /// `STEAM_COMPAT_CLIENT_INSTALL_PATH` only for compatibility tools, NOT for the "macOS build" Silo's games
     /// pose as, so Silo always provides it (missing, lsteamclient asserts at `steamclient_main.c:382`).
     public var clientInstallPath: URL
+    /// Microsoft's VC++ runtime DLLs in the bottle's `system32` (`nativeVCRuntime(inSystem32:)`), loaded
+    /// native-first for a game started this way.
+    ///
+    /// **Why (measured 2026-11-10 on FATAL FURY):** its Unreal bootstrap, once its Steam check passes through the
+    /// bridge, reads the VERSION resource of `msvcp140_2.dll` & co. — and Wine's default builtin-first order
+    /// hands it the builtin's resources, so it asks for "Microsoft Visual C++ 2015-2022 Redistributable (x64)"
+    /// and never starts the game. With `n,b` it reads Microsoft's files and starts the Shipping exe. This is
+    /// NotProton 1.1.9's rule (CLAUDE.md, Phase 2). The classic mode is left as it is (no such prompt there).
+    public var nativeVCRuntime: [String]
 
-    public init(clientInstallPath: URL) {
+    public init(clientInstallPath: URL, nativeVCRuntime: [String] = []) {
         self.clientInstallPath = clientInstallPath
+        self.nativeVCRuntime = nativeVCRuntime
+    }
+
+    /// `dllOverrides` plus `<vc dlls>=n,b` for `nativeVCRuntime`.
+    public var dllRouting: String {
+        nativeVCRuntime.isEmpty ? Self.dllOverrides
+            : Self.dllOverrides + ";" + nativeVCRuntime.joined(separator: ",") + "=n,b"
+    }
+
+    /// The VC++ runtime modules (`msvcp140*`, `vcruntime140*`, `concrt140*`) in `system32` that are real files,
+    /// not Wine builtins or placeholders — by module name, sorted.
+    public static func nativeVCRuntime(inSystem32 dir: URL, fileManager: FileManager = .default) -> [String] {
+        let names = (try? fileManager.contentsOfDirectory(atPath: dir.path)) ?? []
+        return names.filter { name in
+            let lower = name.lowercased()
+            guard lower.hasSuffix(".dll"),
+                  ["msvcp140", "vcruntime140", "concrt140"].contains(where: { lower.hasPrefix($0) }) else { return false }
+            guard let handle = try? FileHandle(forReadingFrom: dir.appendingPathComponent(name)) else { return false }
+            defer { try? handle.close() }
+            return !isWineModule((try? handle.read(upToCount: 96)) ?? Data())
+        }
+        .map { String($0.dropLast(4)).lowercased() }
+        .sorted()
+    }
+
+    /// Wine marks its builtin and placeholder PE files right after the DOS header (offset 64).
+    static func isWineModule(_ head: Data) -> Bool {
+        guard head.count >= 64 + 16 else { return false }
+        let text = String(decoding: head[head.startIndex + 64 ..< head.startIndex + min(head.count, 96)], as: UTF8.self)
+        return text.hasPrefix("Wine builtin DLL") || text.hasPrefix("Wine placeholder DLL")
     }
 
     /// `~/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS`.

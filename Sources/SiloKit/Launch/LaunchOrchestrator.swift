@@ -216,8 +216,7 @@ public struct LaunchOrchestrator: Sendable {
         if let steamBridge {
             arguments = steamBridge.arguments(gameExe: gameExe, gameArguments: gameArguments)
             for (key, value) in steamBridge.environment { environment[key] = value }
-            environment["WINEDLLOVERRIDES"] = mergeOverride(environment["WINEDLLOVERRIDES"],
-                                                            NativeSteamBridge.dllOverrides)
+            environment["WINEDLLOVERRIDES"] = mergeOverride(environment["WINEDLLOVERRIDES"], steamBridge.dllRouting)
         }
         // winemac.drv only ever honors a ChangeDisplaySettings/fullscreen request against what IT considers
         // the PRIMARY adapter (see dlls/winemac.drv/display.c — a deliberate upstream Wine limitation, not

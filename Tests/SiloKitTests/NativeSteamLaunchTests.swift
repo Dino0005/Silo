@@ -77,4 +77,36 @@ struct NativeSteamLaunchTests {
         #expect(NativeSteamBridge.defaultClientInstallPath(home: home).path
                 == "/Users/u/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS")
     }
+
+    /// A PE file: the DOS stub, with Wine's marker at offset 64 when it is one of Wine's modules.
+    private func pe(_ marker: String?) -> Data {
+        var data = Data("MZ".utf8) + Data(repeating: 0, count: 62)
+        data += Data((marker ?? "!This program cannot be run in DOS mode.").utf8)
+        return data + Data(repeating: 0, count: 64)
+    }
+
+    @Test("Microsoft's VC++ DLLs in system32 are found by name; Wine builtins, placeholders and others are not")
+    func nativeVCRuntime() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let sys = try tmp.makeDir("system32")
+        for (name, marker) in [("msvcp140.dll", nil), ("MSVCP140_2.dll", nil), ("vcruntime140_1.dll", nil),
+                               ("concrt140.dll", "Wine builtin DLL"), ("vcruntime140.dll", "Wine placeholder DLL"),
+                               ("msvcrt.dll", nil), ("msvcp140.dll.bak", nil)] as [(String, String?)] {
+            try pe(marker).write(to: sys.appendingPathComponent(name))
+        }
+        try Data("MZ".utf8).write(to: sys.appendingPathComponent("msvcp140_1.dll"))   // too short to tell: kept
+        #expect(NativeSteamBridge.nativeVCRuntime(inSystem32: sys) == ["msvcp140", "msvcp140_1", "msvcp140_2", "vcruntime140_1"])
+        #expect(NativeSteamBridge.nativeVCRuntime(inSystem32: tmp.url.appendingPathComponent("none")).isEmpty)
+    }
+
+    @Test("A game from macOS Steam loads Microsoft's VC++ runtime native-first, after the bridge's routing")
+    func vcRuntimeRouting() throws {
+        let bridge = NativeSteamBridge(clientInstallPath: URL(fileURLWithPath: "/c"),
+                                       nativeVCRuntime: ["msvcp140", "msvcp140_2"])
+        #expect(bridge.dllRouting == NativeSteamBridge.dllOverrides + ";msvcp140,msvcp140_2=n,b")
+        #expect(NativeSteamBridge(clientInstallPath: URL(fileURLWithPath: "/c")).dllRouting == NativeSteamBridge.dllOverrides)
+        let p = try plan(bridge: bridge)
+        #expect(p.environment["WINEDLLOVERRIDES"]
+                == GraphicsBackend.gptk.dllOverrides + ";" + NativeSteamBridge.dllOverrides + ";msvcp140,msvcp140_2=n,b")
+    }
 }
