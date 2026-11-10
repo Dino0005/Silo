@@ -97,6 +97,11 @@ public struct AppPaths: Sendable, Hashable {
     public var nativeSteamBottle: URL {
         bottlesRoot.appendingPathComponent("SteamNative", isDirectory: true)
     }
+    /// The Media Foundation counterpart for macOS Steam: a clone of `steamBottleMF` with the same bridge, for games
+    /// with native Media Foundation on (FATAL FURY's videos). TODO(native-steam): not in `bottleDirNames` either.
+    public var nativeSteamBottleMF: URL {
+        bottlesRoot.appendingPathComponent("SteamNativeMF", isDirectory: true)
+    }
     /// The bridge files staged into that bottle and its runtime (stand-in `steam.exe`, `lsteamclient`).
     public var nativeSteamBridgeDir: URL {
         runtimesDir.appendingPathComponent("native-steam-bridge", isDirectory: true)

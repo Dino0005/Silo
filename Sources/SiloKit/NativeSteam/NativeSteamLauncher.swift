@@ -54,8 +54,14 @@ public struct NativeSteamLauncher: Sendable {
         }
 
         let context = try BottleResolver(paths: paths).steam(backend: chosen, config: backend)
-        let bottle = NativeSteamBottle(paths: paths, runner: runner)
-        log("bottle \(paths.nativeSteamBottle.path), backend \(chosen), wine \(context.wineBinary.path)")
+        // Native Media Foundation as in the library's Play: only with a ready MF bottle built under this Wine.
+        let mediaFoundation = config.envFlags.mediaFoundationNative
+            && Self.mediaFoundationReady(paths: paths, currentRuntime: backend.wineRuntimeName)
+        if config.envFlags.mediaFoundationNative, !mediaFoundation {
+            log("Media Foundation bottle missing or built under another Wine: using the normal bottle")
+        }
+        let bottle = NativeSteamBottle(paths: paths, runner: runner, mediaFoundation: mediaFoundation)
+        log("bottle \(bottle.prefix.path), backend \(chosen), wine \(context.wineBinary.path)")
         let source = bottle.bridgeSource(wine: context.wineBinary)
         log("bridge from \(source)")
         try await bottle.ensureBottle(source: source)
@@ -63,7 +69,7 @@ public struct NativeSteamLauncher: Sendable {
 
         // What Windows Steam would do on first launch and macOS Steam never does: the game's install script.
         for outcome in await SteamInstallScriptRunner(runner: runner).run(
-            appID: app.appID, installDir: app.installURL, prefix: paths.nativeSteamBottle, wine: context.wineBinary) {
+            appID: app.appID, installDir: app.installURL, prefix: bottle.prefix, wine: context.wineBinary) {
             switch outcome {
             case .ran(let step, let code): log("install script \"\(step)\": exit \(code)")
             case .skipped: break
@@ -72,7 +78,7 @@ public struct NativeSteamLauncher: Sendable {
 
         let pid = try await orchestrator.launchInBottle(
             app: app, config: config, backend: backend, graphics: chosen,
-            wine: context.wineBinary, prefix: paths.nativeSteamBottle,
+            wine: context.wineBinary, prefix: bottle.prefix,
             logURL: paths.log(forAppID: app.appID), gameExe: exe,
             altLoaderTarget: .init(gameName: app.name, gameID: String(app.appID),
                                    hostAppsDir: paths.hostAppsDir, playLink: .playSteam(appID: app.appID)),
@@ -90,6 +96,17 @@ public struct NativeSteamLauncher: Sendable {
         }
         log("\(app.name) ended")
         return 0
+    }
+
+    /// Whether `SteamNativeMF` can serve a game: the classic MF bottle (its source) is built and current — or, once
+    /// cloned, the clone itself is (a clone of a stale bottle carries the stale marker too).
+    static func mediaFoundationReady(paths: AppPaths, currentRuntime: String?,
+                                     fileManager: FileManager = .default) -> Bool {
+        let prefix = BottleCloner.isPrefix(paths.nativeSteamBottleMF, fileManager: fileManager)
+            ? paths.nativeSteamBottleMF : paths.steamBottleMF
+        return MediaFoundationInstaller.isInstalled(inPrefix: prefix, fileManager: fileManager)
+            && !MediaFoundationInstaller.isStale(inPrefix: prefix, currentRuntime: currentRuntime,
+                                                 fileManager: fileManager)
     }
 
     /// The game as Silo models it, from the `appmanifest` in the library the install dir belongs to.

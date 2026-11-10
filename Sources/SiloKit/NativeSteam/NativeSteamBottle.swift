@@ -44,12 +44,20 @@ public struct NativeSteamBottle: Sendable {
     }
 
     public let paths: AppPaths
+    /// The Media Foundation variant: `SteamNativeMF`, cloned from the classic MF bottle instead of the Steam one.
+    public let mediaFoundation: Bool
     private let cloner: BottleCloner
 
-    public init(paths: AppPaths, runner: ProcessRunning) {
+    public init(paths: AppPaths, runner: ProcessRunning, mediaFoundation: Bool = false) {
         self.paths = paths
+        self.mediaFoundation = mediaFoundation
         self.cloner = BottleCloner(runner: runner)
     }
+
+    /// This bottle's prefix.
+    public var prefix: URL { mediaFoundation ? paths.nativeSteamBottleMF : paths.nativeSteamBottle }
+    /// The classic bottle it is cloned from.
+    public var sourcePrefix: URL { mediaFoundation ? paths.steamBottleMF : paths.steamBottle }
 
     /// The runtime of `wine` when it ships every bridge file, else the development folder.
     public func bridgeSource(wine: URL?, fileManager: FileManager = .default) -> BridgeSource {
@@ -69,12 +77,12 @@ public struct NativeSteamBottle: Sendable {
     public func ensureBottle(source: BridgeSource, fileManager: FileManager = .default) async throws {
         let missing = Self.missingBridgeFiles(in: source, fileManager: fileManager)
         guard missing.isEmpty else { throw Failure.bridgeMissing(missing) }
-        let bottle = paths.nativeSteamBottle
+        let bottle = prefix
         if !BottleCloner.isPrefix(bottle, fileManager: fileManager) {
-            guard BottleCloner.isPrefix(paths.steamBottle, fileManager: fileManager) else {
+            guard BottleCloner.isPrefix(sourcePrefix, fileManager: fileManager) else {
                 throw Failure.sourceBottleMissing
             }
-            try await cloner.clone(from: paths.steamBottle, to: bottle)
+            try await cloner.clone(from: sourcePrefix, to: bottle)
         }
         let steamDir = bottle.appendingPathComponent("drive_c/Program Files (x86)/Steam", isDirectory: true)
         try fileManager.createDirectory(at: steamDir, withIntermediateDirectories: true)

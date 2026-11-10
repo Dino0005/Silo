@@ -54,6 +54,38 @@ struct NativeSteamBottleTests {
             "drive_c/Program Files (x86)/Steam/steam.exe"), encoding: .utf8) == "WINDOWS STEAM")
     }
 
+    @Test("The Media Foundation variant clones the classic MF bottle into SteamNativeMF, with the same bridge")
+    func mediaFoundationVariant() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let paths = try setUp(tmp)
+        try tmp.write("SteamBottleMF/drive_c/Program Files (x86)/Steam/steam.exe", "WINDOWS STEAM")
+        try tmp.write("SteamBottleMF/drive_c/windows/system32/mfplat.dll", "native MF")
+        let bottle = NativeSteamBottle(paths: paths, runner: SystemProcessRunner(), mediaFoundation: true)
+        #expect(bottle.prefix == paths.nativeSteamBottleMF && bottle.sourcePrefix == paths.steamBottleMF)
+        try await bottle.ensureBottle(source: bottle.bridgeSource(wine: nil))
+        let mf = paths.nativeSteamBottleMF
+        #expect(try String(contentsOf: mf.appendingPathComponent("drive_c/windows/system32/mfplat.dll"),
+                           encoding: .utf8) == "native MF")
+        #expect(try String(contentsOf: mf.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.exe"),
+                           encoding: .utf8) == "bridge:steam.exe")
+        #expect(!FileManager.default.fileExists(atPath: paths.nativeSteamBottle.path))   // the normal one untouched
+    }
+
+    @Test("macOS Steam uses the MF bottle only when it is built and current — the clone's own marker wins once made")
+    func mediaFoundationReady() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let paths = try setUp(tmp)
+        #expect(!NativeSteamLauncher.mediaFoundationReady(paths: paths, currentRuntime: "wine-cx-26.3.0"))
+        try tmp.write("SteamBottleMF/drive_c/windows/system32/mfplat.dll", "native MF")
+        try tmp.write("SteamBottleMF/.silo-media-foundation", "wine-cx-26.3.0")
+        #expect(NativeSteamLauncher.mediaFoundationReady(paths: paths, currentRuntime: "wine-cx-26.3.0"))
+        #expect(!NativeSteamLauncher.mediaFoundationReady(paths: paths, currentRuntime: "wine-crossover-26.3"))
+        // Once cloned, the clone is what's checked.
+        try tmp.write("SteamNativeMF/drive_c/windows/system32/mfplat.dll", "native MF")
+        try tmp.write("SteamNativeMF/.silo-media-foundation", "wine-older")
+        #expect(!NativeSteamLauncher.mediaFoundationReady(paths: paths, currentRuntime: "wine-cx-26.3.0"))
+    }
+
     @Test("A runtime built with the bridge is preferred, and supplies the bottle's copies")
     func runtimeSource() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
