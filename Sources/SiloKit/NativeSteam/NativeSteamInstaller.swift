@@ -148,6 +148,17 @@ public struct NativeSteamInstaller: Sendable {
         return (only, build)
     }
 
+    /// Windows games (`AppInfoPatcher.isWindowsGame`) Silo hasn't protected yet — `common.oslist` without `macos`,
+    /// so stock macOS Steam refuses to install them ("Invalid platform"). Their Install goes through Silo
+    /// (`SteamInstallWithSilo`). Readable while Steam runs.
+    public func windowsGamesNeedingSilo() throws -> [UInt32] {
+        let cache = try AppInfoCache(contentsOf: appInfoURL)
+        return try cache.appIDs.filter { id in
+            guard let info = try cache.app(id)?.info, AppInfoPatcher.isWindowsGame(info) else { return false }
+            return !(info.map("common")?.string("oslist") ?? "").osList.contains("macos")
+        }
+    }
+
     /// The installed apps that are Windows games (`AppInfoPatcher.isWindowsGame`), read from Steam's cache.
     public func installedWindowsGameIDs(fileManager: FileManager = .default) throws -> Set<UInt32> {
         let cache = try AppInfoCache(contentsOf: appInfoURL)

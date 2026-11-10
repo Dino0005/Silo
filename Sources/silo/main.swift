@@ -135,6 +135,54 @@ if CommandLine.arguments.contains("--smoke")
     var nextFilterCheck = Date.distantPast
     let playing = NativeSteamPlaying(paths: paths)
     var wasPlaying = false
+    let runner = SystemProcessRunner()
+    let osascript = URL(fileURLWithPath: "/usr/bin/osascript")
+    // Steam closed: protect every installed Windows game, then keep the copy-on-write shadows current.
+    func exitPass() throws {
+        let changed = try installer.protectInstalledWindowsGames()
+        log(changed.isEmpty ? "all installed Windows games already protected"
+            : changed.keys.sorted().map { "protected \($0): \(changed[$0]!.changes.joined(separator: "; "))" }
+                .joined(separator: "\n"))
+        // The safety net: undo a wipe Steam made mid-session, keep the copy-on-write shadows current.
+        let shadows = NativeSteamShadow(isSteamRunning: steamRunning).sync(
+            libraries: installer.libraries(), windowsGames: try installer.installedWindowsGameIDs())
+        for action in shadows { log("shadow: \(action)") }
+    }
+    func installWithSilo(_ appID: UInt32) async {
+        let library = installer.defaultGameLibrary()
+        let name = (try? AppInfoCache(contentsOf: installer.appInfoURL).app(appID))??.info.map("common")?.string("name")
+            ?? "App \(appID)"
+        let italian = Locale.preferredLanguages.first?.hasPrefix("it") ?? false
+        let prompt = SteamInstallWithSilo.restartPrompt(
+            gameName: name, library: library.lastPathComponent == "SteamLibrary"
+                ? library.deletingLastPathComponent().lastPathComponent : library.lastPathComponent, italian: italian)
+        let answer = try? await runner.run(executable: osascript, arguments: SteamInstallWithSilo.dialogArguments(prompt),
+                                           environment: [:], currentDirectory: nil)
+        let pressed = answer.map { String(decoding: $0.standardOutput, as: UTF8.self) }?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard pressed == prompt.ok else { log("install \(appID): cancelled"); return }
+        log("install \(appID) (\(name)) into \(library.path): restarting Steam")
+        _ = try? await runner.run(executable: osascript, arguments: ["-e", "tell application \"Steam\" to quit"],
+                                  environment: [:], currentDirectory: nil)
+        for _ in 0..<60 where steamRunning() { try? await Task.sleep(for: .seconds(1)) }
+        guard !steamRunning() else { log("install \(appID): Steam did not quit"); return }
+        // Let Steam finish writing appinfo.vdf on its way out.
+        try? await Task.sleep(for: .seconds(3))
+        do {
+            switch try installer.prepareInstall(appID, in: library) {
+            case .prepared(let manifest, let changes):
+                log("install \(appID): prepared \(manifest.path); \(changes.joined(separator: "; "))")
+            case .alreadyInLibrary(let manifest):
+                log("install \(appID): already in \(manifest.path)")
+            }
+            try exitPass()
+        } catch {
+            log("install \(appID) failed: \(error)")
+        }
+        SteamLibraryFilters.enableDebugPort(steamRoot: installer.steamRoot)
+        _ = try? await runner.run(executable: URL(fileURLWithPath: "/usr/bin/open"), arguments: ["-a", "Steam"],
+                                  environment: [:], currentDirectory: nil)
+    }
     while true {
         let running = steamRunning()
         // While a game started through Silo runs, nothing touches Steam's UI: the filters' timer is paused once
@@ -158,7 +206,20 @@ if CommandLine.arguments.contains("--smoke")
             } else if live != filtersLive {
                 filtersLive = live
             }
+            // "Install" on a Windows game Steam can't install by itself goes to Silo (same cadence as the filters).
+            if (try? await cef.evaluate(SteamInstallWithSilo.probe)) != "true",
+               let ids = try? installer.windowsGamesNeedingSilo(),
+               let reply = try? await cef.evaluate(SteamInstallWithSilo.script(appIDs: ids)) {
+                log("install takeover: \(reply)")
+            }
             nextFilterCheck = Date().addingTimeInterval(filtersLive ? 10 : 2)
+        }
+        // An Install pressed on such a game: ask, then restart Steam with the game readied in the external library.
+        if running, !isPlaying, let reply = try? await cef.evaluate(SteamInstallWithSilo.takeRequests),
+           let appID = SteamInstallWithSilo.requests(fromReply: reply).first {
+            await installWithSilo(appID)
+            watch = NativeSteamGuard.Watch()
+            _ = watch.shouldProtect(steamRunning: steamRunning())
         }
         if !running { filtersLive = false }
         if watch.shouldProtect(steamRunning: running) {
@@ -166,14 +227,7 @@ if CommandLine.arguments.contains("--smoke")
             // Let Steam finish writing appinfo.vdf on its way out.
             try? await Task.sleep(for: .seconds(3))
             do {
-                let changed = try installer.protectInstalledWindowsGames()
-                log(changed.isEmpty ? "all installed Windows games already protected"
-                    : changed.keys.sorted().map { "protected \($0): \(changed[$0]!.changes.joined(separator: "; "))" }
-                        .joined(separator: "\n"))
-                // The safety net: undo a wipe Steam made mid-session, keep the copy-on-write shadows current.
-                let shadows = NativeSteamShadow(isSteamRunning: steamRunning).sync(
-                    libraries: installer.libraries(), windowsGames: try installer.installedWindowsGameIDs())
-                for action in shadows { log("shadow: \(action)") }
+                try exitPass()
             } catch NativeSteamInstaller.Failure.steamRunning {
                 log("Steam started again before the check; retrying after it quits")
                 watch = NativeSteamGuard.Watch()
