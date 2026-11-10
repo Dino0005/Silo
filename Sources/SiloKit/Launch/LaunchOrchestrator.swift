@@ -29,6 +29,15 @@ public struct LaunchOrchestrator: Sendable {
     /// Steam's own launch entry for `app`. The Steam install is asked first: with `app.libraryPath` alone, a
     /// game in a second library (`Y:\SteamLibrary`) never found `appinfo.vdf` and fell back to the biggest
     /// exe — `tll-l.exe` for UNCHARTED, whose only launch entry is `u4.exe` (measured 2026-10-31).
+    /// Every Windows launch entry Steam lists for `app` (see `SteamAppInfo.windowsLaunches`).
+    func steamLaunchEntries(for app: SteamApp) -> [SteamAppInfo.LaunchEntry] {
+        for root in [steamClientRoot, app.libraryPath].compactMap({ $0 }) {
+            let entries = SteamAppInfo.windowsLaunches(steamRoot: root, appID: app.appID)
+            if !entries.isEmpty { return entries }
+        }
+        return []
+    }
+
     func steamLaunchEntry(for app: SteamApp) -> SteamAppInfo.LaunchEntry? {
         for root in [steamClientRoot, app.libraryPath].compactMap({ $0 }) {
             if let entry = SteamAppInfo.windowsLaunch(steamRoot: root, appID: app.appID) { return entry }
@@ -311,7 +320,10 @@ public struct LaunchOrchestrator: Sendable {
         if socket == nil {
             socket = await prepareAltLoader(
                 target: altLoaderTarget, gameExe: gameExe, prefix: prefix, wine: launchWine,
-                hostEnvironment: Self.hostEnvironment(for: config.envFlags))
+                hostEnvironment: Self.hostEnvironment(for: config.envFlags),
+                launcherChildren: GameLauncherExe.windowOwners(
+                    forLauncher: gameExe, installDir: app.installURL,
+                    launchExecutables: steamLaunchEntries(for: app).map(\.executable)))
         }
         let plan = try Self.makePlan(
             config: config, backend: backend, graphics: graphics, wine: launchWine,
@@ -339,19 +351,22 @@ public struct LaunchOrchestrator: Sendable {
 
     private func prepareAltLoader(
         target: AltLoaderSession.Target?, gameExe: URL, prefix: URL, wine: URL, syncMode: SyncMode = .msync,
-        hostEnvironment: [String: String] = [:]
+        hostEnvironment: [String: String] = [:], launcherChildren: [URL] = []
     ) async -> URL? {
         guard let target else { return nil }
         // The process that will own the window. For an Unreal launcher that is NOT the exe being launched
-        // but the Shipping executable it starts — see `UnrealLauncher`. The launch itself is unchanged: the
-        // launcher still runs (it is what Steam expects); only the hand-over and the icon move.
-        let windowOwner = UnrealLauncher.shippingExecutable(forLauncher: gameExe) ?? gameExe
+        // but the Shipping executable it starts — see `UnrealLauncher`; for another publisher's launcher, the
+        // game's other Steam launch exes (`GameLauncherExe`). The launch itself is unchanged: the launcher
+        // still runs (it is what Steam expects); only the hand-over and the icon move.
+        let owners = UnrealLauncher.shippingExecutable(forLauncher: gameExe).map { [$0] }
+            ?? (launcherChildren.isEmpty ? [gameExe] : launcherChildren)
+        let windowOwner = owners[0]
         let icon = (try? Data(contentsOf: windowOwner, options: .mappedIfSafe))
             .flatMap(PEIcon.icoData(fromExecutable:))
         return await altLoader.prepare(
             gameName: target.gameName, gameID: target.gameID, gameExe: windowOwner, iconICO: icon,
             playLink: target.playLink, prefix: prefix, wine: wine, hostAppsDir: target.hostAppsDir,
-            syncMode: syncMode, hostEnvironment: hostEnvironment)
+            syncMode: syncMode, hostEnvironment: hostEnvironment, alsoWhitelisted: Array(owners.dropFirst()))
     }
 
     /// Prepare the Steam client's hand-over for `bottle` (see `AltLoaderSession.prepareSteamClient`),
