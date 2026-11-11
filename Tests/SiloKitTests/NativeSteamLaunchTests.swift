@@ -164,4 +164,16 @@ struct NativeSteamLaunchTests {
         let inherited = SystemProcessRunner.mergedEnvironment([:])
         #expect(inherited["DYLD_INSERT_LIBRARIES"] == nil && inherited[NativeSteamBridge.overlayEnvKey] == nil)
     }
+
+    @Test("Every Wine command of the launch carries Steam's libraries, so winedevice.exe inherits them too")
+    func librariesRunner() async throws {
+        let fake = FakeProcessRunner()
+        let runner = SteamLibrariesRunner(base: fake, libraries: "/S/steamloader.dylib")
+        _ = try await runner.run(executable: URL(fileURLWithPath: "/w"), arguments: ["regedit"],
+                                 environment: ["WINEPREFIX": "/b"], currentDirectory: nil)
+        _ = try await runner.spawnDetached(executable: URL(fileURLWithPath: "/w"), arguments: ["steam.exe"],
+                                           environment: [:], currentDirectory: nil, logURL: URL(fileURLWithPath: "/l"))
+        #expect(fake.invocations.map { $0.environment[NativeSteamBridge.overlayEnvKey] } == ["/S/steamloader.dylib", "/S/steamloader.dylib"])
+        #expect(fake.invocations.first?.environment["WINEPREFIX"] == "/b")
+    }
 }

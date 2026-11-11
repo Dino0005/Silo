@@ -37,6 +37,15 @@ public struct NativeSteamLauncher: Sendable {
         let config = state.config(for: request.appID)
         let app = try Self.steamApp(for: request)
 
+        // Steam's overlay + virtual-gamepad libraries, as Steam hands them to a macOS game — given to every Wine
+        // command of this launch (`SteamLibrariesRunner`), not only the game's own.
+        let overlay = NativeSteamBridge.overlayLibraries(
+            fromSteam: environment["STEAM_DYLD_INSERT_LIBRARIES"],
+            clientInstallPath: NativeSteamBridge.defaultClientInstallPath())
+        log("steam libraries: " + (overlay.isEmpty ? "none" : overlay.map(\.lastPathComponent).joined(separator: ", ")))
+        let runner: ProcessRunning = overlay.isEmpty ? self.runner
+            : SteamLibrariesRunner(base: self.runner, libraries: overlay.map(\.path).joined(separator: ":"))
+
         let orchestrator = LaunchOrchestrator(
             runner: runner, linker: GraphicsLinker(),
             steamClientRoot: NativeSteamBridge.defaultClientInstallPath()
@@ -88,11 +97,6 @@ public struct NativeSteamLauncher: Sendable {
             }
         }
 
-        // Steam's overlay + virtual-gamepad libraries, as Steam hands them to a macOS game.
-        let overlay = NativeSteamBridge.overlayLibraries(
-            fromSteam: environment["STEAM_DYLD_INSERT_LIBRARIES"],
-            clientInstallPath: NativeSteamBridge.defaultClientInstallPath())
-        log("steam libraries: " + (overlay.isEmpty ? "none" : overlay.map(\.lastPathComponent).joined(separator: ", ")))
         let pid = try await orchestrator.launchInBottle(
             app: app, config: config, backend: backend, graphics: chosen,
             wine: context.wineBinary, prefix: bottle.prefix,
