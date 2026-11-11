@@ -100,6 +100,14 @@ public struct SystemProcessRunner: ProcessRunning {
         for key in inheritedDebugDenylist { env[key] = nil }   // before the overrides → an explicit one wins
         for (key, value) in overrides { env[key] = value }
         for key in injectionDenylist { env[key] = nil }   // applied LAST → also strips a user-set override
+        // The ONE deliberate injection: Steam's own overlay / virtual-gamepad libraries for a game started from
+        // macOS Steam (`NativeSteamBridge.overlayEnvKey`, already restricted to files in Steam's program folder;
+        // `makePlan` strips the key from anything else, a user's `EnvFlags.extra` included).
+        // Read from Silo's own overrides only — an inherited value is dropped like any other injection vector.
+        env[NativeSteamBridge.overlayEnvKey] = nil
+        if let libraries = overrides[NativeSteamBridge.overlayEnvKey], !libraries.isEmpty {
+            env["DYLD_INSERT_LIBRARIES"] = libraries
+        }
         return env
     }
 

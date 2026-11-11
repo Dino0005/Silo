@@ -213,6 +213,8 @@ public struct LaunchOrchestrator: Sendable {
         // A game started by macOS Steam (`NativeSteamBridge`): the stand-in client creates it — which is also
         // a real process creation, so the alt-loader hand-over needs no `start` — and the bridge's routing is
         // added after the backend's and the user's overrides (its three modules must resolve that way).
+        // Only the bridge may ask the runner to inject (`NativeSteamBridge.overlayEnvKey`) — never `EnvFlags.extra`.
+        environment[NativeSteamBridge.overlayEnvKey] = nil
         if let steamBridge {
             arguments = steamBridge.arguments(gameExe: gameExe, gameArguments: gameArguments)
             for (key, value) in steamBridge.environment { environment[key] = value }
@@ -319,7 +321,8 @@ public struct LaunchOrchestrator: Sendable {
         if socket == nil {
             socket = await prepareAltLoader(
                 target: altLoaderTarget, gameExe: gameExe, prefix: prefix, wine: launchWine,
-                hostEnvironment: Self.hostEnvironment(for: config.envFlags),
+                hostEnvironment: Self.hostEnvironment(for: config.envFlags)
+                    .merging(steamBridge?.hostEnvironment ?? [:]) { $1 },
                 launcherChildren: GameLauncherExe.windowOwners(
                     forLauncher: gameExe, installDir: app.installURL,
                     launchExecutables: steamLaunchEntries(for: app).map(\.executable)))

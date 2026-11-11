@@ -88,6 +88,11 @@ public struct NativeSteamLauncher: Sendable {
             }
         }
 
+        // Steam's overlay + virtual-gamepad libraries, as Steam hands them to a macOS game.
+        let overlay = NativeSteamBridge.overlayLibraries(
+            fromSteam: environment["STEAM_DYLD_INSERT_LIBRARIES"],
+            clientInstallPath: NativeSteamBridge.defaultClientInstallPath())
+        log("steam libraries: " + (overlay.isEmpty ? "none" : overlay.map(\.lastPathComponent).joined(separator: ", ")))
         let pid = try await orchestrator.launchInBottle(
             app: app, config: config, backend: backend, graphics: chosen,
             wine: context.wineBinary, prefix: bottle.prefix,
@@ -97,7 +102,8 @@ public struct NativeSteamLauncher: Sendable {
             steamBridge: NativeSteamBridge(
                 clientInstallPath: NativeSteamBridge.defaultClientInstallPath(),
                 nativeVCRuntime: NativeSteamBridge.nativeVCRuntime(
-                    inSystem32: bottle.prefix.appendingPathComponent("drive_c/windows/system32"))))
+                    inSystem32: bottle.prefix.appendingPathComponent("drive_c/windows/system32")),
+                overlayLibraries: overlay, steamEnvironment: environment))
         log("started \(app.name) (pid \(pid))")
         _ = try? await ConfigStore(paths: paths).updateGame(appID: app.appID) { $0.lastPlayed = Date() }
 

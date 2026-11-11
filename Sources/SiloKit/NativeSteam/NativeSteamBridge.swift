@@ -28,9 +28,51 @@ public struct NativeSteamBridge: Sendable, Equatable {
     /// NotProton 1.1.9's rule (CLAUDE.md, Phase 2). The classic mode is left as it is (no such prompt there).
     public var nativeVCRuntime: [String]
 
-    public init(clientInstallPath: URL, nativeVCRuntime: [String] = []) {
+    /// Steam's libraries for the game process — `steamloader.dylib` (Steam Input's virtual gamepad, among others)
+    /// and `gameoverlayrenderer.dylib` (Shift+Tab) — from Steam's `STEAM_DYLD_INSERT_LIBRARIES` (measured
+    /// 2026-11-11: Steam passes both to the "macOS build" Silo's games pose as). They are loaded into every Wine
+    /// process of the launch — `winedevice.exe` reads the controllers, not the game — and into the game's
+    /// alt-loader host, the way NotProton exports them (`compat_run.sh`).
+    public var overlayLibraries: [URL]
+    /// Steam's own variables for the game (`Steam*` — `SteamOverlayGameId`, `Steam3Master`, `SteamGameId`… — and
+    /// `SDL_*`), handed to the alt-loader host at exec: the host is started by LaunchServices, not by Steam, so it
+    /// would otherwise lack them, and the overlay reads them as soon as it loads (measured 2026-11-11: loaded into
+    /// TLOU's host without them, Shift+Tab did nothing).
+    public var steamEnvironment: [String: String]
+
+    public init(clientInstallPath: URL, nativeVCRuntime: [String] = [], overlayLibraries: [URL] = [],
+                steamEnvironment: [String: String] = [:]) {
         self.clientInstallPath = clientInstallPath
         self.nativeVCRuntime = nativeVCRuntime
+        self.overlayLibraries = overlayLibraries
+        self.steamEnvironment = steamEnvironment.filter { $0.key.hasPrefix("Steam") || $0.key.hasPrefix("SDL_") }
+    }
+
+    /// The environment key that carries `overlayLibraries` to `SystemProcessRunner`, which turns it into
+    /// `DYLD_INSERT_LIBRARIES` — the only way that variable reaches a Wine child.
+    public static let overlayEnvKey = "SILO_DYLD_INSERT_LIBRARIES"
+
+    /// The entries of Steam's `STEAM_DYLD_INSERT_LIBRARIES` that are `.dylib` files inside Steam's program
+    /// folder and exist — nothing else is ever injected.
+    public static func overlayLibraries(fromSteam value: String?, clientInstallPath: URL,
+                                        fileManager: FileManager = .default) -> [URL] {
+        let folder = clientInstallPath.standardizedFileURL.path.hasSuffix("/")
+            ? clientInstallPath.standardizedFileURL.path : clientInstallPath.standardizedFileURL.path + "/"
+        return (value ?? "").split(separator: ":").compactMap { entry in
+            let url = URL(fileURLWithPath: String(entry)).standardizedFileURL
+            guard url.path.hasPrefix(folder), !url.path.dropFirst(folder.count).contains("/"),
+                  url.pathExtension == "dylib", fileManager.fileExists(atPath: url.path) else { return nil }
+            return url
+        }
+    }
+
+    /// What the game's alt-loader host needs at exec (`open --env`): the same libraries, and Steam's variables
+    /// for them.
+    public var hostEnvironment: [String: String] {
+        guard !overlayLibraries.isEmpty else { return [:] }
+        var env = steamEnvironment
+        env["DYLD_INSERT_LIBRARIES"] = overlayLibraries.map(\.path).joined(separator: ":")
+        return env
     }
 
     /// `dllOverrides` plus `<vc dlls>=n,b` for `nativeVCRuntime`.
@@ -70,7 +112,9 @@ public struct NativeSteamBridge: Sendable, Equatable {
 
     /// The variables the bridge needs on top of a normal launch.
     public var environment: [String: String] {
-        ["SILO_LSTEAMCLIENT": "1", "STEAM_COMPAT_CLIENT_INSTALL_PATH": clientInstallPath.path]
+        var env = ["SILO_LSTEAMCLIENT": "1", "STEAM_COMPAT_CLIENT_INSTALL_PATH": clientInstallPath.path]
+        if !overlayLibraries.isEmpty { env[Self.overlayEnvKey] = overlayLibraries.map(\.path).joined(separator: ":") }
+        return env
     }
 
     /// The wine arguments: the stand-in client, then the game (as a unix path, which it accepts) and its args.

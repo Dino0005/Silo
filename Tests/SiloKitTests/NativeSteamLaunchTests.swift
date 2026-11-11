@@ -109,4 +109,59 @@ struct NativeSteamLaunchTests {
         #expect(p.environment["WINEDLLOVERRIDES"]
                 == GraphicsBackend.gptk.dllOverrides + ";" + NativeSteamBridge.dllOverrides + ";msvcp140,msvcp140_2=n,b")
     }
+
+    @Test("Only .dylib files that exist directly in Steam's program folder are taken from STEAM_DYLD_INSERT_LIBRARIES")
+    func overlayLibraries() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let macos = try tmp.makeDir("Steam/Contents/MacOS")
+        try tmp.write("Steam/Contents/MacOS/steamloader.dylib", "x")
+        try tmp.write("Steam/Contents/MacOS/gameoverlayrenderer.dylib", "x")
+        try tmp.write("Steam/Contents/MacOS/sub/evil.dylib", "x")
+        try tmp.write("elsewhere/evil.dylib", "x")
+        let value = [macos.appendingPathComponent("steamloader.dylib").path,
+                     macos.appendingPathComponent("gameoverlayrenderer.dylib").path,
+                     macos.appendingPathComponent("missing.dylib").path,
+                     macos.appendingPathComponent("sub/evil.dylib").path,
+                     macos.appendingPathComponent("../../../elsewhere/evil.dylib").path,
+                     tmp.url.appendingPathComponent("elsewhere/evil.dylib").path].joined(separator: ":")
+        let libs = NativeSteamBridge.overlayLibraries(fromSteam: value, clientInstallPath: macos)
+        #expect(libs.map(\.lastPathComponent) == ["steamloader.dylib", "gameoverlayrenderer.dylib"])
+        #expect(NativeSteamBridge.overlayLibraries(fromSteam: nil, clientInstallPath: macos).isEmpty)
+    }
+
+    @Test("The bridge carries Steam's libraries to the runner and to the host; extra can't use the channel")
+    func overlayPlan() throws {
+        let libs = [URL(fileURLWithPath: "/S/MacOS/steamloader.dylib"), URL(fileURLWithPath: "/S/MacOS/gameoverlayrenderer.dylib")]
+        let bridge = NativeSteamBridge(clientInstallPath: URL(fileURLWithPath: "/S/MacOS"), overlayLibraries: libs)
+        let joined = "/S/MacOS/steamloader.dylib:/S/MacOS/gameoverlayrenderer.dylib"
+        #expect(bridge.environment[NativeSteamBridge.overlayEnvKey] == joined)
+        #expect(bridge.hostEnvironment == ["DYLD_INSERT_LIBRARIES": joined])
+        let withSteam = NativeSteamBridge(clientInstallPath: URL(fileURLWithPath: "/S/MacOS"), overlayLibraries: libs,
+                                          steamEnvironment: ["SteamOverlayGameId": "2531310", "Steam3Master": "127.0.0.1:1",
+                                                             "SDL_JOYSTICK_HIDAPI_STEAMXBOX": "0", "HOME": "/Users/x"])
+        #expect(withSteam.hostEnvironment == ["DYLD_INSERT_LIBRARIES": joined, "SteamOverlayGameId": "2531310",
+                                              "Steam3Master": "127.0.0.1:1", "SDL_JOYSTICK_HIDAPI_STEAMXBOX": "0"])
+        #expect(NativeSteamBridge(clientInstallPath: URL(fileURLWithPath: "/S")).hostEnvironment.isEmpty)
+        #expect(try plan(bridge: bridge).environment[NativeSteamBridge.overlayEnvKey] == joined)
+        // A user's extra can't smuggle a library in through the same key.
+        var backend = BackendConfig()
+        backend.wineBinaryPath = URL(fileURLWithPath: "/w/bin/wine64")
+        var config = GameConfig(appID: 1)
+        config.envFlags.extra = [NativeSteamBridge.overlayEnvKey: "/tmp/evil.dylib"]
+        let p = try LaunchOrchestrator.makePlan(
+            config: config, backend: backend, graphics: .gptk, gameExe: dir.appendingPathComponent("TEKKEN 8.exe"),
+            prefix: URL(fileURLWithPath: "/b"), logURL: URL(fileURLWithPath: "/l.log"))
+        #expect(p.environment[NativeSteamBridge.overlayEnvKey] == nil)
+    }
+
+    @Test("The runner turns the bridge's key into DYLD_INSERT_LIBRARIES and still strips a direct one")
+    func runnerInjection() {
+        let env = SystemProcessRunner.mergedEnvironment([NativeSteamBridge.overlayEnvKey: "/S/a.dylib"])
+        #expect(env["DYLD_INSERT_LIBRARIES"] == "/S/a.dylib" && env[NativeSteamBridge.overlayEnvKey] == nil)
+        #expect(SystemProcessRunner.mergedEnvironment(["DYLD_INSERT_LIBRARIES": "/x.dylib"])["DYLD_INSERT_LIBRARIES"] == nil)
+        // An inherited key (not from Silo's own overrides) injects nothing.
+        setenv(NativeSteamBridge.overlayEnvKey, "/tmp/inherited.dylib", 1); defer { unsetenv(NativeSteamBridge.overlayEnvKey) }
+        let inherited = SystemProcessRunner.mergedEnvironment([:])
+        #expect(inherited["DYLD_INSERT_LIBRARIES"] == nil && inherited[NativeSteamBridge.overlayEnvKey] == nil)
+    }
 }
