@@ -12,11 +12,16 @@ public struct NativeSteamLauncher: Sendable {
     private let runner: ProcessRunning
     private let pollInterval: Duration
 
+    /// Steam's environment for the game (its controller lists, `SDL_GAMECONTROLLER_IGNORE_DEVICES`).
+    private let environment: [String: String]
+
     public init(paths: AppPaths = .standard(), runner: ProcessRunning = SystemProcessRunner(),
-                pollInterval: Duration = .seconds(1)) {
+                pollInterval: Duration = .seconds(1),
+                environment: [String: String] = ProcessInfo.processInfo.environment) {
         self.paths = paths
         self.runner = runner
         self.pollInterval = pollInterval
+        self.environment = environment
     }
 
     public enum Failure: Error, Equatable {
@@ -66,6 +71,13 @@ public struct NativeSteamLauncher: Sendable {
         log("bridge from \(source)")
         try await bottle.ensureBottle(source: source)
         if case .devFolder = source { try bottle.stageRuntime(wine: context.wineBinary) }
+
+        // Steam Input's pads stay Steam's: hidden from Wine's hidraw path unless the game reads them directly.
+        if let line = await SteamInputControllers.apply(
+            environment: environment, flags: config.envFlags, prefix: bottle.prefix, wine: context.wineBinary,
+            runner: runner) {
+            log(line)
+        }
 
         // What Windows Steam would do on first launch and macOS Steam never does: the game's install script.
         for outcome in await SteamInstallScriptRunner(runner: runner).run(

@@ -60,6 +60,24 @@ struct DepthFixSection: View {
     }
 }
 
+/// Controller handling for a game started from macOS Steam (`EnvFlags.rawControllers`, `.disableHidraw`,
+/// applied by `SteamInputControllers`). Steam games only: a manual game never runs next to macOS Steam.
+struct ControllersSection: View {
+    @Binding var flags: EnvFlags
+
+    var body: some View {
+        Section {
+            Toggle("Let games read controllers directly", isOn: $flags.rawControllers)
+            Toggle("Disable hidraw", isOn: $flags.disableHidraw)
+        } header: {
+            Text("Controllers (macOS Steam)")
+        } footer: {
+            Text("For games started from macOS Steam. While Steam Input handles a controller, Silo hides it from the game so the two don't drive it together; for PlayStation button glyphs turn Steam Input off for the game in Steam. \"Let games read controllers directly\" skips the hiding and may break Steam Input. \"Disable hidraw\" reads every controller through SDL (Xbox glyphs), for a pad that misbehaves — use it with Steam Input off.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// The launch-options form section shared by both settings sheets.
 struct LaunchOptionsSection: View {
     @Binding var text: String

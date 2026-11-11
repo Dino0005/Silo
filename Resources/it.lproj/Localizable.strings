@@ -437,3 +437,9 @@
 "Bottle folder" = "Cartella della bottiglia";
 "Shows in the Finder the Silo folder that holds the Steam bottle." = "Mostra nel Finder la cartella di Silo che contiene la bottiglia di Steam.";
 "Where Silo keeps every bottle: Steam, Media Foundation and those of non-Steam games. You can move them to a Silo Bottles folder wherever you choose, an external drive too (APFS or Mac OS Extended). Close games and Steam first." = "Dove Silo tiene tutte le bottiglie: Steam, Media Foundation e quelle dei giochi non Steam. Puoi spostarle in una cartella Silo Bottles dove scegli, anche su un disco esterno (APFS o Mac OS esteso). Chiudi prima i giochi e Steam.";
+
+/* Controllers for macOS Steam launches (GameSettingsSections.ControllersSection) */
+"Controllers (macOS Steam)" = "Controller (Steam per macOS)";
+"Let games read controllers directly" = "Lascia che i giochi leggano direttamente i controller";
+"Disable hidraw" = "Disattiva hidraw";
+"For games started from macOS Steam. While Steam Input handles a controller, Silo hides it from the game so the two don't drive it together; for PlayStation button glyphs turn Steam Input off for the game in Steam. \"Let games read controllers directly\" skips the hiding and may break Steam Input. \"Disable hidraw\" reads every controller through SDL (Xbox glyphs), for a pad that misbehaves — use it with Steam Input off." = "Per i giochi avviati da Steam per macOS. Quando Steam Input gestisce un controller, Silo lo nasconde al gioco, così i due non lo usano insieme; per i simboli PlayStation disattiva Steam Input per il gioco in Steam. «Lascia che i giochi leggano direttamente i controller» salta questa protezione e può guastare Steam Input. «Disattiva hidraw» fa leggere ogni controller tramite SDL (simboli Xbox), per un pad che non funziona bene: usalo con Steam Input disattivato.";

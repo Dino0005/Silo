@@ -96,6 +96,18 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// `mediaFoundationNative`, nothing is emitted from `environment(graphics:)`: it's applied in `makePlan`,
     /// which knows the runtime.
     public var depthFix: Bool
+    /// "Lascia che i giochi leggano direttamente i controller" — games started from **macOS Steam** only. Off (the
+    /// default): every pad Steam Input handles for the game (Steam's `SDL_GAMECONTROLLER_IGNORE_DEVICES`) is hidden
+    /// from Wine's hidraw path (`WineBus\Devices\<vid/pid>` `Hidraw=0`, `SteamInputControllers`), so the game and
+    /// Steam never drive one pad at the same time — measured 2026-11-10: FATAL FURY did, and a Bluetooth DualSense went
+    /// dark and dead for Steam too until re-identified. On: nothing is hidden (NotProton's
+    /// `NOTPROTON_RAW_CONTROLLERS`; "may break Steam Input"). With Steam Input off for the game Steam lists no pad,
+    /// so nothing is hidden either way — the game reads the pad directly, with PlayStation glyphs.
+    public var rawControllers: Bool
+    /// "Disattiva hidraw": `WineBus` `DisableHidraw=1` in the game's bottle, so Wine reads every pad through SDL
+    /// instead of directly (Xbox glyphs) — for a pad that misbehaves over hidraw, meant with Steam Input off. Silo
+    /// removes the value again only if it set it. macOS Steam launches only (NotProton's `NOTPROTON_DISABLE_HIDRAW`).
+    public var disableHidraw: Bool
     /// Free-form extra environment variables — a config.json-only escape hatch (no UI). Merged last in
     /// `environment()`, so it overrides the flags above — EXCEPT the sync keys (`WINEMSYNC`/`WINEESYNC`),
     /// which `LaunchOrchestrator.makePlan` force-overrides afterward for shared-bottle co-residency.
@@ -110,6 +122,8 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         metalBackend: MetalBackendChoice = .auto,
         mediaFoundationNative: Bool = false,
         depthFix: Bool = false,
+        rawControllers: Bool = false,
+        disableHidraw: Bool = false,
         extra: [String: String] = [:]
     ) {
         self.syncMode = syncMode
@@ -120,6 +134,8 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.metalBackend = metalBackend
         self.mediaFoundationNative = mediaFoundationNative
         self.depthFix = depthFix
+        self.rawControllers = rawControllers
+        self.disableHidraw = disableHidraw
         self.extra = extra
     }
 
@@ -161,7 +177,8 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     // MARK: - Codable (migrates legacy esync/msync bools; tolerates missing perf fields)
 
     private enum CodingKeys: String, CodingKey {
-        case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, depthFix, extra
+        case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, depthFix
+        case rawControllers, disableHidraw, extra
         case esync, msync   // legacy fields from configs written before the SyncMode enum
     }
 
@@ -187,6 +204,8 @@ public struct EnvFlags: Codable, Sendable, Hashable {
             .flatMap(MetalBackendChoice.init(rawValue:)) ?? .auto
         mediaFoundationNative = try c.decodeIfPresent(Bool.self, forKey: .mediaFoundationNative) ?? false
         depthFix = try c.decodeIfPresent(Bool.self, forKey: .depthFix) ?? false
+        rawControllers = try c.decodeIfPresent(Bool.self, forKey: .rawControllers) ?? false
+        disableHidraw = try c.decodeIfPresent(Bool.self, forKey: .disableHidraw) ?? false
         extra = try c.decodeIfPresent([String: String].self, forKey: .extra) ?? [:]
     }
 
@@ -200,6 +219,8 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         try c.encode(metalBackend, forKey: .metalBackend)
         try c.encode(mediaFoundationNative, forKey: .mediaFoundationNative)
         try c.encode(depthFix, forKey: .depthFix)
+        try c.encode(rawControllers, forKey: .rawControllers)
+        try c.encode(disableHidraw, forKey: .disableHidraw)
         try c.encode(extra, forKey: .extra)
     }
 }
