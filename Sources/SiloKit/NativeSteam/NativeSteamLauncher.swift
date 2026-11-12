@@ -76,7 +76,7 @@ public struct NativeSteamLauncher: Sendable {
                                              hostAppsDir: paths.hostAppsDir, playLink: .playSteam(appID: app.appID))
         var gameApp: [String: String]?
         if let injector = injectorURL {
-            gameApp = LaunchOrchestrator(runner: self.runner, linker: GraphicsLinker(), steamClientRoot: steamClientRoot)
+            gameApp = await LaunchOrchestrator(runner: self.runner, linker: GraphicsLinker(), steamClientRoot: steamClientRoot)
                 .prepareGameApp(name: app.name, id: String(app.appID), gameAppsDir: paths.gameAppsDir,
                                 gameExe: exe, app: app, wine: context.wineBinary)
             if gameApp != nil { overlay.insert(injector, at: 0) }

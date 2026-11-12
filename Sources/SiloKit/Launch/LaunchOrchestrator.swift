@@ -379,7 +379,7 @@ public struct LaunchOrchestrator: Sendable {
     /// bundle's declared executable, and the host bundle must keep declaring the alt-loader host. It declares the games
     /// category like the host: that is what turns on Game Mode (user, 2026-11-12: games must have it).
     public func prepareGameApp(name: String, id: String, gameAppsDir: URL, gameExe: URL, app: SteamApp, wine: URL,
-                               fileManager: FileManager = .default) -> [String: String]? {
+                               fileManager: FileManager = .default) async -> [String: String]? {
         // The same window owners the host would adopt; all of them run from the bundle.
         let children = GameLauncherExe.windowOwners(
             forLauncher: gameExe, installDir: app.installURL,
@@ -389,10 +389,23 @@ public struct LaunchOrchestrator: Sendable {
         let icon = (try? Data(contentsOf: owners[0], options: .mappedIfSafe)).flatMap(PEIcon.icoData(fromExecutable:))
         let bundle = GameHostBundle(name: name, id: id, executable: GameAppLoader.loaderName,
                                     idPrefix: GameHostBundle.gameAppIDPrefix)
+        let unixDir = WineRuntimeLayout(wineBinary: wine).unixModulesDir
+        let identifier = GameHostBundle.gameAppIDPrefix + GameHostBundle.bundleSafe(id)
         guard let macOS = try? bundle.write(into: gameAppsDir, iconICO: icon, fileManager: fileManager),
-              let loader = try? GameAppLoader.stage(unixDir: WineRuntimeLayout(wineBinary: wine).unixModulesDir,
-                                                    in: macOS, fileManager: fileManager)
+              let staged = try? GameAppLoader.stage(unixDir: unixDir, in: macOS, identifier: identifier, name: name,
+                                                    fileManager: fileManager)
         else { return nil }
+        if let unsigned = staged.unsigned {
+            // The rewritten plist invalidated the copy's signature; ad-hoc, like the runtime's own loader.
+            let signed = try? await runner.run(executable: URL(fileURLWithPath: "/usr/bin/codesign"),
+                                               arguments: ["--force", "--sign", "-", unsigned.path],
+                                               environment: [:], currentDirectory: nil)
+            guard signed?.succeeded == true,
+                  (try? GameAppLoader.install(staged, unixDir: unixDir, identifier: identifier, name: name,
+                                              fileManager: fileManager)) != nil
+            else { try? fileManager.removeItem(at: unsigned); return nil }
+        }
+        let loader = staged.loader
         return [GameAppLoader.loaderEnvKey: loader.path,
                 GameAppLoader.executablesEnvKey: GameAppLoader.executablesValue(owners)]
     }

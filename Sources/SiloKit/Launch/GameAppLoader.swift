@@ -11,8 +11,9 @@ import Foundation
 /// loader for one of the game's executables at the copy in the bundle, relaunches included. Same idea as NotProton's
 /// PR #90 (sn0wst0rm; final version in the NotProton fork as d77e605/8946aab/71b8965) — Silo's own code.
 ///
-/// The loader is a **hard link** of the runtime's `lib/wine/x86_64-unix/wine` (a copy if the link fails), and every
-/// other entry of that directory is **symlinked** beside it: the loader finds `ntdll.so` next to itself, and
+/// The loader is a **private copy** of the runtime's `lib/wine/x86_64-unix/wine` with the game's identity and Game Mode
+/// in its embedded plist (`EmbeddedInfoPlist`, re-signed ad-hoc), and every other entry of that directory is
+/// **symlinked** beside it: the loader finds `ntdll.so` next to itself, and
 /// `ntdll.so` resolves through its symlink to the real runtime, from which Wine derives its other directories.
 /// (`CLAUDE.md`'s 2026-09-17 note that a moved loader can't work was measured without those siblings.)
 public enum GameAppLoader {
@@ -41,47 +42,74 @@ public enum GameAppLoader {
         return names.joined(separator: ":")
     }
 
-    /// Places the loader of `unixDir` (`<runtime>/lib/wine/x86_64-unix`) in `macOSDir` (a host bundle's
-    /// `Contents/MacOS`) with its siblings symlinked, refreshing what a previous runtime left. Returns the loader.
-    /// Other files there (the alt-loader host binary) are left alone.
-    @discardableResult
-    public static func stage(unixDir: URL, in macOSDir: URL, fileManager: FileManager = .default) throws -> URL {
+    /// Where `stage` left the loader: `loader` is final when `unsigned` is nil; otherwise the caller signs `unsigned`
+    /// (ad-hoc) and calls `install`.
+    public struct Staged: Sendable, Equatable {
+        public let loader: URL
+        public let unsigned: URL?
+    }
+
+    static let sourceMarkerName = ".wine.silo-source"
+
+    /// Prepares `macOSDir` (a game app's `Contents/MacOS`) for the loader of `unixDir` (`<runtime>/lib/wine/x86_64-unix`):
+    /// every sibling symlinked, and — unless the loader there is already this runtime's for this identity — a private
+    /// copy of the loader whose embedded plist carries the game's identity and Game Mode (`EmbeddedInfoPlist`),
+    /// left unsigned beside it. A private copy, not a link: the runtime's own loader is never modified.
+    public static func stage(unixDir: URL, in macOSDir: URL, identifier: String, name: String,
+                             fileManager: FileManager = .default) throws -> Staged {
         let source = unixDir.appendingPathComponent(loaderName)
         let loader = macOSDir.appendingPathComponent(loaderName)
         try fileManager.createDirectory(at: macOSDir, withIntermediateDirectories: true)
 
-        // The loader: keep it when it is already this runtime's file, else replace it atomically.
-        if !sameFile(loader, source, fileManager: fileManager) {
-            let temp = macOSDir.appendingPathComponent(".\(loaderName).silo-\(UUID().uuidString)")
-            do { try fileManager.linkItem(at: source, to: temp) } catch { try fileManager.copyItem(at: source, to: temp) }
-            if fileManager.fileExists(atPath: loader.path) {
-                _ = try fileManager.replaceItemAt(loader, withItemAt: temp)
-            } else {
-                try fileManager.moveItem(at: temp, to: loader)
-            }
-        }
-
         // The siblings: one symlink per entry of the runtime's unix dir; drop ours that point elsewhere.
         let wanted = try fileManager.contentsOfDirectory(atPath: unixDir.path).filter { $0 != loaderName }
-        for name in try fileManager.contentsOfDirectory(atPath: macOSDir.path) {
-            let item = macOSDir.appendingPathComponent(name)
+        for entry in try fileManager.contentsOfDirectory(atPath: macOSDir.path) {
+            let item = macOSDir.appendingPathComponent(entry)
             guard let target = try? fileManager.destinationOfSymbolicLink(atPath: item.path) else { continue }
-            if target != unixDir.appendingPathComponent(name).path { try fileManager.removeItem(at: item) }
+            if target != unixDir.appendingPathComponent(entry).path { try fileManager.removeItem(at: item) }
         }
-        for name in wanted {
-            let link = macOSDir.appendingPathComponent(name)
+        for entry in wanted {
+            let link = macOSDir.appendingPathComponent(entry)
             if (try? fileManager.destinationOfSymbolicLink(atPath: link.path)) != nil { continue }
             if fileManager.fileExists(atPath: link.path) { continue }   // never replace a real file of ours
-            try fileManager.createSymbolicLink(at: link, withDestinationURL: unixDir.appendingPathComponent(name))
+            try fileManager.createSymbolicLink(at: link, withDestinationURL: unixDir.appendingPathComponent(entry))
         }
-        return loader
+
+        // The loader: rebuilt only when the runtime's loader or the identity changed.
+        let marker = macOSDir.appendingPathComponent(sourceMarkerName)
+        let stamp = try sourceStamp(source, identifier: identifier, name: name, fileManager: fileManager)
+        if fileManager.fileExists(atPath: loader.path),
+           (try? String(contentsOf: marker, encoding: .utf8)) == stamp { return Staged(loader: loader, unsigned: nil) }
+        let patched = try EmbeddedInfoPlist.rewrite(
+            Data(contentsOf: source), entries: EmbeddedInfoPlist.gameEntries(identifier: identifier, name: name))
+        let temp = macOSDir.appendingPathComponent(".\(loaderName).silo-\(UUID().uuidString)")
+        try patched.write(to: temp)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temp.path)
+        try? fileManager.removeItem(at: marker)
+        return Staged(loader: loader, unsigned: temp)
     }
 
-    private static func sameFile(_ a: URL, _ b: URL, fileManager: FileManager) -> Bool {
-        guard let x = try? fileManager.attributesOfItem(atPath: a.path),
-              let y = try? fileManager.attributesOfItem(atPath: b.path) else { return false }
-        if let i = x[.systemFileNumber] as? Int, let j = y[.systemFileNumber] as? Int,
-           let d = x[.systemNumber] as? Int, let e = y[.systemNumber] as? Int, i == j, d == e { return true }
-        return fileManager.contentsEqual(atPath: a.path, andPath: b.path)
+    /// Puts a signed `stage` copy in place of the loader and records what it was built from.
+    public static func install(_ staged: Staged, unixDir: URL, identifier: String, name: String,
+                               fileManager: FileManager = .default) throws {
+        guard let unsigned = staged.unsigned else { return }
+        if fileManager.fileExists(atPath: staged.loader.path) {
+            _ = try fileManager.replaceItemAt(staged.loader, withItemAt: unsigned)
+        } else {
+            try fileManager.moveItem(at: unsigned, to: staged.loader)
+        }
+        let stamp = try sourceStamp(unixDir.appendingPathComponent(loaderName), identifier: identifier, name: name,
+                                    fileManager: fileManager)
+        try Data(stamp.utf8).write(to: staged.loader.deletingLastPathComponent()
+            .appendingPathComponent(sourceMarkerName), options: .atomic)
     }
+
+    /// What a staged loader was built from: the runtime loader's file identity and the game identity.
+    static func sourceStamp(_ source: URL, identifier: String, name: String, fileManager: FileManager) throws -> String {
+        let a = try fileManager.attributesOfItem(atPath: source.path)
+        let inode = a[.systemFileNumber] as? Int ?? 0, size = a[.size] as? Int ?? 0
+        let mtime = (a[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        return "\(inode):\(size):\(mtime):\(identifier):\(name)"
+    }
+
 }

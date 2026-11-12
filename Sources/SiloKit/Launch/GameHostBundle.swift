@@ -295,7 +295,7 @@ public struct GameHostBundle: Sendable {
     }
 
     /// A bundle-id-safe slug (alphanumerics, `.` and `-` kept; anything else → `-`).
-    private static func bundleSafe(_ s: String) -> String {
+    static func bundleSafe(_ s: String) -> String {
         String(s.unicodeScalars.map {
             CharacterSet.alphanumerics.contains($0) || $0 == "." || $0 == "-" ? Character($0) : "-"
         })
