@@ -123,13 +123,15 @@ public final class AppEnvironment {
         // The single Steam bottle + its live client session + settings VM. The client runs on the base wine
         // (CEF needs no d3d; a co-resident game picks the variant runtime — shared wineserver).
         let steamBottle = SteamBottle(runner: runner, paths: paths)
-        let steamClientSession = SteamClientSession(bottle: steamBottle, orchestrator: orchestrator)
+        // Never two Steams at once: while macOS Steam runs, neither session starts the Windows client.
+        let steamClientSession = SteamClientSession(bottle: steamBottle, orchestrator: orchestrator,
+                                                    macSteamRunning: { MacSteamProcess.isRunning() })
         // The Media Foundation bottle's own client. A second session rather than a switchable one: each
         // owns its bottle's client for the app's lifetime, and a game's flag picks which it launches
         // against. Steamworks IPC is prefix-scoped, so the game and its client must share a prefix.
         let mfClientSession = SteamClientSession(
             bottle: SteamBottle(runner: runner, paths: paths, kind: .mediaFoundation),
-            orchestrator: orchestrator)
+            orchestrator: orchestrator, macSteamRunning: { MacSteamProcess.isRunning() })
         let steamBottleVM = SteamBottleViewModel(
             bottle: steamBottle, session: steamClientSession)
         self.steamClientSession = steamClientSession
