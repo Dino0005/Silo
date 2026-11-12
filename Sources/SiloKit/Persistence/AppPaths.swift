@@ -54,6 +54,8 @@ public struct AppPaths: Sendable, Hashable {
     /// Mission Control / Stage Manager. Under `supportDir`, never the bottles drive — it must stay reachable when that is unplugged.
     /// Disposable: deleting it costs one re-create at next launch.
     public var hostAppsDir: URL { supportDir.appendingPathComponent("HostApps", isDirectory: true) }
+    /// Game apps for launches from macOS Steam (`GameAppLoader`): Wine's loader inside each, as the declared executable.
+    public var gameAppsDir: URL { supportDir.appendingPathComponent("GameApps", isDirectory: true) }
 
     // MARK: - Bottles location
 

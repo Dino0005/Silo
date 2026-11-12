@@ -43,6 +43,13 @@ public struct GameHostBundle: Sendable {
     /// link (read from `playURLFileName`), and Silo launches the game the way its own Play button does.
     /// `nil` for the Steam client's host, which has no game to start.
     public let playLink: SiloDeepLink?
+    /// `CFBundleExecutable`: the alt-loader host, or `GameAppLoader.loaderName` for a game app — whose process IS
+    /// Wine's loader, and macOS takes a process's identity from the bundle only when it is the bundle's declared
+    /// executable (measured 2026-11-12: with `SiloGameHost` declared, the loader inside reported its own embedded
+    /// `com.codeweavers.CrossOver.wineloader`, a square Dock icon, and no hand-off match).
+    public let executable: String
+    /// `bundleIDPrefix`, or `gameAppIDPrefix` for a game app — a separate bundle with its own identifier.
+    let idPrefix: String
 
     /// The category a game's host declares (see `infoPlist`).
     public static let gamesCategory = "public.app-category.games"
@@ -50,15 +57,20 @@ public struct GameHostBundle: Sendable {
     static let playURLFileName = "silo-play-url"
 
     public init(name: String, id: String, category: String? = GameHostBundle.gamesCategory,
-                playLink: SiloDeepLink? = nil) {
+                playLink: SiloDeepLink? = nil, executable: String = GameHostBundle.executableName,
+                idPrefix: String = GameHostBundle.bundleIDPrefix) {
         self.name = name
         self.id = id
         self.category = category
         self.playLink = playLink
+        self.executable = executable
+        self.idPrefix = idPrefix
     }
 
     /// Marks a bundle as ours, so `write` can replace its own previous output and nothing else.
-    static let bundleIDPrefix = "com.mikael.silo.host."
+    public static let bundleIDPrefix = "com.mikael.silo.host."
+    /// The prefix of a game app (`GameAppLoader`).
+    public static let gameAppIDPrefix = "com.mikael.silo.game."
 
     /// The `CFBundleIdentifier` of the host for the game `id` — what `infoPlist` writes, so a running or
     /// exited host can be matched back to its game.
@@ -94,8 +106,8 @@ public struct GameHostBundle: Sendable {
         <dict>
             <key>CFBundleName</key><string>\(xmlEscaped(name))</string>
             <key>CFBundleDisplayName</key><string>\(xmlEscaped(name))</string>
-            <key>CFBundleIdentifier</key><string>\(Self.bundleIdentifier(forID: id))</string>
-            <key>CFBundleExecutable</key><string>\(Self.executableName)</string>
+            <key>CFBundleIdentifier</key><string>\(idPrefix + Self.bundleSafe(id))</string>
+            <key>CFBundleExecutable</key><string>\(xmlEscaped(executable))</string>
             <key>CFBundleIconFile</key><string>\(Self.iconName)</string>
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
@@ -119,7 +131,7 @@ public struct GameHostBundle: Sendable {
     /// **actual host** copied here by `write(into:hostBinary:…)`: the binary LaunchServices starts, which
     /// then adopts the Wine process handed to it over `CX_ALT_LOADER_SOCKET` and becomes it.
     ///
-    static let executableName = "SiloGameHost"
+    public static let executableName = "SiloGameHost"
     /// Base name of the `.icns` in `Contents/Resources`, matching `CFBundleIconFile`.
     static let iconName = "AppIcon"
 
@@ -271,7 +283,7 @@ public struct GameHostBundle: Sendable {
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let id = (plist as? [String: Any])?["CFBundleIdentifier"] as? String
         else { return false }
-        return id.hasPrefix(bundleIDPrefix)
+        return id.hasPrefix(bundleIDPrefix) || id.hasPrefix(gameAppIDPrefix)
     }
 
     // MARK: - Escaping

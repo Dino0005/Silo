@@ -371,6 +371,32 @@ public struct LaunchOrchestrator: Sendable {
             syncMode: syncMode, hostEnvironment: hostEnvironment, alsoWhitelisted: Array(owners.dropFirst()))
     }
 
+    /// The game's identity for a launch from macOS Steam (`GameAppLoader`): a game app in `gameAppsDir` — the game's
+    /// name and icon, Wine's loader staged inside as its declared executable. Returns the environment the injected
+    /// library needs, or nil when anything is missing (the launch then falls back to the alt-loader host).
+    ///
+    /// Its own bundle, not the host's: macOS takes a process's identity from a bundle only when the process is the
+    /// bundle's declared executable, and the host bundle must keep declaring the alt-loader host. It declares the games
+    /// category like the host: that is what turns on Game Mode (user, 2026-11-12: games must have it).
+    public func prepareGameApp(name: String, id: String, gameAppsDir: URL, gameExe: URL, app: SteamApp, wine: URL,
+                               fileManager: FileManager = .default) -> [String: String]? {
+        // The same window owners the host would adopt; all of them run from the bundle.
+        let children = GameLauncherExe.windowOwners(
+            forLauncher: gameExe, installDir: app.installURL,
+            launchExecutables: steamLaunchEntries(for: app).map(\.executable))
+        let owners = UnrealLauncher.shippingExecutable(forLauncher: gameExe).map { [$0] }
+            ?? (children.isEmpty ? [gameExe] : children)
+        let icon = (try? Data(contentsOf: owners[0], options: .mappedIfSafe)).flatMap(PEIcon.icoData(fromExecutable:))
+        let bundle = GameHostBundle(name: name, id: id, executable: GameAppLoader.loaderName,
+                                    idPrefix: GameHostBundle.gameAppIDPrefix)
+        guard let macOS = try? bundle.write(into: gameAppsDir, iconICO: icon, fileManager: fileManager),
+              let loader = try? GameAppLoader.stage(unixDir: WineRuntimeLayout(wineBinary: wine).unixModulesDir,
+                                                    in: macOS, fileManager: fileManager)
+        else { return nil }
+        return [GameAppLoader.loaderEnvKey: loader.path,
+                GameAppLoader.executablesEnvKey: GameAppLoader.executablesValue(owners)]
+    }
+
     /// Prepare the Steam client's hand-over for `bottle` (see `AltLoaderSession.prepareSteamClient`),
     /// returning the socket to pass to `SteamBottle.launchSteam` — or `nil`, which launches Steam exactly
     /// as before. The window is cosmetic; nothing here can stop Steam from starting.

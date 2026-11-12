@@ -14,14 +14,18 @@ public struct NativeSteamLauncher: Sendable {
 
     /// Steam's environment for the game (its controller lists, `SDL_GAMECONTROLLER_IGNORE_DEVICES`).
     private let environment: [String: String]
+    /// `silo-game-loader.dylib` of the running app (`GameAppLoader.injector`); nil keeps the alt-loader host.
+    private let injectorURL: URL?
 
     public init(paths: AppPaths = .standard(), runner: ProcessRunning = SystemProcessRunner(),
                 pollInterval: Duration = .seconds(1),
-                environment: [String: String] = ProcessInfo.processInfo.environment) {
+                environment: [String: String] = ProcessInfo.processInfo.environment,
+                injector: URL? = GameAppLoader.injector()) {
         self.paths = paths
         self.runner = runner
         self.pollInterval = pollInterval
         self.environment = environment
+        self.injectorURL = injector
     }
 
     public enum Failure: Error, Equatable {
@@ -39,20 +43,16 @@ public struct NativeSteamLauncher: Sendable {
 
         // Steam's overlay + virtual-gamepad libraries, as Steam hands them to a macOS game — given to every Wine
         // command of this launch (`SteamLibrariesRunner`), not only the game's own.
-        let overlay = NativeSteamBridge.overlayLibraries(
+        var overlay = NativeSteamBridge.overlayLibraries(
             fromSteam: environment["STEAM_DYLD_INSERT_LIBRARIES"],
             clientInstallPath: NativeSteamBridge.defaultClientInstallPath())
         log("steam libraries: " + (overlay.isEmpty ? "none" : overlay.map(\.lastPathComponent).joined(separator: ", ")))
-        let runner: ProcessRunning = overlay.isEmpty ? self.runner
-            : SteamLibrariesRunner(base: self.runner, libraries: overlay.map(\.path).joined(separator: ":"))
-
-        let orchestrator = LaunchOrchestrator(
-            runner: runner, linker: GraphicsLinker(),
-            steamClientRoot: NativeSteamBridge.defaultClientInstallPath()
-                .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-                .deletingLastPathComponent())
+        let steamClientRoot = NativeSteamBridge.defaultClientInstallPath()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
         guard let exe = request.executable.flatMap({ FileManager.default.fileExists(atPath: $0.path) ? $0 : nil })
-            ?? orchestrator.resolvedExecutable(app: app, config: config) else {
+            ?? LaunchOrchestrator(runner: self.runner, linker: GraphicsLinker(), steamClientRoot: steamClientRoot)
+                .resolvedExecutable(app: app, config: config) else {
             throw Failure.executableNotFound
         }
 
@@ -68,6 +68,25 @@ public struct NativeSteamLauncher: Sendable {
         }
 
         let context = try BottleResolver(paths: paths).steam(backend: chosen, config: backend)
+
+        // The game's identity: Wine's loader inside the game's own .app (`GameAppLoader`), so every process of the
+        // game — a relaunch included — carries its name and icon. Without the injected library (a `swift run`
+        // build) or if staging fails, the alt-loader host does it as before.
+        let target = AltLoaderSession.Target(gameName: app.name, gameID: String(app.appID),
+                                             hostAppsDir: paths.hostAppsDir, playLink: .playSteam(appID: app.appID))
+        var gameApp: [String: String]?
+        if let injector = injectorURL {
+            gameApp = LaunchOrchestrator(runner: self.runner, linker: GraphicsLinker(), steamClientRoot: steamClientRoot)
+                .prepareGameApp(name: app.name, id: String(app.appID), gameAppsDir: paths.gameAppsDir,
+                                gameExe: exe, app: app, wine: context.wineBinary)
+            if gameApp != nil { overlay.insert(injector, at: 0) }
+        }
+        log(gameApp.map { "game app: \($0[GameAppLoader.loaderEnvKey] ?? "") for \($0[GameAppLoader.executablesEnvKey] ?? "")" }
+            ?? "game app: none, the alt-loader host carries the icon")
+        let runner: ProcessRunning = overlay.isEmpty ? self.runner
+            : SteamLibrariesRunner(base: self.runner, libraries: overlay.map(\.path).joined(separator: ":"),
+                                   extraEnvironment: gameApp ?? [:])
+        let orchestrator = LaunchOrchestrator(runner: runner, linker: GraphicsLinker(), steamClientRoot: steamClientRoot)
         // Native Media Foundation as in the library's Play: only with a ready MF bottle built under this Wine.
         let mediaFoundation = config.envFlags.mediaFoundationNative
             && Self.mediaFoundationReady(paths: paths, currentRuntime: backend.wineRuntimeName)
@@ -101,8 +120,7 @@ public struct NativeSteamLauncher: Sendable {
             app: app, config: config, backend: backend, graphics: chosen,
             wine: context.wineBinary, prefix: bottle.prefix,
             logURL: paths.log(forAppID: app.appID), gameExe: exe,
-            altLoaderTarget: .init(gameName: app.name, gameID: String(app.appID),
-                                   hostAppsDir: paths.hostAppsDir, playLink: .playSteam(appID: app.appID)),
+            altLoaderTarget: gameApp == nil ? target : nil,
             steamBridge: NativeSteamBridge(
                 clientInstallPath: NativeSteamBridge.defaultClientInstallPath(),
                 nativeVCRuntime: NativeSteamBridge.nativeVCRuntime(

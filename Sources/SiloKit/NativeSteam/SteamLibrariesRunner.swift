@@ -11,6 +11,8 @@ struct SteamLibrariesRunner: ProcessRunning {
     /// `DYLD_INSERT_LIBRARIES` value, carried as `NativeSteamBridge.overlayEnvKey` (`SystemProcessRunner` turns it
     /// into the real variable).
     let libraries: String
+    /// More variables every command gets (the game app's loader for `silo-game-loader.dylib`, `GameAppLoader`).
+    var extraEnvironment: [String: String] = [:]
 
     func run(executable: URL, arguments: [String], environment: [String: String],
              currentDirectory: URL?) async throws -> ProcessResult {
@@ -28,7 +30,7 @@ struct SteamLibrariesRunner: ProcessRunning {
     func terminate(pid: Int32) { base.terminate(pid: pid) }
 
     private func adding(_ environment: [String: String]) -> [String: String] {
-        var env = environment
+        var env = environment.merging(extraEnvironment) { _, extra in extra }
         env[NativeSteamBridge.overlayEnvKey] = libraries
         return env
     }

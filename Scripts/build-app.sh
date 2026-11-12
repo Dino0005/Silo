@@ -111,6 +111,19 @@ mkdir -p "$APP/Contents/Helpers"
 cp "$HOST_OUT" "$APP/Contents/Helpers/SiloWineHost"
 chmod 755 "$APP/Contents/Helpers/SiloWineHost"
 
+# The game-app loader redirector (Scripts/game-loader, see GameAppLoader.swift): injected into the Wine processes of a
+# game started from macOS Steam so that every process of the game runs from the game's .app. Required like the host:
+# without it macOS-Steam launches fall back to the alt-loader host, which can't follow a game that relaunches itself.
+echo "==> Build game-app loader redirector"
+LOADER_OUT=Scripts/game-loader/silo-game-loader.dylib
+rm -f "$LOADER_OUT"
+if ! clang -Wall -O2 -dynamiclib -arch x86_64 -arch arm64 -o "$LOADER_OUT" Scripts/game-loader/silo-game-loader.c \
+    || ! lipo -archs "$LOADER_OUT" 2>/dev/null | grep -qw x86_64; then
+    echo "ERROR: the game-app loader redirector did not build (Scripts/game-loader)." >&2
+    exit 1
+fi
+cp "$LOADER_OUT" "$APP/Contents/Helpers/silo-game-loader.dylib"
+
 # SiloKit's own resources, flat in Contents/Resources so Bundle.main finds them — the standard macOS app
 # layout. The nested SwiftPM bundle copied above is NOT enough on its own: SwiftPM's generated
 # `Bundle.module` looks beside the .app and then in the build directory of whoever compiled, so a shipped

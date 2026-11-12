@@ -28,5 +28,6 @@ dist/
 
 # prototipo alt-loader: il binario compilato non si versiona
 Scripts/altloader-host/host
+Scripts/game-loader/silo-game-loader.dylib
 .dxmt-llvm/
 .toolchains/
