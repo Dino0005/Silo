@@ -31,3 +31,4 @@ Scripts/altloader-host/host
 Scripts/game-loader/silo-game-loader.dylib
 .dxmt-llvm/
 .toolchains/
+Scripts/steam-hook/silo-steam-hook.dylib

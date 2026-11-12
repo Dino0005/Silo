@@ -8,6 +8,26 @@ setbuf(stdout, nil)   // unbuffered so progress shows immediately under non-TTY
 if CommandLine.arguments.contains("--smoke")
     || ProcessInfo.processInfo.environment["SILO_SMOKE"] == "1" {
     print("\(Silo.appName) \(Silo.version) — smoke ok")
+} else if CommandLine.arguments.contains(SteamWithSilo.startFlag) {
+    // The "Steam (Silo)" launcher app: open macOS Steam with Silo's library inside (focus hand-off to games).
+    // Compatibility layer on unless SILO_STEAM_COMPAT=0: Windows-only games like SOULCALIBUR VI need the compat-tool
+    // launch for their DLC and Steam Input's virtual pad (user, 2026-11-12).
+    let compat = ProcessInfo.processInfo.environment["SILO_STEAM_COMPAT"] != "0"
+    let outcome = try? await SteamWithSilo().start(compat: compat)
+    print("start steam: \(outcome.map { "\($0)" } ?? "failed")")
+    exit(outcome == nil ? 1 : 0)
+} else if CommandLine.arguments.contains("--install-steam-launcher") {
+    // Writes ~/Applications/Steam (Silo).app, to keep in the Dock instead of Steam's own icon.
+    let silo = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
+    let apps = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true)
+    do {
+        let app = try SteamLauncherApp(siloExecutable: silo).write(into: apps)
+        print("steam launcher: \(app.path)")
+        exit(0)
+    } catch {
+        print("steam launcher failed: \(error)")
+        exit(1)
+    }
 } else if let idx = CommandLine.arguments.firstIndex(of: NativeSteamInstaller.launchFlag) {
     // macOS Steam's Play on a Windows game (the `silo-launch` script): launch headless and stay alive until the
     // game ends — Steam treats this process as the game. Nothing reaches the user from stdout here, so every

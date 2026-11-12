@@ -124,6 +124,18 @@ if ! clang -Wall -O2 -dynamiclib -arch x86_64 -arch arm64 -o "$LOADER_OUT" Scrip
 fi
 cp "$LOADER_OUT" "$APP/Contents/Helpers/silo-game-loader.dylib"
 
+# Silo's library inside macOS Steam (Scripts/steam-hook): hands the front to a game app started from macOS Steam,
+# and — opt-in, SILO_STEAM_COMPAT=1 — turns on Steam's compatibility layer in memory. Loaded only when Silo starts Steam.
+echo "==> Build Steam hook"
+HOOK_OUT=Scripts/steam-hook/silo-steam-hook.dylib
+rm -f "$HOOK_OUT"
+if ! clang -Wall -O2 -dynamiclib -arch arm64 -arch x86_64 -fobjc-arc -framework AppKit -o "$HOOK_OUT" \
+    Scripts/steam-hook/compat.c Scripts/steam-hook/activation.m; then
+    echo "ERROR: the Steam hook did not build (Scripts/steam-hook)." >&2
+    exit 1
+fi
+cp "$HOOK_OUT" "$APP/Contents/Helpers/silo-steam-hook.dylib"
+
 # SiloKit's own resources, flat in Contents/Resources so Bundle.main finds them — the standard macOS app
 # layout. The nested SwiftPM bundle copied above is NOT enough on its own: SwiftPM's generated
 # `Bundle.module` looks beside the .app and then in the build directory of whoever compiled, so a shipped
