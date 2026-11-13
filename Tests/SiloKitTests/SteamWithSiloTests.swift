@@ -86,3 +86,14 @@ struct SiloCompatToolTests {
         #expect(bridge.steamEnvironment == ["SteamVirtualGamepadInfo": "/x.txt", "SteamAppId": "544750"])
     }
 }
+
+struct SteamOverlayFixTests {
+    @Test("The overlay fix goes right after Steam's overlay, and only when the overlay is injected")
+    func placement() {
+        let loader = URL(fileURLWithPath: "/S/steamloader.dylib"), overlay = URL(fileURLWithPath: "/S/gameoverlayrenderer.dylib")
+        let game = URL(fileURLWithPath: "/A/silo-game-loader.dylib"), fix = URL(fileURLWithPath: "/A/silo-overlay-fix.dylib")
+        #expect(SteamOverlayFix.adding(fix, to: [game, loader, overlay]) == [game, loader, overlay, fix])
+        #expect(SteamOverlayFix.adding(fix, to: [game, loader]) == [game, loader])
+        #expect(SteamOverlayFix.adding(nil, to: [loader, overlay]) == [loader, overlay])
+    }
+}

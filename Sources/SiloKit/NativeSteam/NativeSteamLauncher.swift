@@ -16,16 +16,20 @@ public struct NativeSteamLauncher: Sendable {
     private let environment: [String: String]
     /// `silo-game-loader.dylib` of the running app (`GameAppLoader.injector`); nil keeps the alt-loader host.
     private let injectorURL: URL?
+    /// `silo-overlay-fix.dylib` of the running app (`SteamOverlayFix`); nil leaves Steam's overlay as it is.
+    private let overlayFix: URL?
 
     public init(paths: AppPaths = .standard(), runner: ProcessRunning = SystemProcessRunner(),
                 pollInterval: Duration = .seconds(1),
                 environment: [String: String] = ProcessInfo.processInfo.environment,
-                injector: URL? = GameAppLoader.injector()) {
+                injector: URL? = GameAppLoader.injector(),
+                overlayFix: URL? = SteamOverlayFix.library()) {
         self.paths = paths
         self.runner = runner
         self.pollInterval = pollInterval
         self.environment = environment
         self.injectorURL = injector
+        self.overlayFix = overlayFix
     }
 
     public enum Failure: Error, Equatable {
@@ -56,6 +60,7 @@ public struct NativeSteamLauncher: Sendable {
         var overlay = NativeSteamBridge.overlayLibraries(
             fromSteam: environment["STEAM_DYLD_INSERT_LIBRARIES"],
             clientInstallPath: NativeSteamBridge.defaultClientInstallPath())
+        overlay = SteamOverlayFix.adding(overlayFix, to: overlay)
         log("steam libraries: " + (overlay.isEmpty ? "none" : overlay.map(\.lastPathComponent).joined(separator: ", ")))
         let steamClientRoot = NativeSteamBridge.defaultClientInstallPath()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

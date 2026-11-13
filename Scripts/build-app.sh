@@ -136,6 +136,18 @@ if ! clang -Wall -O2 -dynamiclib -arch arm64 -arch x86_64 -fobjc-arc -framework 
 fi
 cp "$HOOK_OUT" "$APP/Contents/Helpers/silo-steam-hook.dylib"
 
+# Silo's fix for Steam's overlay (Scripts/overlay-fix, see SteamOverlayFix.swift): injected next to Steam's overlay into
+# games started from macOS Steam, so the overlay draws in the game's pixel format instead of coloured noise.
+echo "==> Build overlay fix"
+OVERLAY_FIX_OUT=Scripts/overlay-fix/silo-overlay-fix.dylib
+rm -f "$OVERLAY_FIX_OUT"
+if ! clang -Wall -O2 -dynamiclib -arch x86_64 -arch arm64 -fobjc-arc -framework Foundation -framework Metal \
+    -framework QuartzCore -o "$OVERLAY_FIX_OUT" Scripts/overlay-fix/overlay-fix.m; then
+    echo "ERROR: the overlay fix did not build (Scripts/overlay-fix)." >&2
+    exit 1
+fi
+cp "$OVERLAY_FIX_OUT" "$APP/Contents/Helpers/silo-overlay-fix.dylib"
+
 # The "Steam (Silo)" launcher (Scripts/steam-launcher): copied by `Silo --install-steam-launcher` into
 # ~/Applications/Steam (Silo).app. Compiled, so macOS can list it in Privacy & Security (Steam inherits its grants).
 echo "==> Build Steam launcher"
