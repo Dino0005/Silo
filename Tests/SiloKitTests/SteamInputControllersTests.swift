@@ -109,6 +109,29 @@ struct SteamInputControllersTests {
         #expect(fake.invocations.count == 1)
     }
 
+    @Test("After an import, Silo waits for the bottle's Wine to stop — unless it was already running")
+    func waitsForWineToStop() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let prefix = try tmp.makeDir("bottle")
+        try tmp.makeDir("bottle/drive_c")
+        let wine = URL(fileURLWithPath: "/w/bin/wine64")
+        // Idle before, then live for three checks after the import (regedit's services), then stopped.
+        let checks = Counter()
+        _ = await SteamInputControllers.apply(environment: steamInputOn, flags: EnvFlags(), prefix: prefix, wine: wine,
+                                              runner: FakeProcessRunner(),
+                                              isLive: { _ in let n = checks.next(); return n >= 1 && n <= 3 },
+                                              pollInterval: .milliseconds(1))
+        #expect(checks.value == 5)
+        // Already running something: one check, no waiting.
+        try? FileManager.default.removeItem(at: prefix.appendingPathComponent(".silo-hidden-controllers"))
+        let busy = Counter()
+        _ = await SteamInputControllers.apply(environment: steamInputOn, flags: EnvFlags(), prefix: prefix, wine: wine,
+                                              runner: FakeProcessRunner(),
+                                              isLive: { _ in _ = busy.next(); return true },
+                                              pollInterval: .milliseconds(1))
+        #expect(busy.value == 1)
+    }
+
     @Test("A failed import changes nothing on Silo's side")
     func failedImport() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
@@ -121,4 +144,13 @@ struct SteamInputControllersTests {
         #expect(line == "controllers: registry import failed, left as they were")
         #expect(!FileManager.default.fileExists(atPath: prefix.appendingPathComponent(".silo-hidden-controllers").path))
     }
+}
+
+/// A thread-safe counter for the `isLive` stubs above. `@unchecked` is safe: every access holds the lock.
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    /// Returns the count before this call, then increments it.
+    func next() -> Int { lock.withLock { defer { count += 1 }; return count } }
 }

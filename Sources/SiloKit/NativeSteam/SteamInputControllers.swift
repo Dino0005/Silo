@@ -94,9 +94,19 @@ public enum SteamInputControllers {
 
     /// Applies the plan to `prefix` with one `wine regedit /S` (nothing runs when there is nothing to change) and
     /// records what Silo now owns. Returns a line for the launch log, or nil when nothing changed.
+    ///
+    /// After an import Silo waits — up to `waitLimit` — for the bottle's wineserver to exit before returning. The
+    /// `regedit` starts the bottle's services, and `winebus.sys` reads its settings then, i.e. possibly BEFORE the
+    /// import landed; that server would live on into the game, which then saw the pads as the previous game wanted
+    /// (likely cause of TEKKEN 8's Xbox glyphs on the first launch after a game with Steam Input on, 2026-11-13).
+    /// Skipped when the bottle was already running something: then waiting can't help and could last the whole game.
     @discardableResult
     public static func apply(environment: [String: String], flags: EnvFlags, prefix: URL, wine: URL,
-                             runner: ProcessRunning, fileManager: FileManager = .default) async -> String? {
+                             runner: ProcessRunning, fileManager: FileManager = .default,
+                             isLive: @Sendable (URL) -> Bool = { WineServerProbe.isLive(prefix: $0) },
+                             waitLimit: Duration = .seconds(20),
+                             pollInterval: Duration = .milliseconds(250)) async -> String? {
+        let wasLive = isLive(prefix)
         let ownedURL = prefix.appendingPathComponent(ownedListName)
         let markerURL = prefix.appendingPathComponent(hidrawMarkerName)
         let owned = Set(((try? String(contentsOf: ownedURL, encoding: .utf8)) ?? "")
@@ -116,6 +126,10 @@ public enum SteamInputControllers {
                 environment: Silo.msyncWineEnvironment(prefix: prefix, wine: wine), currentDirectory: prefix)
             try? fileManager.removeItem(at: file)
             guard result?.succeeded == true else { return "controllers: registry import failed, left as they were" }
+            if !wasLive {
+                let clock = ContinuousClock(), deadline = clock.now.advanced(by: waitLimit)
+                while isLive(prefix), clock.now < deadline { try? await Task.sleep(for: pollInterval) }
+            }
         }
         try? (plan.owned.joined(separator: "\n") + (plan.owned.isEmpty ? "" : "\n"))
             .write(to: ownedURL, atomically: true, encoding: .utf8)
