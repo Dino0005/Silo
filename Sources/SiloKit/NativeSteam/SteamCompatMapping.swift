@@ -8,6 +8,10 @@ import Foundation
 /// mapped to another tool that exists keeps it. The guard applies it through Steam's own
 /// `SteamClient.Apps.SpecifyCompatTool` in its SharedJSContext (`SteamCEFClient`) — Steam writes the file itself.
 public enum SteamCompatMapping {
+    /// Apps Steam installs next to the games that aren't games: Steamworks Common Redistributables. Mapped like the
+    /// games (Proton does the same; the tool does nothing for its install scripts) but not counted as one.
+    public static let notGames: Set<UInt32> = [228980]
+
     /// Pure: the `CompatToolMapping` entries of a `config.vdf` text, app id → tool name.
     public static func mappings(configVDF text: String) -> [UInt32: String] {
         guard let root = try? KeyValuesParser().parse(text: text), let section = find("CompatToolMapping", in: root)

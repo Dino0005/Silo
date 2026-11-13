@@ -80,7 +80,8 @@ public struct NativeSteamSetup: Sendable {
         status.tool = SteamCompatMapping.installedTools(in: toolsDir, fileManager: fileManager).contains(SiloCompatTool.name)
         status.guardAgent = fileManager.fileExists(atPath: guardAgentURL.path)
         let config = (try? String(contentsOf: configVDF, encoding: .utf8)) ?? ""
-        status.gamesOnTool = SteamCompatMapping.mappings(configVDF: config).values.filter { $0 == SiloCompatTool.name }.count
+        status.gamesOnTool = SteamCompatMapping.mappings(configVDF: config)
+            .filter { $0.value == SiloCompatTool.name && !SteamCompatMapping.notGames.contains($0.key) }.count
         status.bottles = [paths.nativeSteamBottle, paths.nativeSteamBottleMF].contains {
             fileManager.fileExists(atPath: $0.path)
         }

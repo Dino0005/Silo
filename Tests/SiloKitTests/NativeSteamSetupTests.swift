@@ -39,6 +39,10 @@ struct NativeSteamSetupTests {
         \t\t{
         \t\t\t"name"\t\t"silo"
         \t\t}
+        \t\t"228980"
+        \t\t{
+        \t\t\t"name"\t\t"silo"
+        \t\t}
         \t\t"10"
         \t\t{
         \t\t\t"name"\t\t"proton_9"
