@@ -18,18 +18,22 @@ public struct NativeSteamLauncher: Sendable {
     private let injectorURL: URL?
     /// `silo-overlay-fix.dylib` of the running app (`SteamOverlayFix`); nil leaves Steam's overlay as it is.
     private let overlayFix: URL?
+    /// Steam's `logs/content_log.txt`, where its Stop shows up (`SteamStopWatch`).
+    private let steamContentLog: URL
 
     public init(paths: AppPaths = .standard(), runner: ProcessRunning = SystemProcessRunner(),
                 pollInterval: Duration = .seconds(1),
                 environment: [String: String] = ProcessInfo.processInfo.environment,
                 injector: URL? = GameAppLoader.injector(),
-                overlayFix: URL? = SteamOverlayFix.library()) {
+                overlayFix: URL? = SteamOverlayFix.library(),
+                steamContentLog: URL = SteamStopWatch(appID: 0).log) {
         self.paths = paths
         self.runner = runner
         self.pollInterval = pollInterval
         self.environment = environment
         self.injectorURL = injector
         self.overlayFix = overlayFix
+        self.steamContentLog = steamContentLog
     }
 
     public enum Failure: Error, Equatable {
@@ -149,7 +153,25 @@ public struct NativeSteamLauncher: Sendable {
         let playing = NativeSteamPlaying(paths: paths)
         playing.begin(appID: app.appID)
         defer { playing.end(appID: app.appID) }
+        // Steam's Stop reaches no process of ours: Silo watches Steam's log for it (`SteamStopWatch`) and ends the game —
+        // a quit request first, then SIGTERM and Wine's own shutdown of the bottle if it is still there 10 s later.
+        var stopWatch = SteamStopWatch(log: steamContentLog, appID: app.appID)
+        let clock = ContinuousClock()
+        var stopAsked: ContinuousClock.Instant?
+        var forced = false
         while runner.isRunning(pid: pid) {
+            if stopAsked == nil, stopWatch.stopRequested() {
+                let apps = await MainActor.run { SteamStopWatch.askToQuit(appID: app.appID) }
+                log("Steam asked to stop the game: quit request to \(apps) app(s)")
+                stopAsked = clock.now
+            } else if let asked = stopAsked, !forced, clock.now - asked > .seconds(10) {
+                forced = true
+                let killed = await MainActor.run { SteamStopWatch.terminate(appID: app.appID) }
+                let server = WineRuntimeLayout(wineBinary: context.wineBinary).wineserver
+                _ = try? await self.runner.run(executable: server, arguments: ["-k"],
+                                               environment: ["WINEPREFIX": bottle.prefix.path], currentDirectory: nil)
+                log("the game ignored the quit request: SIGTERM to \(killed) app(s), wineserver -k")
+            }
             try? await Task.sleep(for: pollInterval)
         }
         log("\(app.name) ended")
