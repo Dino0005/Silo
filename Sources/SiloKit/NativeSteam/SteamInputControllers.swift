@@ -6,7 +6,7 @@ import Foundation
 /// When Steam Input handles a pad for a game, Steam lists it in `SDL_GAMECONTROLLER_IGNORE_DEVICES`. Wine's SDL bus
 /// honors that list, but CrossOver's Wine also reads DualSense, DualShock 4 and Switch pads directly through hidraw —
 /// measured 2026-11-10: FATAL FURY did so while Steam held a Bluetooth DualSense, and the pad went dark and dead for
-/// Steam as well until it was re-identified. So, unless the game's `EnvFlags.rawControllers` is on, every listed pad
+/// Steam as well until it was re-identified. So every listed pad
 /// gets `WineBus\Devices\<vid/pid>` `Hidraw=0` in the bottle (as Proton does on Linux), and Switch pads always do.
 /// With Steam Input off Steam lists no physical pad, so nothing is hidden and the game reads the pad directly
 /// (PlayStation glyphs). The keys Silo wrote are listed in the bottle, so only Silo's own are removed later and a key
@@ -66,14 +66,11 @@ public enum SteamInputControllers {
     /// Pure: NotProton's rules over Steam's environment, the game's flags and the bottle's current state.
     static func plan(environment: [String: String], flags: EnvFlags, owned: Set<String>,
                      inRegistry: Set<String>, hidrawSet: Bool, hidrawMarker: Bool) -> Plan {
-        var wanted: Set<String> = []
-        if !flags.rawControllers {
-            wanted = ids(environment["SDL_GAMECONTROLLER_IGNORE_DEVICES"])
-                .subtracting(ids(environment["SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT"]))
-                .union(alwaysHidden)
-            // Keys the user set by hand stay theirs.
-            wanted.subtract(inRegistry.subtracting(owned))
-        }
+        // Always (NotProton's raw-controllers escape hatch was dropped, 2026-11-13). Keys the user set by hand stay theirs.
+        let wanted = ids(environment["SDL_GAMECONTROLLER_IGNORE_DEVICES"])
+            .subtracting(ids(environment["SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT"]))
+            .union(alwaysHidden)
+            .subtracting(inRegistry.subtracting(owned))
         var hidraw: Bool?
         if flags.disableHidraw, !hidrawSet { hidraw = true }
         if !flags.disableHidraw, hidrawMarker, hidrawSet { hidraw = false }

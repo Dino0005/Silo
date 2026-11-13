@@ -49,10 +49,8 @@ if CommandLine.arguments.contains("--smoke")
     // macOS Steam's Play on a Windows game (the `silo-launch` script): launch headless and stay alive until the
     // game ends — Steam treats this process as the game. Nothing reaches the user from stdout here, so every
     // step goes to Logs/native-steam-launch.log.
-    // Wine inherits this process's environment: Steam's virtual-pad description must not reach SDL in it
-    // (NativeSteamBridge.virtualGamepadInfoKey). Kept for the log: what Steam says about the game's virtual pads.
+    // What Steam says about the game's virtual pads, for the log (NativeSteamLauncher decides whether it reaches Wine).
     let virtualPadInfo = ProcessInfo.processInfo.environment[NativeSteamBridge.virtualGamepadInfoKey]
-    unsetenv(NativeSteamBridge.virtualGamepadInfoKey)
     let paths = AppPaths.standard()
     let logURL = paths.logsDir.appendingPathComponent("native-steam-launch.log")
     try? FileManager.default.createDirectory(at: paths.logsDir, withIntermediateDirectories: true)

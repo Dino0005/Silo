@@ -78,12 +78,11 @@ struct SiloCompatToolTests {
         #expect(script.contains("*iscriptevaluator.exe) exit 0"))
     }
 
-    @Test("The game never gets Steam's virtual-pad description")
-    func noVirtualGamepadInfo() {
+    @Test("The bridge keeps Steam's own variables, the virtual-pad description included (the launcher decides)")
+    func keepsSteamVariables() {
         let bridge = NativeSteamBridge(clientInstallPath: URL(fileURLWithPath: "/S"), steamEnvironment: [
-            "SteamVirtualGamepadInfo": "/x.txt", "SteamAppId": "544750", "SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD": "1",
+            "SteamVirtualGamepadInfo": "/x.txt", "SteamAppId": "544750", "HOME": "/Users/x",
         ])
-        #expect(bridge.steamEnvironment["SteamVirtualGamepadInfo"] == nil)
-        #expect(bridge.steamEnvironment["SteamAppId"] == "544750")
+        #expect(bridge.steamEnvironment == ["SteamVirtualGamepadInfo": "/x.txt", "SteamAppId": "544750"])
     }
 }

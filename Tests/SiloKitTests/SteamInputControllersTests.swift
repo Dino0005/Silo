@@ -31,17 +31,20 @@ struct SteamInputControllersTests {
         #expect(!SteamInputControllers.registryState(systemReg: "[System\\\\ControlSet001\\\\Services\\\\WineBus]\n").disableHidraw)
     }
 
-    @Test("Steam Input on: its pads + Switch are hidden; raw controllers hides nothing and gives Silo's back")
+    @Test("Steam Input on: its pads + Switch are hidden")
     func plans() {
         let plan = SteamInputControllers.plan(environment: steamInputOn, flags: EnvFlags(), owned: [], inRegistry: [],
                                               hidrawSet: false, hidrawMarker: false)
         #expect(plan.hide == ["054c/05c4", "054c/0ce6", "057e/2006", "057e/2007", "057e/2009", "28de/11ff"])
         #expect(plan.unhide.isEmpty && plan.disableHidraw == nil && plan.owned == plan.hide)
+    }
 
-        let raw = SteamInputControllers.plan(environment: steamInputOn, flags: EnvFlags(rawControllers: true),
-                                             owned: ["054c/0ce6"], inRegistry: ["054c/0ce6"],
-                                             hidrawSet: false, hidrawMarker: false)
-        #expect(raw.hide.isEmpty && raw.unhide == ["054c/0ce6"] && raw.owned.isEmpty)
+    @Test("steamXboxPad round-trips; an old config with rawControllers decodes to the DualSense presentation")
+    func xboxPadFlag() throws {
+        let data = try JSONEncoder().encode(EnvFlags(steamXboxPad: true))
+        #expect(try JSONDecoder().decode(EnvFlags.self, from: data).steamXboxPad)
+        let old = try JSONDecoder().decode(EnvFlags.self, from: Data(#"{"rawControllers": true}"#.utf8))
+        #expect(!old.steamXboxPad)
     }
 
     @Test("Steam Input off: the DualSense Silo hid before is given back; only Switch stays hidden")

@@ -96,14 +96,14 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// `mediaFoundationNative`, nothing is emitted from `environment(graphics:)`: it's applied in `makePlan`,
     /// which knows the runtime.
     public var depthFix: Bool
-    /// "Lascia che i giochi leggano direttamente i controller" — games started from **macOS Steam** only. Off (the
-    /// default): every pad Steam Input handles for the game (Steam's `SDL_GAMECONTROLLER_IGNORE_DEVICES`) is hidden
-    /// from Wine's hidraw path (`WineBus\Devices\<vid/pid>` `Hidraw=0`, `SteamInputControllers`), so the game and
-    /// Steam never drive one pad at the same time — measured 2026-11-10: FATAL FURY did, and a Bluetooth DualSense went
-    /// dark and dead for Steam too until re-identified. On: nothing is hidden (NotProton's
-    /// `NOTPROTON_RAW_CONTROLLERS`; "may break Steam Input"). With Steam Input off for the game Steam lists no pad,
-    /// so nothing is hidden either way — the game reads the pad directly, with PlayStation glyphs.
-    public var rawControllers: Bool
+    /// "Usa controller virtuale Xbox" — games started from **macOS Steam** with Steam Input on. Off (the default):
+    /// Steam's description of its virtual pad (`SteamVirtualGamepadInfo`) reaches the game, so SDL presents the pad as
+    /// the real controller (a DualSense) — for games that know the DualSense (FATAL FURY, Uncharted, Spider-Man; user,
+    /// 2026-11-13). On: the description is dropped and the game sees an Xbox 360 pad — for games that only know Xbox
+    /// pads: SOULCALIBUR VI got no input at all with the DualSense presentation (2026-11-12). Replaces the earlier
+    /// "let games read controllers directly" (NotProton's `NOTPROTON_RAW_CONTROLLERS`): hiding the pads Steam Input
+    /// holds from Wine's hidraw path is now always on (`SteamInputControllers`).
+    public var steamXboxPad: Bool
     /// "Disattiva hidraw": `WineBus` `DisableHidraw=1` in the game's bottle, so Wine reads every pad through SDL
     /// instead of directly (Xbox glyphs) — for a pad that misbehaves over hidraw, meant with Steam Input off. Silo
     /// removes the value again only if it set it. macOS Steam launches only (NotProton's `NOTPROTON_DISABLE_HIDRAW`).
@@ -122,7 +122,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         metalBackend: MetalBackendChoice = .auto,
         mediaFoundationNative: Bool = false,
         depthFix: Bool = false,
-        rawControllers: Bool = false,
+        steamXboxPad: Bool = false,
         disableHidraw: Bool = false,
         extra: [String: String] = [:]
     ) {
@@ -134,7 +134,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.metalBackend = metalBackend
         self.mediaFoundationNative = mediaFoundationNative
         self.depthFix = depthFix
-        self.rawControllers = rawControllers
+        self.steamXboxPad = steamXboxPad
         self.disableHidraw = disableHidraw
         self.extra = extra
     }
@@ -178,7 +178,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, depthFix
-        case rawControllers, disableHidraw, extra
+        case steamXboxPad, disableHidraw, extra
         case esync, msync   // legacy fields from configs written before the SyncMode enum
     }
 
@@ -204,7 +204,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
             .flatMap(MetalBackendChoice.init(rawValue:)) ?? .auto
         mediaFoundationNative = try c.decodeIfPresent(Bool.self, forKey: .mediaFoundationNative) ?? false
         depthFix = try c.decodeIfPresent(Bool.self, forKey: .depthFix) ?? false
-        rawControllers = try c.decodeIfPresent(Bool.self, forKey: .rawControllers) ?? false
+        steamXboxPad = try c.decodeIfPresent(Bool.self, forKey: .steamXboxPad) ?? false
         disableHidraw = try c.decodeIfPresent(Bool.self, forKey: .disableHidraw) ?? false
         extra = try c.decodeIfPresent([String: String].self, forKey: .extra) ?? [:]
     }
@@ -219,7 +219,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         try c.encode(metalBackend, forKey: .metalBackend)
         try c.encode(mediaFoundationNative, forKey: .mediaFoundationNative)
         try c.encode(depthFix, forKey: .depthFix)
-        try c.encode(rawControllers, forKey: .rawControllers)
+        try c.encode(steamXboxPad, forKey: .steamXboxPad)
         try c.encode(disableHidraw, forKey: .disableHidraw)
         try c.encode(extra, forKey: .extra)
     }
