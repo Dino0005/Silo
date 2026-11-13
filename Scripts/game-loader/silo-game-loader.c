@@ -4,6 +4,8 @@
 // shows the game's name and icon. Same idea as NotProton's PR #90 (sn0wst0rm); Silo's own code.
 // SILO_GAME_LOADER = the loader in the bundle; SILO_GAME_EXES = ':'-separated executable names (case-insensitive).
 // Anything else (steam.exe, services, a mismatch) execs untouched.
+#include <fcntl.h>
+#include <spawn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,10 +33,33 @@ static int is_game_exec(const char *path, char *const argv[]) {
     return 0;
 }
 
+// Keeps the display awake while this process — about to become the game — lives: played with a controller only, macOS
+// sees no activity and starts the screen saver (the alt-loader host does the same, host.c keep_display_awake).
+// `caffeinate -w` ends with the game by itself, and the pid survives the exec. Only stdio (as /dev/null) is passed on,
+// so it holds none of Wine's descriptors.
+static void keep_display_awake(void) {
+    char pid[32];
+    snprintf(pid, sizeof pid, "%d", getpid());
+    char *args[] = { "caffeinate", "-d", "-i", "-w", pid, NULL };
+    posix_spawn_file_actions_t io;
+    posix_spawn_file_actions_init(&io);
+    for (int fd = 0; fd <= 2; fd++)
+        posix_spawn_file_actions_addopen(&io, fd, "/dev/null", fd ? O_WRONLY : O_RDONLY, 0);
+    posix_spawnattr_t attributes;
+    posix_spawnattr_init(&attributes);
+    posix_spawnattr_setflags(&attributes, POSIX_SPAWN_CLOEXEC_DEFAULT);
+    pid_t child;
+    extern char **environ;
+    posix_spawn(&child, "/usr/bin/caffeinate", &io, &attributes, args, environ);
+    posix_spawnattr_destroy(&attributes);
+    posix_spawn_file_actions_destroy(&io);
+}
+
 static int silo_execv(const char *path, char *const argv[]) {
     const char *loader = getenv("SILO_GAME_LOADER");
     if (loader && strcmp(path, loader) && is_game_exec(path, argv) && access(loader, X_OK) == 0) {
         fprintf(stderr, "silo-game-loader: %s runs from the game app\n", argv[1]);
+        keep_display_awake();
         return execv(loader, argv);
     }
     return execv(path, argv);

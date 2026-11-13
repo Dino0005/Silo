@@ -55,6 +55,18 @@ public struct NativeSteamBridge: Sendable, Equatable {
     /// pad stays an Xbox 360 one (045e/028e) and works (measured on SOULCALIBUR VI, 2026-11-12).
     public static let virtualGamepadInfoKey = "SteamVirtualGamepadInfo"
 
+    /// Lets SDL (Wine's SDL bus) show Steam's virtual pad to the game.
+    public static let allowVirtualGamepadKey = "SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD"
+
+    /// Pure: the variables to drop from Steam's environment before Wine inherits it. Always the virtual-pad
+    /// description; and, when Steam made no virtual pad for this game (Steam Input off for it, so no description),
+    /// the permission to see Steam's virtual pad too — Steam keeps one from an earlier game, an Xbox 360 pad, and the
+    /// game took it over the real DualSense (Xbox glyphs on TEKKEN 8, 2026-11-13).
+    public static func environmentToDrop(_ environment: [String: String]) -> [String] {
+        environment[virtualGamepadInfoKey] == nil
+            ? [virtualGamepadInfoKey, allowVirtualGamepadKey] : [virtualGamepadInfoKey]
+    }
+
     /// The environment key that carries `overlayLibraries` to `SystemProcessRunner`, which turns it into
     /// `DYLD_INSERT_LIBRARIES` — the only way that variable reaches a Wine child.
     public static let overlayEnvKey = "SILO_DYLD_INSERT_LIBRARIES"

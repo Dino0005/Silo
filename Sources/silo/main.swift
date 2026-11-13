@@ -50,8 +50,9 @@ if CommandLine.arguments.contains("--smoke")
     // game ends — Steam treats this process as the game. Nothing reaches the user from stdout here, so every
     // step goes to Logs/native-steam-launch.log.
     // Wine inherits this process's environment: Steam's virtual-pad description must not reach SDL in it
-    // (NativeSteamBridge.virtualGamepadInfoKey).
-    unsetenv(NativeSteamBridge.virtualGamepadInfoKey)
+    // (NativeSteamBridge.virtualGamepadInfoKey), nor Steam's virtual pad itself when Steam made none for this game.
+    let hadVirtualPads = ProcessInfo.processInfo.environment[NativeSteamBridge.virtualGamepadInfoKey] != nil
+    NativeSteamBridge.environmentToDrop(ProcessInfo.processInfo.environment).forEach { unsetenv($0) }
     let paths = AppPaths.standard()
     let logURL = paths.logsDir.appendingPathComponent("native-steam-launch.log")
     try? FileManager.default.createDirectory(at: paths.logsDir, withIntermediateDirectories: true)
@@ -65,6 +66,7 @@ if CommandLine.arguments.contains("--smoke")
     }
     let args = Array(CommandLine.arguments[(idx + 1)...])
     log("request: \(args) cwd: \(FileManager.default.currentDirectoryPath)")
+    log("steam virtual pads for this game: \(hadVirtualPads ? "yes" : "none (Steam's virtual pad hidden)")")
     // What Steam tells the game about controllers (Steam Input's ignore lists, virtual gamepad hints).
     let steamEnv = ProcessInfo.processInfo.environment.filter {
         ["SDL_", "STEAM", "Steam", "DYLD"].contains(where: $0.key.hasPrefix)
