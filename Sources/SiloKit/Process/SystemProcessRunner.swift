@@ -54,6 +54,57 @@ public struct SystemProcessRunner: ProcessRunning {
         }
     }
 
+    public func spawnIndependent(executable: URL, arguments: [String], environment: [String: String],
+                                 currentDirectory: URL?, logURL: URL) async throws -> Int32 {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    continuation.resume(returning: try Self.spawnDisclaimed(
+                        executable: executable, arguments: arguments, environment: environment,
+                        currentDirectory: currentDirectory, logURL: logURL))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    public struct SpawnFailure: Error, Equatable { public let code: Int32 }
+
+    /// posix_spawn in a new session with `responsibility_spawnattrs_setdisclaim` (libsystem, not in the public
+    /// headers — looked up at run time; without it the child is spawned as before).
+    private static func spawnDisclaimed(executable: URL, arguments: [String], environment: [String: String],
+                                        currentDirectory: URL?, logURL: URL) throws -> Int32 {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if !fileManager.fileExists(atPath: logURL.path) { fileManager.createFile(atPath: logURL.path, contents: nil) }
+
+        var attributes = posix_spawnattr_t(nil as OpaquePointer?)
+        posix_spawnattr_init(&attributes)
+        defer { posix_spawnattr_destroy(&attributes) }
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID))
+        typealias Disclaim = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, Int32) -> Int32
+        if let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "responsibility_spawnattrs_setdisclaim") {
+            _ = unsafeBitCast(symbol, to: Disclaim.self)(&attributes, 1)
+        }
+
+        var actions = posix_spawn_file_actions_t(nil as OpaquePointer?)
+        posix_spawn_file_actions_init(&actions)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_addopen(&actions, 1, logURL.path, O_WRONLY | O_APPEND | O_CREAT, 0o644)
+        posix_spawn_file_actions_adddup2(&actions, 1, 2)
+        if let currentDirectory { posix_spawn_file_actions_addchdir_np(&actions, currentDirectory.path) }
+
+        let argv = ([executable.path] + arguments).map { strdup($0) } + [nil]
+        let envp = mergedEnvironment(environment).map { strdup("\($0.key)=\($0.value)") } + [nil]
+        defer { (argv + envp).forEach { free($0) } }
+        var pid: pid_t = 0
+        let status = posix_spawn(&pid, executable.path, &actions, &attributes, argv, envp)
+        guard status == 0 else { throw SpawnFailure(code: status) }
+        return pid
+    }
+
     public func isRunning(pid: Int32) -> Bool {
         guard pid > 0 else { return false }
         // kill(pid, 0): 0 → alive & signalable; EPERM → alive but not ours; ESRCH → gone.

@@ -136,6 +136,17 @@ if ! clang -Wall -O2 -dynamiclib -arch arm64 -arch x86_64 -fobjc-arc -framework 
 fi
 cp "$HOOK_OUT" "$APP/Contents/Helpers/silo-steam-hook.dylib"
 
+# The "Steam (Silo)" launcher (Scripts/steam-launcher): copied by `Silo --install-steam-launcher` into
+# ~/Applications/Steam (Silo).app. Compiled, so macOS can list it in Privacy & Security (Steam inherits its grants).
+echo "==> Build Steam launcher"
+LAUNCHER_OUT=Scripts/steam-launcher/SiloSteamLauncher
+rm -f "$LAUNCHER_OUT"
+if ! clang -Wall -O2 -arch arm64 -arch x86_64 -o "$LAUNCHER_OUT" Scripts/steam-launcher/launcher.c; then
+    echo "ERROR: the Steam launcher did not build (Scripts/steam-launcher)." >&2
+    exit 1
+fi
+cp "$LAUNCHER_OUT" "$APP/Contents/Helpers/SiloSteamLauncher"
+
 # SiloKit's own resources, flat in Contents/Resources so Bundle.main finds them — the standard macOS app
 # layout. The nested SwiftPM bundle copied above is NOT enough on its own: SwiftPM's generated
 # `Bundle.module` looks beside the .app and then in the build directory of whoever compiled, so a shipped

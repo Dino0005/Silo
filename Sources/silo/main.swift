@@ -17,12 +17,19 @@ if CommandLine.arguments.contains("--smoke")
     print("start steam: \(outcome.map { "\($0)" } ?? "failed")")
     exit(outcome == nil ? 1 : 0)
 } else if CommandLine.arguments.contains("--install-steam-launcher") {
-    // Writes ~/Applications/Steam (Silo).app, to keep in the Dock instead of Steam's own icon.
-    let silo = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
+    // Writes ~/Applications/Steam (Silo).app, to keep in the Dock instead of Steam's own icon, and signs it so macOS
+    // can list it in Privacy & Security.
     let apps = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true)
+    guard let launcher = SteamLauncherApp(appBundle: Bundle.main.bundleURL) else {
+        print("steam launcher: this Silo has no launcher or library (run from Silo.app)")
+        exit(1)
+    }
     do {
-        let app = try SteamLauncherApp(siloExecutable: silo).write(into: apps)
-        print("steam launcher: \(app.path)")
+        let app = try launcher.write(into: apps)
+        let signed = try await SystemProcessRunner().run(
+            executable: URL(fileURLWithPath: "/usr/bin/codesign"), arguments: ["--force", "--sign", "-", app.path],
+            environment: [:], currentDirectory: nil)
+        print("steam launcher: \(app.path)\(signed.succeeded ? "" : " (not signed)")")
         exit(0)
     } catch {
         print("steam launcher failed: \(error)")

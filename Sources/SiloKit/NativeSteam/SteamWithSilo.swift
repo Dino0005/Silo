@@ -68,7 +68,9 @@ public struct SteamWithSilo: Sendable {
             return .openedNormally
         }
         try? FileManager.default.createDirectory(at: paths.logsDir, withIntermediateDirectories: true)
-        let pid = try await runner.spawnDetached(
+        // Responsible for itself, like Steam opened from the Dock: as Silo's child it couldn't create Steam Input's
+        // virtual gamepad.
+        let pid = try await runner.spawnIndependent(
             executable: client, arguments: [],
             environment: Self.environment(hook: hook, compat: compat,
                                           toolsDir: steamRoot.appendingPathComponent("compatibilitytools.d")),
@@ -78,15 +80,34 @@ public struct SteamWithSilo: Sendable {
     }
 }
 
-/// The launcher app the user keeps in the Dock instead of Steam's own: `~/Applications/Steam (Silo).app`, Steam's
-/// icon, and a script that runs `Silo --start-steam`. A background agent (`LSUIElement`): it hands off and exits.
+/// The launcher app the user keeps in the Dock instead of Steam's own: `~/Applications/Steam (Silo).app`, Steam's icon,
+/// and a compiled launcher (`Scripts/steam-launcher`, `Contents/Helpers/SiloSteamLauncher` in Silo.app) that starts
+/// Steam's client with Silo's library itself — Silo never opens. A real signed executable, not a script, so macOS can
+/// list it in Privacy & Security: Steam inherits its grants, and without "Controllo del dispositivo e accesso ai dati"
+/// Steam Input's virtual gamepad isn't created (measured 2026-11-13). A background agent (`LSUIElement`).
 public struct SteamLauncherApp: Sendable {
     public static let fileName = "Steam (Silo).app"
     static let bundleIdentifier = "com.mikael.silo.steam-launcher"
+    static let launcherRelativePath = "Contents/Helpers/SiloSteamLauncher"
+    static let hookFileName = "silo-steam-hook"
 
-    public let siloExecutable: URL
+    /// The compiled launcher and the library, both from Silo.app.
+    public let launcher: URL
+    public let hook: URL
 
-    public init(siloExecutable: URL) { self.siloExecutable = siloExecutable }
+    public init(launcher: URL, hook: URL) {
+        self.launcher = launcher
+        self.hook = hook
+    }
+
+    /// Both from the Silo.app at `appBundle`, or nil when it lacks either (a `swift run` build).
+    public init?(appBundle: URL, fileManager: FileManager = .default) {
+        let launcher = appBundle.appendingPathComponent(Self.launcherRelativePath)
+        let hook = appBundle.appendingPathComponent(SteamWithSilo.hookRelativePath)
+        guard fileManager.isExecutableFile(atPath: launcher.path), fileManager.fileExists(atPath: hook.path)
+        else { return nil }
+        self.init(launcher: launcher, hook: hook)
+    }
 
     public func infoPlist() -> String {
         """
@@ -109,12 +130,7 @@ public struct SteamLauncherApp: Sendable {
         """
     }
 
-    public func launchScript() -> String {
-        let quoted = "'" + siloExecutable.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        return "#!/bin/sh\n# Written by Silo: opens macOS Steam with Silo's library inside.\nexec \(quoted) \(SteamWithSilo.startFlag)\n"
-    }
-
-    /// Writes (or refreshes) the app in `directory`, with Steam's own icon when `/Applications/Steam.app` has one.
+    /// Writes (or refreshes) the app in `directory`; the caller signs it (`codesign --force --sign -`).
     @discardableResult
     public func write(into directory: URL, fileManager: FileManager = .default) throws -> URL {
         let app = directory.appendingPathComponent(Self.fileName, isDirectory: true)
@@ -123,9 +139,11 @@ public struct SteamLauncherApp: Sendable {
         try fileManager.createDirectory(at: macOS, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: resources, withIntermediateDirectories: true)
         try Data(infoPlist().utf8).write(to: app.appendingPathComponent("Contents/Info.plist"), options: .atomic)
-        let script = macOS.appendingPathComponent("launcher")
-        try Data(launchScript().utf8).write(to: script, options: .atomic)
-        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        let executable = macOS.appendingPathComponent("launcher")
+        try? fileManager.removeItem(at: executable)
+        try fileManager.copyItem(at: launcher, to: executable)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        try Data((hook.path + "\n").utf8).write(to: resources.appendingPathComponent(Self.hookFileName), options: .atomic)
         if let icon = Self.steamIcon(fileManager: fileManager) {
             let target = resources.appendingPathComponent("AppIcon.icns")
             try? fileManager.removeItem(at: target)
