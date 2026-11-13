@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 
 /// Starting **macOS Steam with Silo's library inside** (`silo-steam-hook.dylib`, built from `Scripts/steam-hook`):
@@ -130,6 +131,27 @@ public struct SteamLauncherApp: Sendable {
         """
     }
 
+    /// Whether the app in `directory` already has this launcher and library: then it is left alone, so its signature
+    /// — and the privacy grant the user gave it — survive (macOS treats a re-signed ad-hoc app as a new one).
+    public func isCurrent(in directory: URL, fileManager: FileManager = .default) -> Bool {
+        let app = directory.appendingPathComponent(Self.fileName, isDirectory: true)
+        let resources = app.appendingPathComponent("Contents/Resources")
+        // The installed launcher carries its signature, so it never equals Silo's copy: compare what it was built from.
+        guard let source = Self.digest(of: launcher) else { return false }
+        return (try? String(contentsOf: resources.appendingPathComponent(Self.sourceFileName), encoding: .utf8)) == source
+            && (try? String(contentsOf: resources.appendingPathComponent(Self.hookFileName), encoding: .utf8))
+                == hook.path + "\n"
+            && fileManager.fileExists(atPath: app.appendingPathComponent("Contents/_CodeSignature").path)
+    }
+
+    static let sourceFileName = "silo-launcher-source"
+
+    /// SHA-256 of a file, hex.
+    static func digest(of url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
     /// Writes (or refreshes) the app in `directory`; the caller signs it (`codesign --force --sign -`).
     @discardableResult
     public func write(into directory: URL, fileManager: FileManager = .default) throws -> URL {
@@ -144,6 +166,9 @@ public struct SteamLauncherApp: Sendable {
         try fileManager.copyItem(at: launcher, to: executable)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
         try Data((hook.path + "\n").utf8).write(to: resources.appendingPathComponent(Self.hookFileName), options: .atomic)
+        if let source = Self.digest(of: launcher) {
+            try Data(source.utf8).write(to: resources.appendingPathComponent(Self.sourceFileName), options: .atomic)
+        }
         if let icon = Self.steamIcon(fileManager: fileManager) {
             let target = resources.appendingPathComponent("AppIcon.icns")
             try? fileManager.removeItem(at: target)

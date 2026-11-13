@@ -29,6 +29,14 @@ struct SteamWithSiloTests {
         #expect(try String(contentsOf: app.appendingPathComponent("Contents/Resources/silo-steam-hook"), encoding: .utf8)
                 == hook.path + "\n")
         #expect(SteamLauncherApp(appBundle: tmp.url) == nil)   // no Silo.app parts there
+        // Unsigned → not current; once signed (a _CodeSignature folder) and unchanged → current; changed → not.
+        let apps = tmp.url.appendingPathComponent("Apps")
+        #expect(!launcher.isCurrent(in: apps))
+        try FileManager.default.createDirectory(at: app.appendingPathComponent("Contents/_CodeSignature"),
+                                                withIntermediateDirectories: true)
+        #expect(launcher.isCurrent(in: apps))
+        try Data("bin2".utf8).write(to: binary)
+        #expect(!launcher.isCurrent(in: apps))
     }
 }
 
@@ -48,5 +56,34 @@ struct SpawnIndependentTests {
         let out = try String(contentsOf: log, encoding: .utf8)
         #expect(out.contains("ok"))
         #expect(out.contains(tmp.url.lastPathComponent))
+    }
+}
+
+@Suite("SiloCompatTool — Silo as a macOS Steam compatibility tool")
+struct SiloCompatToolTests {
+    @Test("Writes the tool in Steam's format; the run script hands games to Silo --steam-launch")
+    func writes() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let tool = SiloCompatTool(siloExecutable: URL(fileURLWithPath: "/Apps/Si'lo.app/Contents/MacOS/Silo"))
+        let dir = try tool.write(steamRoot: tmp.url)
+        #expect(dir.path.hasSuffix("compatibilitytools.d/silo"))
+        let vdf = try String(contentsOf: dir.appendingPathComponent("compatibilitytool.vdf"), encoding: .utf8)
+        #expect(vdf.contains("\"from_oslist\" \"windows\"") && vdf.contains("\"to_oslist\" \"macos\""))
+        #expect(try String(contentsOf: dir.appendingPathComponent("toolmanifest.vdf"), encoding: .utf8)
+            .contains("\"commandline\" \"/run %verb%\""))
+        let run = dir.appendingPathComponent("run")
+        #expect(FileManager.default.isExecutableFile(atPath: run.path))
+        let script = try String(contentsOf: run, encoding: .utf8)
+        #expect(script.contains("exec '/Apps/Si'\\''lo.app/Contents/MacOS/Silo' --steam-launch --appid \"$STEAM_COMPAT_APP_ID\""))
+        #expect(script.contains("*iscriptevaluator.exe) exit 0"))
+    }
+
+    @Test("The game never gets Steam's virtual-pad description")
+    func noVirtualGamepadInfo() {
+        let bridge = NativeSteamBridge(clientInstallPath: URL(fileURLWithPath: "/S"), steamEnvironment: [
+            "SteamVirtualGamepadInfo": "/x.txt", "SteamAppId": "544750", "SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD": "1",
+        ])
+        #expect(bridge.steamEnvironment["SteamVirtualGamepadInfo"] == nil)
+        #expect(bridge.steamEnvironment["SteamAppId"] == "544750")
     }
 }

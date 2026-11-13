@@ -25,11 +25,21 @@ if CommandLine.arguments.contains("--smoke")
         exit(1)
     }
     do {
+        let steamRoot = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Steam", isDirectory: true)
+        if let silo = Bundle.main.executableURL {
+            let tool = try SiloCompatTool(siloExecutable: silo).write(steamRoot: steamRoot)
+            print("steam compatibility tool: \(tool.path)")
+        }
+        if launcher.isCurrent(in: apps) {
+            print("steam launcher: up to date, left as it is (its privacy grant stays)")
+            exit(0)
+        }
         let app = try launcher.write(into: apps)
         let signed = try await SystemProcessRunner().run(
             executable: URL(fileURLWithPath: "/usr/bin/codesign"), arguments: ["--force", "--sign", "-", app.path],
             environment: [:], currentDirectory: nil)
-        print("steam launcher: \(app.path)\(signed.succeeded ? "" : " (not signed)")")
+        print("steam launcher: \(app.path)\(signed.succeeded ? "" : " (not signed)") — authorize it again in Privacy & Security")
         exit(0)
     } catch {
         print("steam launcher failed: \(error)")
@@ -39,6 +49,9 @@ if CommandLine.arguments.contains("--smoke")
     // macOS Steam's Play on a Windows game (the `silo-launch` script): launch headless and stay alive until the
     // game ends — Steam treats this process as the game. Nothing reaches the user from stdout here, so every
     // step goes to Logs/native-steam-launch.log.
+    // Wine inherits this process's environment: Steam's virtual-pad description must not reach SDL in it
+    // (NativeSteamBridge.virtualGamepadInfoKey).
+    unsetenv(NativeSteamBridge.virtualGamepadInfoKey)
     let paths = AppPaths.standard()
     let logURL = paths.logsDir.appendingPathComponent("native-steam-launch.log")
     try? FileManager.default.createDirectory(at: paths.logsDir, withIntermediateDirectories: true)

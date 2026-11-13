@@ -45,8 +45,15 @@ public struct NativeSteamBridge: Sendable, Equatable {
         self.clientInstallPath = clientInstallPath
         self.nativeVCRuntime = nativeVCRuntime
         self.overlayLibraries = overlayLibraries
-        self.steamEnvironment = steamEnvironment.filter { $0.key.hasPrefix("Steam") || $0.key.hasPrefix("SDL_") }
+        self.steamEnvironment = steamEnvironment.filter {
+            ($0.key.hasPrefix("Steam") || $0.key.hasPrefix("SDL_")) && $0.key != Self.virtualGamepadInfoKey
+        }
     }
+
+    /// Steam's description of the virtual pads it made for the game. Never passed on: with it, SDL presents Steam's
+    /// virtual pad as the physical one (a DualSense, 054c/0ce6 version 0) and the game got no input; without it the
+    /// pad stays an Xbox 360 one (045e/028e) and works (measured on SOULCALIBUR VI, 2026-11-12).
+    public static let virtualGamepadInfoKey = "SteamVirtualGamepadInfo"
 
     /// The environment key that carries `overlayLibraries` to `SystemProcessRunner`, which turns it into
     /// `DYLD_INSERT_LIBRARIES` — the only way that variable reaches a Wine child.
