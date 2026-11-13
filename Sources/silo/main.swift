@@ -180,6 +180,7 @@ if CommandLine.arguments.contains("--smoke")
     var watch = NativeSteamGuard.Watch()
     let cef = SteamCEFClient()
     var filtersLive = false
+    var nextMappingCheck = Date()
     var nextFilterCheck = Date.distantPast
     let playing = NativeSteamPlaying(paths: paths)
     var wasPlaying = false
@@ -261,6 +262,22 @@ if CommandLine.arguments.contains("--smoke")
                 log("install takeover: \(reply)")
             }
             nextFilterCheck = Date().addingTimeInterval(filtersLive ? 10 : 2)
+            // Silo's compatibility tool as every installed Windows game's default (SteamCompatMapping), once a minute.
+            if Date() >= nextMappingCheck {
+                nextMappingCheck = Date().addingTimeInterval(60)
+                let tools = SteamCompatMapping.installedTools(
+                    in: installer.steamRoot.appendingPathComponent("compatibilitytools.d"))
+                let config = (try? String(contentsOf: installer.steamRoot.appendingPathComponent("config/config.vdf"),
+                                          encoding: .utf8)) ?? ""
+                if tools.contains(SiloCompatTool.name), let games = try? installer.installedWindowsGameIDs() {
+                    let ids = SteamCompatMapping.gamesToMap(windowsGames: games,
+                                                            current: SteamCompatMapping.mappings(configVDF: config),
+                                                            installedTools: tools)
+                    if !ids.isEmpty, let reply = try? await cef.evaluate(SteamCompatMapping.script(appIDs: ids)) {
+                        log("compat tool: \(reply) (\(ids.map(String.init).joined(separator: ", ")))")
+                    }
+                }
+            }
         }
         // An Install pressed on such a game: ask, then restart Steam with the game readied in the external library.
         if running, !isPlaying, let reply = try? await cef.evaluate(SteamInstallWithSilo.takeRequests),
