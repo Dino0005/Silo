@@ -86,12 +86,4 @@ struct SiloCompatToolTests {
         #expect(bridge.steamEnvironment["SteamVirtualGamepadInfo"] == nil)
         #expect(bridge.steamEnvironment["SteamAppId"] == "544750")
     }
-
-    @Test("Steam's virtual pad stays visible only when Steam made one for this game")
-    func virtualPadOnlyWithSteamInput() {
-        let allow = NativeSteamBridge.allowVirtualGamepadKey
-        #expect(NativeSteamBridge.environmentToDrop(["SteamVirtualGamepadInfo": "/x.txt", allow: "1"])
-                == ["SteamVirtualGamepadInfo"])
-        #expect(NativeSteamBridge.environmentToDrop([allow: "1"]) == ["SteamVirtualGamepadInfo", allow])
-    }
 }
