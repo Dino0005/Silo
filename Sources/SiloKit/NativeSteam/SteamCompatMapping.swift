@@ -38,12 +38,79 @@ public enum SteamCompatMapping {
     public static func installedTools(in toolsDir: URL, fileManager: FileManager = .default) -> Set<String> {
         var names: Set<String> = []
         for dir in (try? fileManager.contentsOfDirectory(at: toolsDir, includingPropertiesForKeys: nil)) ?? [] {
-            guard let text = try? String(contentsOf: dir.appendingPathComponent("compatibilitytool.vdf"), encoding: .utf8),
-                  let tools = (try? KeyValuesParser().parse(text: text)).flatMap({ find("compat_tools", in: $0) })
-            else { continue }
-            tools.pairs.forEach { names.insert($0.key) }
+            names.formUnion(toolNames(inToolDir: dir))
         }
         return names
+    }
+
+    /// The names one tool folder declares.
+    static func toolNames(inToolDir dir: URL) -> Set<String> {
+        guard let text = try? String(contentsOf: dir.appendingPathComponent("compatibilitytool.vdf"), encoding: .utf8),
+              let tools = (try? KeyValuesParser().parse(text: text)).flatMap({ find("compat_tools", in: $0) })
+        else { return [] }
+        return Set(tools.pairs.map(\.key))
+    }
+
+    /// Pure: `config.vdf` text without the `CompatToolMapping` entries whose tool is in `tools` — everything else
+    /// byte for byte. Steam must be closed when the result is written (it rewrites the file on exit).
+    public static func removingMappings(to tools: Set<String>, in text: String) -> String {
+        let chars = Array(text.unicodeScalars)
+        guard let sectionKey = text.range(of: "\"CompatToolMapping\"") else { return text }
+        var i = text.unicodeScalars.distance(from: text.unicodeScalars.startIndex, to: sectionKey.upperBound)
+        func skipSpace() { while i < chars.count, chars[i].properties.isWhitespace { i += 1 } }
+        func quoted() -> String? {
+            guard i < chars.count, chars[i] == "\"" else { return nil }
+            var value = String.UnicodeScalarView(); i += 1
+            while i < chars.count, chars[i] != "\"" {
+                if chars[i] == "\\", i + 1 < chars.count { i += 1 }
+                value.append(chars[i]); i += 1
+            }
+            i += 1
+            return String(value)
+        }
+        // The end of the `{ … }` block starting at `i`.
+        func blockEnd() -> Int? {
+            var depth = 0, inQuote = false, j = i
+            while j < chars.count {
+                let c = chars[j]
+                if inQuote { if c == "\\" { j += 1 } else if c == "\"" { inQuote = false } }
+                else if c == "\"" { inQuote = true }
+                else if c == "{" { depth += 1 }
+                else if c == "}" { depth -= 1; if depth == 0 { return j + 1 } }
+                j += 1
+            }
+            return nil
+        }
+        skipSpace()
+        guard i < chars.count, chars[i] == "{", let sectionEnd = blockEnd() else { return text }
+        i += 1
+        var cuts: [Range<Int>] = []
+        while true {
+            // An entry runs from the start of its line (indentation included) to the end of its block's line.
+            var lineStart = i
+            skipSpace()
+            guard i < sectionEnd - 1, chars[i] == "\"" else { break }
+            while lineStart < i, chars[lineStart] == "\n" || chars[lineStart] == "\r" { lineStart += 1 }
+            guard quoted() != nil else { break }
+            skipSpace()
+            guard i < chars.count, chars[i] == "{", let end = blockEnd() else { break }
+            let body = String(String.UnicodeScalarView(chars[i..<end]))
+            i = end
+            let name = (try? KeyValuesParser().parse(text: "\"x\" " + body))?["x"]?["name"]?.stringValue
+            if let name, tools.contains(name) {
+                var stop = end
+                while stop < chars.count, chars[stop] == " " || chars[stop] == "\t" { stop += 1 }
+                if stop < chars.count, chars[stop] == "\r" { stop += 1 }
+                if stop < chars.count, chars[stop] == "\n" { stop += 1 }
+                cuts.append(lineStart..<stop)
+                i = stop
+            }
+        }
+        guard !cuts.isEmpty else { return text }
+        var out = String.UnicodeScalarView(), from = 0
+        for cut in cuts { out.append(contentsOf: chars[from..<cut.lowerBound]); from = cut.upperBound }
+        out.append(contentsOf: chars[from...])
+        return String(out)
     }
 
     /// JavaScript that maps `appIDs` to Silo's tool and answers how many it mapped.

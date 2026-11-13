@@ -542,6 +542,7 @@ struct SettingsView: View {
             GPTKManagerView().tabItem { Label("GPTK", systemImage: "cpu") }
             DXMTManagerView().tabItem { Label("DXMT", systemImage: "square.stack.3d.up") }
             MediaFoundationView().tabItem { Label("Media Foundation", systemImage: "film") }
+            NativeSteamSettingsView().tabItem { Label("Steam for macOS", systemImage: "gamecontroller") }
         }
         // Definite compact size; with the scene's `.windowResizability(.contentSize)` the WINDOW becomes
         // exactly this (no grey side-columns), a fixed-size settings pane per macOS convention.

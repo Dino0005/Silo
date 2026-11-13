@@ -176,7 +176,8 @@ if CommandLine.arguments.contains("--smoke")
             .appendingPathComponent("Library/Application Support/Steam"),
         backupDir: paths.supportDir.appendingPathComponent("NativeSteam"), isSteamRunning: steamRunning)
     func log(_ line: String) { print("\(ISO8601DateFormatter().string(from: Date())) \(line)"); fflush(stdout) }
-    log("guard started")
+    let setup = NativeSteamSetup(paths: paths, isSteamRunning: steamRunning)
+    log("guard started" + (setup.isEnabled ? "" : " (Steam per macOS is off: protection only)"))
     var watch = NativeSteamGuard.Watch()
     let cef = SteamCEFClient()
     var filtersLive = false
@@ -234,6 +235,8 @@ if CommandLine.arguments.contains("--smoke")
     }
     while true {
         let running = steamRunning()
+        // Off in Settings: only the protection below runs — nothing inside Steam's UI, no tool mapping.
+        let enabled = setup.isEnabled
         // While a game started through Silo runs, nothing touches Steam's UI: the filters' timer is paused once
         // and no probe is sent until the game ends.
         let isPlaying = running && playing.isPlaying()
@@ -245,7 +248,7 @@ if CommandLine.arguments.contains("--smoke")
         }
         // Silo's Apple / Windows library filters: (re)injected whenever this version isn't live in Steam's UI —
         // a new Steam session, or its SharedJSContext reloaded. Checked often until it's in, then every 10 s.
-        if running, !isPlaying, Date() >= nextFilterCheck {
+        if enabled, running, !isPlaying, Date() >= nextFilterCheck {
             let live = (try? await cef.evaluate(SteamLibraryFilters.probe)) == "true"
             if !live, let ids = try? installer.windowsGameIDsInCache(),
                let reply = try? await cef.evaluate(SteamLibraryFilters.script(windowsOnly: ids.windowsOnly,
@@ -280,7 +283,7 @@ if CommandLine.arguments.contains("--smoke")
             }
         }
         // An Install pressed on such a game: ask, then restart Steam with the game readied in the external library.
-        if running, !isPlaying, let reply = try? await cef.evaluate(SteamInstallWithSilo.takeRequests),
+        if enabled, running, !isPlaying, let reply = try? await cef.evaluate(SteamInstallWithSilo.takeRequests),
            let appID = SteamInstallWithSilo.requests(fromReply: reply).first {
             await installWithSilo(appID)
             watch = NativeSteamGuard.Watch()
@@ -288,11 +291,18 @@ if CommandLine.arguments.contains("--smoke")
         }
         if !running { filtersLive = false }
         if watch.shouldProtect(steamRunning: running) {
-            SteamLibraryFilters.enableDebugPort(steamRoot: installer.steamRoot)
+            if enabled { SteamLibraryFilters.enableDebugPort(steamRoot: installer.steamRoot) }
             // Let Steam finish writing appinfo.vdf on its way out.
             try? await Task.sleep(for: .seconds(3))
             do {
                 try exitPass()
+                // Off, and the Windows-games library is no longer in Steam (none installed, every library reachable):
+                // nothing left to protect — the launch scripts and the guard itself go.
+                if !setup.isEnabled, !setup.protectionNeeded() {
+                    log("Steam per macOS is off and no Windows game is left in Steam's libraries: guard retiring")
+                    await setup.retire()
+                    exit(0)
+                }
             } catch NativeSteamInstaller.Failure.steamRunning {
                 log("Steam started again before the check; retrying after it quits")
                 watch = NativeSteamGuard.Watch()
@@ -305,32 +315,10 @@ if CommandLine.arguments.contains("--smoke")
     }
 } else if CommandLine.arguments.contains("--native-steam-guard-install") {
     // Installs (or refreshes) the guard's LaunchAgent for this Silo binary and starts it now.
-    let paths = AppPaths.standard()
-    let home = FileManager.default.homeDirectoryForCurrentUser
-    let agent = NativeSteamGuard.launchAgentURL(home: home)
-    let siloExe = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
     do {
-        try FileManager.default.createDirectory(at: agent.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: paths.logsDir, withIntermediateDirectories: true)
-        try NativeSteamGuard.launchAgentPlist(
-            siloExecutable: siloExe, logURL: paths.logsDir.appendingPathComponent("native-steam-guard.log"))
-            .write(to: agent, options: .atomic)
-        let runner = SystemProcessRunner()
-        let launchctl = URL(fileURLWithPath: "/bin/launchctl")
-        let domain = "gui/\(getuid())"
-        _ = try? await runner.run(executable: launchctl, arguments: ["bootout", "\(domain)/\(NativeSteamGuard.label)"],
-                                  environment: [:], currentDirectory: nil)
-        // bootout returns before launchd has finished removing the old job; bootstrap fails (EIO) until it has.
-        var result = try await runner.run(executable: launchctl, arguments: ["bootstrap", domain, agent.path],
-                                          environment: [:], currentDirectory: nil)
-        for _ in 0..<10 where result.exitCode != 0 {
-            try? await Task.sleep(for: .milliseconds(500))
-            result = try await runner.run(executable: launchctl, arguments: ["bootstrap", domain, agent.path],
-                                          environment: [:], currentDirectory: nil)
-        }
-        print(result.exitCode == 0 ? "guard installed: \(agent.path) -> \(siloExe.path)"
-              : "launchctl bootstrap failed (\(result.exitCode)): \(String(decoding: result.standardError, as: UTF8.self))")
-        if result.exitCode != 0 { exit(1) }
+        let setup = NativeSteamSetup()
+        try await setup.installGuard()
+        print("guard installed: \(NativeSteamGuard.launchAgentURL(home: setup.home).path) -> \(setup.siloApp.path)")
     } catch {
         print("failed: \(error)")
         exit(1)
