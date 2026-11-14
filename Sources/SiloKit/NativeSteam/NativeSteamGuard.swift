@@ -31,6 +31,30 @@ public enum NativeSteamGuard {
         return try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
     }
 
+    /// Steam's own log of each client start (`logs/bootstrap_log.txt`).
+    public static func bootstrapLogURL(steamRoot: URL) -> URL {
+        steamRoot.appendingPathComponent("logs/bootstrap_log.txt")
+    }
+
+    /// Pure: the start line of Steam's LAST session in `bootstrapLog` when that session installed a pending client
+    /// update and then shut down — the moment Steam expects its bootstrapper to start it again. `Steam (Silo)` starts
+    /// the client directly (no bootstrapper, so Silo's library can ride along) and exits, so nothing restarts it: the
+    /// guard does, once per session (the start line identifies it). Measured 2026-11-14 08:36: "Found pending update",
+    /// the localized "update complete, starting Steam…", then "Shutdown", and no new start until the user clicked again.
+    /// Only the log's English lines are matched; the rest is in Steam's language. nil for any other session end.
+    public static func sessionEndedForUpdate(bootstrapLog: String) -> String? {
+        let lines = bootstrapLog.split(whereSeparator: \.isNewline).map(String.init)
+        guard let start = lines.lastIndex(where: { $0.contains("Startup - updater built") }) else { return nil }
+        // Steam writes each start line twice in a row: the session begins at the first of the last pair.
+        var first = start
+        while first > 0, lines[first - 1].contains("Startup - ") { first -= 1 }
+        let session = lines[first...]
+        guard session.contains(where: { $0.contains("Found pending update") }),
+              let last = session.last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }),
+              last.hasSuffix("Shutdown") else { return nil }
+        return lines[first]
+    }
+
     /// Decides, from successive "is Steam running" samples, when to protect: on the first sample with Steam
     /// closed (the guard just started) and on every running → closed edge. Never while Steam runs.
     public struct Watch: Sendable {

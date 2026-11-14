@@ -233,6 +233,7 @@ if CommandLine.arguments.contains("--smoke")
         _ = try? await runner.run(executable: URL(fileURLWithPath: "/usr/bin/open"), arguments: ["-a", "Steam"],
                                   environment: [:], currentDirectory: nil)
     }
+    var restartedSession: String?
     while true {
         let running = steamRunning()
         // Off in Settings: only the protection below runs — nothing inside Steam's UI, no tool mapping.
@@ -290,6 +291,22 @@ if CommandLine.arguments.contains("--smoke")
             _ = watch.shouldProtect(steamRunning: steamRunning())
         }
         if !running { filtersLive = false }
+        // Steam closed itself to install a client update and waits for a bootstrapper that `Steam (Silo)` doesn't
+        // leave behind: start it again through LaunchServices (Silo's library and the launcher's privacy grant come
+        // with it), once per session, once Steam has been gone for a few seconds and only for a fresh log entry.
+        if enabled, !running, FileManager.default.fileExists(atPath: setup.launcherAppURL.path) {
+            let logURL = NativeSteamGuard.bootstrapLogURL(steamRoot: installer.steamRoot)
+            let age = ((try? logURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate)
+                .map { Date().timeIntervalSince($0) } ?? .infinity
+            if age >= 5, age < 120, let text = try? String(contentsOf: logURL, encoding: .utf8),
+               let session = NativeSteamGuard.sessionEndedForUpdate(bootstrapLog: String(text.suffix(65_536))),
+               session != restartedSession {
+                restartedSession = session
+                log("Steam quit to install an update: starting Steam (Silo) again")
+                _ = try? await runner.run(executable: URL(fileURLWithPath: "/usr/bin/open"),
+                                          arguments: [setup.launcherAppURL.path], environment: [:], currentDirectory: nil)
+            }
+        }
         if watch.shouldProtect(steamRunning: running) {
             if enabled { SteamLibraryFilters.enableDebugPort(steamRoot: installer.steamRoot) }
             // Let Steam finish writing appinfo.vdf on its way out.

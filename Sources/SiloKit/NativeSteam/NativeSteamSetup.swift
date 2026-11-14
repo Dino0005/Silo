@@ -61,7 +61,7 @@ public struct NativeSteamSetup: Sendable {
 
     var marker: URL { paths.supportDir.appendingPathComponent(Self.markerName) }
     var applicationsDir: URL { home.appendingPathComponent("Applications", isDirectory: true) }
-    var launcherAppURL: URL { applicationsDir.appendingPathComponent(SteamLauncherApp.fileName, isDirectory: true) }
+    public var launcherAppURL: URL { applicationsDir.appendingPathComponent(SteamLauncherApp.fileName, isDirectory: true) }
     var toolsDir: URL { steamRoot.appendingPathComponent("compatibilitytools.d", isDirectory: true) }
     var configVDF: URL { steamRoot.appendingPathComponent("config/config.vdf") }
     var guardAgentURL: URL { NativeSteamGuard.launchAgentURL(home: home) }
