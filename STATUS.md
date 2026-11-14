@@ -3,6 +3,15 @@
 > Updated every iteration. `CLAUDE.md` is the contract; this is the state.
 
 ## Now
+- **🎬 Wine patch 0009 (2026-11-14): FATAL FURY's movies play on Wine's own Media Foundation.**
+  `Scripts/patches/0009-winegstreamer-video-decoder-nv12-without-d3d-textures.patch` = Obelisk/voile-wine 8a10ac95
+  (Zagrios, LGPL: decode to system memory when the D3D11 device can't make the frames' textures) + CrossOver's CW HACK
+  26265 removed (it skipped NV12 on macOS, the format UE5's player wants) + a SET_D3D_MANAGER that comes before any
+  output type is refused when the device can't make NV12 textures (D3DMetal can't), which sends the game down its
+  software path. Measured with +mfplat over five runs, verified by the user on FATAL FURY City of the Wolves (2492040)
+  with MF off; built locally with no warnings. SOULCALIBUR VI still needs the MF bottle (media session,
+  `topology_loader_Load` stub). Not yet tried on DXMT. Next: CI build of `wine-cx-26.3.0` (after push), publish, then
+  FATAL FURY's MF setting can go off; the release notes must ask for a Wine reinstall.
 - **✅ Silo 0.7.3 RELEASED (2026-11-06)**: pushed f48885f..9c5a90c, tag v0.7.3 (annotated). Release run 42276149248 and pages 42276146233 green. Latest, not draft (`Silo.zip` 3856607 B, sha256 baaae300… matches its `.sha256`, app reports 0.7.3, signature valid). Site shows 0.7.3 (EN + IT). Contents: Library filter, one alphabetical list, tile styles Classic/Icons/Portrait, full title in the card tooltip, glass status line, toolchain 27.2, new `dashboard.png`. No Wine/DXMT change.
 - **🖼️ Library tile styles (2026-11-06, tried on branch `prova-copertine`, squashed into main).** Picked in the filter menu (`@AppStorage("libraryTileStyle")`, `TileStyle`): *Classic* (default — the whole 460×215 header, replacing the 92-pt band that cropped it), *Icons* (Apple Games-like row: host app icon via `HostAppLookup` + `NSWorkspace.icon`, blue Play capsule; cover in a rounded square until the first launch), *Portrait* (2:3 cover from the bottle Steam's `appcache/librarycache` via `SteamLibraryCache`, else CDN `library_600x900_2x.jpg` → `library_600x900.jpg`, stored as `Artwork/<id>-portrait.jpg`, asked once per session; 3-row `glassEffect` panel, `ultraThinMaterial` on macOS 15). Tried and dropped: a glass panel under the full header, a compact 2-row portrait panel, a dimmed glass tint. Card tooltip = full title + action. 817 tests green. Open: raising the minimum to macOS 26 (user's call).
 - **🧭 Library filter + single alphabetical order (2026-11-05).** A filter button (`line.3.horizontal.decrease`, filled while not on All) sits in its own toolbar capsule ahead of Steam / Add / Refresh / Settings: All / Steam / Non-Steam, persisted in `@AppStorage("libraryKindFilter")`. Steam and manual games now share ONE name-sorted grid (`LibraryEntry.merged`, pure, `localizedCaseInsensitiveCompare`, ties by id) instead of Steam first, manual after; the subtitle counts what is shown. EN/IT strings added. 5 tests (`LibraryEntryTests`), 807 green, app rebuilt; awaiting the user's look.

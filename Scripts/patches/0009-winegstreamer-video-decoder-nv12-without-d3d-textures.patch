@@ -1,0 +1,208 @@
+Silo patch 0009 — winegstreamer: the video decoder offers NV12 on macOS and refuses a Direct3D 11 manager
+whose device can't make NV12 textures
+
+Origin, part 1: Zagrios/voile-wine (Obelisk's Wine, itself built on crossover-sources-26.3.0), commit 8a10ac95
+"winegstreamer: Decode to system memory when the Direct3D 11 device cannot make textures of the frames."
+(2026-11-10, author Zagrios). License: LGPL-2.1-or-later, like Wine. Its hunks are carried unchanged.
+Part 2 + 3 are Silo's, measured on FATAL FURY City of the Wolves (2492040) on 2026-11-14.
+
+The problem, measured with +mfplat on FATAL FURY (Unreal Engine 5; its player drives the H.264 decoder MFT
+directly, no media session) under D3DMetal, without Microsoft's Media Foundation DLLs:
+  * the game sends MFT_MESSAGE_SET_D3D_MANAGER with a DXGI device manager, sets H.264 input, then lists the
+    output types: YV12, YV12, IYUV, I420, YUY2 — no NV12, because CrossOver's CW HACK 26265 skips NV12 on
+    macOS in transform_GetOutputAvailableType. It wants NV12, picks nothing and skips every movie.
+  * With the hack gone it picks NV12; 8a10ac95 then sees that the device can't make NV12 textures (D3DMetal
+    and DXMT can't) and drops the manager inside init_allocator, so frames come in system memory and nothing
+    crashes. But the manager had been ACCEPTED, so the game stays on its hardware path, asks each output
+    buffer for IMFDXGIBuffer, gets nothing and ends the stream.
+  * Refusing the manager up front (MF_E_UNSUPPORTED_D3D_TYPE) sends the game down its software path:
+    movies play (user-verified 2026-11-14).
+
+What this patch does:
+  1. 8a10ac95, unchanged: device_manager_holds_type() asks the device (CheckFormatSupport, never a texture —
+     asking for one stops the process on D3DMetal) whether it has 2D textures of the output type; a
+     SET_D3D_MANAGER after the output type is refused when it doesn't, and a manager given before the type
+     is dropped in init_allocator, decoding to system memory.
+  2. CW HACK 26265 removed (and its now-unused is_macos()): NV12 is offered again. What the hack guarded
+     against — D3DMetal stopping the process on an NV12 texture — can no longer happen: the device is asked
+     about NV12 and a manager without it is refused or dropped, so no NV12 texture is ever requested.
+  3. A SET_D3D_MANAGER that arrives before any output type is checked against NV12
+     (device_manager_holds_nv12()) and refused when the device lacks it.
+A Direct3D 9 manager, a manager without a device and a device that does have the format are taken as before.
+
+Not a fix for every movie: SOULCALIBUR VI (544750) still shows none without Microsoft's MF — it uses the
+media session, and Wine's topology_loader_Load is a stub (measured the same day). Games in a Media
+Foundation bottle use Microsoft's msmpeg2vdec and never reach this decoder.
+
+Upstream: CW HACK 26265 is CrossOver's; 8a10ac95 is not in WineHQ. Rebase onto each new CrossOver source.
+
+--- a/dlls/winegstreamer/video_decoder.c
++++ b/dlls/winegstreamer/video_decoder.c
+@@ -32,6 +32,7 @@
+ #include "initguid.h"
+ 
+ #include "codecapi.h"
++#include "d3d11.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(mfplat);
+ WINE_DECLARE_DEBUG_CHANNEL(winediag);
+@@ -106,6 +107,7 @@
+ 
+     IMFVideoSampleAllocatorEx *allocator;
+     BOOL allocator_initialized;
++    IUnknown *device_manager;
+     IMFTransform *copier;
+     IMFMediaBuffer *temp_buffer;
+ 
+@@ -168,6 +170,8 @@
+     {
+         IMFTransform_Release(decoder->copier);
+         IMFVideoSampleAllocatorEx_Release(decoder->allocator);
++        if (decoder->device_manager)
++            IUnknown_Release(decoder->device_manager);
+         if (decoder->temp_buffer)
+             IMFMediaBuffer_Release(decoder->temp_buffer);
+         if (decoder->wg_transform)
+@@ -436,8 +440,71 @@
+     }
+ 
+     return hr;
++}
++
++/* Whether the device of a manager can make textures of the frames of a type, which is what
++ * the allocator makes its samples of once it has the manager. Neither DXMT nor D3DMetal has
++ * the video formats: asked for such a texture, DXMT fails and D3DMetal stops the process, so
++ * the device is asked what it supports and never for a texture. A Direct3D 9 manager, and a
++ * manager that has no device yet, are taken as they always were. */
++static BOOL device_manager_holds_type(IUnknown *device_manager, IMFMediaType *type)
++{
++    IMFDXGIDeviceManager *manager;
++    ID3D11Device *device;
++    BOOL holds = TRUE;
++    HANDLE handle;
++    GUID subtype;
++    UINT support;
++
++    if (FAILED(IMFMediaType_GetGUID(type, &MF_MT_SUBTYPE, &subtype)))
++        return TRUE;
++    if (FAILED(IUnknown_QueryInterface(device_manager, &IID_IMFDXGIDeviceManager, (void **)&manager)))
++        return TRUE;
++
++    if (SUCCEEDED(IMFDXGIDeviceManager_OpenDeviceHandle(manager, &handle)))
++    {
++        if (SUCCEEDED(IMFDXGIDeviceManager_GetVideoService(manager, handle, &IID_ID3D11Device, (void **)&device)))
++        {
++            DXGI_FORMAT format = MFMapDX9FormatToDXGIFormat(subtype.Data1);
++
++            holds = format != DXGI_FORMAT_UNKNOWN
++                    && SUCCEEDED(ID3D11Device_CheckFormatSupport(device, format, &support))
++                    && (support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
++            ID3D11Device_Release(device);
++        }
++        IMFDXGIDeviceManager_CloseDeviceHandle(manager, handle);
++    }
++
++    IMFDXGIDeviceManager_Release(manager);
++    return holds;
++}
++
++/* A manager given before any output type: ask about NV12, the decoder's first output type and the one a
++ * Direct3D 11 caller picks. Refusing the manager now sends the caller down its software path; taking it
++ * and dropping it later leaves the caller waiting for textures (IMFDXGIBuffer) it never gets. */
++static BOOL device_manager_holds_nv12(IUnknown *device_manager)
++{
++    IMFMediaType *type;
++    BOOL holds;
++
++    if (FAILED(MFCreateMediaType(&type)))
++        return TRUE;
++    IMFMediaType_SetGUID(type, &MF_MT_MAJOR_TYPE, &MFMediaType_Video);
++    IMFMediaType_SetGUID(type, &MF_MT_SUBTYPE, &MFVideoFormat_NV12);
++    holds = device_manager_holds_type(device_manager, type);
++    IMFMediaType_Release(type);
++    return holds;
+ }
+ 
++static void set_device_manager(struct video_decoder *decoder, IUnknown *device_manager)
++{
++    if (device_manager)
++        IUnknown_AddRef(device_manager);
++    if (decoder->device_manager)
++        IUnknown_Release(decoder->device_manager);
++    decoder->device_manager = device_manager;
++}
++
+ static HRESULT init_allocator(struct video_decoder *decoder)
+ {
+     HRESULT hr;
+@@ -445,6 +512,16 @@
+     if (decoder->allocator_initialized)
+         return S_OK;
+ 
++    /* The manager came before the output type, or the type changed since: the samples are
++     * made in system memory, as they are without a manager. */
++    if (decoder->device_manager && !device_manager_holds_type(decoder->device_manager, decoder->output_type))
++    {
++        WARN("The device cannot make textures of the output type, decoding to system memory.\n");
++        if (FAILED(hr = IMFVideoSampleAllocatorEx_SetDirectXManager(decoder->allocator, NULL)))
++            return hr;
++        set_device_manager(decoder, NULL);
++    }
++
+     if (FAILED(hr = IMFTransform_SetInputType(decoder->copier, 0, decoder->output_type, 0)))
+         return hr;
+     if (FAILED(hr = IMFTransform_SetOutputType(decoder->copier, 0, decoder->output_type, 0)))
+@@ -581,17 +658,6 @@
+     return MFCreateVideoMediaTypeFromSubtype(decoder->input_types[index], (IMFVideoMediaType **)type);
+ }
+ 
+-/* CW HACK 26265 */
+-extern void CDECL wine_get_host_version( const char **sysname, const char **release );
+-
+-static BOOL is_macos(void)
+-{
+-    const char *sysname;
+-
+-    wine_get_host_version( &sysname, NULL );
+-    return !strcmp( sysname, "Darwin" );
+-}
+-
+ static HRESULT WINAPI transform_GetOutputAvailableType(IMFTransform *iface, DWORD id,
+         DWORD index, IMFMediaType **type)
+ {
+@@ -604,16 +670,6 @@
+         return MF_E_TRANSFORM_TYPE_NOT_SET;
+     if (index >= decoder->output_type_count)
+         return MF_E_NO_MORE_TYPES;
+-
+-    /* CW HACK 26265 */
+-    if (is_macos() && IsEqualGUID(decoder->output_types[index], &MFVideoFormat_NV12))
+-    {
+-        WARN("Skipping NV12 output format\n");
+-        index++;
+-
+-        if (index >= decoder->output_type_count)
+-            return MF_E_NO_MORE_TYPES;
+-    }
+ 
+     return create_output_media_type(decoder, decoder->output_types[index], NULL, type);
+ }
+@@ -863,8 +919,18 @@
+     switch (message)
+     {
+     case MFT_MESSAGE_SET_D3D_MANAGER:
++        /* Refused, the decoder stays as it was: without a manager, its caller brings the
++         * samples, in system memory. */
++        if (param && !(decoder->output_type ? device_manager_holds_type((IUnknown *)param, decoder->output_type)
++                                            : device_manager_holds_nv12((IUnknown *)param)))
++        {
++            WARN("The device cannot make textures of the output type, refusing its manager.\n");
++            return MF_E_UNSUPPORTED_D3D_TYPE;
++        }
++
+         if (FAILED(hr = IMFVideoSampleAllocatorEx_SetDirectXManager(decoder->allocator, (IUnknown *)param)))
+             return hr;
++        set_device_manager(decoder, (IUnknown *)param);
+ 
+         uninit_allocator(decoder);
+         if (param)
