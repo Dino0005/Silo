@@ -31,6 +31,10 @@ the commit message says why.
   Unreal Engine 5's video player falls back to its software path instead of skipping every movie. Built on a fix
   from Obelisk's Wine (voile-wine, by Zagrios). Needs the Wine runtime reinstalled once it is published. SOULCALIBUR
   VI still needs the Media Foundation bottle.
+- **Controllers: two fixes taken from Proton's Wine** (through Obelisk's Wine). Pads already plugged in when a game
+  starts reach games that use Windows.Gaming.Input, with the axes in Windows' order; and XInput keeps a controller
+  working when it is unplugged and plugged back in, and reports the same capabilities as on Windows. Needs the Wine
+  runtime reinstalled once it is published.
 - **The Library screenshot shows again in the README and on the site.** Its alternative text, written for 0.7.3,
   contained straight double quotes that ended the `alt` attribute early, so GitHub dropped the image.
 
