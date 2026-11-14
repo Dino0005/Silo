@@ -1,0 +1,146 @@
+Silo patch 0010 — windows.gaming.input: report gamepads already plugged in at startup, with Windows' axis order
+
+Origin: Zagrios/voile-wine (Obelisk's Wine, built on crossover-sources-26.3.0), commit 50ae838a (2026-09-26,
+author Zagrios), itself a backport of Proton's Wine b2064d07c2ec + 094cc70daddf (ValveSoftware/wine).
+License: LGPL-2.1-or-later, like Wine. Hunks unchanged.
+
+Why Silo carries it: a quality fix taken on its merit (user, 2026-11-14), not a fix for a measured game. A game
+that registers its "gamepad added" callback before the providers exist now gets the pads plugged in when it
+started, and HID pads' axes are read in Windows' order X, Y, Z, Rx, Ry, Rz (a DualSense's report lists Rz before
+Rx). Applies cleanly on top of 0002–0009. Tried 2026-11-14 on FATAL FURY (2492040): no effect there, the game
+reads pads through Raw Input/HID, not windows.gaming.input.
+
+---- original commit below (git format-patch, unchanged) ----
+
+From 50ae838a5f461cfb8260f5b8d77b01f765521e17 Mon Sep 17 00:00:00 2001
+From: Zagrios <40181755+Zagrios@users.noreply.github.com>
+Date: Sat, 26 Sep 2026 15:32:07 +0200
+Subject: [PATCH] windows.gaming.input: Report gamepads from startup, with
+ Windows' axis order.
+
+Let a game register its "gamepad added" callback before the providers are
+created, so pads already plugged in when it starts reach it, and read HID
+pads' axes as X, Y, Z, Rx, Ry, Rz, the order Windows gives, instead of the
+report's (a DualSense lists Rz before Rx). From Proton's Wine:
+b2064d07c2ec and 094cc70daddf (ValveSoftware/wine).
+---
+ dlls/windows.gaming.input/main.c     |  2 +-
+ dlls/windows.gaming.input/provider.c | 51 +++++++++++++++++++++++++---
+ 2 files changed, 47 insertions(+), 6 deletions(-)
+
+diff --git a/dlls/windows.gaming.input/main.c b/dlls/windows.gaming.input/main.c
+index 39c0540a..7b0a68f8 100644
+--- a/dlls/windows.gaming.input/main.c
++++ b/dlls/windows.gaming.input/main.c
+@@ -122,8 +122,8 @@ static DWORD WINAPI monitor_thread_proc( void *param )
+     RegisterClassExW( &wndclass );
+     hwnd = CreateWindowExW( 0, wndclass.lpszClassName, NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, NULL, NULL );
+     devnotify = RegisterDeviceNotificationW( hwnd, &filter, DEVICE_NOTIFY_ALL_INTERFACE_CLASSES );
+-    initialize_providers();
+     SetEvent( start_event );
++    initialize_providers();
+ 
+     do
+     {
+diff --git a/dlls/windows.gaming.input/provider.c b/dlls/windows.gaming.input/provider.c
+index 7153ec38..f8a6ce2c 100644
+--- a/dlls/windows.gaming.input/provider.c
++++ b/dlls/windows.gaming.input/provider.c
+@@ -565,7 +565,7 @@ static void open_haptics_device( struct provider *provider )
+     CloseHandle( device );
+ }
+ 
+-static const DIOBJECTDATAFORMAT data_format_objs[] =
++static const DIOBJECTDATAFORMAT data_format_xusb_objs[] =
+ {
+     {NULL,DIJOFS_X,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
+     {NULL,DIJOFS_Y,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
+@@ -573,6 +573,44 @@ static const DIOBJECTDATAFORMAT data_format_objs[] =
+     {NULL,DIJOFS_RX,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
+     {NULL,DIJOFS_RY,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
+     {NULL,DIJOFS_RZ,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_POV(0),DIDFT_OPTIONAL|DIDFT_POV|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(0),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(1),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(2),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(3),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(4),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(5),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(6),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(7),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(8),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(9),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(10),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(11),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(12),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(13),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(14),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(15),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++    {NULL,DIJOFS_BUTTON(16),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
++};
++
++static const DIDATAFORMAT data_format_xusb =
++{
++    sizeof(DIDATAFORMAT),
++    sizeof(DIOBJECTDATAFORMAT),
++    DIDF_ABSAXIS,
++    sizeof(DIJOYSTATE2),
++    ARRAY_SIZE(data_format_xusb_objs),
++    (LPDIOBJECTDATAFORMAT)data_format_xusb_objs
++};
++
++static const DIOBJECTDATAFORMAT data_format_hid_objs[] =
++{
++    {&GUID_XAxis,DIJOFS_X,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
++    {&GUID_YAxis,DIJOFS_Y,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
++    {&GUID_ZAxis,DIJOFS_Z,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
++    {&GUID_RxAxis,DIJOFS_RX,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
++    {&GUID_RyAxis,DIJOFS_RY,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
++    {&GUID_RzAxis,DIJOFS_RZ,DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
+     {NULL,DIJOFS_SLIDER(0),DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
+     {NULL,DIJOFS_SLIDER(1),DIDFT_OPTIONAL|DIDFT_AXIS|DIDFT_ANYINSTANCE},
+     {NULL,DIJOFS_POV(0),DIDFT_OPTIONAL|DIDFT_POV|DIDFT_ANYINSTANCE},
+@@ -709,14 +747,14 @@ static const DIOBJECTDATAFORMAT data_format_objs[] =
+     {NULL,DIJOFS_BUTTON(127),DIDFT_OPTIONAL|DIDFT_BUTTON|DIDFT_ANYINSTANCE},
+ };
+ 
+-static const DIDATAFORMAT data_format =
++static const DIDATAFORMAT data_format_hid =
+ {
+     sizeof(DIDATAFORMAT),
+     sizeof(DIOBJECTDATAFORMAT),
+     DIDF_ABSAXIS,
+     sizeof(DIJOYSTATE2),
+-    ARRAY_SIZE(data_format_objs),
+-    (LPDIOBJECTDATAFORMAT)data_format_objs
++    ARRAY_SIZE(data_format_hid_objs),
++    (LPDIOBJECTDATAFORMAT)data_format_hid_objs
+ };
+ 
+ void provider_create( const WCHAR *device_path )
+@@ -725,6 +763,7 @@ void provider_create( const WCHAR *device_path )
+     IGameControllerProvider *provider;
+     struct provider *impl, *entry;
+     GUID guid = device_path_guid;
++    const DIDATAFORMAT *format;
+     IDirectInput8W *dinput;
+     BOOL found = FALSE;
+     const WCHAR *tmp;
+@@ -732,6 +771,8 @@ void provider_create( const WCHAR *device_path )
+ 
+     if (wcsnicmp( device_path, L"\\\\?\\HID#", 8 )) return;
+     if ((tmp = wcschr( device_path + 8, '#' )) && !wcsnicmp( tmp - 6, L"&IG_", 4 )) return;
++    if (tmp && !wcsnicmp( tmp - 6, L"&XI_", 4 )) format = &data_format_xusb;
++    else format = &data_format_hid;
+ 
+     TRACE( "device_path %s\n", debugstr_w( device_path ) );
+ 
+@@ -743,7 +784,7 @@ void provider_create( const WCHAR *device_path )
+     if (FAILED(hr)) return;
+ 
+     if (FAILED(hr = IDirectInputDevice8_SetCooperativeLevel( dinput_device, 0, DISCL_BACKGROUND | DISCL_NONEXCLUSIVE ))) goto done;
+-    if (FAILED(hr = IDirectInputDevice8_SetDataFormat( dinput_device, &data_format ))) goto done;
++    if (FAILED(hr = IDirectInputDevice8_SetDataFormat( dinput_device, format ))) goto done;
+     if (FAILED(hr = IDirectInputDevice8_Acquire( dinput_device ))) goto done;
+ 
+     if (!(impl = calloc( 1, sizeof(*impl) ))) goto done;
