@@ -35,6 +35,9 @@ the commit message says why.
   starts reach games that use Windows.Gaming.Input, with the axes in Windows' order; and XInput keeps a controller
   working when it is unplugged and plugged back in, and reports the same capabilities as on Windows. Needs the Wine
   runtime reinstalled once it is published.
+- **Three small Wine fixes** (through Obelisk's Wine, two of them from Proton): a program that waits on its own process
+  gets the answer Windows gives, `GetAsyncKeyState()` no longer asks the Wine server for every polled key, and the heap
+  reuses its block groups instead of mapping new ones. Needs the Wine runtime reinstalled once it is published.
 - **The Library screenshot shows again in the README and on the site.** Its alternative text, written for 0.7.3,
   contained straight double quotes that ended the `alt` attribute early, so GitHub dropped the image.
 
