@@ -60,19 +60,18 @@ struct DepthFixSection: View {
     }
 }
 
-/// Controller handling for a game started from macOS Steam (`EnvFlags.steamXboxPad`, `.disableHidraw`,
+/// Controller handling for a game started from macOS Steam (`EnvFlags.disableHidraw`,
 /// applied by `SteamInputControllers`). Steam games only: a manual game never runs next to macOS Steam.
 struct ControllersSection: View {
     @Binding var flags: EnvFlags
 
     var body: some View {
         Section {
-            Toggle("Use the Xbox virtual controller", isOn: $flags.steamXboxPad)
             Toggle("Disable hidraw", isOn: $flags.disableHidraw)
         } header: {
             Text("Controllers (macOS Steam)")
         } footer: {
-            Text("For games started from macOS Steam. While Steam Input handles a controller, Silo hides it from the game so the two don't drive it together, and the game sees Steam's virtual controller as your real one (a DualSense). \"Use the Xbox virtual controller\" shows it as an Xbox controller instead, for games that only recognize Xbox controllers — use it with Steam Input on. \"Disable hidraw\" reads every controller through SDL (Xbox glyphs), for a pad that misbehaves — use it with Steam Input off.")
+            Text("For games started from macOS Steam. While Steam Input handles a controller, Silo hides it from the game so the two don't drive it together, and the game gets Steam's virtual controller instead, as an Xbox controller (games that ask Steam for the controller type still show PlayStation glyphs). \"Disable hidraw\" reads every controller through SDL (Xbox glyphs), for a pad that misbehaves — use it with Steam Input off.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

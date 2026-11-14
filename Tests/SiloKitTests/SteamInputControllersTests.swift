@@ -39,12 +39,22 @@ struct SteamInputControllersTests {
         #expect(plan.unhide.isEmpty && plan.disableHidraw == nil && plan.owned == plan.hide)
     }
 
-    @Test("steamXboxPad round-trips; an old config with rawControllers decodes to the DualSense presentation")
-    func xboxPadFlag() throws {
-        let data = try JSONEncoder().encode(EnvFlags(steamXboxPad: true))
-        #expect(try JSONDecoder().decode(EnvFlags.self, from: data).steamXboxPad)
-        let old = try JSONDecoder().decode(EnvFlags.self, from: Data(#"{"rawControllers": true}"#.utf8))
-        #expect(!old.steamXboxPad)
+    @Test("Configs with the retired steamXboxPad / rawControllers keys still decode, and the key isn't written back")
+    func retiredPadKeys() throws {
+        let old = try JSONDecoder().decode(EnvFlags.self, from: Data(
+            #"{"steamXboxPad": true, "rawControllers": true, "disableHidraw": true}"#.utf8))
+        #expect(old.disableHidraw)
+        let written = String(decoding: try JSONEncoder().encode(old), as: UTF8.self)
+        #expect(!written.contains("steamXboxPad") && !written.contains("rawControllers"))
+    }
+
+    @Test("Steam's virtual pad always reaches Wine as Xbox: its description is dropped, the rest of Steam's env kept")
+    func virtualPadAlwaysXbox() {
+        let env = ["SteamVirtualGamepadInfo": "/x.txt", "SDL_GAMECONTROLLER_IGNORE_DEVICES": "0x054c/0x0ce6",
+                   "SteamAppId": "1778820"]
+        #expect(NativeSteamBridge.withoutVirtualGamepadInfo(env)
+                == ["SDL_GAMECONTROLLER_IGNORE_DEVICES": "0x054c/0x0ce6", "SteamAppId": "1778820"])
+        #expect(NativeSteamBridge.withoutVirtualGamepadInfo([:]).isEmpty)
     }
 
     @Test("Steam Input off: the DualSense Silo hid before is given back; only Switch stays hidden")

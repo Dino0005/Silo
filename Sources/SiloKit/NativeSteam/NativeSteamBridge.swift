@@ -51,10 +51,17 @@ public struct NativeSteamBridge: Sendable, Equatable {
     }
 
     /// Steam's description of the virtual pads it made for the game. With it, SDL presents Steam's virtual pad as the
-    /// physical one (a DualSense, 054c/0ce6 version 0); without it the pad is an Xbox 360 one (045e/028e). Dropped only
-    /// for a game with `EnvFlags.steamXboxPad` (SOULCALIBUR VI got no input with the DualSense, 2026-11-12) — by
-    /// `NativeSteamLauncher`, before Wine inherits the environment.
+    /// physical one (a DualSense, 054c/0ce6 version 0); without it the pad is an Xbox 360 one (045e/028e). Always
+    /// dropped (`withoutVirtualGamepadInfo`, by `NativeSteamLauncher` before Wine inherits the environment): the
+    /// DualSense presentation gave no input in every game tried — SOULCALIBUR VI (2026-11-12), FATAL FURY (2026-11-13),
+    /// TEKKEN 8 (2026-11-14). The Xbox pad is what NotProton's games saw too; games that want PlayStation glyphs get the
+    /// controller type from Steam Input itself (TEKKEN 8: `GetInputTypeForHandle`, then XInput for the buttons).
     public static let virtualGamepadInfoKey = "SteamVirtualGamepadInfo"
+
+    /// Pure: `environment` without Steam's virtual-pad description, so SDL presents Steam's virtual pad as Xbox.
+    public static func withoutVirtualGamepadInfo(_ environment: [String: String]) -> [String: String] {
+        environment.filter { $0.key != virtualGamepadInfoKey }
+    }
 
     /// The environment key that carries `overlayLibraries` to `SystemProcessRunner`, which turns it into
     /// `DYLD_INSERT_LIBRARIES` — the only way that variable reaches a Wine child.

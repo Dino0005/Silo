@@ -49,15 +49,11 @@ public struct NativeSteamLauncher: Sendable {
         let config = state.config(for: request.appID)
         let app = try Self.steamApp(for: request)
 
-        // Steam Input's virtual pad: shown to the game as the real controller (Steam's description of it passed on),
-        // or — `EnvFlags.steamXboxPad` — as an Xbox 360 pad. Wine inherits this process's environment, so the
-        // description is removed from it too, not only from the copy handed to the bridge.
-        var environment = self.environment
-        if config.envFlags.steamXboxPad {
-            environment[NativeSteamBridge.virtualGamepadInfoKey] = nil
-            unsetenv(NativeSteamBridge.virtualGamepadInfoKey)
-        }
-        log("steam input virtual pad: " + (config.envFlags.steamXboxPad ? "Xbox" : "as the real controller"))
+        // Steam Input's virtual pad always reaches the game as an Xbox 360 pad: Steam's description of it is dropped.
+        // Wine inherits this process's environment, so it is removed from that too, not only from the bridge's copy.
+        let environment = NativeSteamBridge.withoutVirtualGamepadInfo(self.environment)
+        unsetenv(NativeSteamBridge.virtualGamepadInfoKey)
+        log("steam input virtual pad: Xbox")
 
         // Steam's overlay + virtual-gamepad libraries, as Steam hands them to a macOS game — given to every Wine
         // command of this launch (`SteamLibrariesRunner`), not only the game's own.
