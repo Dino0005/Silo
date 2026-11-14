@@ -88,6 +88,39 @@ public struct NativeSteamSetup: Sendable {
         return status
     }
 
+    // MARK: - Moved or replaced Silo
+
+    /// What Steam for macOS still runs from ANOTHER Silo.app (this one was moved, or replaced by a new version in
+    /// another place): Steam's "Silo" tool, the guard's LaunchAgent, "Steam (Silo)". Each holds the app's path, so after
+    /// a move the games stop starting from Steam and the guard stops protecting. Empty when everything is this app's.
+    public func partsFromAnotherSilo(fileManager: FileManager = .default) -> [String] {
+        var parts: [String] = []
+        let run = toolsDir.appendingPathComponent(SiloCompatTool.name).appendingPathComponent("run")
+        if (try? String(contentsOf: run, encoding: .utf8)) != SiloCompatTool(siloExecutable: siloExecutable).runScript() {
+            parts.append("compatibility tool")
+        }
+        let agent = (try? Data(contentsOf: guardAgentURL))
+            .flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: Any] }
+        if (agent?["ProgramArguments"] as? [String])?.first != siloExecutable.path { parts.append("guard") }
+        if let launcher = SteamLauncherApp(appBundle: siloApp, fileManager: fileManager),
+           !launcher.isCurrent(in: applicationsDir, fileManager: fileManager) {
+            parts.append("Steam (Silo)")
+        }
+        return parts
+    }
+
+    /// At Silo's start: with Steam for macOS on and this Silo an app, points everything back at this app when any part
+    /// still runs another copy (`enable()` again — it rewrites the tool, the launch scripts, the guard, and "Steam (Silo)"
+    /// only if it changed). Returns what `enable()` did, or nothing when no part pointed elsewhere.
+    public func repointIfMoved(fileManager: FileManager = .default) async throws -> [String] {
+        guard isEnabled, SteamLauncherApp(appBundle: siloApp, fileManager: fileManager) != nil,
+              !partsFromAnotherSilo(fileManager: fileManager).isEmpty else { return [] }
+        return try await enable(fileManager: fileManager)
+    }
+
+    /// Whether `enable()`'s report says "Steam (Silo)" was rewritten — its privacy grant must then be given again.
+    public static func launcherRewritten(_ done: [String]) -> Bool { done.contains { $0.hasPrefix("Steam (Silo) written") } }
+
     // MARK: - On
 
     /// Installs everything. Steam may be open: the tool and the launcher count from its next start through

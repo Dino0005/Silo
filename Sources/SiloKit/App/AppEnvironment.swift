@@ -409,6 +409,17 @@ public final class AppEnvironment {
         await steamBottleVM.refreshInstalled()
         // Library = games installed in the Steam bottle.
         await gameLibrary.load()
+        // Silo moved or replaced (e.g. a new version dragged into Applications): Steam for macOS still runs the old
+        // copy's path — repoint it at this app, and say so; a rewritten "Steam (Silo)" needs its privacy grant again.
+        if let done = try? await NativeSteamSetup(paths: paths).repointIfMoved(), !done.isEmpty {
+            if NativeSteamSetup.launcherRewritten(done) {
+                gameLibrary.setStatus(String(localized:
+                    "Silo was moved: Steam for macOS now uses this copy. Authorize “Steam (Silo)” again in Privacy & Security."),
+                    actionable: true, sticky: true)
+            } else {
+                gameLibrary.setStatus(String(localized: "Silo was moved: Steam for macOS now uses this copy."))
+            }
+        }
         await updates.checkForUpdate()   // best-effort; nil updateCheck on offline
         // Say so in the library rather than only in Settings, which nobody opens by chance. The line
         // clears itself after a few seconds like every other status; the dot on the Settings button is

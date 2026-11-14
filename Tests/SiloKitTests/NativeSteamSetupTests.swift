@@ -17,6 +17,35 @@ struct NativeSteamSetupTests {
         return (setup, fake)
     }
 
+    @Test("A moved Silo: every part that runs the old copy is found and pointed at this one; nothing when off")
+    func movedSilo() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (old, _) = try Self.fixture(tmp)
+        #expect(try await old.repointIfMoved().isEmpty)          // Steam for macOS off: nothing to repoint
+        try await old.enable()
+        // codesign is faked here: give "Steam (Silo)" the signature folder a real codesign leaves.
+        let signature = old.launcherAppURL.appendingPathComponent("Contents/_CodeSignature")
+        try FileManager.default.createDirectory(at: signature, withIntermediateDirectories: true)
+        #expect(old.partsFromAnotherSilo().isEmpty)              // installed by this copy
+        #expect(try await old.repointIfMoved().isEmpty)
+
+        // The same Silo dragged elsewhere (a new version in Applications, say).
+        _ = try tmp.write("Applications/Silo.app/Contents/Helpers/SiloSteamLauncher", "launcher")
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath:
+            tmp.url.appendingPathComponent("Applications/Silo.app/Contents/Helpers/SiloSteamLauncher").path)
+        _ = try tmp.write("Applications/Silo.app/Contents/Helpers/silo-steam-hook.dylib", "hook")
+        let fake = FakeProcessRunner()
+        let moved = NativeSteamSetup(paths: old.paths, runner: fake, home: old.home,
+                                     siloApp: tmp.url.appendingPathComponent("Applications/Silo.app"), isSteamRunning: { false })
+        #expect(moved.partsFromAnotherSilo() == ["compatibility tool", "guard", "Steam (Silo)"])
+        let done = try await moved.repointIfMoved()
+        #expect(NativeSteamSetup.launcherRewritten(done))      // the hook's path changed: grant again
+        try FileManager.default.createDirectory(at: signature, withIntermediateDirectories: true)
+        #expect(moved.partsFromAnotherSilo().isEmpty)
+        #expect(old.partsFromAnotherSilo() == ["compatibility tool", "guard", "Steam (Silo)"])
+        #expect(fake.invocations.contains { $0.arguments.first == "bootstrap" })
+    }
+
     @Test("On installs the launcher app, the tool, the launch script and the guard; Off removes all but protection")
     func onAndOff() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
