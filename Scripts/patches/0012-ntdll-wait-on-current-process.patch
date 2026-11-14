@@ -1,0 +1,50 @@
+Silo patch 0012 — ntdll: only the timeout or an APC ends a wait on the current process
+
+Origin: Zagrios/voile-wine (Obelisk's Wine, built on crossover-sources-26.3.0), commit e60d93c6 (2026-10-26, author
+Zagrios). License: LGPL-2.1-or-later, like Wine. Hunks unchanged.
+
+Why Silo carries it: a correctness fix (user, 2026-11-14). NtWaitForSingleObject(NtCurrentProcess()) went to the
+in-process sync and came back with an error; on Windows the process object only signals when the process ends, so the
+wait returns STATUS_TIMEOUT (or STATUS_USER_APC when alertable). The THEIA packer probes this and compares the status.
+10 lines in dlls/ntdll/unix/sync.c. Applies on top of 0002–0011; installed locally 2026-11-14 with no regression on
+TEKKEN 8, SOULCALIBUR VI, FATAL FURY and God of War (DXMT).
+
+---- original commit below (git format-patch, unchanged) ----
+
+From e60d93c684eb0e99be668a03aeb633cabf032813 Mon Sep 17 00:00:00 2001
+From: Zagrios <40181755+Zagrios@users.noreply.github.com>
+Date: Mon, 26 Oct 2026 16:25:21 +0100
+Subject: [PATCH] ntdll: Let only the timeout or an APC end a wait on the
+ current process.
+
+NtWaitForSingleObject(NtCurrentProcess()) went to the in-process sync:
+on the Linux engine it returned STATUS_NOT_SUPPORTED at once, and the
+server path answers STATUS_OBJECT_TYPE_MISMATCH.  The process object
+only signals when the process ends, so Windows returns STATUS_TIMEOUT,
+or STATUS_USER_APC for an alertable wait.  The THEIA packer uses this
+wait as a probe and compares the status.
+---
+ dlls/ntdll/unix/sync.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/dlls/ntdll/unix/sync.c b/dlls/ntdll/unix/sync.c
+index 5cb5a79..fe16cfc 100644
+--- a/dlls/ntdll/unix/sync.c
++++ b/dlls/ntdll/unix/sync.c
+@@ -2531,6 +2531,16 @@ NTSTATUS WINAPI NtWaitForSingleObject( HANDLE handle, BOOLEAN alertable, const L
+ 
+     TRACE( "handle %p, alertable %u, timeout %s\n", handle, alertable, debugstr_timeout(timeout) );
+ 
++    if (handle == NtCurrentProcess())
++    {
++        /* The process object signals when the process ends: until then the wait only times out or is interrupted
++         * by an APC, as on Windows, whatever the in-process synchronization or the server do with a pseudo handle. */
++        ret = NtDelayExecution( alertable, timeout );
++        if (!ret || ret == STATUS_NO_YIELD_PERFORMED) ret = STATUS_TIMEOUT;
++        TRACE( "-> %#x\n", ret );
++        return ret;
++    }
++
+     if ((ret = inproc_wait( 1, &handle, WaitAny, alertable, timeout )) != STATUS_NOT_IMPLEMENTED)
+     {
+         TRACE( "-> %#x\n", ret );
