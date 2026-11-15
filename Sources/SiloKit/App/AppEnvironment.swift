@@ -410,11 +410,12 @@ public final class AppEnvironment {
         // Library = games installed in the Steam bottle.
         await gameLibrary.load()
         // Silo moved or replaced (e.g. a new version dragged into Applications): Steam for macOS still runs the old
-        // copy's path — repoint it at this app, and say so; a rewritten "Steam (Silo)" needs its privacy grant again.
+        // copy's path — repoint it at this app, and say so; a rewritten "Steam (Silo)" needs its privacy grant again
+        // (it is rewritten also when only its launcher changed, Silo not moved — so that message doesn't say "moved").
         if let done = try? await NativeSteamSetup(paths: paths).repointIfMoved(), !done.isEmpty {
             if NativeSteamSetup.launcherRewritten(done) {
                 gameLibrary.setStatus(String(localized:
-                    "Silo was moved: Steam for macOS now uses this copy. Authorize “Steam (Silo)” again in Privacy & Security."),
+                    "“Steam (Silo)” was updated: allow it again when macOS asks (Privacy & Security → Device Control and Data Access)."),
                     actionable: true, sticky: true)
             } else {
                 gameLibrary.setStatus(String(localized: "Silo was moved: Steam for macOS now uses this copy."))
