@@ -26,7 +26,7 @@ struct NativeSteamSettingsView: View {
             } header: {
                 Text("Steam for macOS")
             } footer: {
-                Text("The first time you open “Steam (Silo)”, macOS asks: «“Steam (Silo).app” would like to control this Mac and access your data». Allow it in System Settings → Privacy & Security → Device Control and Data Access — without it the DualSense doesn’t work through Steam Input. After a Silo update that changes the app, allow it again. Turning this off needs Steam closed; Windows games stay protected until you remove their library from Steam.")
+                Text("When you turn this on, macOS asks: «“Steam (Silo).app” would like to control this Mac and access your data». Choose Open System Settings and switch on “Steam (Silo)”, already listed under Privacy & Security → Device Control and Data Access — without it the DualSense doesn’t work through Steam Input. After a Silo update that changes the app, macOS asks again. Turning this off needs Steam closed; Windows games stay protected until you remove their library from Steam.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

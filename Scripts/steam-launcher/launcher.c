@@ -6,6 +6,12 @@
 //
 // Contents/Resources/silo-steam-hook holds the library's path, written by Silo. Already running → just bring Steam
 // forward. No client or no library → open /Applications/Steam.app the usual way.
+//
+// The grant is "Eventi" (kTCCServicePostEvent). Asking for it with CGRequestPostEventAccess shows macOS's prompt and
+// lists the app in Privacy & Security, switched off, so the user only has to turn it on (as NotProton does). Silo runs
+// `--request-access` (ask and exit, Steam not started) when "Steam per macOS" is switched on; a normal start asks too
+// when the grant is missing (macOS shows the prompt only once per app).
+#include <CoreGraphics/CoreGraphics.h>
 #include <limits.h>
 #include <mach-o/dyld.h>
 #include <signal.h>
@@ -52,7 +58,17 @@ static void open_normally(void) {
     run(argv[0], argv, environ, NULL);
 }
 
-int main(void) {
+// Asks macOS for the grant Steam inherits; a no-op once it is given.
+static void request_access(void) {
+    if (!CGPreflightPostEventAccess()) CGRequestPostEventAccess();
+}
+
+int main(int argc, char *args[]) {
+    if (argc > 1 && strcmp(args[1], "--request-access") == 0) {
+        request_access();
+        return 0;
+    }
+    request_access();
     const char *home = getenv("HOME");
     if (!home) return 1;
     char root[PATH_MAX], client[PATH_MAX], dir[PATH_MAX];

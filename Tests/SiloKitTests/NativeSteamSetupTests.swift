@@ -20,7 +20,7 @@ struct NativeSteamSetupTests {
     @Test("A moved Silo: every part that runs the old copy is found and pointed at this one; nothing when off")
     func movedSilo() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
-        let (old, _) = try Self.fixture(tmp)
+        let (old, oldFake) = try Self.fixture(tmp)
         #expect(try await old.repointIfMoved().isEmpty)          // Steam for macOS off: nothing to repoint
         try await old.enable()
         // codesign is faked here: give "Steam (Silo)" the signature folder a real codesign leaves.
@@ -28,6 +28,10 @@ struct NativeSteamSetupTests {
         try FileManager.default.createDirectory(at: signature, withIntermediateDirectories: true)
         #expect(old.partsFromAnotherSilo().isEmpty)              // installed by this copy
         #expect(try await old.repointIfMoved().isEmpty)
+        // On again with the launcher unchanged: its grant is kept (no reset), only asked for (a no-op when given).
+        let resets = oldFake.invocations.filter { $0.executable.lastPathComponent == "tccutil" }.count
+        try await old.enable()
+        #expect(oldFake.invocations.filter { $0.executable.lastPathComponent == "tccutil" }.count == resets)
         // The tool still under its earlier id from an older Silo: rewritten, which removes the old one.
         _ = try tmp.write("home/Library/Application Support/Steam/compatibilitytools.d/silo/run", "# Written by Silo: old")
         #expect(old.partsFromAnotherSilo() == ["compatibility tool"])
@@ -62,6 +66,15 @@ struct NativeSteamSetupTests {
         #expect(FileManager.default.fileExists(atPath: script.path))
         #expect(fake.invocations.contains { $0.executable.lastPathComponent == "codesign" })
         #expect(fake.invocations.contains { $0.arguments.first == "bootstrap" })
+        // The rewritten launcher: its stale grant cleared, then it asks macOS for the grant (prompt + listed).
+        #expect(fake.invocations.contains {
+            $0.executable.lastPathComponent == "tccutil"
+                && $0.arguments == ["reset", "PostEvent", SteamLauncherApp.bundleIdentifier]
+        })
+        #expect(fake.invocations.contains {
+            $0.executable.lastPathComponent == "open"
+                && $0.arguments == ["-n", setup.launcherAppURL.path, "--args", SteamLauncherApp.requestAccessFlag]
+        })
 
         // A game mapped to Silo's tool, a redistributable mapped to its earlier id, a game on a tool that isn't Silo's.
         _ = try tmp.write("home/Library/Application Support/Steam/config/config.vdf", """

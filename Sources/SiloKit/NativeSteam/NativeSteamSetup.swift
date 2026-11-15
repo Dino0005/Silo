@@ -144,8 +144,18 @@ public struct NativeSteamSetup: Sendable {
             let app = try launcher.write(into: applicationsDir, fileManager: fileManager)
             _ = try await runner.run(executable: URL(fileURLWithPath: "/usr/bin/codesign"),
                                      arguments: ["--force", "--sign", "-", app.path], environment: [:], currentDirectory: nil)
+            // A grant given to the earlier signature stays listed as on but no longer counts (Steam Input then silently
+            // gets no virtual pad); clear it, so the request below asks afresh (NotProton does the same for Steam).
+            _ = try? await runner.run(executable: URL(fileURLWithPath: "/usr/bin/tccutil"),
+                                      arguments: ["reset", SteamLauncherApp.privacyService, SteamLauncherApp.bundleIdentifier],
+                                      environment: [:], currentDirectory: nil)
             done.append("Steam (Silo) written — authorize it in Privacy & Security")
         }
+        // "Steam (Silo)" asks macOS for its grant now (prompt + listed in Privacy & Security, switched off), not at the
+        // user's first Steam start; a no-op when it has it. Started through LaunchServices, so the request is its own.
+        _ = try? await runner.run(executable: URL(fileURLWithPath: "/usr/bin/open"),
+                                  arguments: ["-n", launcherAppURL.path, "--args", SteamLauncherApp.requestAccessFlag],
+                                  environment: [:], currentDirectory: nil)
         let scripts = try installer.installLauncher(siloExecutable: siloExecutable, fileManager: fileManager)
         done.append("launch script in \(scripts.installed.count) libraries")
         try await installGuard(fileManager: fileManager)

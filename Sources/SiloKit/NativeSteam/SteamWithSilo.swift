@@ -90,6 +90,10 @@ public struct SteamLauncherApp: Sendable {
     public static let fileName = "Steam (Silo).app"
     static let bundleIdentifier = "com.mikael.silo.steam-launcher"
     static let launcherRelativePath = "Contents/Helpers/SiloSteamLauncher"
+    /// The privacy grant Steam inherits from the launcher ("Controllo del dispositivo e accesso ai dati (Eventi)").
+    static let privacyService = "PostEvent"
+    /// Ask macOS for that grant and exit, without starting Steam (`Scripts/steam-launcher`).
+    static let requestAccessFlag = "--request-access"
     static let hookFileName = "silo-steam-hook"
 
     /// The compiled launcher and the library, both from Silo.app.
