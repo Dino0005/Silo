@@ -28,6 +28,11 @@ struct NativeSteamSetupTests {
         try FileManager.default.createDirectory(at: signature, withIntermediateDirectories: true)
         #expect(old.partsFromAnotherSilo().isEmpty)              // installed by this copy
         #expect(try await old.repointIfMoved().isEmpty)
+        // The tool still under its earlier id from an older Silo: rewritten, which removes the old one.
+        _ = try tmp.write("home/Library/Application Support/Steam/compatibilitytools.d/silo/run", "# Written by Silo: old")
+        #expect(old.partsFromAnotherSilo() == ["compatibility tool"])
+        _ = try await old.repointIfMoved()
+        #expect(old.partsFromAnotherSilo().isEmpty)
 
         // The same Silo dragged elsewhere (a new version in Applications, say).
         _ = try tmp.write("Applications/Silo.app/Contents/Helpers/SiloSteamLauncher", "launcher")

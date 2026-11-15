@@ -96,7 +96,13 @@ public struct NativeSteamSetup: Sendable {
     public func partsFromAnotherSilo(fileManager: FileManager = .default) -> [String] {
         var parts: [String] = []
         let run = toolsDir.appendingPathComponent(SiloCompatTool.name).appendingPathComponent("run")
-        if (try? String(contentsOf: run, encoding: .utf8)) != SiloCompatTool(siloExecutable: siloExecutable).runScript() {
+        // Also when the tool still sits under an earlier id (an older Silo wrote it): rewriting moves its games over.
+        let legacyLeft = SiloCompatTool.legacyNames.contains {
+            (try? String(contentsOf: toolsDir.appendingPathComponent("\($0)/run"), encoding: .utf8))?
+                .contains("# Written by Silo") == true
+        }
+        if legacyLeft
+            || (try? String(contentsOf: run, encoding: .utf8)) != SiloCompatTool(siloExecutable: siloExecutable).runScript() {
             parts.append("compatibility tool")
         }
         let agent = (try? Data(contentsOf: guardAgentURL))
