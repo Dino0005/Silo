@@ -52,7 +52,7 @@ public struct NativeSteamLauncher: Sendable {
         // Steam Input's virtual pad always reaches the game as an Xbox 360 pad: Steam's description of it is dropped.
         // Wine inherits this process's environment, so it is removed from that too, not only from the bridge's copy.
         let environment = NativeSteamBridge.withoutVirtualGamepadInfo(self.environment)
-        unsetenv(NativeSteamBridge.virtualGamepadInfoKey)
+        for key in [NativeSteamBridge.virtualGamepadInfoKey] + NativeSteamBridge.protonOnlyKeys { unsetenv(key) }
         log("steam input virtual pad: Xbox")
 
         // Steam's overlay + virtual-gamepad libraries, as Steam hands them to a macOS game — given to every Wine

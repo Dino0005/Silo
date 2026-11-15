@@ -51,7 +51,7 @@ struct SteamInputControllersTests {
     @Test("Steam's virtual pad always reaches Wine as Xbox: its description is dropped, the rest of Steam's env kept")
     func virtualPadAlwaysXbox() {
         let env = ["SteamVirtualGamepadInfo": "/x.txt", "SDL_GAMECONTROLLER_IGNORE_DEVICES": "0x054c/0x0ce6",
-                   "SteamAppId": "1778820"]
+                   "SteamAppId": "1778820", "STEAM_COMPAT_PROTON": "1", "SteamVirtualGamepadInfo_Proton": "/x.txt"]
         #expect(NativeSteamBridge.withoutVirtualGamepadInfo(env)
                 == ["SDL_GAMECONTROLLER_IGNORE_DEVICES": "0x054c/0x0ce6", "SteamAppId": "1778820"])
         #expect(NativeSteamBridge.withoutVirtualGamepadInfo([:]).isEmpty)

@@ -58,9 +58,17 @@ public struct NativeSteamBridge: Sendable, Equatable {
     /// controller type from Steam Input itself (TEKKEN 8: `GetInputTypeForHandle`, then XInput for the buttons).
     public static let virtualGamepadInfoKey = "SteamVirtualGamepadInfo"
 
-    /// Pure: `environment` without Steam's virtual-pad description, so SDL presents Steam's virtual pad as Xbox.
+    /// What Steam adds for a tool it takes for Proton (its id contains "proton", needed for Steam Cloud — see
+    /// `SiloCompatTool.name`): the Proton marker and the virtual-pad description under its Proton name. Both are meant
+    /// for Proton's own Wine; dropped like `virtualGamepadInfoKey`, so games see exactly the environment they had under
+    /// the plain "silo" id (verified on TEKKEN 8, SOULCALIBUR VI, FATAL FURY). Not a glyph fix: UNCHARTED's Xbox glyphs
+    /// on 2026-11-15 were its own "Controller icon: Any" setting (Steam reported PS5 throughout).
+    public static let protonOnlyKeys = ["STEAM_COMPAT_PROTON", "SteamVirtualGamepadInfo_Proton"]
+
+    /// Pure: `environment` without Steam's virtual-pad description (either name) and the Proton marker, so SDL presents
+    /// Steam's virtual pad as Xbox and the game isn't told it runs under Proton.
     public static func withoutVirtualGamepadInfo(_ environment: [String: String]) -> [String: String] {
-        environment.filter { $0.key != virtualGamepadInfoKey }
+        environment.filter { $0.key != virtualGamepadInfoKey && !protonOnlyKeys.contains($0.key) }
     }
 
     /// The environment key that carries `overlayLibraries` to `SystemProcessRunner`, which turns it into
