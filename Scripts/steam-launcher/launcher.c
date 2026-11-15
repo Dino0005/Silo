@@ -124,6 +124,10 @@ int main(int argc, char *args[]) {
     envp[k++] = insert;
     envp[k++] = "SILO_STEAM_COMPAT=1";
     envp[k++] = tools;
+    // Steam reads pads through SDL3, which leaves a pad to macOS while Steam isn't the active app: a DualSense switched
+    // on then came up with its lightbar off (measured 2026-11-15, Xcode active). SDL's hint keeps the pad Steam's; it
+    // must be in the environment Steam starts with — set later from silo-steam-hook it had no effect.
+    if (!getenv("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS")) envp[k++] = "SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1";
     envp[k] = NULL;
 
     char *argv[] = { client, NULL };
