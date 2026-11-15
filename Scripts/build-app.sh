@@ -153,7 +153,7 @@ cp "$OVERLAY_FIX_OUT" "$APP/Contents/Helpers/silo-overlay-fix.dylib"
 echo "==> Build Steam launcher"
 LAUNCHER_OUT=Scripts/steam-launcher/SiloSteamLauncher
 rm -f "$LAUNCHER_OUT"
-if ! clang -Wall -O2 -arch arm64 -arch x86_64 -framework CoreGraphics -o "$LAUNCHER_OUT" Scripts/steam-launcher/launcher.c; then
+if ! clang -Wall -O2 -arch arm64 -arch x86_64 -framework ApplicationServices -framework CoreFoundation -o "$LAUNCHER_OUT" Scripts/steam-launcher/launcher.c; then
     echo "ERROR: the Steam launcher did not build (Scripts/steam-launcher)." >&2
     exit 1
 fi

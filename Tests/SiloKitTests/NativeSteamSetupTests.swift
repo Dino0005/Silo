@@ -69,7 +69,7 @@ struct NativeSteamSetupTests {
         // The rewritten launcher: its stale grant cleared, then it asks macOS for the grant (prompt + listed).
         #expect(fake.invocations.contains {
             $0.executable.lastPathComponent == "tccutil"
-                && $0.arguments == ["reset", "PostEvent", SteamLauncherApp.bundleIdentifier]
+                && $0.arguments == ["reset", "Accessibility", SteamLauncherApp.bundleIdentifier]
         })
         #expect(fake.invocations.contains {
             $0.executable.lastPathComponent == "open"

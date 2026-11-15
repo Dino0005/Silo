@@ -7,11 +7,13 @@
 // Contents/Resources/silo-steam-hook holds the library's path, written by Silo. Already running → just bring Steam
 // forward. No client or no library → open /Applications/Steam.app the usual way.
 //
-// The grant is "Eventi" (kTCCServicePostEvent). Asking for it with CGRequestPostEventAccess shows macOS's prompt and
-// lists the app in Privacy & Security, switched off, so the user only has to turn it on (as NotProton does). Silo runs
-// `--request-access` (ask and exit, Steam not started) when "Steam per macOS" is switched on; a normal start asks too
-// when the grant is missing (macOS shows the prompt only once per app).
-#include <CoreGraphics/CoreGraphics.h>
+// The grant is Accessibility — what macOS 27 lists under "Controllo del dispositivo e accesso ai dati" (measured
+// 2026-11-15: resetting PostEvent left the entry on; resetting Accessibility removed it). Asking with
+// AXIsProcessTrustedWithOptions(prompt) shows macOS's prompt and lists the app switched off, so the user only has to
+// turn it on (as NotProton does for Steam). CGRequestPostEventAccess from here never prompted (tccd: preflight only).
+// Silo runs `--request-access` (ask and exit, Steam not started) when "Steam per macOS" is switched on; a normal
+// start asks too when the grant is missing (macOS shows the prompt only once per app).
+#include <ApplicationServices/ApplicationServices.h>
 #include <limits.h>
 #include <mach-o/dyld.h>
 #include <signal.h>
@@ -58,9 +60,16 @@ static void open_normally(void) {
     run(argv[0], argv, environ, NULL);
 }
 
-// Asks macOS for the grant Steam inherits; a no-op once it is given.
+// Asks macOS for the grant Steam inherits; a no-op once it is given. The prompt is shown only while the process lives
+// on, so the run loop turns for a few seconds after asking.
 static void request_access(void) {
-    if (!CGPreflightPostEventAccess()) CGRequestPostEventAccess();
+    const void *keys[] = { kAXTrustedCheckOptionPrompt };
+    const void *values[] = { kCFBooleanTrue };
+    CFDictionaryRef options = CFDictionaryCreate(NULL, keys, values, 1, &kCFTypeDictionaryKeyCallBacks,
+                                                 &kCFTypeDictionaryValueCallBacks);
+    Boolean trusted = AXIsProcessTrustedWithOptions(options);
+    CFRelease(options);
+    if (!trusted) CFRunLoopRunInMode(kCFRunLoopDefaultMode, 5, false);
 }
 
 int main(int argc, char *args[]) {
@@ -68,7 +77,6 @@ int main(int argc, char *args[]) {
         request_access();
         return 0;
     }
-    request_access();
     const char *home = getenv("HOME");
     if (!home) return 1;
     char root[PATH_MAX], client[PATH_MAX], dir[PATH_MAX];
@@ -121,5 +129,6 @@ int main(int argc, char *args[]) {
     char *argv[] = { client, NULL };
     int status = run(client, argv, envp, dir);
     if (status != 0) open_normally();
+    request_access();
     return 0;
 }
