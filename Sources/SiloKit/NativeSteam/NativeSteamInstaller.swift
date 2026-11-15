@@ -174,7 +174,11 @@ public struct NativeSteamInstaller: Sendable {
     /// every Steam exit, because Steam writes `appinfo.vdf` back then). Writes nothing when nothing changed.
     /// Returns the apps it changed.
     @discardableResult
-    public func protectInstalledWindowsGames(fileManager: FileManager = .default) throws -> [UInt32: AppInfoPatcher.Result] {
+    /// - Parameter cloudUserFolderFromHome: when set (Steam for macOS on), every Windows game's Steam Cloud rules are
+    ///   pointed at that Wine user folder too (`AppInfoPatcher.enableCloud`) — re-applied after every session, since
+    ///   Steam drops them whenever it refreshes the game's appinfo.
+    public func protectInstalledWindowsGames(cloudUserFolderFromHome: String? = nil,
+                                             fileManager: FileManager = .default) throws -> [UInt32: AppInfoPatcher.Result] {
         guard !isSteamRunning() else { throw Failure.steamRunning }
         guard var data = try? Data(contentsOf: appInfoURL) else { throw Failure.noAppInfoCache }
         var results: [UInt32: AppInfoPatcher.Result] = [:]
@@ -182,10 +186,13 @@ public struct NativeSteamInstaller: Sendable {
             let cache = try AppInfoCache(data: data)
             guard var app = try cache.app(id) else { continue }
             // Protection, then Silo's launch entry: a protected game without it makes Steam exec the Windows exe
-            // on Play ("OS Error 0", FATAL FURY 2026-11-10). Cloud rules are left alone (per game, later).
+            // on Play ("OS Error 0", FATAL FURY 2026-11-10). Cloud rules only with `cloudUserFolderFromHome`.
             var result = AppInfoPatcher.protectWindowsInstall(&app)
             if AppInfoPatcher.isWindowsGame(app.info) {
                 result.changes += AppInfoPatcher.enableSiloLaunch(&app, shim: Self.launcherRelativePath).changes
+                if let cloudUserFolderFromHome {
+                    result.changes += AppInfoPatcher.enableCloud(&app, userFolderFromHome: cloudUserFolderFromHome).changes
+                }
             }
             guard result.changed else { continue }
             results[id] = result

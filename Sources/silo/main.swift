@@ -188,8 +188,17 @@ if CommandLine.arguments.contains("--smoke")
     let runner = SystemProcessRunner()
     let osascript = URL(fileURLWithPath: "/usr/bin/osascript")
     // Steam closed: protect every installed Windows game, then keep the copy-on-write shadows current.
+    // Steam Cloud's one save folder per game: the classic SteamBottle's Wine user folder, as Steam's MacHome sees it
+    // (nil when the bottles live outside the home folder, e.g. moved to an external disk: no cloud rules then).
+    func cloudUserFolder() -> String? {
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path + "/"
+        guard let user = SharedSaveLinker().windowsUserDir(inPrefix: paths.steamBottle)?.standardizedFileURL.path,
+              user.hasPrefix(home) else { return nil }
+        return String(user.dropFirst(home.count))
+    }
     func exitPass() throws {
-        let changed = try installer.protectInstalledWindowsGames()
+        let cloud = setup.isEnabled ? cloudUserFolder() : nil
+        let changed = try installer.protectInstalledWindowsGames(cloudUserFolderFromHome: cloud)
         log(changed.isEmpty ? "all installed Windows games already protected"
             : changed.keys.sorted().map { "protected \($0): \(changed[$0]!.changes.joined(separator: "; "))" }
                 .joined(separator: "\n"))
@@ -197,6 +206,22 @@ if CommandLine.arguments.contains("--smoke")
         let shadows = NativeSteamShadow(isSteamRunning: steamRunning).sync(
             libraries: installer.libraries(), windowsGames: try installer.installedWindowsGameIDs())
         for action in shadows { log("shadow: \(action)") }
+        // Cloud files Steam marked Windows-only, made all-platform (macOS Steam skips them otherwise). Steam is closed
+        // here; each changed file is backed up first.
+        guard cloud != nil else { return }
+        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        for id in try installer.installedWindowsGameIDs().sorted() {
+            for file in SteamCloudSaves.remoteCaches(steamRoot: installer.steamRoot, appID: id) {
+                guard let text = try? String(contentsOf: file, encoding: .utf8),
+                      let fixed = SteamCloudSaves.allPlatforms(remoteCache: text) else { continue }
+                let backup = paths.supportDir.appendingPathComponent(
+                    "NativeSteam/remotecache-\(stamp)/\(file.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent)-\(id).vdf")
+                try? FileManager.default.createDirectory(at: backup.deletingLastPathComponent(), withIntermediateDirectories: true)
+                guard (try? FileManager.default.copyItem(at: file, to: backup)) != nil,
+                      (try? Data(fixed.utf8).write(to: file, options: .atomic)) != nil else { continue }
+                log("cloud \(id): Windows-only files made all-platform (backup \(backup.lastPathComponent))")
+            }
+        }
     }
     func installWithSilo(_ appID: UInt32) async {
         let library = installer.defaultGameLibrary()

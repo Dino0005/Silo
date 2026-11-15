@@ -183,6 +183,7 @@ public enum AppInfoPatcher {
                 }
             }
             var overrides: [BinaryKVEntry] = []
+            var overrideChanges: [String] = []
             for root in roots {
                 guard let sub = windowsRootSubpaths[root] else {
                     if root.caseInsensitiveCompare("gameinstall") != .orderedSame {
@@ -197,7 +198,7 @@ public enum AppInfoPatcher {
                     BinaryKVEntry("useinstead", .string("MacHome")),
                     BinaryKVEntry("addpath", .string("\(userFolderFromHome)/\(sub)")),
                 ])))
-                result.changes.append("root \(root) -> ~/\(userFolderFromHome)/\(sub)")
+                overrideChanges.append("root \(root) -> ~/\(userFolderFromHome)/\(sub)")
             }
             // Ours replace any macOS overrides Valve shipped (they point at a native port's folders); other
             // platforms' overrides are kept.
@@ -207,6 +208,8 @@ public enum AppInfoPatcher {
             for entry in overrides { kept.append(BinaryKVEntry(String(kept.count), entry.value)) }
             if !kept.isEmpty {
                 for i in kept.indices { kept[i].key = String(i) }
+                // Reported only when it changes anything: the guard re-applies this after every Steam session.
+                if ufs.map("rootoverrides") != kept { result.changes += overrideChanges }
                 ufs.set("rootoverrides", .map(kept))
             }
         }

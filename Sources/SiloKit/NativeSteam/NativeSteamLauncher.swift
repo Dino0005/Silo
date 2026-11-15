@@ -115,6 +115,26 @@ public struct NativeSteamLauncher: Sendable {
         try await bottle.ensureBottle(source: source)
         if case .devFolder = source { try bottle.stageRuntime(wine: context.wineBinary) }
 
+        // Steam Cloud: this game's save folders (named by its Steam Cloud rules) are the classic SteamBottle's — backed
+        // up once before the first such launch, and a copy this bottle held on its own is kept in the backup.
+        let appInfo = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Steam/appcache/appinfo.vdf")
+        let folders = SteamCloudSaves.folders(savefiles: (try? AppInfoCache(contentsOf: appInfo).app(UInt32(app.appID)))??
+            .info.map("ufs")?.map("savefiles"))
+        if !folders.isEmpty {
+            let backups = paths.supportDir.appendingPathComponent("Backups/steam-cloud/\(app.appID)", isDirectory: true)
+            let linker = SharedSaveLinker()
+            if linker.backUpOnce(folders, canonical: paths.steamBottle,
+                                 backupDir: backups.appendingPathComponent("before-first-cloud-launch")) {
+                log("saves: SteamBottle's \(folders.map { $0.name }.joined(separator: ", ")) backed up before the first cloud launch")
+            }
+            let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+            for line in linker.linkToCanonical(folders, bottle: bottle.prefix, canonical: paths.steamBottle,
+                                               backupDir: backups.appendingPathComponent(stamp)) {
+                log("saves: \(line)")
+            }
+        }
+
         // Steam Input's pads stay Steam's: hidden from Wine's hidraw path unless the game reads them directly.
         if let line = await SteamInputControllers.apply(
             environment: environment, flags: config.envFlags, prefix: bottle.prefix, wine: context.wineBinary,

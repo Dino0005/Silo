@@ -193,7 +193,12 @@ struct AppInfoPatcherTests {
     func cloud() throws {
         var app = AppInfoFixtures.tekken
         let user = "Library/Application Support/Silo/SteamNative/drive_c/users/crossover"
-        _ = AppInfoPatcher.enableCloud(&app, userFolderFromHome: user)
+        let first = AppInfoPatcher.enableCloud(&app, userFolderFromHome: user)
+        #expect(first.changed)
+        // Re-applied by the guard after every Steam session: the same rules again change nothing.
+        var again = app
+        #expect(!AppInfoPatcher.enableCloud(&again, userFolderFromHome: user).changed)
+        #expect(again.info == app.info)
         let ufs = try #require(app.info.map("ufs"))
         let rule = try #require(ufs.map("savefiles")?.map("0"))
         #expect(rule.map("platforms") == [BinaryKVEntry("1", .string("all"))])
