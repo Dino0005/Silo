@@ -150,6 +150,11 @@ __attribute__((constructor)) static void silo_hook_init(void) {
     }
     if (!name || strcmp(name, "/steam_osx") != 0) return;   // other processes inherit the variable: stay inert
     logf_("hook loaded in %s", exe);
+    // Steam reads controllers through SDL3, which (via GameController) gives a pad to macOS when Steam isn't the active
+    // app: a DualSense switched on while another app is active came up with its lightbar off (measured 2026-11-15,
+    // Xcode active; clicking Steam in the Dock first gave Steam's colour). SDL's own hint keeps the pad Steam's in the
+    // background; set before SDL starts, and not over a value the user gave.
+    setenv("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1", 0);
     const char *compat = getenv("SILO_STEAM_COMPAT");   // the compatibility layer is experimental: opt-in only
     if (compat && strcmp(compat, "1") == 0) _dyld_register_func_for_add_image(on_image);
     silo_activation_install();
