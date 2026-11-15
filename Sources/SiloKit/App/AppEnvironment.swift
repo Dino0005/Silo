@@ -416,7 +416,7 @@ public final class AppEnvironment {
             if NativeSteamSetup.launcherRewritten(done) {
                 gameLibrary.setStatus(String(localized:
                     "“Steam (Silo)” was updated: allow it again when macOS asks (Privacy & Security → Device Control and Data Access)."),
-                    actionable: true, sticky: true)
+                    actionable: true)   // not sticky: macOS's own prompt is what guides the user; Silo can't see the grant
             } else {
                 gameLibrary.setStatus(String(localized: "Silo was moved: Steam for macOS now uses this copy."))
             }
