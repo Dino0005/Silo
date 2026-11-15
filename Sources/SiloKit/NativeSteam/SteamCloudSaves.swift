@@ -54,6 +54,51 @@ public enum SteamCloudSaves {
         return changed ? lines.joined(separator: "\n") : nil
     }
 
+    /// For a compat-tool launch Steam resolves a Windows game's cloud roots inside the game's
+    /// `steamapps/compatdata/<appid>/pfx/drive_c/users/steamuser`, with Proton's folder names (cloud_log 2026-11-13:
+    /// `…/steamuser/Local Settings/Application Data/CotW/Saved/SaveGames`). Each one links to the classic bottle's.
+    static let compatUserLinks: [(name: String, target: String)] = [
+        ("AppData", "AppData"),
+        ("Local Settings/Application Data", "AppData/Local"),
+        ("Application Data", "AppData/Roaming"),
+        ("Saved Games", "Saved Games"),
+        ("Documents", "Documents"),
+        ("My Documents", "Documents"),
+    ]
+    /// Written into `pfx` once Silo laid it out, so a prefix that is someone else's (NotProton's) is told apart.
+    static let compatMarkerName = ".silo-cloud-links"
+
+    /// Lays out `compatData/pfx/drive_c/users/steamuser` as links to `canonicalUser` (the classic bottle's Wine user
+    /// folder), so Steam Cloud reads and writes the same saves as the bottle. A `pfx` Silo didn't lay out (a NotProton
+    /// prefix, with its own old saves) is MOVED to `backupDir` first, never deleted. Idempotent; returns log lines.
+    public static func prepareCompatUser(compatData: URL, canonicalUser: URL, backupDir: URL,
+                                         fileManager: FileManager = .default) -> [String] {
+        var lines: [String] = []
+        let pfx = compatData.appendingPathComponent("pfx", isDirectory: true)
+        let marker = pfx.appendingPathComponent(compatMarkerName)
+        if fileManager.fileExists(atPath: pfx.path), !fileManager.fileExists(atPath: marker.path) {
+            try? fileManager.createDirectory(at: backupDir.deletingLastPathComponent(), withIntermediateDirectories: true)
+            guard (try? fileManager.moveItem(at: pfx, to: backupDir)) != nil else {
+                return ["compatdata \(compatData.lastPathComponent): couldn't move the old prefix aside, left as it is"]
+            }
+            lines.append("compatdata \(compatData.lastPathComponent): old prefix moved to \(backupDir.path)")
+        }
+        let user = pfx.appendingPathComponent("drive_c/users/steamuser", isDirectory: true)
+        var changed = false
+        for link in compatUserLinks {
+            let path = user.appendingPathComponent(link.name)
+            let target = canonicalUser.appendingPathComponent(link.target, isDirectory: true)
+            if (try? fileManager.destinationOfSymbolicLink(atPath: path.path)) == target.path { continue }
+            try? fileManager.createDirectory(at: target, withIntermediateDirectories: true)
+            try? fileManager.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? fileManager.removeItem(at: path)
+            if (try? fileManager.createSymbolicLink(at: path, withDestinationURL: target)) != nil { changed = true }
+        }
+        fileManager.createFile(atPath: marker.path, contents: Data())
+        if changed { lines.append("compatdata \(compatData.lastPathComponent): steamuser linked to \(canonicalUser.path)") }
+        return lines
+    }
+
     /// The `remotecache.vdf` files Steam keeps for `appID`, one per Steam account on this Mac.
     public static func remoteCaches(steamRoot: URL, appID: UInt32, fileManager: FileManager = .default) -> [URL] {
         let userdata = steamRoot.appendingPathComponent("userdata", isDirectory: true)

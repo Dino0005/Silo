@@ -48,6 +48,6 @@ struct SteamCompatMappingTests {
     @Test("The script maps every id through Steam's own call")
     func script() {
         let js = SteamCompatMapping.script(appIDs: [601150, 1971870])
-        #expect(js.contains("[601150,1971870]") && js.contains(#"SpecifyCompatTool(id, "silo")"#))
+        #expect(js.contains("[601150,1971870]") && js.contains(#"SpecifyCompatTool(id, "silo-proton")"#))
     }
 }

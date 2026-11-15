@@ -92,6 +92,29 @@ struct SteamCloudSavesTests {
         #expect(!FileManager.default.fileExists(atPath: backup.path))
     }
 
+    @Test("compatdata's steamuser links to the classic bottle; an old NotProton prefix is moved aside, not deleted")
+    func compatUser() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (_, classic) = try Self.bottles(tmp)
+        _ = try tmp.write("SteamBottle/drive_c/users/crossover/AppData/Local/CotW/g.sav", "classic")
+        _ = try tmp.write("lib/steamapps/compatdata/2492040/pfx/drive_c/users/steamuser/AppData/Local/CotW/g.sav", "np")
+        let compat = tmp.url.appendingPathComponent("lib/steamapps/compatdata/2492040")
+        let user = classic.appendingPathComponent("drive_c/users/crossover")
+        let backup = tmp.url.appendingPathComponent("lib/steamapps/silo-backups/compatdata-2492040-x")
+        let lines = SteamCloudSaves.prepareCompatUser(compatData: compat, canonicalUser: user, backupDir: backup)
+        #expect(lines.count == 2)
+        #expect(try String(contentsOf: backup.appendingPathComponent("drive_c/users/steamuser/AppData/Local/CotW/g.sav"),
+                           encoding: .utf8) == "np")
+        // Steam's Proton-style path now reads the classic bottle's save.
+        let steamPath = compat.appendingPathComponent(
+            "pfx/drive_c/users/steamuser/Local Settings/Application Data/CotW/g.sav")
+        #expect(try String(contentsOf: steamPath, encoding: .utf8) == "classic")
+        #expect(FileManager.default.fileExists(atPath: compat.appendingPathComponent(
+            "pfx/drive_c/users/steamuser/Saved Games").path))
+        // Again: Silo's own layout is kept, nothing to say.
+        #expect(SteamCloudSaves.prepareCompatUser(compatData: compat, canonicalUser: user, backupDir: backup).isEmpty)
+    }
+
     @Test("The classic folders are backed up once, before the first cloud launch")
     func backupOnce() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

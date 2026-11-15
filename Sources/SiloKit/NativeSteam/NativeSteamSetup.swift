@@ -181,7 +181,7 @@ public struct NativeSteamSetup: Sendable {
         }
         let tools = Self.siloTools(in: toolsDir, fileManager: fileManager)
         for tool in tools { try fileManager.removeItem(at: tool) }
-        let names = tools.reduce(into: [SiloCompatTool.name] as Set<String>) { $0.formUnion(SteamCompatMapping.toolNames(inToolDir: $1)) }
+        let names = tools.reduce(into: Set([SiloCompatTool.name] + SiloCompatTool.legacyNames)) { $0.formUnion(SteamCompatMapping.toolNames(inToolDir: $1)) }
         if let text = try? String(contentsOf: configVDF, encoding: .utf8) {
             let cleaned = SteamCompatMapping.removingMappings(to: names, in: text)
             if cleaned != text { try Data(cleaned.utf8).write(to: configVDF, options: .atomic) }

@@ -58,7 +58,7 @@ struct NativeSteamSetupTests {
         #expect(fake.invocations.contains { $0.executable.lastPathComponent == "codesign" })
         #expect(fake.invocations.contains { $0.arguments.first == "bootstrap" })
 
-        // A game mapped to Silo's tool, another to a tool that isn't Silo's.
+        // A game mapped to Silo's tool, a redistributable mapped to its earlier id, a game on a tool that isn't Silo's.
         _ = try tmp.write("home/Library/Application Support/Steam/config/config.vdf", """
         "InstallConfigStore"
         {
@@ -66,7 +66,7 @@ struct NativeSteamSetupTests {
         \t{
         \t\t"544750"
         \t\t{
-        \t\t\t"name"\t\t"silo"
+        \t\t\t"name"\t\t"\(SiloCompatTool.name)"
         \t\t}
         \t\t"228980"
         \t\t{

@@ -65,8 +65,11 @@ struct SiloCompatToolTests {
     func writes() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
         let tool = SiloCompatTool(siloExecutable: URL(fileURLWithPath: "/Apps/Si'lo.app/Contents/MacOS/Silo"))
+        // The tool under its earlier id, written by Silo, goes; someone else's tool with that id would stay.
+        _ = try tmp.write("compatibilitytools.d/silo/run", "#!/bin/sh\n# Written by Silo: old\n")
         let dir = try tool.write(steamRoot: tmp.url)
-        #expect(dir.path.hasSuffix("compatibilitytools.d/silo"))
+        #expect(dir.path.hasSuffix("compatibilitytools.d/silo-proton"))
+        #expect(!FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent("compatibilitytools.d/silo").path))
         let vdf = try String(contentsOf: dir.appendingPathComponent("compatibilitytool.vdf"), encoding: .utf8)
         #expect(vdf.contains("\"from_oslist\" \"windows\"") && vdf.contains("\"to_oslist\" \"macos\""))
         #expect(try String(contentsOf: dir.appendingPathComponent("toolmanifest.vdf"), encoding: .utf8)

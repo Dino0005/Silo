@@ -210,6 +210,23 @@ if CommandLine.arguments.contains("--smoke")
         // here; each changed file is backed up first.
         guard cloud != nil else { return }
         let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        // Each Windows game's compatdata user folder, linked to the classic bottle before Steam's next launch-time sync
+        // (an old NotProton prefix there is moved aside within its library).
+        if let canonicalUser = SharedSaveLinker().windowsUserDir(inPrefix: paths.steamBottle) {
+            let windows = try installer.installedWindowsGameIDs()
+            for library in installer.libraries() {
+                let steamapps = library.appendingPathComponent("steamapps", isDirectory: true)
+                for id in windows.sorted() where FileManager.default.fileExists(
+                    atPath: steamapps.appendingPathComponent("appmanifest_\(id).acf").path) {
+                    for line in SteamCloudSaves.prepareCompatUser(
+                        compatData: steamapps.appendingPathComponent("compatdata/\(id)", isDirectory: true),
+                        canonicalUser: canonicalUser,
+                        backupDir: steamapps.appendingPathComponent("silo-backups/compatdata-\(id)-\(stamp)")) {
+                        log("cloud \(id): \(line)")
+                    }
+                }
+            }
+        }
         for id in try installer.installedWindowsGameIDs().sorted() {
             for file in SteamCloudSaves.remoteCaches(steamRoot: installer.steamRoot, appID: id) {
                 guard let text = try? String(contentsOf: file, encoding: .utf8),

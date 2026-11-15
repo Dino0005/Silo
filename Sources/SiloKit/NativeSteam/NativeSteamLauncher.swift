@@ -121,6 +121,19 @@ public struct NativeSteamLauncher: Sendable {
             .appendingPathComponent("Library/Application Support/Steam/appcache/appinfo.vdf")
         let folders = SteamCloudSaves.folders(savefiles: (try? AppInfoCache(contentsOf: appInfo).app(UInt32(app.appID)))??
             .info.map("ufs")?.map("savefiles"))
+        // Steam resolves the cloud roots of a compat-tool launch in the game's compatdata: linked to the classic bottle
+        // (the guard does it after each Steam session; this covers a game installed meanwhile).
+        if let compatData = environment["STEAM_COMPAT_DATA_PATH"], !compatData.isEmpty,
+           let canonicalUser = SharedSaveLinker().windowsUserDir(inPrefix: paths.steamBottle) {
+            let data = URL(fileURLWithPath: compatData, isDirectory: true)
+            let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+            for line in SteamCloudSaves.prepareCompatUser(
+                compatData: data, canonicalUser: canonicalUser,
+                backupDir: data.deletingLastPathComponent().deletingLastPathComponent()
+                    .appendingPathComponent("silo-backups/compatdata-\(app.appID)-\(stamp)")) {
+                log("saves: \(line)")
+            }
+        }
         if !folders.isEmpty {
             let backups = paths.supportDir.appendingPathComponent("Backups/steam-cloud/\(app.appID)", isDirectory: true)
             let linker = SharedSaveLinker()
