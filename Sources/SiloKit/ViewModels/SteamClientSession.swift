@@ -59,6 +59,9 @@ public final class SteamClientSession {
     private var updateWatch: Task<Void, Never>?
     /// When Silo last started the client: an update installed before then was already handled by that start.
     private var launchedAt: Date?
+    /// A line for the bottle's client log, written once the next launch has started: the launch starts the
+    /// log afresh, so a line written before it would be lost.
+    private var pendingLogNote: String?
 
     public func updateWine(_ url: URL?) { wineBinary = url }
 
@@ -287,6 +290,7 @@ public final class SteamClientSession {
         launchedAt = Date()
         guard await launchSteamProcess(foreground: foreground) != nil else { return }   // detached; PID untracked
         launchError = nil
+        if let note = pendingLogNote { bottle.note(note); pendingLogNote = nil }
         watchForSelfUpdate()
         // NOT gated on the readiness result, and that is deliberate. Upstream bacb7a1 turned a readiness
         // TIMEOUT into a launch failure; ported here, it refused the first launch every single time — this
@@ -371,8 +375,8 @@ public final class SteamClientSession {
                 if let wine = wineBinary, let started = launchedAt, bottle.webHelperReplaced(wine: wine),
                    let text = try? String(contentsOf: bottle.bootstrapLog, encoding: .utf8),
                    Self.restartedAfterUpdate(bootstrapLog: text, since: started) {
-                    bottle.note("Steam updated itself and its new webhelper replaced the wrapper "
-                                + "(bottle \(live ? "up" : "down")): starting it again through Silo")
+                    pendingLogNote = "Steam updated itself and its new webhelper replaced the wrapper "
+                        + "(bottle \(live ? "up" : "down")): started again through Silo"
                     if live {
                         await bottle.forceQuit(wine: wine)
                         try? await Task.sleep(for: .seconds(warmUpForceQuitSettle))   // let the wineserver reap them
