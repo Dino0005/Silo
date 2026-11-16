@@ -353,25 +353,38 @@ public final class SteamClientSession {
 
     /// While the client Silo started is up: if it installs a client update and restarts itself (Steam does both
     /// at its start, without Silo), its new `steamwebhelper.exe` has replaced the wrapper and the restarted
-    /// client shows a black window (measured 2026-11-16). Then the bottle is stopped and Steam started again
-    /// through Silo, which wraps the new webhelper — what quitting and reopening by hand did. It waits for the
-    /// restart line after the install (stopping Steam mid-extraction would roll the update back), acts on an
-    /// update newer than Silo's own start only, so once per update, and ends when the bottle goes down.
+    /// client shows a black window, or quits altogether (both measured 2026-11-16). Then the bottle is stopped
+    /// and Steam started again through Silo, which wraps the new webhelper — what quitting and reopening by
+    /// hand did. It acts only once Steam's log shows the restart after the install (stopping Steam
+    /// mid-extraction would roll the update back) and only on an update newer than Silo's own start, so once
+    /// per update. The bottle going down does NOT end the watch while such an update is pending: Steam quits
+    /// and restarts during it, and the restarted client may quit for good. It ends on a bottle that stays down.
     private func watchForSelfUpdate() {
         guard updateWatchInterval > 0, updateWatch == nil else { return }
         updateWatch = Task { @MainActor [weak self] in
+            var downTicks = 0
             while !Task.isCancelled {
                 guard let interval = self?.updateWatchInterval else { return }
                 try? await Task.sleep(for: .seconds(interval))
-                guard let self, WineServerProbe.isLive(prefix: bottle.prefix) else { break }
-                guard let wine = wineBinary, let started = launchedAt, bottle.webHelperReplaced(wine: wine),
-                      let text = try? String(contentsOf: bottle.bootstrapLog, encoding: .utf8),
-                      Self.restartedAfterUpdate(bootstrapLog: text, since: started)
-                else { continue }
-                bottle.note("Steam updated itself and its new webhelper replaced the wrapper: restarting it through Silo")
-                await bottle.forceQuit(wine: wine)
-                try? await Task.sleep(for: .seconds(warmUpForceQuitSettle))   // let the wineserver reap them
-                _ = await ensureRunning(foreground: true)   // wraps the new webhelper; sets a new launchedAt
+                guard let self else { return }
+                let live = WineServerProbe.isLive(prefix: bottle.prefix)
+                if let wine = wineBinary, let started = launchedAt, bottle.webHelperReplaced(wine: wine),
+                   let text = try? String(contentsOf: bottle.bootstrapLog, encoding: .utf8),
+                   Self.restartedAfterUpdate(bootstrapLog: text, since: started) {
+                    bottle.note("Steam updated itself and its new webhelper replaced the wrapper "
+                                + "(bottle \(live ? "up" : "down")): starting it again through Silo")
+                    if live {
+                        await bottle.forceQuit(wine: wine)
+                        try? await Task.sleep(for: .seconds(warmUpForceQuitSettle))   // let the wineserver reap them
+                    }
+                    // Directly, not `ensureRunning`: a launch still waiting for sign-in would be joined instead.
+                    // Wraps the new webhelper and sets a new `launchedAt`, so this update is handled once.
+                    await startSteam(foreground: true)
+                    downTicks = 0
+                    continue
+                }
+                downTicks = live ? 0 : downTicks + 1
+                if downTicks >= 3 { break }   // down for good, with no update to answer
             }
             self?.updateWatch = nil
         }
