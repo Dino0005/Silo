@@ -409,9 +409,35 @@ struct SteamBottleTests {
         let wrapper = tmp.url.appendingPathComponent("w.exe"), real = tmp.url.appendingPathComponent("r.exe")
         try Self.wrapperBytes.write(to: wrapper)
         try Data("MZ steamwebhelper_orig.exe in ASCII only".utf8).write(to: real)
-        #expect(SteamBottle.isSiloWebHelperWrapper(at: wrapper))
-        #expect(!SteamBottle.isSiloWebHelperWrapper(at: real))
-        #expect(!SteamBottle.isSiloWebHelperWrapper(at: tmp.url.appendingPathComponent("missing.exe")))
+        #expect(SteamBottle.isSiloWebHelperWrapper(at: wrapper) == true)
+        #expect(SteamBottle.isSiloWebHelperWrapper(at: real) == false)
+        #expect(SteamBottle.isSiloWebHelperWrapper(at: tmp.url.appendingPathComponent("missing.exe")) == nil)
+    }
+
+    @Test("A webhelper that can't be read is left alone: the preserved real one is never replaced by a guess")
+    func unreadableWebHelperLeftAlone() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (bottle, _, paths) = make(tmp)
+        let wine = tmp.url.appendingPathComponent("wine/bin/wine64")
+        let wrapperURL = wine.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("share/silo/steamwebhelper-wrapper.exe")
+        try FileManager.default.createDirectory(at: wrapperURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try (Self.wrapperBytes + Data("V2".utf8)).write(to: wrapperURL)
+        // An older wrapper over the preserved real webhelper, unreadable right now.
+        let helper = paths.steamBottleCEFDir.appendingPathComponent("cef.win64/steamwebhelper.exe")
+        let orig = helper.deletingLastPathComponent().appendingPathComponent("steamwebhelper_orig.exe")
+        try FileManager.default.createDirectory(at: helper.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try (Self.wrapperBytes + Data("V1".utf8)).write(to: helper)
+        try "REAL".write(to: orig, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: helper.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: helper.path) }
+
+        try bottle.installWebHelperWrapper(wine: wine)
+        #expect(try String(contentsOf: orig, encoding: .utf8) == "REAL")       // the real one is still there
+        #expect(!FileManager.default.fileExists(atPath:
+            helper.deletingLastPathComponent().appendingPathComponent("steamwebhelper_wrap.tmp").path))
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: helper.path)
+        #expect(try Data(contentsOf: helper) == Self.wrapperBytes + Data("V1".utf8))   // untouched
     }
 
     @Test("installCoreFonts runs the FIRST font user-guided (no /Q) and the rest silently, into Fonts")
