@@ -626,6 +626,45 @@ public struct SteamBottle: Sendable {
         return data.range(of: Data("steamwebhelper_orig.exe".utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] })) != nil
     }
 
+    // MARK: - Steam's own update restart
+
+    /// Steam's bootstrapper log in the bottle — where the client records installing an update.
+    var bootstrapLog: URL { clientDir.appendingPathComponent("logs/bootstrap_log.txt") }
+
+    /// Whether a CEF dir's `steamwebhelper.exe` is Steam's own binary again on a runtime that wraps it — what a
+    /// client update leaves: it extracts its new webhelper over Silo's wrapper and restarts itself, outside
+    /// Silo, so that Steam runs unwrapped (measured 2026-11-16, 1792618285 → 1794536281: black window). An
+    /// unreadable file doesn't count (`isSiloWebHelperWrapper` nil): nothing is decided on a guess.
+    func webHelperReplaced(wine: URL) -> Bool {
+        usesWebHelperWrapper(wine: wine) && webHelpers().contains { Self.isSiloWebHelperWrapper(at: $0) == false }
+    }
+
+    /// Appends one line to the bottle's client log, so what Silo did shows next to Steam's own output.
+    func note(_ line: String) {
+        guard let handle = try? FileHandle(forWritingTo: log) else { return }
+        defer { try? handle.close() }
+        _ = try? handle.seekToEnd()
+        try? handle.write(contentsOf: Data("[silo] \(line)\n".utf8))
+    }
+
+    /// Pure: when Steam last installed a client update AND started again after it, read from its bootstrap log
+    /// (`[yyyy-MM-dd HH:mm:ss] …`, local time). The markers are English in every Steam language (measured on an
+    /// Italian client): `Committing NTFS transaction` ends the install, a later `Startup - ` line is the restart.
+    /// nil when no update was followed by a start.
+    static func lastUpdateRestart(bootstrapLog text: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        var commit: Date?, restart: Date?
+        for line in text.split(whereSeparator: \.isNewline) {
+            guard line.hasPrefix("["), line.count > 21,
+                  let date = formatter.date(from: String(line.dropFirst().prefix(19))) else { continue }
+            if line.contains("Committing NTFS transaction") { commit = date }
+            else if line.contains("] Startup - "), let committed = commit { restart = committed; commit = nil }
+        }
+        return restart
+    }
+
     /// Every `steamwebhelper.exe` across the bottle's CEF dirs. The leaf name is Steam-version-dependent
     /// (`cef.win64`, `cef.win7x64`, …) and a Steam UPDATE can add a new dir alongside the old one, so we
     /// wrap them ALL — otherwise the wrapper can sit in an orphaned dir while Steam runs the unwrapped one.

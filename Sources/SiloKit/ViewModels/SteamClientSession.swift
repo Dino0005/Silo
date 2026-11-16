@@ -50,7 +50,15 @@ public final class SteamClientSession {
     /// Defensive teardown: cancel any in-flight launch so it can't outlive the session (a process-lifetime
     /// singleton, so this normally never fires). It deliberately does NOT stop Steam — Silo leaves the client
     /// running when it quits, like CrossOver. `isolated` so it can touch `@MainActor` state.
-    isolated deinit { steamLaunch?.cancel() }
+    isolated deinit { steamLaunch?.cancel(); updateWatch?.cancel() }
+
+    /// How often (seconds) a client Silo started is checked for having updated itself (`watchForSelfUpdate`).
+    /// 0 disables the watch (tests).
+    var updateWatchInterval: Double = 2
+    /// The running watch, one at a time.
+    private var updateWatch: Task<Void, Never>?
+    /// When Silo last started the client: an update installed before then was already handled by that start.
+    private var launchedAt: Date?
 
     public func updateWine(_ url: URL?) { wineBinary = url }
 
@@ -276,8 +284,10 @@ public final class SteamClientSession {
         // A pid left by a Steam that was killed would make the readiness wait below pass before the new
         // client exists. Cleared only if the bottle is down — see `SteamReadiness.clearStalePid`.
         SteamReadiness.clearStalePid(prefix: bottle.prefix)
+        launchedAt = Date()
         guard await launchSteamProcess(foreground: foreground) != nil else { return }   // detached; PID untracked
         launchError = nil
+        watchForSelfUpdate()
         // NOT gated on the readiness result, and that is deliberate. Upstream bacb7a1 turned a readiness
         // TIMEOUT into a launch failure; ported here, it refused the first launch every single time — this
         // Steam takes longer than the 20 s failsafe to come up cold (big bottle, external drive, the CEF
@@ -339,6 +349,39 @@ public final class SteamClientSession {
             }
         }
         return SteamReadiness.isSignedIn(prefix: prefix)   // false ⇒ the failsafe fired, never signed in
+    }
+
+    /// While the client Silo started is up: if it installs a client update and restarts itself (Steam does both
+    /// at its start, without Silo), its new `steamwebhelper.exe` has replaced the wrapper and the restarted
+    /// client shows a black window (measured 2026-11-16). Then the bottle is stopped and Steam started again
+    /// through Silo, which wraps the new webhelper — what quitting and reopening by hand did. It waits for the
+    /// restart line after the install (stopping Steam mid-extraction would roll the update back), acts on an
+    /// update newer than Silo's own start only, so once per update, and ends when the bottle goes down.
+    private func watchForSelfUpdate() {
+        guard updateWatchInterval > 0, updateWatch == nil else { return }
+        updateWatch = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let interval = self?.updateWatchInterval else { return }
+                try? await Task.sleep(for: .seconds(interval))
+                guard let self, WineServerProbe.isLive(prefix: bottle.prefix) else { break }
+                guard let wine = wineBinary, let started = launchedAt, bottle.webHelperReplaced(wine: wine),
+                      let text = try? String(contentsOf: bottle.bootstrapLog, encoding: .utf8),
+                      Self.restartedAfterUpdate(bootstrapLog: text, since: started)
+                else { continue }
+                bottle.note("Steam updated itself and its new webhelper replaced the wrapper: restarting it through Silo")
+                await bottle.forceQuit(wine: wine)
+                try? await Task.sleep(for: .seconds(warmUpForceQuitSettle))   // let the wineserver reap them
+                _ = await ensureRunning(foreground: true)   // wraps the new webhelper; sets a new launchedAt
+            }
+            self?.updateWatch = nil
+        }
+    }
+
+    /// Pure: whether Steam's log shows an update installed and restarted after `start` (Silo's own launch). Log
+    /// times are whole seconds, so a margin of 5 s keeps an update installed in the launch's first second.
+    nonisolated static func restartedAfterUpdate(bootstrapLog text: String, since start: Date) -> Bool {
+        guard let updated = SteamBottle.lastUpdateRestart(bootstrapLog: text) else { return false }
+        return updated >= start.addingTimeInterval(-5)
     }
 
     /// Launch the bottle's Steam client (re-applying the steamwebhelper wrapper first); returns the PID,

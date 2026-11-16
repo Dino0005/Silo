@@ -26,6 +26,12 @@ the commit message says why.
   buttons of a column share one width.
 
 ### Fixed
+- **Windows Steam no longer comes back to a black window after updating itself.** Steam installs a client
+  update at its start and then restarts on its own, outside Silo; its new `steamwebhelper.exe` had replaced Silo's
+  wrapper, so the restarted client showed only a black window until it was quit and reopened from Silo. While a
+  Steam that Silo started is running, Silo now notices that restart (the update's markers in Steam's
+  `bootstrap_log.txt`, and the wrapper gone), stops the bottle and starts Steam again through Silo, which wraps
+  the new web helper. Measured on the 1792618285 → 1794536281 update (2026-11-16).
 - **An unreadable Steam web helper is left alone.** Before wrapping Steam's `steamwebhelper.exe`, Silo checks
   whether the file is its own wrapper or Steam's binary; a file it couldn't read was taken for Steam's, which would
   have replaced the real web helper kept as `steamwebhelper_orig.exe` and left Steam with a black window. Silo now

@@ -414,6 +414,46 @@ struct SteamBottleTests {
         #expect(SteamBottle.isSiloWebHelperWrapper(at: tmp.url.appendingPathComponent("missing.exe")) == nil)
     }
 
+    @Test("lastUpdateRestart: an installed update counts once Steam has started again after it")
+    func lastUpdateRestart() throws {
+        // Lines as an Italian client writes them (2026-11-16): the markers stay English.
+        let installed = """
+        [2026-11-16 19:58:54] Startup - updater built Oct 21 2026 14:10:53
+        [2026-11-16 19:58:54] Found pending update
+        [2026-11-16 19:58:54] Installazione dell'aggiornamento...
+        [2026-11-16 19:59:00] Committing NTFS transaction (0 non-transactional backup files)
+        [2026-11-16 19:59:00] Aggiornamento completato, avvio di Steam...
+        [2026-11-16 19:59:00] Shutdown
+        """
+        #expect(SteamBottle.lastUpdateRestart(bootstrapLog: installed) == nil)        // not restarted yet
+        let restarted = installed + "\n[2026-11-16 19:59:00] Startup - updater built Nov 12 2026 18:00:27\n"
+        var parts = DateComponents()
+        (parts.year, parts.month, parts.day, parts.hour, parts.minute, parts.second) = (2026, 11, 16, 19, 59, 0)
+        #expect(SteamBottle.lastUpdateRestart(bootstrapLog: restarted) == Calendar.current.date(from: parts))
+        // Ordinary starts with no update: nothing.
+        #expect(SteamBottle.lastUpdateRestart(bootstrapLog: """
+        [2026-11-07 22:11:06] Startup - updater built Oct 21 2026 14:10:53
+        [2026-11-07 22:14:50] Shutdown
+        """) == nil)
+    }
+
+    @Test("webHelperReplaced: Steam's own webhelper back in a CEF dir, on a runtime that wraps it")
+    func webHelperReplaced() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (bottle, _, paths) = make(tmp)
+        let wine = tmp.url.appendingPathComponent("wine/bin/wine64")
+        let helper = paths.steamBottleCEFDir.appendingPathComponent("cef.win64/steamwebhelper.exe")
+        try FileManager.default.createDirectory(at: helper.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Self.wrapperBytes.write(to: helper)
+        #expect(!bottle.webHelperReplaced(wine: wine))       // no wrapper in the runtime: nothing to replace
+        let wrapperURL = tmp.url.appendingPathComponent("wine/share/silo/steamwebhelper-wrapper.exe")
+        try FileManager.default.createDirectory(at: wrapperURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Self.wrapperBytes.write(to: wrapperURL)
+        #expect(!bottle.webHelperReplaced(wine: wine))       // still wrapped
+        try "REAL-NEW".write(to: helper, atomically: true, encoding: .utf8)   // a client update's webhelper
+        #expect(bottle.webHelperReplaced(wine: wine))
+    }
+
     @Test("A webhelper that can't be read is left alone: the preserved real one is never replaced by a guess")
     func unreadableWebHelperLeftAlone() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
