@@ -25,7 +25,10 @@
   TEKKEN. Left out: 460580a5 (protocol change + msync timing, no gain). Also found the same day: God of War's DLSS-selector
   loop was never really fixed by 0005 (first change with the DualSense → loop; keyboard first → fine) — open again.
   0009–0014 go into ONE Wine build; push waits for the macOS-Steam work (user).
-- **📦 Silo 0.7.4 prepared (2026-11-16):** `versions.env` 0.7.4 (+ `gen-versions.sh`), CHANGELOG `## 0.7.4`, RELEASE_NOTES,
+- **✅ Silo 0.7.4 RELEASED (2026-11-16)**: pushed 9549ed8..1fbd25c, tag v0.7.4 (annotated). Release run 43971017767 and pages
+  43971017818 green. Latest, not draft (`Silo.zip` 3875936 B, sha256 d8d85604… matches its .sha256; app 0.7.4, signature
+  valid); site shows 0.7.4 (EN + IT). Installed in /Applications (0.7.3 kept in Backups/Silo-0.7.3.app).
+  Prepared as: `versions.env` 0.7.4 (+ `gen-versions.sh`), CHANGELOG `## 0.7.4`, RELEASE_NOTES,
   site version (EN + IT). Contents: Wine patches 0009–0014 (runtime wine-cx-26.3.0 rebuilt by run 43943535890 →
   reinstall Wine), Windows Steam self-update restart (f7c598b, 881dbe5, 9549ed8) + unreadable-webhelper guard (56e15c2),
   Settings → General rows, Game Mode key. Steam for macOS (branch native-steam) is NOT in it.
