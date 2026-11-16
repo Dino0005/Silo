@@ -395,4 +395,20 @@ struct SteamClientSessionTests {
 
         #expect(!fake.invocations.contains { $0.detached })   // never launched Steam — nothing to download
     }
+
+    @Test("Self-update restart: only an update Steam installed after Silo started it, once restarted")
+    func restartedAfterUpdate() throws {
+        let log = """
+        [2026-11-16 19:58:54] Found pending update
+        [2026-11-16 19:59:00] Committing NTFS transaction (0 non-transactional backup files)
+        [2026-11-16 19:59:00] Startup - updater built Nov 12 2026 18:00:27
+        """
+        var parts = DateComponents()
+        (parts.year, parts.month, parts.day, parts.hour, parts.minute, parts.second) = (2026, 11, 16, 19, 58, 50)
+        let launch = try #require(Calendar.current.date(from: parts))
+        #expect(SteamClientSession.restartedAfterUpdate(bootstrapLog: log, since: launch))
+        // Silo's own restart after it (or any later start): that update is already handled.
+        #expect(!SteamClientSession.restartedAfterUpdate(bootstrapLog: log, since: launch.addingTimeInterval(30)))
+        #expect(!SteamClientSession.restartedAfterUpdate(bootstrapLog: "[2026-11-16 19:58:54] Startup - x", since: launch))
+    }
 }
