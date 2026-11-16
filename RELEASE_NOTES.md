@@ -1,39 +1,57 @@
-# Silo 0.7.3
+# Silo 0.7.4
 
-A reworked Library: a filter, one alphabetical list, three layouts to choose from, and the status line on glass.
+FATAL FURY's movies without Microsoft's Media Foundation, controller and Wine fixes, Windows Steam surviving its own
+updates, and a General settings page that reads like System Settings.
 
-## Filter the Library
+## Wine: reinstall once
 
-A new filter button in the toolbar shows *All*, *Steam* or *Non-Steam* games. Its icon fills in while a filter is
-on, so a shorter list never looks like games went missing, and the count under the title counts what is shown.
-Silo remembers your choice.
+The Wine fixes below are in the rebuilt runtime `wine-cx-26.3.0`, published under the same name. To get them,
+remove Wine in *Settings → Wine* and install it again. With the old copy, games keep running as before.
 
-## One alphabetical list
+## FATAL FURY plays its movies without Media Foundation
 
-Steam games used to come first and non-Steam games after them. Now all your games share one list, sorted by name.
+FATAL FURY: City of the Wolves skipped every movie unless it ran in the Media Foundation bottle. Wine's own H.264
+decoder now offers the frame format the game asks for and turns down a Direct3D device that can't hold it, so
+Unreal Engine 5's video player falls back to its software path and the movies play. You can switch *Media
+Foundation* off for the game. Built on a fix from Obelisk's Wine (voile-wine, by Zagrios). SOULCALIBUR VI still
+needs the Media Foundation bottle.
 
-## Three layouts
+## Controllers
 
-The same menu picks how games are shown:
+Two fixes from Proton's Wine, through Obelisk's Wine:
 
-- **Classic**, the default: the card you know, now with the game's whole cover. The old card cut the cover to a
-  thin band, losing its top and bottom, and some titles with it.
-- **Icons**: one row per game, like Apple's Games app, with the game's own app icon and a Play button. A game you
-  haven't started from Silo yet shows its cover in the icon's place until its first launch.
-- **Portrait**: Steam's tall library covers filling the card, with the title and Play on a glass panel at the
-  bottom. Silo uses the covers Steam has already downloaded and fetches the sharper version once. Non-Steam games
-  tied to a Steam app get theirs too.
+- A pad that is already plugged in when a game starts now reaches games that use Windows.Gaming.Input, with its
+  axes in Windows' order.
+- XInput keeps a controller working when you unplug it and plug it back in, and reports the same capabilities as
+  Windows does.
 
-A long title now shows in full when you hover over its card.
+## Three small Wine fixes
 
-## The status line on glass
+Also through Obelisk's Wine, two of them from Proton: a program that waits on its own process gets the answer
+Windows gives, `GetAsyncKeyState()` no longer asks the Wine server for every key a game polls, and the memory heap
+reuses its block groups instead of mapping new ones.
 
-Messages like *Starting Steam…* now float over the bottom of the Library on Liquid Glass, so your covers show
-through while the text stays easy to read. On macOS 15 it uses a blurred background instead.
+## Windows Steam after its own updates
+
+When Windows Steam installs a client update, it restarts by itself, outside Silo. Its new web helper replaced the
+one Silo prepares, so Steam came back as a black window until you quit it and opened it again from Silo. While a
+Steam that Silo started is running, Silo now notices that restart and starts Steam again the right way; you see a
+black window for a few seconds, then Steam. If you closed Silo in the meantime, opening Steam from Silo fixes it as
+before.
+
+A web helper file Silo can't read is now left alone instead of being taken for Steam's own (from upstream).
+
+## Settings → General
+
+Every row has a title and a short description on the left and a short button on the right, like System Settings.
+The bottles' location explains what it holds and how to move it, external disks included. The Control Panel buttons
+in General and in Media Foundation line up in columns of equal width.
 
 ## Also
 
-- Silo builds with Xcode and the Command Line Tools 27.2 (from upstream). Nothing changes in the app.
+- A game's app now declares Game Mode support outright (`LSSupportsGameMode`), as Apple recommends. Game Mode
+  already turned on through the app's games category, so nothing changes in practice.
+- The Library screenshot shows again in the README and on the site.
 
 ## Known issues
 

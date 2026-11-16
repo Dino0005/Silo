@@ -8,7 +8,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.7.4
 
 ### Changed
 - **Game Mode is declared outright.** A game's host app now carries `LSSupportsGameMode` next to the games
@@ -39,15 +39,15 @@ the commit message says why.
 - **FATAL FURY City of the Wolves plays its movies without Microsoft's Media Foundation.** Wine's own H.264
   decoder now offers NV12 on the Mac too and turns down a Direct3D 11 device that can't hold NV12 frames, so
   Unreal Engine 5's video player falls back to its software path instead of skipping every movie. Built on a fix
-  from Obelisk's Wine (voile-wine, by Zagrios). Needs the Wine runtime reinstalled once it is published. SOULCALIBUR
+  from Obelisk's Wine (voile-wine, by Zagrios). Needs the Wine runtime reinstalled. SOULCALIBUR
   VI still needs the Media Foundation bottle.
 - **Controllers: two fixes taken from Proton's Wine** (through Obelisk's Wine). Pads already plugged in when a game
   starts reach games that use Windows.Gaming.Input, with the axes in Windows' order; and XInput keeps a controller
   working when it is unplugged and plugged back in, and reports the same capabilities as on Windows. Needs the Wine
-  runtime reinstalled once it is published.
+  runtime reinstalled.
 - **Three small Wine fixes** (through Obelisk's Wine, two of them from Proton): a program that waits on its own process
   gets the answer Windows gives, `GetAsyncKeyState()` no longer asks the Wine server for every polled key, and the heap
-  reuses its block groups instead of mapping new ones. Needs the Wine runtime reinstalled once it is published.
+  reuses its block groups instead of mapping new ones. Needs the Wine runtime reinstalled.
 - **The Library screenshot shows again in the README and on the site.** Its alternative text, written for 0.7.3,
   contained straight double quotes that ended the `alt` attribute early, so GitHub dropped the image.
 
