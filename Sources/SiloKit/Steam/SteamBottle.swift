@@ -571,6 +571,9 @@ public struct SteamBottle: Sendable {
         // one while Steam runs the unwrapped binary → black window.
         for helper in webHelpers() {
             if fileManager.contentsEqual(atPath: helper.path, andPath: wrapper.path) { continue }   // already wrapped
+            // Unreadable: no way to tell a stale wrapper from Steam's own binary, and guessing "Steam's" would move a
+            // wrapper over the preserved `…_orig.exe` and lose the real webhelper — leave the dir as it is.
+            guard let isWrapper = Self.isSiloWebHelperWrapper(at: helper) else { continue }
             let dir = helper.deletingLastPathComponent()
             let real = dir.appendingPathComponent("steamwebhelper_orig.exe")
             // Stage the wrapper copy FIRST, then swap it in with renames only — so a copy failure (the one
@@ -581,7 +584,7 @@ public struct SteamBottle: Sendable {
             if fileManager.fileExists(atPath: staged.path) { try fileManager.removeItem(at: staged) }
             try fileManager.copyItem(at: wrapper, to: staged)
             do {
-                if Self.isSiloWebHelperWrapper(at: helper) {
+                if isWrapper {
                     // A STALE wrapper (an older version of ours) over an already-preserved original: replace
                     // just it, so a wrapper is never moved over the genuine `…_orig.exe`.
                     try fileManager.removeItem(at: helper)
@@ -610,15 +613,16 @@ public struct SteamBottle: Sendable {
     func restoreRealWebHelpers() throws {
         for helper in webHelpers() {
             let real = helper.deletingLastPathComponent().appendingPathComponent("steamwebhelper_orig.exe")
-            guard fileManager.fileExists(atPath: real.path), Self.isSiloWebHelperWrapper(at: helper) else { continue }
+            guard fileManager.fileExists(atPath: real.path), Self.isSiloWebHelperWrapper(at: helper) == true else { continue }
             _ = try fileManager.replaceItemAt(helper, withItemAt: real)   // moves `_orig` into place
         }
     }
 
     /// Silo's wrapper names the binary it launches (`kRealExe` in Scripts/steamwebhelper-wrapper.c, a wide
     /// string); Steam's real webhelper never contains it.
-    static func isSiloWebHelperWrapper(at url: URL) -> Bool {
-        guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return false }
+    /// nil when the file can't be read (a guess either way could cost the real webhelper; upstream 4b59324 too).
+    static func isSiloWebHelperWrapper(at url: URL) -> Bool? {
+        guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return nil }
         return data.range(of: Data("steamwebhelper_orig.exe".utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] })) != nil
     }
 

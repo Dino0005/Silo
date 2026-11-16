@@ -26,6 +26,10 @@ the commit message says why.
   buttons of a column share one width.
 
 ### Fixed
+- **An unreadable Steam web helper is left alone.** Before wrapping Steam's `steamwebhelper.exe`, Silo checks
+  whether the file is its own wrapper or Steam's binary; a file it couldn't read was taken for Steam's, which would
+  have replaced the real web helper kept as `steamwebhelper_orig.exe` and left Steam with a black window. Silo now
+  skips that folder. Ported from upstream 4b59324; the rest of upstream's #10 fix was already here (12626b5).
 - **FATAL FURY City of the Wolves plays its movies without Microsoft's Media Foundation.** Wine's own H.264
   decoder now offers NV12 on the Mac too and turns down a Direct3D 11 device that can't hold NV12 frames, so
   Unreal Engine 5's video player falls back to its software path instead of skipping every movie. Built on a fix
