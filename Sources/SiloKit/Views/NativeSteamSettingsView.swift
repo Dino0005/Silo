@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// The **Steam for macOS** settings tab (`NativeSteamSettingsModel`): play Windows games from macOS Steam through Silo.
 struct NativeSteamSettingsView: View {
@@ -13,7 +14,16 @@ struct NativeSteamSettingsView: View {
                     Text("Use Steam for macOS")
                     SettingsDescription("Play your Windows games from Steam for macOS: Silo installs “Steam (Silo)” in your Applications folder — open Steam from there — and becomes Steam’s compatibility tool for every Windows game.")
                 }
-                .disabled(model.isWorking)
+                // Off and no macOS Steam on this Mac: nothing to switch on yet. Once on, it can always be turned off.
+                .disabled(model.isWorking || (!model.status.enabled && !model.status.steamInstalled))
+                if !model.status.enabled && !model.status.steamInstalled {
+                    LabeledContent {
+                        Link("Download Steam", destination: URL(string: "https://store.steampowered.com/about/")!)
+                    } label: {
+                        Text("Steam for macOS isn't installed")
+                        SettingsDescription("Install Steam for Mac from Valve, open it once and sign in, then turn this on.")
+                    }
+                }
                 if model.isWorking {
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
@@ -51,6 +61,10 @@ struct NativeSteamSettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear { model.refresh() }
+        // Installed while Settings was open (Steam's installer, then back to Silo): the switch follows.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.refresh()
+        }
         .confirmationDialog("Delete the Steam for macOS bottles?", isPresented: $confirmingBottleRemoval) {
             Button("Delete", role: .destructive) { model.deleteBottles() }
         } message: {

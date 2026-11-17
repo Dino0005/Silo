@@ -475,3 +475,9 @@
 "What changed in the version you have." = "What changed in the version you have.";
 "Open on GitHub" = "Open on GitHub";
 "Close" = "Close";
+
+/* Steam for macOS not installed */
+"Download Steam" = "Download Steam";
+"Steam for macOS isn't installed" = "Steam for macOS isn't installed";
+"Install Steam for Mac from Valve, open it once and sign in, then turn this on." = "Install Steam for Mac from Valve, open it once and sign in, then turn this on.";
+"Steam for macOS isn't installed. Install it from Steam's website, open it once to sign in, then come back here." = "Steam for macOS isn't installed. Install it from Steam's website, open it once to sign in, then come back here.";

@@ -10,10 +10,14 @@ struct NativeSteamSetupTests {
                                               ofItemAtPath: tmp.url.appendingPathComponent("Silo.app/Contents/Helpers/SiloSteamLauncher").path)
         _ = try tmp.write("Silo.app/Contents/Helpers/silo-steam-hook.dylib", "hook")
         _ = try tmp.write("home/Library/Application Support/Steam/steamapps/libraryfolders.vdf", #""libraryfolders" { }"#)
+        // macOS Steam installed — in this home's Applications, so the Mac's own /Applications plays no part.
+        _ = try tmp.write("home/Applications/Steam.app/Contents/Info.plist", "")
         let fake = FakeProcessRunner()
         let setup = NativeSteamSetup(paths: AppPaths(supportDir: tmp.url.appendingPathComponent("Silo")), runner: fake,
                                      home: tmp.url.appendingPathComponent("home"),
-                                     siloApp: tmp.url.appendingPathComponent("Silo.app"), isSteamRunning: { false })
+                                     siloApp: tmp.url.appendingPathComponent("Silo.app"),
+                                     systemApplicationsDir: tmp.url.appendingPathComponent("SystemApplications"),
+                                     isSteamRunning: { false })
         return (setup, fake)
     }
 
@@ -45,7 +49,9 @@ struct NativeSteamSetupTests {
         _ = try tmp.write("Applications/Silo.app/Contents/Helpers/silo-steam-hook.dylib", "hook")
         let fake = FakeProcessRunner()
         let moved = NativeSteamSetup(paths: old.paths, runner: fake, home: old.home,
-                                     siloApp: tmp.url.appendingPathComponent("Applications/Silo.app"), isSteamRunning: { false })
+                                     siloApp: tmp.url.appendingPathComponent("Applications/Silo.app"),
+                                     systemApplicationsDir: tmp.url.appendingPathComponent("SystemApplications"),
+                                     isSteamRunning: { false })
         #expect(moved.partsFromAnotherSilo() == ["compatibility tool", "guard", "Steam (Silo)"])
         let done = try await moved.repointIfMoved()
         #expect(NativeSteamSetup.launcherRewritten(done))      // the hook's path changed: grant again
@@ -53,6 +59,22 @@ struct NativeSteamSetupTests {
         #expect(moved.partsFromAnotherSilo().isEmpty)
         #expect(old.partsFromAnotherSilo() == ["compatibility tool", "guard", "Steam (Silo)"])
         #expect(fake.invocations.contains { $0.arguments.first == "bootstrap" })
+    }
+
+    @Test("Without macOS Steam the switch can't be turned on; Steam.app in either Applications or its client counts")
+    func steamNotInstalled() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (setup, _) = try Self.fixture(tmp)
+        try FileManager.default.removeItem(at: setup.home.appendingPathComponent("Applications/Steam.app"))
+        #expect(!setup.status().steamInstalled)
+        await #expect(throws: NativeSteamSetup.Failure.steamNotInstalled) { try await setup.enable() }
+        #expect(!setup.isEnabled)
+
+        _ = try tmp.write("SystemApplications/Steam.app/Contents/Info.plist", "")        // Valve's installer
+        #expect(setup.status().steamInstalled)
+        try FileManager.default.removeItem(at: tmp.url.appendingPathComponent("SystemApplications/Steam.app"))
+        _ = try tmp.write("home/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx", "")
+        #expect(setup.status().steamInstalled)                                             // the downloaded client
     }
 
     @Test("On installs the launcher app, the tool, the launch script and the guard; Off removes all but protection")

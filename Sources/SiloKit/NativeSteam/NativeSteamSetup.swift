@@ -26,10 +26,14 @@ public struct NativeSteamSetup: Sendable {
         case notAnApp
         /// The bottles are in use, or Steam per macOS is still on.
         case bottlesInUse
+        /// macOS Steam isn't on this Mac: nothing to put Silo around.
+        case steamNotInstalled
     }
 
     public struct Status: Sendable, Equatable {
         public var enabled = false
+        /// Whether macOS Steam is on this Mac (`isSteamInstalled`); the switch can only be turned on when it is.
+        public var steamInstalled = false
         public var launcherApp = false
         public var tool = false
         public var guardAgent = false
@@ -46,12 +50,16 @@ public struct NativeSteamSetup: Sendable {
     public let siloApp: URL
     private let runner: ProcessRunning
     private let isSteamRunning: @Sendable () -> Bool
+    /// The Mac's Applications folder, where Valve's installer puts `Steam.app`.
+    let systemApplicationsDir: URL
 
     public init(paths: AppPaths = .standard(), runner: ProcessRunning = SystemProcessRunner(),
                 home: URL = FileManager.default.homeDirectoryForCurrentUser,
                 siloApp: URL = Bundle.main.bundleURL,
+                systemApplicationsDir: URL = URL(fileURLWithPath: "/Applications", isDirectory: true),
                 isSteamRunning: @escaping @Sendable () -> Bool = { MacSteamProcess.isRunning() }) {
         self.paths = paths
+        self.systemApplicationsDir = systemApplicationsDir
         self.runner = runner
         self.home = home
         self.steamRoot = home.appendingPathComponent("Library/Application Support/Steam", isDirectory: true)
@@ -73,9 +81,18 @@ public struct NativeSteamSetup: Sendable {
 
     public var isEnabled: Bool { FileManager.default.fileExists(atPath: marker.path) }
 
+    /// Whether macOS Steam is on this Mac: Valve's `Steam.app` in /Applications or ~/Applications, or the client it
+    /// downloads at its first start (what "Steam (Silo)" starts).
+    public func isSteamInstalled(fileManager: FileManager = .default) -> Bool {
+        [systemApplicationsDir.appendingPathComponent("Steam.app"), applicationsDir.appendingPathComponent("Steam.app"),
+         steamRoot.appendingPathComponent("Steam.AppBundle/Steam/Contents/MacOS/steam_osx")]
+            .contains { fileManager.fileExists(atPath: $0.path) }
+    }
+
     public func status(fileManager: FileManager = .default) -> Status {
         var status = Status()
         status.enabled = isEnabled
+        status.steamInstalled = isSteamInstalled(fileManager: fileManager)
         status.launcherApp = fileManager.fileExists(atPath: launcherAppURL.path)
         status.tool = SteamCompatMapping.installedTools(in: toolsDir, fileManager: fileManager).contains(SiloCompatTool.name)
         status.guardAgent = fileManager.fileExists(atPath: guardAgentURL.path)
@@ -134,6 +151,7 @@ public struct NativeSteamSetup: Sendable {
     @discardableResult
     public func enable(fileManager: FileManager = .default) async throws -> [String] {
         guard let launcher = SteamLauncherApp(appBundle: siloApp, fileManager: fileManager) else { throw Failure.notAnApp }
+        guard isSteamInstalled(fileManager: fileManager) else { throw Failure.steamNotInstalled }
         var done: [String] = []
         try fileManager.createDirectory(at: paths.supportDir, withIntermediateDirectories: true)
         fileManager.createFile(atPath: marker.path, contents: Data())

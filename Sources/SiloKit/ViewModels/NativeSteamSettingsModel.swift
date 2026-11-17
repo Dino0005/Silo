@@ -32,6 +32,8 @@ public final class NativeSteamSettingsModel {
             }
         } catch NativeSteamSetup.Failure.steamRunning {
             message = "Quit Steam first."
+        } catch NativeSteamSetup.Failure.steamNotInstalled {
+            message = "Steam for macOS isn't installed. Install it from Steam's website, open it once to sign in, then come back here."
         } catch NativeSteamSetup.Failure.notAnApp {
             message = "Only available when Silo runs as an app."
         } catch {
