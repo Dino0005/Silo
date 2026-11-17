@@ -467,3 +467,11 @@
 "Turn Steam for macOS off and quit Steam and its games first." = "Turn Steam for macOS off and quit Steam and its games first.";
 "“Steam (Silo)” was updated: allow it again when macOS asks (Privacy & Security → Device Control and Data Access)." = "“Steam (Silo)” was updated: allow it again when macOS asks (Privacy & Security → Device Control and Data Access).";
 "Silo was moved: Steam for macOS now uses this copy." = "Silo was moved: Steam for macOS now uses this copy.";
+
+/* Release notes (Settings → Updates → What's New…) */
+"What's New…" = "What's New…";
+"What's new in version %@" = "What's new in version %@";
+"Read what the new version brings before you update." = "Read what the new version brings before you update.";
+"What changed in the version you have." = "What changed in the version you have.";
+"Open on GitHub" = "Open on GitHub";
+"Close" = "Close";

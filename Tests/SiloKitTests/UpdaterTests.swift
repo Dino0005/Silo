@@ -32,6 +32,62 @@ struct UpdaterTests {
         #expect(check.releaseName == "Silo 0.2.0")
     }
 
+    @Test("Brings the newest release's notes and the installed version's, from the same list")
+    func releaseNotes() async throws {
+        FakeURLProtocol.stub("https://api.github.com/repos/owner/Silo-notes/releases?per_page=30", data: Data("""
+        [
+          { "tag_name": "wine-cx-26.3.0", "name": "wine", "assets": [], "body": "CrossOver Wine" },
+          { "tag_name": "v0.7.4", "name": "v0.7.4", "assets": [], "html_url": "https://example.com/v0.7.4",
+            "body": "# Silo 0.7.4\\r\\n\\r\\nNew things." },
+          { "tag_name": "v0.7.3", "name": "v0.7.3", "assets": [], "body": "# Silo 0.7.3" },
+          { "tag_name": "v0.7.2", "name": "v0.7.2", "assets": [], "body": "  " }
+        ]
+        """.utf8))
+        let check = try await updater(repo: "owner/Silo-notes", current: "0.7.3").checkForUpdate()
+        #expect(check.latestNotes?.version == "0.7.4")
+        #expect(check.latestNotes?.markdown == "# Silo 0.7.4\r\n\r\nNew things.")
+        #expect(check.latestNotes?.pageURL?.absoluteString == "https://example.com/v0.7.4")
+        #expect(check.installedNotes?.version == "0.7.3")
+
+        // Up to date: the installed version's notes are the latest's; a release with an empty body has none.
+        FakeURLProtocol.stub("https://api.github.com/repos/owner/Silo-notes2/releases?per_page=30", data: Data("""
+        [ { "tag_name": "v0.7.2", "name": "v0.7.2", "assets": [], "body": "  " } ]
+        """.utf8))
+        let current = try await updater(repo: "owner/Silo-notes2", current: "0.7.2").checkForUpdate()
+        #expect(!current.isNewer)
+        #expect(current.latestNotes == nil && current.installedNotes == nil)
+    }
+
+    @Test("Release notes Markdown: headings, bullets and paragraphs, wrapped lines joined")
+    func releaseNotesBlocks() {
+        let markdown = """
+        # Silo 0.7.4
+
+        FATAL FURY's movies without Microsoft's Media Foundation, and
+        controller fixes.
+
+        ## Controllers
+
+        Two fixes from Proton's Wine:
+
+        - A pad that is already plugged in now reaches games that use
+          Windows.Gaming.Input.
+        - XInput keeps a controller working.
+        * Another bullet with *italics*.
+        #not a heading
+        """
+        #expect(ReleaseNotesDocument.blocks(markdown) == [
+            .heading(level: 1, text: "Silo 0.7.4"),
+            .paragraph("FATAL FURY's movies without Microsoft's Media Foundation, and controller fixes."),
+            .heading(level: 2, text: "Controllers"),
+            .paragraph("Two fixes from Proton's Wine:"),
+            .bullet("A pad that is already plugged in now reaches games that use Windows.Gaming.Input."),
+            .bullet("XInput keeps a controller working."),
+            .bullet("Another bullet with *italics*."),
+            .paragraph("#not a heading"),
+        ])
+    }
+
     @Test("Reports no update when current >= the newest app release")
     func notNewer() async throws {
         FakeURLProtocol.stub("https://api.github.com/repos/owner/Silo-eq/releases?per_page=30",

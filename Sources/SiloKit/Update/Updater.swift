@@ -45,6 +45,28 @@ public struct Updater: Sendable {
         public let isNewer: Bool
         public let downloadURL: URL?
         public let releaseName: String?
+        /// The newest app release's notes, and the installed version's (when it is one of the releases fetched),
+        /// both from the same release list — what Settings → Updates shows with What's New.
+        public var latestNotes: ReleaseNotes? = nil
+        public var installedNotes: ReleaseNotes? = nil
+    }
+
+    /// One release's notes, for reading inside Silo.
+    public struct ReleaseNotes: Sendable, Equatable, Identifiable {
+        public var id: String { version }
+        public let version: String
+        public let markdown: String
+        public let pageURL: URL?
+
+        /// nil for a release without notes.
+        init?(_ release: GitHubRelease) {
+            guard let body = release.body?.trimmingCharacters(in: .whitespacesAndNewlines), !body.isEmpty else {
+                return nil
+            }
+            version = release.version
+            markdown = body
+            pageURL = release.htmlUrl
+        }
     }
 
     public func checkForUpdate() async throws -> UpdateCheck {
@@ -60,17 +82,20 @@ public struct Updater: Sendable {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let releases = try decoder.decode([GitHubRelease].self, from: data)
-        guard let release = releases
-            .filter({ Self.isAppRelease($0.tagName) })
-            .max(by: { Self.isVersion($1.version, newerThan: $0.version) }) else {
-            return UpdateCheck(latestVersion: currentVersion, isNewer: false, downloadURL: nil, releaseName: nil)
+        let appReleases = releases.filter { Self.isAppRelease($0.tagName) }
+        let installed = appReleases.first { $0.version == currentVersion }.flatMap(ReleaseNotes.init)
+        guard let release = appReleases.max(by: { Self.isVersion($1.version, newerThan: $0.version) }) else {
+            return UpdateCheck(latestVersion: currentVersion, isNewer: false, downloadURL: nil, releaseName: nil,
+                               installedNotes: installed)
         }
         let asset = release.assets.first { $0.name.hasSuffix(".zip") }
         return UpdateCheck(
             latestVersion: release.version,
             isNewer: Self.isVersion(release.version, newerThan: currentVersion),
             downloadURL: asset?.browserDownloadUrl,
-            releaseName: release.name
+            releaseName: release.name,
+            latestNotes: ReleaseNotes(release),
+            installedNotes: installed
         )
     }
 

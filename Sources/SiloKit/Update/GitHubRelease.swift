@@ -6,6 +6,18 @@ public struct GitHubRelease: Codable, Sendable, Equatable {
     public let tagName: String
     public let name: String?
     public let assets: [Asset]
+    /// The release's notes as written on GitHub (Markdown — for Silo's own releases, `RELEASE_NOTES.md`).
+    public let body: String?
+    /// The release's page on GitHub.
+    public let htmlUrl: URL?
+
+    public init(tagName: String, name: String?, assets: [Asset], body: String? = nil, htmlUrl: URL? = nil) {
+        self.tagName = tagName
+        self.name = name
+        self.assets = assets
+        self.body = body
+        self.htmlUrl = htmlUrl
+    }
 
     public struct Asset: Codable, Sendable, Equatable {
         public let name: String
