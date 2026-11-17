@@ -1,0 +1,22 @@
+Silo lsteamclient patch 0001 — build the unix half with Apple clang + libc++
+
+Why: Proton builds lsteamclient with its own Wine fork, whose makedep knows C++ and whose headers stay out of
+libstdc++'s way. Silo builds it inside CrossOver's Wine 11 (with Wine patch 0008 so makedep compiles the .cpp
+files, by extension, through $(CC) = clang). Three things differ on macOS:
+  * the unix .so must link libc++ (clang as a C driver does not add it): UNIX_LIBS = -lc++;
+  * Wine's minwindef.h defines function-like max()/min() macros that break std::max: -DNOMINMAX;
+  * libc++'s <array> includes the system <wchar.h>, after winbase.h has turned wcsncpy into a poison macro
+    under __WINESRC__: -include cwchar declares it first.
+UNIX_CFLAGS reaches only the unix sources (makedep adds it with -DWINE_UNIX_LIB), never the PE DLLs.
+
+--- a/lsteamclient/Makefile.in
++++ b/lsteamclient/Makefile.in
+@@ -1,6 +1,8 @@
+ MODULE    = lsteamclient.dll
+ UNIXLIB   = lsteamclient.so
+ IMPORTS   = user32 ws2_32
++UNIX_LIBS = -lc++
++UNIX_CFLAGS = -DNOMINMAX -include cwchar
+ 
+ EXTRADEFS = -DSTEAM_API_EXPORTS -Dprivate=public -Dprotected=public
+ 

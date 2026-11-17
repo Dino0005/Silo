@@ -93,6 +93,8 @@ jobs:
               exit 1
             }
           done
+          # The native-macOS-Steam bridge (Proton's lsteamclient + steam.exe), same as Scripts/build-wine.sh.
+          ./Scripts/add-lsteamclient.sh source "$WINE_SRC" "$GITHUB_WORKSPACE"
 
       - name: Build CrossOver's GStreamer (1.24.4 + libav + matroska) from the source tarball
         run: |
@@ -196,6 +198,7 @@ jobs:
           $ARCH_PREFIX /usr/bin/make install
           rm -f "$GITHUB_WORKSPACE/lib64"
           test -x "$GITHUB_WORKSPACE/wine-install/bin/wine64" || test -x "$GITHUB_WORKSPACE/wine-install/bin/wine"
+          ./Scripts/add-lsteamclient.sh install "$WINE_SRC" "$GITHUB_WORKSPACE/wine-install"
           # steamwebhelper wrapper (forces CEF --in-process-gpu + software GL so Steam's UI paints) — shipped in the runtime.
           mkdir -p "$GITHUB_WORKSPACE/wine-install/share/silo"
           WRAPPER="$GITHUB_WORKSPACE/wine-install/share/silo/steamwebhelper-wrapper.exe"

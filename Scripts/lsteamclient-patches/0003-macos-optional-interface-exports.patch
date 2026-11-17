@@ -1,0 +1,54 @@
+Silo lsteamclient patch 0003 — tolerate the exports macOS Steam's steamclient.dylib lacks
+
+Why: macOS Steam's steamclient.dylib (client of 2026-03-03, measured with nm) exports neither
+Steam_IsKnownInterface nor Steam_NotifyMissingInterface, which Linux's steamclient.so has. Valve's
+steamclient_init required both, so the native client never loaded: "unable to load Steam_IsKnownInterface"
+then the "!status" assertion in steamclient_main.c (seen on TEKKEN 8, 2026-11-08). On macOS both become
+optional: a missing IsKnownInterface reports every version as known (the game then requests the interface and
+copes with a NULL one), a missing NotifyMissingInterface only logs. Verified: TEKKEN 8 runs from Steam's Play.
+
+--- a/lsteamclient/unixlib.cpp
++++ b/lsteamclient/unixlib.cpp
+@@ -795,8 +795,15 @@
+     LOAD_FUNC( Steam_GetAPICallResult );
+     LOAD_FUNC( Steam_FreeLastCallback );
+     LOAD_FUNC( Steam_ReleaseThreadLocalMemory );
++    /* macOS Steam's steamclient.dylib exports neither (measured on the 2026-03-03 client); both are
++     * optional there, see steamclient_Steam_IsKnownInterface / _NotifyMissingInterface. */
++#ifdef __APPLE__
++    p_Steam_IsKnownInterface = (decltype(p_Steam_IsKnownInterface))dlsym( steamclient, "Steam_IsKnownInterface" );
++    p_Steam_NotifyMissingInterface = (decltype(p_Steam_NotifyMissingInterface))dlsym( steamclient, "Steam_NotifyMissingInterface" );
++#else
+     LOAD_FUNC( Steam_IsKnownInterface );
+     LOAD_FUNC( Steam_NotifyMissingInterface );
++#endif
+ 
+     TRACE( "Loaded host steamclient from %s\n", debugstr_a(path) );
+     return 0;
+@@ -851,6 +858,14 @@
+ template< typename Params >
+ static NTSTATUS steamclient_Steam_IsKnownInterface( Params *params, bool wow64 )
+ {
++    /* Without the export, report every version as known: the game then asks for the interface and
++     * copes with a NULL one, instead of giving up before trying. */
++    if (!p_Steam_IsKnownInterface)
++    {
++        WARN( "host steamclient has no Steam_IsKnownInterface, assuming %s is known\n", debugstr_a(params->version) );
++        params->_ret = true;
++        return 0;
++    }
+     params->_ret = p_Steam_IsKnownInterface( params->version );
+     return 0;
+ }
+@@ -858,6 +873,11 @@
+ template< typename Params >
+ static NTSTATUS steamclient_Steam_NotifyMissingInterface( Params *params, bool wow64 )
+ {
++    if (!p_Steam_NotifyMissingInterface)
++    {
++        WARN( "host steamclient has no Steam_NotifyMissingInterface, dropping %s\n", debugstr_a(params->version) );
++        return 0;
++    }
+     p_Steam_NotifyMissingInterface( params->pipe, params->version );
+     return 0;
+ }
