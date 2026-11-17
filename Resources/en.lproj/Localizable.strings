@@ -435,3 +435,11 @@
 "Bottle folder" = "Bottle folder";
 "Shows in the Finder the Silo folder that holds the Steam bottle." = "Shows in the Finder the Silo folder that holds the Steam bottle.";
 "Where Silo keeps every bottle: Steam, Media Foundation and those of non-Steam games. You can move them to a Silo Bottles folder wherever you choose, an external drive too (APFS or Mac OS Extended). Close games and Steam first." = "Where Silo keeps every bottle: Steam, Media Foundation and those of non-Steam games. You can move them to a Silo Bottles folder wherever you choose, an external drive too (APFS or Mac OS Extended). Close games and Steam first.";
+
+/* Release notes (Settings → Updates → What's New…) */
+"What's New…" = "What's New…";
+"What's new in version %@" = "What's new in version %@";
+"Read what the new version brings before you update." = "Read what the new version brings before you update.";
+"What changed in the version you have." = "What changed in the version you have.";
+"Open on GitHub" = "Open on GitHub";
+"Close" = "Close";

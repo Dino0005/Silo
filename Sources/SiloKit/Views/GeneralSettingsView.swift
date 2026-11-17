@@ -8,6 +8,8 @@ struct GeneralSettingsView: View {
     /// Local "an update check is running" flag — drives the row's spinner/animation for the duration of
     /// the GitHub call.
     @ViewState private var isChecking = false
+    /// The release notes shown in a sheet (What's New…), nil when none is open.
+    @ViewState private var shownNotes: Updater.ReleaseNotes?
 
     var body: some View {
         Form {
@@ -138,6 +140,34 @@ struct GeneralSettingsView: View {
         Section("Updates") {
             LabeledContent("Version", value: Silo.version)
             updateStatusRow
+            releaseNotesRow
+        }
+        .sheet(item: $shownNotes) { notes in
+            let isNewer = env.updates.updateCheck.map { $0.isNewer && $0.latestNotes == notes } ?? false
+            ReleaseNotesSheet(notes: notes,
+                              onUpdate: isNewer ? { Task { await env.updates.installUpdate() } } : nil)
+        }
+    }
+
+    /// What's New…: the new version's notes while an update is waiting, else the installed version's — so they can
+    /// be read before updating, or afterwards. Hidden until a check has brought them.
+    @ViewBuilder private var releaseNotesRow: some View {
+        if let check = env.updates.updateCheck {
+            if check.isNewer, let notes = check.latestNotes {
+                LabeledContent {
+                    Button("What's New…") { shownNotes = notes }
+                } label: {
+                    Text("What's new in version \(notes.version)")
+                    SettingsDescription("Read what the new version brings before you update.")
+                }
+            } else if let notes = check.installedNotes {
+                LabeledContent {
+                    Button("What's New…") { shownNotes = notes }
+                } label: {
+                    Text("What's new in version \(notes.version)")
+                    SettingsDescription("What changed in the version you have.")
+                }
+            }
         }
     }
 

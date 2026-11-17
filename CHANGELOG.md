@@ -8,6 +8,14 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Added
+- **Release notes inside Silo.** Settings → General → Updates has a *What's New…* button: with an update waiting it
+  opens the new version's notes before you update, otherwise those of the version you have. They come from the
+  GitHub release Silo already checks, shown with their headings and lists, with *Open on GitHub* and, for a new
+  version, *Update & Relaunch*. The update notice in the Library made it easy to update without ever reading them.
+
 ## 0.7.4
 
 ### Changed
