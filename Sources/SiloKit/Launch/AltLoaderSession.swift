@@ -124,13 +124,15 @@ public struct AltLoaderSession: Sendable {
         hostAppsDir: URL,
         syncMode: SyncMode = .msync,
         hostEnvironment: [String: String] = [:],
+        alsoWhitelisted: [URL] = [],
         fileManager: FileManager = .default
     ) async -> URL? {
         // Gate Wine's hand-over to THIS exe. Without it the socket is consumed by the first process the
         // prefix creates — on a cold bottle `wineboot.exe --init`, which owns no window (measured).
+        // `alsoWhitelisted`: further exes of which exactly one will run (a launcher's possible children).
         await prepare(
             bundle: GameHostBundle(name: gameName, id: gameID, playLink: playLink),
-            whitelist: [AltLoaderWhitelist.exeName(for: gameExe.lastPathComponent)],
+            whitelist: ([gameExe] + alsoWhitelisted).map { AltLoaderWhitelist.exeName(for: $0.lastPathComponent) },
             iconICO: iconICO, socketID: gameID, syncMode: syncMode, hostEnvironment: hostEnvironment,
             prefix: prefix, wine: wine, hostAppsDir: hostAppsDir, fileManager: fileManager)
     }

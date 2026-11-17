@@ -38,7 +38,18 @@ public enum SteamAppInfo: Sendable {
 
     /// Testable core: same selection, over bytes already in hand.
     public static func windowsLaunch(appInfo data: Data, appID: Int) -> LaunchEntry? {
-        entries(appInfo: data, appID: appID).first { entry in
+        windowsLaunches(appInfo: data, appID: appID).first
+    }
+
+    /// Every entry `windowsLaunch` could choose, in Steam's order — a launcher's siblings among them.
+    public static func windowsLaunches(steamRoot: URL, appID: Int) -> [LaunchEntry] {
+        let url = steamRoot.appendingPathComponent("appcache/appinfo.vdf")
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return [] }
+        return windowsLaunches(appInfo: data, appID: appID)
+    }
+
+    static func windowsLaunches(appInfo data: Data, appID: Int) -> [LaunchEntry] {
+        entries(appInfo: data, appID: appID).filter { entry in
             guard entry.betaKey?.isEmpty != false else { return false }
             guard entry.type?.lowercased() != "none" else { return false }
             guard let os = entry.osList?.lowercased(), !os.isEmpty else { return true }   // unset ⇒ usable

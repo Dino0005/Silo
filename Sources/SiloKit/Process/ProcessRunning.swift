@@ -39,4 +39,14 @@ public protocol ProcessRunning: Sendable {
 
 extension ProcessRunning {
     public func terminate(pid: Int32) {}
+
+    /// `spawnDetached`, with the child **responsible for itself** in macOS's privacy (TCC) accounting instead of
+    /// inheriting Silo's — what an app opened from the Dock gets. Needed for macOS Steam started by Silo: as Silo's
+    /// child it lost the permission to create Steam Input's virtual gamepad (measured 2026-11-13: no 045E/028E device,
+    /// DualSense dead in SOULCALIBUR VI). Test doubles just spawn.
+    public func spawnIndependent(executable: URL, arguments: [String], environment: [String: String],
+                                 currentDirectory: URL?, logURL: URL) async throws -> Int32 {
+        try await spawnDetached(executable: executable, arguments: arguments, environment: environment,
+                                currentDirectory: currentDirectory, logURL: logURL)
+    }
 }

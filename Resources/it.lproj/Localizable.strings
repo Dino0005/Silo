@@ -438,6 +438,38 @@
 "Shows in the Finder the Silo folder that holds the Steam bottle." = "Mostra nel Finder la cartella di Silo che contiene la bottiglia di Steam.";
 "Where Silo keeps every bottle: Steam, Media Foundation and those of non-Steam games. You can move them to a Silo Bottles folder wherever you choose, an external drive too (APFS or Mac OS Extended). Close games and Steam first." = "Dove Silo tiene tutte le bottiglie: Steam, Media Foundation e quelle dei giochi non Steam. Puoi spostarle in una cartella Silo Bottles dove scegli, anche su un disco esterno (APFS o Mac OS esteso). Chiudi prima i giochi e Steam.";
 
+/* Controllers for macOS Steam launches (GameSettingsSections.ControllersSection) */
+"Controllers (macOS Steam)" = "Controller (Steam per macOS)";
+"Disable hidraw" = "Disattiva hidraw";
+"For games started from macOS Steam. While Steam Input handles a controller, Silo hides it from the game so the two don't drive it together, and the game gets Steam's virtual controller instead, as an Xbox controller (games that ask Steam for the controller type still show PlayStation glyphs). \"Disable hidraw\" reads every controller through SDL (Xbox glyphs), for a pad that misbehaves — use it with Steam Input off." = "Per i giochi avviati da Steam per macOS. Quando Steam Input gestisce un controller, Silo lo nasconde al gioco, così i due non lo usano insieme, e il gioco riceve invece il controller virtuale di Steam, come controller Xbox (i giochi che chiedono a Steam il tipo di controller mostrano comunque i simboli PlayStation). «Disattiva hidraw» fa leggere ogni controller tramite SDL (simboli Xbox), per un pad che non funziona bene: usalo con Steam Input disattivato.";
+"Steam for macOS is open, so Silo doesn't start Windows Steam. Quit Steam for macOS to play this game from Silo, or start it from Steam for macOS." = "Steam per macOS è aperto, quindi Silo non avvia Steam per Windows. Chiudi Steam per macOS per giocare a questo gioco da Silo, oppure avvialo da Steam per macOS.";
+
+/* Steam for macOS settings tab (NativeSteamSettingsView) */
+"Use Steam for macOS" = "Usa Steam per macOS";
+"Play your Windows games from Steam for macOS: Silo installs “Steam (Silo)” in your Applications folder — open Steam from there — and becomes Steam’s compatibility tool for every Windows game." = "Gioca ai tuoi giochi Windows da Steam per macOS: Silo installa “Steam (Silo)” nella cartella Applicazioni (apri Steam da lì) e diventa lo strumento di compatibilità di Steam per ogni gioco Windows.";
+"When you turn this on, macOS asks: «“Steam (Silo).app” would like to control this Mac and access your data». Choose Open System Settings and switch on “Steam (Silo)”, already listed under Privacy & Security → Device Control and Data Access — without it the DualSense doesn’t work through Steam Input. After a Silo update that changes the app, macOS asks again. Turning this off needs Steam closed; Windows games stay protected until you remove their library from Steam." = "Quando lo attivi, macOS chiede: «“Steam (Silo).app” vorrebbe controllare questo Mac e accedere ai tuoi dati». Scegli Apri Impostazioni di Sistema e accendi “Steam (Silo)”, già presente in Privacy e sicurezza → Controllo del dispositivo e accesso ai dati: senza, il DualSense non funziona con Steam Input. Dopo un aggiornamento di Silo che cambia l’app, macOS lo chiede di nuovo. Per disattivare serve Steam chiuso; i giochi Windows restano protetti finché non togli la loro libreria da Steam.";
+"Status" = "Stato";
+"Steam (Silo)" = "Steam (Silo)";
+"Compatibility tool “Silo”" = "Strumento di compatibilità “Silo”";
+"Protection of Windows games" = "Protezione dei giochi Windows";
+"Games using Silo" = "Giochi che usano Silo";
+"Delete the bottles too…" = "Elimina anche le bottiglie…";
+"The bottles Silo uses for games started from Steam for macOS. They hold the saves of games without Steam Cloud. Available once Steam for macOS is off." = "Le bottiglie che Silo usa per i giochi avviati da Steam per macOS. Contengono i salvataggi dei giochi senza Steam Cloud. Disponibile quando Steam per macOS è disattivato.";
+"Delete the Steam for macOS bottles?" = "Eliminare le bottiglie di Steam per macOS?";
+"Delete" = "Elimina";
+"Saves of games without Steam Cloud are lost. This can't be undone." = "I salvataggi dei giochi senza Steam Cloud andranno persi. L’operazione non si può annullare.";
+"Installed" = "Installato";
+"Not installed" = "Non installato";
+"Steam for macOS" = "Steam per macOS";
+"Steam for macOS is on. Open Steam from “Steam (Silo)” in your Applications folder." = "Steam per macOS è attivo. Apri Steam da “Steam (Silo)” nella cartella Applicazioni.";
+"Steam for macOS is off. Windows games stay protected until their library is removed from Steam." = "Steam per macOS è disattivato. I giochi Windows restano protetti finché la loro libreria non viene tolta da Steam.";
+"Quit Steam first." = "Chiudi prima Steam.";
+"Only available when Silo runs as an app." = "Disponibile solo quando Silo è avviato come app.";
+"The Steam for macOS bottles were deleted." = "Le bottiglie di Steam per macOS sono state eliminate.";
+"Turn Steam for macOS off and quit Steam and its games first." = "Prima disattiva Steam per macOS e chiudi Steam e i suoi giochi.";
+"“Steam (Silo)” was updated: allow it again when macOS asks (Privacy & Security → Device Control and Data Access)." = "«Steam (Silo)» è stato aggiornato: autorizzalo di nuovo quando macOS lo chiede (Privacy e sicurezza → Controllo del dispositivo e accesso ai dati).";
+"Silo was moved: Steam for macOS now uses this copy." = "Silo è stato spostato: Steam per macOS ora usa questa copia.";
+
 /* Release notes (Settings → Updates → What's New…) */
 "What's New…" = "Novità…";
 "What's new in version %@" = "Novità della versione %@";
@@ -445,3 +477,9 @@
 "What changed in the version you have." = "Cosa è cambiato nella versione che hai.";
 "Open on GitHub" = "Apri su GitHub";
 "Close" = "Chiudi";
+
+/* Steam for macOS not installed */
+"Download Steam" = "Scarica Steam";
+"Steam for macOS isn't installed" = "Steam per macOS non è installato";
+"Install Steam for Mac from Valve, open it once and sign in, then turn this on." = "Installa Steam per Mac dal sito di Valve, aprilo una volta ed effettua l’accesso, poi attiva questa opzione.";
+"Steam for macOS isn't installed. Install it from Steam's website, open it once to sign in, then come back here." = "Steam per macOS non è installato. Installalo dal sito di Steam, aprilo una volta per effettuare l’accesso, poi torna qui.";

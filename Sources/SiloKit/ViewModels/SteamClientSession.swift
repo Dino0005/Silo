@@ -31,10 +31,20 @@ public final class SteamClientSession {
     var readinessTimeout: Double = 25
     /// The last launch failure message (for the UI), cleared on a successful launch.
     public private(set) var launchError: String?
+    /// Whether macOS Steam is running — then the Windows client is never started. The app passes
+    /// `MacSteamProcess.isRunning`; the default (never) keeps tests independent of the machine's own Steam.
+    private let macSteamRunning: @MainActor () -> Bool
 
-    public init(bottle: SteamBottle, orchestrator: LaunchOrchestrator) {
+    /// Shown instead of starting the Windows client while macOS Steam is open.
+    static var macSteamOpenMessage: String {
+        String(localized: "Steam for macOS is open, so Silo doesn't start Windows Steam. Quit Steam for macOS to play this game from Silo, or start it from Steam for macOS.")
+    }
+
+    public init(bottle: SteamBottle, orchestrator: LaunchOrchestrator,
+                macSteamRunning: @escaping @MainActor () -> Bool = { false }) {
         self.bottle = bottle
         self.orchestrator = orchestrator
+        self.macSteamRunning = macSteamRunning
     }
 
     /// Defensive teardown: cancel any in-flight launch so it can't outlive the session (a process-lifetime
@@ -174,6 +184,8 @@ public final class SteamClientSession {
 
     func warmUpUpdate(onProgress: @escaping @MainActor (WarmUpPhase) -> Void) async {
         guard let wine = wineBinary, !bottle.isClientFullyDownloaded else { return }
+        // Never two Steams at once; setup resumes the warm-up on its next run.
+        guard !macSteamRunning() else { return }
         // setUp force-quit whatever the interactive installer auto-launched right before calling us; let the
         // shared wineserver reap those procs before our fresh launch attaches to it (else the launch can race
         // the msync bootstrap / a half-dead client). Mirrors the settle in `bringUpClientCef`; 0 in tests.
@@ -248,6 +260,7 @@ public final class SteamClientSession {
     /// rather than leaving it unwrapped (→ black login window on the first real launch). Waits for the CEF
     /// dir set to stop growing (all dirs created + steady), or the client to exit, or a timeout.
     private func bringUpClientCef(wine: URL) async {
+        guard !macSteamRunning() else { return }
         let baseline = bottle.webHelpers().count
         // Ensure a client is up creating cef.win64 (if the updater already re-exec'd one, single-instance
         // forwarding just makes this exit — the running client is what matters, so we don't track the pid).
@@ -391,6 +404,11 @@ public final class SteamClientSession {
     /// Launch the bottle's Steam client (re-applying the steamwebhelper wrapper first); returns the PID,
     /// or nil after recording `launchError`.
     private func launchSteamProcess(foreground: Bool) async -> Int32? {
+        // Never two Steams at once: with macOS Steam open the Windows client stays down.
+        if macSteamRunning() {
+            launchError = Self.macSteamOpenMessage
+            return nil
+        }
         do {
             var hostSocket: URL?
             if let wine = wineBinary {

@@ -96,6 +96,10 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// `mediaFoundationNative`, nothing is emitted from `environment(graphics:)`: it's applied in `makePlan`,
     /// which knows the runtime.
     public var depthFix: Bool
+    /// "Disattiva hidraw": `WineBus` `DisableHidraw=1` in the game's bottle, so Wine reads every pad through SDL
+    /// instead of directly (Xbox glyphs) — for a pad that misbehaves over hidraw, meant with Steam Input off. Silo
+    /// removes the value again only if it set it. macOS Steam launches only (NotProton's `NOTPROTON_DISABLE_HIDRAW`).
+    public var disableHidraw: Bool
     /// Free-form extra environment variables — a config.json-only escape hatch (no UI). Merged last in
     /// `environment()`, so it overrides the flags above — EXCEPT the sync keys (`WINEMSYNC`/`WINEESYNC`),
     /// which `LaunchOrchestrator.makePlan` force-overrides afterward for shared-bottle co-residency.
@@ -110,6 +114,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         metalBackend: MetalBackendChoice = .auto,
         mediaFoundationNative: Bool = false,
         depthFix: Bool = false,
+        disableHidraw: Bool = false,
         extra: [String: String] = [:]
     ) {
         self.syncMode = syncMode
@@ -120,6 +125,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.metalBackend = metalBackend
         self.mediaFoundationNative = mediaFoundationNative
         self.depthFix = depthFix
+        self.disableHidraw = disableHidraw
         self.extra = extra
     }
 
@@ -161,7 +167,8 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     // MARK: - Codable (migrates legacy esync/msync bools; tolerates missing perf fields)
 
     private enum CodingKeys: String, CodingKey {
-        case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, depthFix, extra
+        case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, depthFix
+        case disableHidraw, extra
         case esync, msync   // legacy fields from configs written before the SyncMode enum
     }
 
@@ -187,6 +194,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
             .flatMap(MetalBackendChoice.init(rawValue:)) ?? .auto
         mediaFoundationNative = try c.decodeIfPresent(Bool.self, forKey: .mediaFoundationNative) ?? false
         depthFix = try c.decodeIfPresent(Bool.self, forKey: .depthFix) ?? false
+        disableHidraw = try c.decodeIfPresent(Bool.self, forKey: .disableHidraw) ?? false
         extra = try c.decodeIfPresent([String: String].self, forKey: .extra) ?? [:]
     }
 
@@ -200,6 +208,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         try c.encode(metalBackend, forKey: .metalBackend)
         try c.encode(mediaFoundationNative, forKey: .mediaFoundationNative)
         try c.encode(depthFix, forKey: .depthFix)
+        try c.encode(disableHidraw, forKey: .disableHidraw)
         try c.encode(extra, forKey: .extra)
     }
 }

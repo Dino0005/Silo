@@ -307,6 +307,30 @@ struct SteamClientSessionTests {
         #expect(!fake.invocations.contains { $0.arguments.first == "taskkill" })
     }
 
+    @Test("With macOS Steam open the Windows client is never started, and the session says why")
+    func macSteamOpenBlocksWindowsClient() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
+        let fake = FakeProcessRunner()
+        let session = SteamClientSession(
+            bottle: SteamBottle(runner: fake, session: FakeURLProtocol.makeSession(), paths: paths),
+            orchestrator: LaunchOrchestrator(runner: fake, linker: GraphicsLinker()),
+            macSteamRunning: { true })
+        session.updateWine(URL(fileURLWithPath: "/w/wine64"))
+        session.readinessTimeout = 0
+        #expect(await session.ensureRunning() == false)
+        #expect(session.launchError == SteamClientSession.macSteamOpenMessage)
+        #expect(fake.invocations.isEmpty)
+    }
+
+    @Test("macOS Steam is recognised by its real client's path, not by the bootstrapper's")
+    func macSteamClientPath() {
+        #expect(MacSteamProcess.isClient(
+            path: "/Users/u/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx"))
+        #expect(!MacSteamProcess.isClient(path: "/Applications/Steam.app/Contents/MacOS/steam_osx"))
+        #expect(!MacSteamProcess.isClient(path: "/x/SteamBottle/drive_c/Program Files (x86)/Steam/steam.exe"))
+    }
+
     // MARK: - Warm-up (first-run self-update folded into setup)
 
     /// A fresh-bootstrapper session (steam.exe present, no client yet) + its fake runner + paths.

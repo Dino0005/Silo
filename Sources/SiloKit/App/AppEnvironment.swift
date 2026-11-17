@@ -123,13 +123,15 @@ public final class AppEnvironment {
         // The single Steam bottle + its live client session + settings VM. The client runs on the base wine
         // (CEF needs no d3d; a co-resident game picks the variant runtime — shared wineserver).
         let steamBottle = SteamBottle(runner: runner, paths: paths)
-        let steamClientSession = SteamClientSession(bottle: steamBottle, orchestrator: orchestrator)
+        // Never two Steams at once: while macOS Steam runs, neither session starts the Windows client.
+        let steamClientSession = SteamClientSession(bottle: steamBottle, orchestrator: orchestrator,
+                                                    macSteamRunning: { MacSteamProcess.isRunning() })
         // The Media Foundation bottle's own client. A second session rather than a switchable one: each
         // owns its bottle's client for the app's lifetime, and a game's flag picks which it launches
         // against. Steamworks IPC is prefix-scoped, so the game and its client must share a prefix.
         let mfClientSession = SteamClientSession(
             bottle: SteamBottle(runner: runner, paths: paths, kind: .mediaFoundation),
-            orchestrator: orchestrator)
+            orchestrator: orchestrator, macSteamRunning: { MacSteamProcess.isRunning() })
         let steamBottleVM = SteamBottleViewModel(
             bottle: steamBottle, session: steamClientSession)
         self.steamClientSession = steamClientSession
@@ -407,6 +409,18 @@ public final class AppEnvironment {
         await steamBottleVM.refreshInstalled()
         // Library = games installed in the Steam bottle.
         await gameLibrary.load()
+        // Silo moved or replaced (e.g. a new version dragged into Applications): Steam for macOS still runs the old
+        // copy's path — repoint it at this app, and say so; a rewritten "Steam (Silo)" needs its privacy grant again
+        // (it is rewritten also when only its launcher changed, Silo not moved — so that message doesn't say "moved").
+        if let done = try? await NativeSteamSetup(paths: paths).repointIfMoved(), !done.isEmpty {
+            if NativeSteamSetup.launcherRewritten(done) {
+                gameLibrary.setStatus(String(localized:
+                    "“Steam (Silo)” was updated: allow it again when macOS asks (Privacy & Security → Device Control and Data Access)."),
+                    actionable: true)   // not sticky: macOS's own prompt is what guides the user; Silo can't see the grant
+            } else {
+                gameLibrary.setStatus(String(localized: "Silo was moved: Steam for macOS now uses this copy."))
+            }
+        }
         await updates.checkForUpdate()   // best-effort; nil updateCheck on offline
         // Say so in the library rather than only in Settings, which nobody opens by chance. The line
         // clears itself after a few seconds like every other status; the dot on the Settings button is

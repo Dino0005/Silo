@@ -29,6 +29,15 @@ public struct LaunchOrchestrator: Sendable {
     /// Steam's own launch entry for `app`. The Steam install is asked first: with `app.libraryPath` alone, a
     /// game in a second library (`Y:\SteamLibrary`) never found `appinfo.vdf` and fell back to the biggest
     /// exe — `tll-l.exe` for UNCHARTED, whose only launch entry is `u4.exe` (measured 2026-10-31).
+    /// Every Windows launch entry Steam lists for `app` (see `SteamAppInfo.windowsLaunches`).
+    func steamLaunchEntries(for app: SteamApp) -> [SteamAppInfo.LaunchEntry] {
+        for root in [steamClientRoot, app.libraryPath].compactMap({ $0 }) {
+            let entries = SteamAppInfo.windowsLaunches(steamRoot: root, appID: app.appID)
+            if !entries.isEmpty { return entries }
+        }
+        return []
+    }
+
     func steamLaunchEntry(for app: SteamApp) -> SteamAppInfo.LaunchEntry? {
         for root in [steamClientRoot, app.libraryPath].compactMap({ $0 }) {
             if let entry = SteamAppInfo.windowsLaunch(steamRoot: root, appID: app.appID) { return entry }
@@ -100,7 +109,8 @@ public struct LaunchOrchestrator: Sendable {
         desktopGeometry: String? = nil,
         steamArguments: [String] = [],
         altLoaderSocket: URL? = nil,
-        dxmtDLSS: Bool = false
+        dxmtDLSS: Bool = false,
+        steamBridge: NativeSteamBridge? = nil
     ) throws -> LaunchPlan {
         guard let wine = wine ?? backend.wineBinaryPath else {
             throw LaunchError.wineNotConfigured
@@ -198,8 +208,18 @@ public struct LaunchOrchestrator: Sendable {
         // Steam's own launch options first, then the user's — anything they typed by hand WINS and Steam's
         // copy of it is dropped (see `mergeArguments`), so a hand-added switch extends the game's required
         // arguments instead of duplicating them.
-        var arguments = Self.invocation(for: gameExe, viaStart: altLoaderSocket != nil)
-            + Self.mergeArguments(steam: steamArguments, user: config.customArgs)
+        let gameArguments = Self.mergeArguments(steam: steamArguments, user: config.customArgs)
+        var arguments = Self.invocation(for: gameExe, viaStart: altLoaderSocket != nil) + gameArguments
+        // A game started by macOS Steam (`NativeSteamBridge`): the stand-in client creates it — which is also
+        // a real process creation, so the alt-loader hand-over needs no `start` — and the bridge's routing is
+        // added after the backend's and the user's overrides (its three modules must resolve that way).
+        // Only the bridge may ask the runner to inject (`NativeSteamBridge.overlayEnvKey`) — never `EnvFlags.extra`.
+        environment[NativeSteamBridge.overlayEnvKey] = nil
+        if let steamBridge {
+            arguments = steamBridge.arguments(gameExe: gameExe, gameArguments: gameArguments)
+            for (key, value) in steamBridge.environment { environment[key] = value }
+            environment["WINEDLLOVERRIDES"] = mergeOverride(environment["WINEDLLOVERRIDES"], steamBridge.dllRouting)
+        }
         // winemac.drv only ever honors a ChangeDisplaySettings/fullscreen request against what IT considers
         // the PRIMARY adapter (see dlls/winemac.drv/display.c — a deliberate upstream Wine limitation, not
         // a Silo bug: it rejects (fakes success on) any other adapter, "Changing non-primary adapter
@@ -285,7 +305,8 @@ public struct LaunchOrchestrator: Sendable {
         app: SteamApp, config: GameConfig, backend: BackendConfig,
         graphics: GraphicsBackend, wine: URL? = nil, prefix: URL, logURL: URL,
         gameExe: URL? = nil, desktopGeometry: String? = nil,
-        altLoaderSocket: URL? = nil, altLoaderTarget: AltLoaderSession.Target? = nil
+        altLoaderSocket: URL? = nil, altLoaderTarget: AltLoaderSession.Target? = nil,
+        steamBridge: NativeSteamBridge? = nil
     ) async throws -> Int32 {
         guard let launchWine = wine ?? backend.wineBinaryPath else { throw LaunchError.wineNotConfigured }
         // Reuse the exe the caller already resolved (the VM resolves it once to pick the backend), else
@@ -300,14 +321,19 @@ public struct LaunchOrchestrator: Sendable {
         if socket == nil {
             socket = await prepareAltLoader(
                 target: altLoaderTarget, gameExe: gameExe, prefix: prefix, wine: launchWine,
-                hostEnvironment: Self.hostEnvironment(for: config.envFlags))
+                hostEnvironment: Self.hostEnvironment(for: config.envFlags)
+                    .merging(steamBridge?.hostEnvironment ?? [:]) { $1 },
+                launcherChildren: GameLauncherExe.windowOwners(
+                    forLauncher: gameExe, installDir: app.installURL,
+                    launchExecutables: steamLaunchEntries(for: app).map(\.executable)))
         }
         let plan = try Self.makePlan(
             config: config, backend: backend, graphics: graphics, wine: launchWine,
             gameExe: gameExe, prefix: prefix, logURL: logURL, desktopGeometry: desktopGeometry,
             steamArguments: steamLaunchEntry(for: app)?.arguments ?? [],
             altLoaderSocket: socket,
-            dxmtDLSS: graphics == .dxmt && config.envFlags.metalFX && Self.dxmtDLSS(backend: backend, gameExe: gameExe))
+            dxmtDLSS: graphics == .dxmt && config.envFlags.metalFX && Self.dxmtDLSS(backend: backend, gameExe: gameExe),
+            steamBridge: steamBridge)
         return try await spawn(plan)
     }
 
@@ -327,19 +353,61 @@ public struct LaunchOrchestrator: Sendable {
 
     private func prepareAltLoader(
         target: AltLoaderSession.Target?, gameExe: URL, prefix: URL, wine: URL, syncMode: SyncMode = .msync,
-        hostEnvironment: [String: String] = [:]
+        hostEnvironment: [String: String] = [:], launcherChildren: [URL] = []
     ) async -> URL? {
         guard let target else { return nil }
         // The process that will own the window. For an Unreal launcher that is NOT the exe being launched
-        // but the Shipping executable it starts — see `UnrealLauncher`. The launch itself is unchanged: the
-        // launcher still runs (it is what Steam expects); only the hand-over and the icon move.
-        let windowOwner = UnrealLauncher.shippingExecutable(forLauncher: gameExe) ?? gameExe
+        // but the Shipping executable it starts — see `UnrealLauncher`; for another publisher's launcher, the
+        // game's other Steam launch exes (`GameLauncherExe`). The launch itself is unchanged: the launcher
+        // still runs (it is what Steam expects); only the hand-over and the icon move.
+        let owners = UnrealLauncher.shippingExecutable(forLauncher: gameExe).map { [$0] }
+            ?? (launcherChildren.isEmpty ? [gameExe] : launcherChildren)
+        let windowOwner = owners[0]
         let icon = (try? Data(contentsOf: windowOwner, options: .mappedIfSafe))
             .flatMap(PEIcon.icoData(fromExecutable:))
         return await altLoader.prepare(
             gameName: target.gameName, gameID: target.gameID, gameExe: windowOwner, iconICO: icon,
             playLink: target.playLink, prefix: prefix, wine: wine, hostAppsDir: target.hostAppsDir,
-            syncMode: syncMode, hostEnvironment: hostEnvironment)
+            syncMode: syncMode, hostEnvironment: hostEnvironment, alsoWhitelisted: Array(owners.dropFirst()))
+    }
+
+    /// The game's identity for a launch from macOS Steam (`GameAppLoader`): a game app in `gameAppsDir` — the game's
+    /// name and icon, Wine's loader staged inside as its declared executable. Returns the environment the injected
+    /// library needs, or nil when anything is missing (the launch then falls back to the alt-loader host).
+    ///
+    /// Its own bundle, not the host's: macOS takes a process's identity from a bundle only when the process is the
+    /// bundle's declared executable, and the host bundle must keep declaring the alt-loader host. It declares the games
+    /// category like the host: that is what turns on Game Mode (user, 2026-11-12: games must have it).
+    public func prepareGameApp(name: String, id: String, gameAppsDir: URL, gameExe: URL, app: SteamApp, wine: URL,
+                               fileManager: FileManager = .default) async -> [String: String]? {
+        // The same window owners the host would adopt; all of them run from the bundle.
+        let children = GameLauncherExe.windowOwners(
+            forLauncher: gameExe, installDir: app.installURL,
+            launchExecutables: steamLaunchEntries(for: app).map(\.executable))
+        let owners = UnrealLauncher.shippingExecutable(forLauncher: gameExe).map { [$0] }
+            ?? (children.isEmpty ? [gameExe] : children)
+        let icon = (try? Data(contentsOf: owners[0], options: .mappedIfSafe)).flatMap(PEIcon.icoData(fromExecutable:))
+        let bundle = GameHostBundle(name: name, id: id, executable: GameAppLoader.loaderName,
+                                    idPrefix: GameHostBundle.gameAppIDPrefix)
+        let unixDir = WineRuntimeLayout(wineBinary: wine).unixModulesDir
+        let identifier = GameHostBundle.gameAppIDPrefix + GameHostBundle.bundleSafe(id)
+        guard let macOS = try? bundle.write(into: gameAppsDir, iconICO: icon, fileManager: fileManager),
+              let staged = try? GameAppLoader.stage(unixDir: unixDir, in: macOS, identifier: identifier, name: name,
+                                                    fileManager: fileManager)
+        else { return nil }
+        if let unsigned = staged.unsigned {
+            // The rewritten plist invalidated the copy's signature; ad-hoc, like the runtime's own loader.
+            let signed = try? await runner.run(executable: URL(fileURLWithPath: "/usr/bin/codesign"),
+                                               arguments: ["--force", "--sign", "-", unsigned.path],
+                                               environment: [:], currentDirectory: nil)
+            guard signed?.succeeded == true,
+                  (try? GameAppLoader.install(staged, unixDir: unixDir, identifier: identifier, name: name,
+                                              fileManager: fileManager)) != nil
+            else { try? fileManager.removeItem(at: unsigned); return nil }
+        }
+        let loader = staged.loader
+        return [GameAppLoader.loaderEnvKey: loader.path,
+                GameAppLoader.executablesEnvKey: GameAppLoader.executablesValue(owners)]
     }
 
     /// Prepare the Steam client's hand-over for `bottle` (see `AltLoaderSession.prepareSteamClient`),

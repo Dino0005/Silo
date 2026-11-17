@@ -111,6 +111,54 @@ mkdir -p "$APP/Contents/Helpers"
 cp "$HOST_OUT" "$APP/Contents/Helpers/SiloWineHost"
 chmod 755 "$APP/Contents/Helpers/SiloWineHost"
 
+# The game-app loader redirector (Scripts/game-loader, see GameAppLoader.swift): injected into the Wine processes of a
+# game started from macOS Steam so that every process of the game runs from the game's .app. Required like the host:
+# without it macOS-Steam launches fall back to the alt-loader host, which can't follow a game that relaunches itself.
+echo "==> Build game-app loader redirector"
+LOADER_OUT=Scripts/game-loader/silo-game-loader.dylib
+rm -f "$LOADER_OUT"
+if ! clang -Wall -O2 -dynamiclib -arch x86_64 -arch arm64 -o "$LOADER_OUT" Scripts/game-loader/silo-game-loader.c \
+    || ! lipo -archs "$LOADER_OUT" 2>/dev/null | grep -qw x86_64; then
+    echo "ERROR: the game-app loader redirector did not build (Scripts/game-loader)." >&2
+    exit 1
+fi
+cp "$LOADER_OUT" "$APP/Contents/Helpers/silo-game-loader.dylib"
+
+# Silo's library inside macOS Steam (Scripts/steam-hook): hands the front to a game app started from macOS Steam,
+# and — opt-in, SILO_STEAM_COMPAT=1 — turns on Steam's compatibility layer in memory. Loaded only when Silo starts Steam.
+echo "==> Build Steam hook"
+HOOK_OUT=Scripts/steam-hook/silo-steam-hook.dylib
+rm -f "$HOOK_OUT"
+if ! clang -Wall -O2 -dynamiclib -arch arm64 -arch x86_64 -fobjc-arc -framework AppKit -o "$HOOK_OUT" \
+    Scripts/steam-hook/compat.c Scripts/steam-hook/activation.m; then
+    echo "ERROR: the Steam hook did not build (Scripts/steam-hook)." >&2
+    exit 1
+fi
+cp "$HOOK_OUT" "$APP/Contents/Helpers/silo-steam-hook.dylib"
+
+# Silo's fix for Steam's overlay (Scripts/overlay-fix, see SteamOverlayFix.swift): injected next to Steam's overlay into
+# games started from macOS Steam, so the overlay draws in the game's pixel format instead of coloured noise.
+echo "==> Build overlay fix"
+OVERLAY_FIX_OUT=Scripts/overlay-fix/silo-overlay-fix.dylib
+rm -f "$OVERLAY_FIX_OUT"
+if ! clang -Wall -O2 -dynamiclib -arch x86_64 -arch arm64 -fobjc-arc -framework Foundation -framework Metal \
+    -framework QuartzCore -o "$OVERLAY_FIX_OUT" Scripts/overlay-fix/overlay-fix.m; then
+    echo "ERROR: the overlay fix did not build (Scripts/overlay-fix)." >&2
+    exit 1
+fi
+cp "$OVERLAY_FIX_OUT" "$APP/Contents/Helpers/silo-overlay-fix.dylib"
+
+# The "Steam (Silo)" launcher (Scripts/steam-launcher): copied by `Silo --install-steam-launcher` into
+# ~/Applications/Steam (Silo).app. Compiled, so macOS can list it in Privacy & Security (Steam inherits its grants).
+echo "==> Build Steam launcher"
+LAUNCHER_OUT=Scripts/steam-launcher/SiloSteamLauncher
+rm -f "$LAUNCHER_OUT"
+if ! clang -Wall -O2 -arch arm64 -arch x86_64 -framework ApplicationServices -framework CoreFoundation -o "$LAUNCHER_OUT" Scripts/steam-launcher/launcher.c; then
+    echo "ERROR: the Steam launcher did not build (Scripts/steam-launcher)." >&2
+    exit 1
+fi
+cp "$LAUNCHER_OUT" "$APP/Contents/Helpers/SiloSteamLauncher"
+
 # SiloKit's own resources, flat in Contents/Resources so Bundle.main finds them — the standard macOS app
 # layout. The nested SwiftPM bundle copied above is NOT enough on its own: SwiftPM's generated
 # `Bundle.module` looks beside the .app and then in the build directory of whoever compiled, so a shipped

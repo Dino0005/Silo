@@ -54,6 +54,8 @@ public struct AppPaths: Sendable, Hashable {
     /// Mission Control / Stage Manager. Under `supportDir`, never the bottles drive — it must stay reachable when that is unplugged.
     /// Disposable: deleting it costs one re-create at next launch.
     public var hostAppsDir: URL { supportDir.appendingPathComponent("HostApps", isDirectory: true) }
+    /// Game apps for launches from macOS Steam (`GameAppLoader`): Wine's loader inside each, as the declared executable.
+    public var gameAppsDir: URL { supportDir.appendingPathComponent("GameApps", isDirectory: true) }
 
     // MARK: - Bottles location
 
@@ -88,6 +90,23 @@ public struct AppPaths: Sendable, Hashable {
     /// same Steam library — games stay installed once, and the library still shows one entry each.
     public var steamBottleMF: URL {
         bottlesRoot.appendingPathComponent("SteamBottleMF", isDirectory: true)
+    }
+
+    /// The bottle for Windows games started by **macOS** Steam (`NativeSteamBottle`): a clone of `steamBottle`
+    /// whose Windows Steam client is replaced by the bridge's stand-in `steam.exe`. Separate so the classic
+    /// mode (Windows Steam in `steamBottle`) keeps working unchanged.
+    /// TODO(native-steam): not yet in `bottleDirNames` — a bottles move leaves it behind.
+    public var nativeSteamBottle: URL {
+        bottlesRoot.appendingPathComponent("SteamNative", isDirectory: true)
+    }
+    /// The Media Foundation counterpart for macOS Steam: a clone of `steamBottleMF` with the same bridge, for games
+    /// with native Media Foundation on (FATAL FURY's videos). TODO(native-steam): not in `bottleDirNames` either.
+    public var nativeSteamBottleMF: URL {
+        bottlesRoot.appendingPathComponent("SteamNativeMF", isDirectory: true)
+    }
+    /// The bridge files staged into that bottle and its runtime (stand-in `steam.exe`, `lsteamclient`).
+    public var nativeSteamBridgeDir: URL {
+        runtimesDir.appendingPathComponent("native-steam-bridge", isDirectory: true)
     }
 
     /// Which of the two Steam bottles a path refers to. They're identical in layout — the MF one is a
