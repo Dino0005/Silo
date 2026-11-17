@@ -198,7 +198,9 @@ jobs:
           $ARCH_PREFIX /usr/bin/make install
           rm -f "$GITHUB_WORKSPACE/lib64"
           test -x "$GITHUB_WORKSPACE/wine-install/bin/wine64" || test -x "$GITHUB_WORKSPACE/wine-install/bin/wine"
-          ./Scripts/add-lsteamclient.sh install "$WINE_SRC" "$GITHUB_WORKSPACE/wine-install"
+          # Absolute paths: this step runs from build/ (`cd build` above), where ./Scripts and the relative
+          # $WINE_SRC don't resolve (run 44150531942 failed here after Wine had built).
+          "$GITHUB_WORKSPACE/Scripts/add-lsteamclient.sh" install "$GITHUB_WORKSPACE/$WINE_SRC" "$GITHUB_WORKSPACE/wine-install"
           # steamwebhelper wrapper (forces CEF --in-process-gpu + software GL so Steam's UI paints) — shipped in the runtime.
           mkdir -p "$GITHUB_WORKSPACE/wine-install/share/silo"
           WRAPPER="$GITHUB_WORKSPACE/wine-install/share/silo/steamwebhelper-wrapper.exe"
