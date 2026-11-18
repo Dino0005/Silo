@@ -66,7 +66,9 @@ public enum SteamShortcuts {
                 let icon = app.appendingPathComponent("Contents/Resources/\(iconName)")
                 if let gameIcon = gameAppIcon(id: id, in: gameAppsDir, fileManager: fileManager),
                    let data = try? Data(contentsOf: gameIcon), (try? Data(contentsOf: icon)) != data,
-                   (try? data.write(to: icon, options: .atomic)) != nil {
+                   // Written in place, not swapped: the Finder then goes from Steam's icon straight to the game's,
+                   // without the blank tile a replaced file left for a moment (user, 2026-11-18).
+                   (try? data.write(to: icon)) != nil {
                     changed.append("game icon")
                 }
                 guard !changed.isEmpty else { continue }
