@@ -96,6 +96,13 @@ public struct NativeSteamLauncher: Sendable {
                                 gameExe: exe, app: app, wine: context.wineBinary)
             if gameApp != nil { overlay.insert(injector, at: 0) }
         }
+        // A shortcut Steam made for this game (often just now, at install): the game's icon, and "Steam (Silo)" first.
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        for line in SteamShortcuts.fix(home: home, gameAppsDir: paths.gameAppsDir,
+                                       steamLauncher: home.appendingPathComponent("Applications/\(SteamLauncherApp.fileName)"),
+                                       games: [app.appID]) {
+            log(line)
+        }
         log(gameApp.map { "game app: \($0[GameAppLoader.loaderEnvKey] ?? "") for \($0[GameAppLoader.executablesEnvKey] ?? "")" }
             ?? "game app: none, the alt-loader host carries the icon")
         let runner: ProcessRunning = overlay.isEmpty ? self.runner

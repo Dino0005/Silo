@@ -206,6 +206,14 @@ if CommandLine.arguments.contains("--smoke")
         let shadows = NativeSteamShadow(isSteamRunning: steamRunning).sync(
             libraries: installer.libraries(), windowsGames: try installer.installedWindowsGameIDs())
         for action in shadows { log("shadow: \(action)") }
+        // Steam's shortcuts of the Windows games: the game's icon, and "Steam (Silo)" first when Steam is closed.
+        if setup.isEnabled {
+            for line in SteamShortcuts.fix(home: FileManager.default.homeDirectoryForCurrentUser,
+                                           gameAppsDir: paths.gameAppsDir, steamLauncher: setup.launcherAppURL,
+                                           games: Set(try installer.installedWindowsGameIDs().map { Int($0) })) {
+                log(line)
+            }
+        }
         // Cloud files Steam marked Windows-only, made all-platform (macOS Steam skips them otherwise). Steam is closed
         // here; each changed file is backed up first.
         guard cloud != nil else { return }
