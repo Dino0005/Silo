@@ -13,9 +13,7 @@
 
 [Releases](https://github.com/Dino0005/Silo/releases) ·
 [Changelog](CHANGELOG.md) ·
-[Architecture](CLAUDE.md) ·
-[Wine build](WINE-BUILD.md) ·
-[Status](STATUS.md)
+[Wine build](WINE-BUILD.md)
 
 A personal fork of [mikaelhug/Silo](https://github.com/mikaelhug/Silo), tracking it selectively —
 see the [changelog](CHANGELOG.md) for what's been added here.

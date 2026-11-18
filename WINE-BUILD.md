@@ -11,7 +11,7 @@
 - **No x86_64 Homebrew** anywhere in the Wine or DXMT build — its installer refuses Intel installs now.
 - **The imported CrossOver Wine** (`CrossOverWineImporter`, from the user's own licensed CrossOver) is the first
   alternative here, not a forbidden one: it is what the user runs day to day while the from-source build reaches
-  parity. Its binaries are never shipped or copied into Silo (CLAUDE.md, constraint #7).
+  parity. Its binaries are never shipped or copied into Silo.
 
 ## Decision (upstream, 2026-06-26)
 
