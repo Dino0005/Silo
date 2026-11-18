@@ -206,14 +206,6 @@ if CommandLine.arguments.contains("--smoke")
         let shadows = NativeSteamShadow(isSteamRunning: steamRunning).sync(
             libraries: installer.libraries(), windowsGames: try installer.installedWindowsGameIDs())
         for action in shadows { log("shadow: \(action)") }
-        // Steam's shortcuts of the Windows games: the game's icon, and "Steam (Silo)" first when Steam is closed.
-        if setup.isEnabled {
-            for line in SteamShortcuts.fix(home: FileManager.default.homeDirectoryForCurrentUser,
-                                           gameAppsDir: paths.gameAppsDir, steamLauncher: setup.launcherAppURL,
-                                           games: Set(try installer.installedWindowsGameIDs().map { Int($0) })) {
-                log(line)
-            }
-        }
         // Cloud files Steam marked Windows-only, made all-platform (macOS Steam skips them otherwise). Steam is closed
         // here; each changed file is backed up first.
         guard cloud != nil else { return }
@@ -284,27 +276,10 @@ if CommandLine.arguments.contains("--smoke")
                                   environment: [:], currentDirectory: nil)
     }
     var restartedSession: String?
-    var nextShortcutCheck = Date.distantPast, nextShortcutGames = Date.distantPast
-    var shortcutGames: Set<Int> = []
     while true {
         let running = steamRunning()
         // Off in Settings: only the protection below runs — nothing inside Steam's UI, no tool mapping.
         let enabled = setup.isEnabled
-        // Steam's shortcuts of the Windows games, as soon as Steam makes one (Steam open or not): the game's icon, and
-        // "Steam (Silo)" first. Every 5 s; the list of Windows games is read again once a minute. Paused while a game
-        // started through Silo runs, like the Steam UI checks (measured cost ~ms per pass, but nothing during play).
-        if enabled, !(running && playing.isPlaying()), Date() >= nextShortcutCheck {
-            nextShortcutCheck = Date().addingTimeInterval(5)
-            if Date() >= nextShortcutGames, let ids = try? installer.installedWindowsGameIDs() {
-                shortcutGames = Set(ids.map { Int($0) })
-                nextShortcutGames = Date().addingTimeInterval(60)
-            }
-            for line in SteamShortcuts.fix(home: FileManager.default.homeDirectoryForCurrentUser,
-                                           gameAppsDir: paths.gameAppsDir, steamLauncher: setup.launcherAppURL,
-                                           games: shortcutGames) {
-                log(line)
-            }
-        }
         // While a game started through Silo runs, nothing touches Steam's UI: the filters' timer is paused once
         // and no probe is sent until the game ends.
         let isPlaying = running && playing.isPlaying()

@@ -51,4 +51,21 @@ struct SteamShortcutsTests {
         // Idempotent.
         #expect(SteamShortcuts.fix(home: home, gameAppsDir: gameApps, steamLauncher: launcher, games: [1778820]).isEmpty)
     }
+
+    @Test("The hook inside Steam writes the very same script (else the two would keep rewriting each other)")
+    func hookScriptMatches() throws {
+        let hook = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Scripts/steam-hook/shortcuts.m")
+        let source = try String(contentsOf: hook, encoding: .utf8)
+        // Every line of Swift's script, as the C string literal the hook spells it (placeholders aside).
+        let swift = SteamShortcuts.runScript(appID: 4242, steamLauncher: URL(fileURLWithPath: "/P"))
+        for line in swift.split(separator: "\n", omittingEmptySubsequences: false).dropLast() {
+            let literal = String(line)
+                .replacingOccurrences(of: "L='/P'", with: "L=%@")
+                .replacingOccurrences(of: "steam://run/4242", with: "steam://run/%d")
+                .replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+            #expect(source.contains("\"" + literal + "\\n\""), "missing in shortcuts.m: \(literal)")
+        }
+        #expect(source.contains("@\"'%@'\"") && source.contains("withString:@\"'\\\\''\""))   // same quoting
+    }
 }

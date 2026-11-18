@@ -130,7 +130,7 @@ echo "==> Build Steam hook"
 HOOK_OUT=Scripts/steam-hook/silo-steam-hook.dylib
 rm -f "$HOOK_OUT"
 if ! clang -Wall -O2 -dynamiclib -arch arm64 -arch x86_64 -fobjc-arc -framework AppKit -o "$HOOK_OUT" \
-    Scripts/steam-hook/compat.c Scripts/steam-hook/activation.m; then
+    Scripts/steam-hook/compat.c Scripts/steam-hook/activation.m Scripts/steam-hook/shortcuts.m; then
     echo "ERROR: the Steam hook did not build (Scripts/steam-hook)." >&2
     exit 1
 fi

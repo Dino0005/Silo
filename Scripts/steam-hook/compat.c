@@ -26,6 +26,7 @@
 void silo_hook_log(const char *fmt, ...);
 void silo_activation_install(void);
 void silo_dock_icon_install(void);
+void silo_shortcuts_install(void);
 
 static void logf_(const char *fmt, ...) {
     const char *path = getenv("SILO_HOOK_LOG");
@@ -154,4 +155,5 @@ __attribute__((constructor)) static void silo_hook_init(void) {
     if (compat && strcmp(compat, "1") == 0) _dyld_register_func_for_add_image(on_image);
     silo_activation_install();
     silo_dock_icon_install();
+    silo_shortcuts_install();
 }
