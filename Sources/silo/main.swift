@@ -291,8 +291,9 @@ if CommandLine.arguments.contains("--smoke")
         // Off in Settings: only the protection below runs — nothing inside Steam's UI, no tool mapping.
         let enabled = setup.isEnabled
         // Steam's shortcuts of the Windows games, as soon as Steam makes one (Steam open or not): the game's icon, and
-        // "Steam (Silo)" first. Every 5 s; the list of Windows games is read again once a minute.
-        if enabled, Date() >= nextShortcutCheck {
+        // "Steam (Silo)" first. Every 5 s; the list of Windows games is read again once a minute. Paused while a game
+        // started through Silo runs, like the Steam UI checks (measured cost ~ms per pass, but nothing during play).
+        if enabled, !(running && playing.isPlaying()), Date() >= nextShortcutCheck {
             nextShortcutCheck = Date().addingTimeInterval(5)
             if Date() >= nextShortcutGames, let ids = try? installer.installedWindowsGameIDs() {
                 shortcutGames = Set(ids.map { Int($0) })
