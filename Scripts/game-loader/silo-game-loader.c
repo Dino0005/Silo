@@ -4,6 +4,12 @@
 // shows the game's name and icon. Same idea as NotProton's PR #90 (sn0wst0rm); Silo's own code.
 // SILO_GAME_LOADER = the loader in the bundle; SILO_GAME_EXES = ':'-separated executable names (case-insensitive).
 // Anything else (steam.exe, services, a mismatch) execs untouched.
+//
+// Also loaded, through the game app's LSEnvironment, when LaunchServices starts the app by itself — the Games app does,
+// with no arguments, and Wine would just print its usage and quit. Then `games_handoff` asks Steam for the game instead
+// (SILO_GAMES_HANDOFF, a steam:// link), opening "Steam (Silo)" first when Steam isn't running (SILO_STEAM_LAUNCHER),
+// so Steam starts with Silo's library and its grants. Silo's own idea from its NotProton fork (49ee6f5); own code.
+#include <crt_externs.h>
 #include <fcntl.h>
 #include <spawn.h>
 #include <stdio.h>
@@ -67,3 +73,43 @@ static int silo_execv(const char *path, char *const argv[]) {
 
 __attribute__((used)) static const struct { const void *replacement, *original; } interpose_execv
     __attribute__((section("__DATA,__interpose"))) = { (const void *)silo_execv, (const void *)execv };
+
+// The hand-off runs in a detached shell, so this process — the game app, bouncing in the Dock — quits at once while Steam
+// starts. "Steam (Silo)" only when Steam isn't up; then the link once its client is running (it queues the launch until
+// Steam is ready). The shell gets no DYLD_ or SILO_ variables: nothing of this library follows it.
+static const char handoff_script[] =
+    "if ! /usr/bin/pgrep -x steam_osx >/dev/null && [ -d \"$1\" ]; then\n"
+    "  /usr/bin/open \"$1\"\n"
+    "  i=0; while [ $i -lt 120 ] && ! /usr/bin/pgrep -x steam_osx >/dev/null; do sleep 1; i=$((i+1)); done\n"
+    "  sleep 3\n"
+    "fi\n"
+    "exec /usr/bin/open \"$2\"\n";
+
+__attribute__((constructor)) static void games_handoff(void) {
+    int argc = *_NSGetArgc();
+    char **argv = *_NSGetArgv();
+    if (argc > 2 || (argc == 2 && strncmp(argv[1], "-psn_", 5))) return;   // a real launch: a program to run
+    const char *url = getenv("SILO_GAMES_HANDOFF");
+    if (!url || strncmp(url, "steam://", 8)) return;
+    const char *launcher = getenv("SILO_STEAM_LAUNCHER");
+    char *args[] = { "sh", "-c", (char *)handoff_script, "silo-games-handoff", (char *)(launcher ? launcher : ""),
+                     (char *)url, NULL };
+    extern char **environ;
+    size_t n = 0;
+    while (environ[n]) n++;
+    char **env = calloc(n + 1, sizeof(char *));
+    size_t k = 0;
+    for (size_t i = 0; i < n; i++)
+        if (strncmp(environ[i], "DYLD_", 5) && strncmp(environ[i], "SILO_", 5)) env[k++] = environ[i];
+    env[k] = NULL;
+    posix_spawn_file_actions_t io;
+    posix_spawn_file_actions_init(&io);
+    for (int fd = 0; fd <= 2; fd++)
+        posix_spawn_file_actions_addopen(&io, fd, "/dev/null", fd ? O_WRONLY : O_RDONLY, 0);
+    posix_spawnattr_t attributes;
+    posix_spawnattr_init(&attributes);
+    posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT);
+    pid_t child;
+    posix_spawn(&child, "/bin/sh", &io, &attributes, args, env);
+    _exit(0);
+}

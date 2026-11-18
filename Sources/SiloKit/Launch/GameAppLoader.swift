@@ -51,6 +51,30 @@ public enum GameAppLoader {
 
     static let sourceMarkerName = ".wine.silo-source"
 
+    /// Where the marker lives: `Contents/Resources`. Not beside the loader — `Contents/MacOS` must hold only code, or the
+    /// bundle can't be signed as a whole (`signBundle`), which LaunchServices needs once the plist has `LSEnvironment`.
+    static func markerURL(macOSDir: URL) -> URL {
+        macOSDir.deletingLastPathComponent().appendingPathComponent("Resources", isDirectory: true)
+            .appendingPathComponent(sourceMarkerName)
+    }
+
+    // MARK: - Started by the Games app
+
+    /// What the injected library reads when the game app was started with no game — by the Games app, which lists the
+    /// bundle by its games category and opens it directly (measured 2026-11-18: TEKKEN's icon for a few seconds, then
+    /// nothing). `SILO_GAMES_HANDOFF` is the `steam://` link to ask for; `SILO_STEAM_LAUNCHER` is "Steam (Silo)", opened
+    /// first when Steam isn't running, so Steam starts with Silo's library and grants. Same idea as Silo's own fix in its
+    /// NotProton fork (49ee6f5, 2026-10-12); Silo's own code.
+    public static let handoffEnvKey = "SILO_GAMES_HANDOFF"
+    public static let steamLauncherEnvKey = "SILO_STEAM_LAUNCHER"
+
+    /// Pure: the game app's `LSEnvironment` — the injected library, and where it hands a start with no game.
+    public static func gamesHandoffEnvironment(appID: Int, injector: URL, steamLauncher: URL) -> [String: String] {
+        ["DYLD_INSERT_LIBRARIES": injector.path,
+         handoffEnvKey: "steam://rungameid/\(appID)",
+         steamLauncherEnvKey: steamLauncher.path]
+    }
+
     /// Prepares `macOSDir` (a game app's `Contents/MacOS`) for the loader of `unixDir` (`<runtime>/lib/wine/x86_64-unix`):
     /// every sibling symlinked, and — unless the loader there is already this runtime's for this identity — a private
     /// copy of the loader whose embedded plist carries the game's identity and Game Mode (`EmbeddedInfoPlist`),
@@ -76,7 +100,8 @@ public enum GameAppLoader {
         }
 
         // The loader: rebuilt only when the runtime's loader or the identity changed.
-        let marker = macOSDir.appendingPathComponent(sourceMarkerName)
+        let marker = markerURL(macOSDir: macOSDir)
+        try? fileManager.removeItem(at: macOSDir.appendingPathComponent(sourceMarkerName))   // where it was before
         let stamp = try sourceStamp(source, identifier: identifier, name: name, fileManager: fileManager)
         if fileManager.fileExists(atPath: loader.path),
            (try? String(contentsOf: marker, encoding: .utf8)) == stamp { return Staged(loader: loader, unsigned: nil) }
@@ -100,8 +125,9 @@ public enum GameAppLoader {
         }
         let stamp = try sourceStamp(unixDir.appendingPathComponent(loaderName), identifier: identifier, name: name,
                                     fileManager: fileManager)
-        try Data(stamp.utf8).write(to: staged.loader.deletingLastPathComponent()
-            .appendingPathComponent(sourceMarkerName), options: .atomic)
+        let marker = markerURL(macOSDir: staged.loader.deletingLastPathComponent())
+        try fileManager.createDirectory(at: marker.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(stamp.utf8).write(to: marker, options: .atomic)
     }
 
     /// What a staged loader was built from: the runtime loader's file identity and the game identity.

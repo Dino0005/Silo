@@ -50,6 +50,10 @@ public struct GameHostBundle: Sendable {
     public let executable: String
     /// `bundleIDPrefix`, or `gameAppIDPrefix` for a game app — a separate bundle with its own identifier.
     let idPrefix: String
+    /// `LSEnvironment`: what LaunchServices adds to the environment when IT starts the bundle — the Games app does,
+    /// with no arguments; Silo never does (it execs the executable itself), so these never reach a launch by Silo.
+    /// A game app uses it to hand such a start to Steam (`GameAppLoader.gamesHandoffEnvironment`).
+    public let launchEnvironment: [String: String]
 
     /// The category a game's host declares (see `infoPlist`).
     public static let gamesCategory = "public.app-category.games"
@@ -58,7 +62,8 @@ public struct GameHostBundle: Sendable {
 
     public init(name: String, id: String, category: String? = GameHostBundle.gamesCategory,
                 playLink: SiloDeepLink? = nil, executable: String = GameHostBundle.executableName,
-                idPrefix: String = GameHostBundle.bundleIDPrefix) {
+                idPrefix: String = GameHostBundle.bundleIDPrefix, launchEnvironment: [String: String] = [:]) {
+        self.launchEnvironment = launchEnvironment
         self.name = name
         self.id = id
         self.category = category
@@ -112,10 +117,19 @@ public struct GameHostBundle: Sendable {
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
             <key>CFBundleShortVersionString</key><string>1.0</string>
-            \(categoryEntry)<key>LSMinimumSystemVersion</key><string>15.0</string>
+            \(categoryEntry)\(launchEnvironmentEntry)<key>LSMinimumSystemVersion</key><string>15.0</string>
         </dict>
         </plist>
         """
+    }
+
+    /// The `LSEnvironment` dictionary (ending in the next line's indent), keys sorted; nothing when empty.
+    private var launchEnvironmentEntry: String {
+        guard !launchEnvironment.isEmpty else { return "" }
+        let pairs = launchEnvironment.keys.sorted().map {
+            "<key>\(xmlEscaped($0))</key><string>\(xmlEscaped(launchEnvironment[$0] ?? ""))</string>"
+        }
+        return "<key>LSEnvironment</key><dict>" + pairs.joined() + "</dict>\n    "
     }
 
     /// The `LSApplicationCategoryType` entry (ending in the next line's indent), plus `LSSupportsGameMode`

@@ -1,3 +1,4 @@
+import CoreServices
 import Foundation
 
 /// Builds launch plans and runs the launch pipeline for a game in the Steam bottle.
@@ -387,8 +388,14 @@ public struct LaunchOrchestrator: Sendable {
         let owners = UnrealLauncher.shippingExecutable(forLauncher: gameExe).map { [$0] }
             ?? (children.isEmpty ? [gameExe] : children)
         let icon = (try? Data(contentsOf: owners[0], options: .mappedIfSafe)).flatMap(PEIcon.icoData(fromExecutable:))
+        // Started by the Games app (no game): hand it to Steam (Silo) — see `GameAppLoader.gamesHandoffEnvironment`.
+        let steamLauncher = fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true)
+            .appendingPathComponent(SteamLauncherApp.fileName, isDirectory: true)
+        let handoff = GameAppLoader.injector(fileManager: fileManager).map {
+            GameAppLoader.gamesHandoffEnvironment(appID: app.appID, injector: $0, steamLauncher: steamLauncher)
+        } ?? [:]
         let bundle = GameHostBundle(name: name, id: id, executable: GameAppLoader.loaderName,
-                                    idPrefix: GameHostBundle.gameAppIDPrefix)
+                                    idPrefix: GameHostBundle.gameAppIDPrefix, launchEnvironment: handoff)
         let unixDir = WineRuntimeLayout(wineBinary: wine).unixModulesDir
         let identifier = GameHostBundle.gameAppIDPrefix + GameHostBundle.bundleSafe(id)
         guard let macOS = try? bundle.write(into: gameAppsDir, iconICO: icon, fileManager: fileManager),
@@ -405,9 +412,24 @@ public struct LaunchOrchestrator: Sendable {
                                               fileManager: fileManager)) != nil
             else { try? fileManager.removeItem(at: unsigned); return nil }
         }
+        await signGameAppBundle(macOS.deletingLastPathComponent().deletingLastPathComponent())
         let loader = staged.loader
         return [GameAppLoader.loaderEnvKey: loader.path,
                 GameAppLoader.executablesEnvKey: GameAppLoader.executablesValue(owners)]
+    }
+
+    /// Signs the game app as a whole when its signature no longer matches (its `Info.plist` changed, or the loader was
+    /// rebuilt), then registers it again: LaunchServices refuses a bundle whose plist doesn't match (measured
+    /// 2026-11-18: error -54 once the plist carried `LSEnvironment`) and keeps reading the old plist until told. The
+    /// loader's own signature only needs to hold for Silo's launches; this one is for the Games app's.
+    private func signGameAppBundle(_ app: URL) async {
+        let codesign = URL(fileURLWithPath: "/usr/bin/codesign")
+        let valid = try? await runner.run(executable: codesign, arguments: ["--verify", app.path],
+                                          environment: [:], currentDirectory: nil)
+        guard valid?.succeeded != true else { return }
+        _ = try? await runner.run(executable: codesign, arguments: ["--force", "--sign", "-", app.path],
+                                  environment: [:], currentDirectory: nil)
+        LSRegisterURL(app as CFURL, true)
     }
 
     /// Prepare the Steam client's hand-over for `bottle` (see `AltLoaderSession.prepareSteamClient`),

@@ -85,6 +85,9 @@ struct GameAppLoaderTests {
 
         try GameAppLoader.install(staged, unixDir: unix, identifier: "com.mikael.silo.game.1", name: "G")
         #expect(FileManager.default.fileExists(atPath: staged.loader.path) && !FileManager.default.fileExists(atPath: unsigned.path))
+        // The marker sits in Resources: Contents/MacOS holds only code, so the bundle can be signed as a whole.
+        #expect(FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent("Game.app/Contents/Resources/.wine.silo-source").path))
+        #expect(!FileManager.default.fileExists(atPath: macOS.appendingPathComponent(".wine.silo-source").path))
         #expect(try GameAppLoader.stage(unixDir: unix, in: macOS, identifier: "com.mikael.silo.game.1", name: "G").unsigned == nil)
         // Another identity rebuilds.
         #expect(try GameAppLoader.stage(unixDir: unix, in: macOS, identifier: "com.mikael.silo.game.1", name: "H").unsigned != nil)
@@ -116,6 +119,18 @@ struct GameAppLoaderTests {
         #expect(plist.contains("<key>CFBundleExecutable</key><string>wine</string>"))
         #expect(plist.contains("<string>com.mikael.silo.game.544750</string>"))
         #expect(plist.contains("public.app-category.games") && plist.contains("LSSupportsGameMode"))
+        #expect(!plist.contains("LSEnvironment"))   // none asked for
+        // The Games app's hand-off: LSEnvironment carries the library and where to hand a start with no game.
+        let env = GameAppLoader.gamesHandoffEnvironment(appID: 544750, injector: URL(fileURLWithPath: "/S/Silo.app/l.dylib"),
+                                                        steamLauncher: URL(fileURLWithPath: "/H/Applications/Steam (Silo).app"))
+        #expect(env == ["DYLD_INSERT_LIBRARIES": "/S/Silo.app/l.dylib", "SILO_GAMES_HANDOFF": "steam://rungameid/544750",
+                        "SILO_STEAM_LAUNCHER": "/H/Applications/Steam (Silo).app"])
+        let handoff = GameHostBundle(name: "SOULCALIBUR VI", id: "544750", executable: GameAppLoader.loaderName,
+                                     idPrefix: GameHostBundle.gameAppIDPrefix, launchEnvironment: env).infoPlist()
+        #expect(handoff.contains("<key>LSEnvironment</key><dict><key>DYLD_INSERT_LIBRARIES</key><string>/S/Silo.app/l.dylib</string>"
+                                 + "<key>SILO_GAMES_HANDOFF</key><string>steam://rungameid/544750</string>"
+                                 + "<key>SILO_STEAM_LAUNCHER</key><string>/H/Applications/Steam (Silo).app</string></dict>"))
+        #expect((try? PropertyListSerialization.propertyList(from: Data(handoff.utf8), format: nil)) != nil)   // valid plist
         // The host keeps its own.
         let host = GameHostBundle(name: "SOULCALIBUR VI", id: "544750").infoPlist()
         #expect(host.contains("<key>CFBundleExecutable</key><string>SiloGameHost</string>"))
