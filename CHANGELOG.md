@@ -16,6 +16,13 @@ the commit message says why.
   GitHub release Silo already checks, shown with their headings and lists, with *Open on GitHub* and, for a new
   version, *Update & Relaunch*. The update notice in the Library made it easy to update without ever reading them.
 
+### Fixed
+- **Steam's overlay on Metal 4 games (macOS Steam).** Games that D3DMetal renders through Metal 4 (Marvel's
+  Spider-Man Remastered) present their frames in a way Steam's overlay never sees: Shift-Tab drew nothing and the
+  start notice flickered. Silo's overlay fix now hands each of those frames to a Metal 3 present right after the
+  game's own work, which is where the overlay draws; Metal 3 games are untouched. `SILO_OVERLAY_BRIDGE=0` in a
+  game's environment turns it off.
+
 ## 0.7.4
 
 ### Changed
