@@ -1,62 +1,49 @@
-# Silo 0.7.4
+# Silo 0.7.5
 
-FATAL FURY's movies without Microsoft's Media Foundation, controller and Wine fixes, Windows Steam surviving its own
-updates, and a General settings page that reads like System Settings.
+Your Windows games, played from Steam for Mac. Plus the release notes inside Silo, and Silo's own identifier.
 
 ## Wine: reinstall once
 
-The Wine fixes below are in the rebuilt runtime `wine-cx-26.3.0`, published under the same name. To get them,
-remove Wine in *Settings → Wine* and install it again. With the old copy, games keep running as before.
+Steam for macOS needs the rebuilt runtime `wine-cx-26.3.0`, published under the same name. Remove Wine in
+*Settings → Wine* and install it again. Games started from Silo keep running as before with the old copy.
 
-## FATAL FURY plays its movies without Media Foundation
+## Steam for macOS
 
-FATAL FURY: City of the Wolves skipped every movie unless it ran in the Media Foundation bottle. Wine's own H.264
-decoder now offers the frame format the game asks for and turns down a Direct3D device that can't hold it, so
-Unreal Engine 5's video player falls back to its software path and the movies play. You can switch *Media
-Foundation* off for the game. Built on a fix from Obelisk's Wine (voile-wine, by Zagrios). SOULCALIBUR VI still
-needs the Media Foundation bottle.
+Windows games can now be played from Valve's Steam for Mac, with Silo as the compatibility layer, the way Proton
+works on Linux. It's optional: Silo's own library and its Windows Steam bottle stay as they are.
 
-## Controllers
+To turn it on, install Steam for Mac, open it once to sign in, then go to *Settings → Steam for macOS*. Silo then:
 
-Two fixes from Proton's Wine, through Obelisk's Wine:
+- installs **Steam (Silo)** in your Applications folder. Open Steam from there, and keep it in the Dock instead of
+  Steam's own icon. macOS asks to let *Steam (Silo)* control the Mac: switch it on in *Privacy & Security →
+  Accessibility* (*Device Control and Data Access* on macOS 27), otherwise the DualSense and other pads don't work through Steam Input;
+- becomes Steam's compatibility tool **Silo** for every Windows game, so *Install* and *Play* work for them. Each game
+  runs in its own app, with its name and icon in the Dock and Game Mode;
+- protects your installed Windows games. Steam for Mac would otherwise take them for broken and delete them; a small
+  background guard checks again every time Steam quits;
+- adds *Mac* and *Windows* filters to Steam's library.
 
-- A pad that is already plugged in when a game starts now reaches games that use Windows.Gaming.Input, with its
-  axes in Windows' order.
-- XInput keeps a controller working when you unplug it and plug it back in, and reports the same capabilities as
-  Windows does.
+Steam Cloud, the Steam overlay (Metal 4 games included), Steam Input with its Xbox virtual pad and Steam's *Stop*
+button work. Games appear in macOS's Games app, and the desktop shortcuts Steam makes for them get the game's icon and
+open Steam (Silo) when Steam is closed. While Steam for Mac is running, Silo never starts its Windows Steam client.
 
-## Three small Wine fixes
+The bridge between a Windows game and Steam for Mac, `lsteamclient` and a stand-in `steam.exe`, is built from Valve's
+Proton sources (BSD) together with Silo's Wine.
 
-Also through Obelisk's Wine, two of them from Proton: a program that waits on its own process gets the answer
-Windows gives, `GetAsyncKeyState()` no longer asks the Wine server for every key a game polls, and the memory heap
-reuses its block groups instead of mapping new ones.
+### Known issue: DualSense lights
 
-## Windows Steam after its own updates
+A DualSense switched on while Steam is already open can lose its lights: macOS's own controller service sets them at
+the same moment as Steam, and macOS often wins. Switch the pad on before opening Steam (Silo), or click Steam in the
+Dock first.
 
-When Windows Steam installs a client update, it restarts by itself, outside Silo. Its new web helper replaced the
-one Silo prepares, so Steam came back as a black window until you quit it and opened it again from Silo. While a
-Steam that Silo started is running, Silo now notices that restart and starts Steam again the right way; you see a
-black window for a few seconds, then Steam. If you closed Silo in the meantime, opening Steam from Silo fixes it as
-before.
+## Release notes inside Silo
 
-A web helper file Silo can't read is now left alone instead of being taken for Steam's own (from upstream).
+*Settings → General → Updates* has a *What's New…* button. With an update waiting it shows the new version's notes
+before you update; otherwise those of the version you have.
 
-## Settings → General
+## Silo has its own identifier
 
-Every row has a title and a short description on the left and a short button on the right, like System Settings.
-The bottles' location explains what it holds and how to move it, external disks included. The Control Panel buttons
-in General and in Media Foundation line up in columns of equal width.
-
-## Also
-
-- A game's app now declares Game Mode support outright (`LSSupportsGameMode`), as Apple recommends. Game Mode
-  already turned on through the app's games category, so nothing changes in practice.
-- The Library screenshot shows again in the README and on the site.
-
-## Known issues
-
-- UNCHARTED crashes when you quit it from its own menu, or switch between its two games there. This is a bug in
-  Apple's D3DMetal and happens in CrossOver too. Saves are not affected. Quit from Steam instead, and pick the game
-  with *Executable* in its settings (`u4.exe` or `tll.exe`). If the game offers safe mode at the next start, answer
-  *No*.
-- The *Sync* setting has no effect on Steam games, which always use MSync.
+Silo and everything it creates move from `com.mikael.silo` to `io.github.dino0005.silo`. At the first start Silo
+keeps your preferences and replaces what the earlier version left behind; game apps follow at their next launch.
+Because macOS sees a new app, it asks again for any permission Silo had, and *Steam (Silo)* asks once more for
+Accessibility. Desktop shortcuts made with *Create Shortcut* keep working.

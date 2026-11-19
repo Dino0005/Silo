@@ -39,6 +39,9 @@ Wine, imports Apple's Game Porting Toolkit from your `.dmg`, and self-updates fr
 - **Non-Steam games too.** Add any `.exe` (or run its installer); each manual game lives in its
   **own isolated Wine prefix** with the same **Automatic** graphics backend as Steam games (or an
   explicit override), plus per-game env flags and launch options.
+- **Steam for macOS (optional).** Play your Windows games from Valve's Steam for Mac, with Silo as Steam's
+  compatibility tool: *Settings → Steam for macOS* installs *Steam (Silo)* in Applications, protects the Windows
+  games Steam for Mac would delete, and keeps Steam Cloud, the overlay and Steam Input working.
 - **Shortcuts.** Right-click any game (Steam or non-Steam) → *Create Shortcut* for a double-clickable
   launcher that plays it through Silo — same backend, same bottle, Steam client and all. They land on the
   Desktop by default; *Settings → General → Shortcuts* can send them to `~/Applications/Silo/` instead,

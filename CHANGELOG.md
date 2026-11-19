@@ -8,9 +8,25 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.7.5
 
 ### Added
+- **Steam for macOS.** Your Windows games can now be played from Valve's Steam for Mac, with Silo as the
+  compatibility layer — the way Proton works on Linux. Turn it on in *Settings → Steam for macOS* (Steam for Mac
+  must be installed and signed in once). Silo then:
+  - installs **Steam (Silo)** in your Applications folder: open Steam from there (keep it in the Dock instead of
+    Steam's own icon). It starts Steam with Silo inside and asks macOS for its *Accessibility* permission, which Steam
+    Input needs for the DualSense and other pads;
+  - becomes Steam's compatibility tool **Silo** for every Windows game, so *Play* and *Install* simply work, Windows
+    games included; each game runs in its own app with its name and icon, in Game Mode;
+  - protects every installed Windows game: Steam for Mac would otherwise treat it as broken and delete it. A small
+    background guard re-applies the protection each time Steam quits;
+  - adds *Mac* and *Windows* filters to Steam's library;
+  - keeps Steam Cloud, the Steam overlay (Metal 3 and Metal 4 games), Steam Input with its Xbox virtual pad, Steam's *Stop*
+    button, and the Games app and Steam's desktop shortcuts, which get the game's icon and open Steam (Silo) when
+    Steam is closed;
+  - never starts the Windows Steam client while Steam for Mac is running.
+  It needs the Wine runtime published with this release: reinstall Wine once (see below).
 - **Release notes inside Silo.** Settings → General → Updates has a *What's New…* button: with an update waiting it
   opens the new version's notes before you update, otherwise those of the version you have. They come from the
   GitHub release Silo already checks, shown with their headings and lists, with *Open on GitHub* and, for a new
@@ -22,16 +38,18 @@ the commit message says why.
   over its preferences and replaces what an earlier version left under the old name; game apps and hosts are rewritten
   at their next launch. macOS sees a new app, so it asks again for any permission Silo had, and *Steam (Silo)* asks
   for its Accessibility grant once more.
+- **Wine: the Steam for macOS bridge.** The `wine-cx-26.3.0` runtime now carries `lsteamclient` and a stand-in
+  `steam.exe`, built from Valve's Proton sources (BSD), which connect a Windows game to the running Steam for Mac.
+  Republished under the same name: remove Wine in *Settings → Wine* and install it again.
 
-### Fixed
-- **Steam's overlay on Metal 4 games (macOS Steam).** Games that D3DMetal renders through Metal 4 (Marvel's
-  Spider-Man Remastered) present their frames in a way Steam's overlay never sees: Shift-Tab drew nothing and the
-  start notice flickered. Silo's overlay fix now hands each of those frames to a Metal 3 present right after the
-  game's own work, which is where the overlay draws; Metal 3 games are untouched. `SILO_OVERLAY_BRIDGE=0` in a
-  game's environment turns it off.
+### Notes
+- **Steam's overlay on Metal 4 games.** Games that D3DMetal renders through Metal 4 (Marvel's Spider-Man
+  Remastered, Resident Evil Requiem, The Last of Us Part II) present their frames in a way Steam's overlay never sees.
+  Silo hands each of those frames to a Metal 3 present right after the game's own work, which is where the overlay
+  draws; Metal 3 games are untouched. `SILO_OVERLAY_BRIDGE=0` in a game's environment turns it off.
 
 ### Known issues
-- **DualSense lights with macOS Steam.** A DualSense switched on while Steam is already open can lose its lights:
+- **DualSense lights with Steam for macOS.** A DualSense switched on while Steam is already open can lose its lights:
   macOS's own controller service sets them at the same moment as Steam, and macOS often wins. Switch the pad on
   before opening Steam (Silo), or click Steam in the Dock first, and Steam's lights stay.
 
