@@ -8,6 +8,12 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Fixed
+- **The old guard is always stopped.** After the identifier change, Silo stops the Steam for macOS guard still
+  running under the old name even when its file is already gone; on one Mac both guards were running side by side.
+
 ## 0.7.5
 
 ### Added

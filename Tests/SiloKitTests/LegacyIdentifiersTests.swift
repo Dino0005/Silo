@@ -48,12 +48,13 @@ struct LegacyIdentifiersTests {
         #expect(LegacyIdentifiers.migratePreferences(into: defaults, legacy: ["onboardingDone": true]).isEmpty)
     }
 
-    @Test("The old guard is stopped and removed, and the old launcher's grant cleared; nothing without one")
+    @Test("The old guard is stopped and removed, and the old launcher's grant cleared; without its file, only stopped")
     func retireGuard() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
+        let without = FakeProcessRunner()
+        #expect(await !LegacyIdentifiers.retireGuard(home: tmp.url, runner: without))
+        #expect(without.invocations.map(\.arguments) == [["bootout", "gui/\(getuid())/com.mikael.silo.native-steam-guard"]])
         let runner = FakeProcessRunner()
-        #expect(await !LegacyIdentifiers.retireGuard(home: tmp.url, runner: runner))
-        #expect(runner.invocations.isEmpty)
         let agent = try tmp.write("Library/LaunchAgents/com.mikael.silo.native-steam-guard.plist", "<plist/>")
         let ours = try tmp.write("Library/LaunchAgents/\(NativeSteamGuard.label).plist", "<plist/>")
         #expect(await LegacyIdentifiers.retireGuard(home: tmp.url, runner: runner))

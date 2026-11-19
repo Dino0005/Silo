@@ -30,13 +30,16 @@ public enum LegacyIdentifiers {
 
     /// Stops and removes the guard's LaunchAgent written under the old label (the new one is installed by
     /// `NativeSteamSetup.repointIfMoved`, which finds it missing), and clears the privacy grant macOS still lists for
-    /// the old "Steam (Silo)" — else Privacy & Security shows two of them. Nothing when there is no old guard.
+    /// the old "Steam (Silo)" — else Privacy & Security shows two of them. Returns whether there was an old agent file.
+    ///
+    /// The job is booted out at every start, file or not: on the dev Mac (2026-11-19) the old guard was still loaded and
+    /// running after its file was gone, next to the new one. A no-op when nothing is loaded under the old label.
     @discardableResult
     public static func retireGuard(home: URL, runner: ProcessRunning, fileManager: FileManager = .default) async -> Bool {
         let agent = home.appendingPathComponent("Library/LaunchAgents/\(guardLabel).plist")
-        guard fileManager.fileExists(atPath: agent.path) else { return false }
         _ = try? await runner.run(executable: URL(fileURLWithPath: "/bin/launchctl"),
                                   arguments: ["bootout", "gui/\(getuid())/\(guardLabel)"], environment: [:], currentDirectory: nil)
+        guard fileManager.fileExists(atPath: agent.path) else { return false }
         try? fileManager.removeItem(at: agent)
         _ = try? await runner.run(executable: URL(fileURLWithPath: "/usr/bin/tccutil"),
                                   arguments: ["reset", SteamLauncherApp.privacyService, launcherIdentifier],
