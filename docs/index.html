@@ -73,6 +73,7 @@
         </a>
         <div class="nav-links">
           <a href="#features">Features</a>
+          <a href="#steam-mac">Steam for Mac</a>
           <a href="#graphics">Graphics</a>
           <a href="#install">Install</a>
           <!-- Total downloads + latest-release downloads, filled from stats.json at runtime; hidden until it loads. -->
@@ -322,6 +323,50 @@
             <div>
               <h4>Launch</h4>
               <p>Wait for Steam to sign in, then spawn the game detached — co-resident with its Steam client for Steam titles, or in its own bottle for non-Steam <code>.exe</code>s — inside a per-game <code>.app</code> that gives it its name and icon.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="split" id="steam-mac">
+        <div>
+          <p class="eyebrow">New in 0.7.5 · optional</p>
+          <h2>Or play from Steam for Mac</h2>
+          <p>
+            Turn on <em>Settings → Steam for macOS</em> and your Windows games play
+            from Valve's Steam for Mac, with Silo as Steam's compatibility tool — the
+            way Proton works on Linux. Steam Cloud, the overlay (Metal 4 games
+            included) and Steam Input with its Xbox virtual pad keep working. Silo's
+            own library and Windows Steam bottle stay as they are.
+          </p>
+        </div>
+        <div class="flow" aria-label="Steam for macOS">
+          <div class="flow-step">
+            <span class="n" aria-hidden="true">1</span>
+            <div>
+              <h4>Steam (Silo)</h4>
+              <p>An app in your Applications folder that opens Steam with Silo inside. Keep it in the Dock and allow it in <em>Privacy &amp; Security</em>, so Steam Input reaches the DualSense and other pads.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <span class="n" aria-hidden="true">2</span>
+            <div>
+              <h4>Compatibility tool</h4>
+              <p><em>Install</em> and <em>Play</em> work for every Windows game. Each runs on Silo's Wine and Metal backend, in its own app with its name and icon, in Game Mode.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <span class="n" aria-hidden="true">3</span>
+            <div>
+              <h4>Protected games</h4>
+              <p>Steam for Mac would delete Windows games it can't run. Silo protects every installed one, and a small guard checks again each time Steam quits.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <span class="n" aria-hidden="true">4</span>
+            <div>
+              <h4>At home on the Mac</h4>
+              <p><em>Mac</em> and <em>Windows</em> filters in Steam's library; games in macOS's Games app; Steam's desktop shortcuts with the game's icon.</p>
             </div>
           </div>
         </div>
