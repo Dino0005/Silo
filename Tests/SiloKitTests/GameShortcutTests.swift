@@ -13,14 +13,14 @@ struct GameShortcutTests {
         #expect(plist.contains("<key>LSUIElement</key><true/>"))
         #expect(plist.contains("<string>My Game</string>"))
         // The bundle id embeds the target so two shortcuts never share a LaunchServices identity.
-        #expect(plist.contains("<string>com.mikael.silo.shortcut.steam-440</string>"))
+        #expect(plist.contains("<string>io.github.dino0005.silo.shortcut.steam-440</string>"))
     }
 
     @Test("bundle id is sanitized to alphanumerics/./- for a manual UUID")
     func bundleIDSanitized() {
         let id = UUID()
         let plist = GameShortcut(name: "x", link: .playManual(id: id)).infoPlist()
-        #expect(plist.contains("com.mikael.silo.shortcut.manual-\(id.uuidString.lowercased())"))
+        #expect(plist.contains("io.github.dino0005.silo.shortcut.manual-\(id.uuidString.lowercased())"))
     }
 
     @Test("XML-special characters in the name are escaped")

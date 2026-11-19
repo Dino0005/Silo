@@ -6,8 +6,10 @@ public enum Silo {
     /// Marketing version. Kept in sync with `Info.plist` `CFBundleShortVersionString` by the build script.
     public static let version = Versions.silo
 
-    /// Stable bundle identifier (TCC prompts are keyed to this).
-    public static let bundleID = "com.mikael.silo"
+    /// Stable bundle identifier (TCC prompts are keyed to this), and the prefix of every identifier Silo writes (game
+    /// hosts and apps, shortcuts, "Steam (Silo)", the guard's LaunchAgent). The fork's own reverse domain
+    /// (dino0005.github.io) since 2026-11-19; `LegacyIdentifiers` moves what an earlier Silo left under upstream's.
+    public static let bundleID = "io.github.dino0005.silo"
 
     /// User-facing product name.
     public static let appName = "Silo"

@@ -73,9 +73,9 @@ public struct GameHostBundle: Sendable {
     }
 
     /// Marks a bundle as ours, so `write` can replace its own previous output and nothing else.
-    public static let bundleIDPrefix = "com.mikael.silo.host."
+    public static let bundleIDPrefix = Silo.bundleID + ".host."
     /// The prefix of a game app (`GameAppLoader`).
-    public static let gameAppIDPrefix = "com.mikael.silo.game."
+    public static let gameAppIDPrefix = Silo.bundleID + ".game."
 
     /// The `CFBundleIdentifier` of the host for the game `id` — what `infoPlist` writes, so a running or
     /// exited host can be matched back to its game.
@@ -297,7 +297,9 @@ public struct GameHostBundle: Sendable {
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let id = (plist as? [String: Any])?["CFBundleIdentifier"] as? String
         else { return false }
-        return id.hasPrefix(bundleIDPrefix) || id.hasPrefix(gameAppIDPrefix)
+        // An earlier Silo's bundles too, under upstream's identifiers: still ours to replace.
+        return [bundleIDPrefix, gameAppIDPrefix, LegacyIdentifiers.appID + ".host.", LegacyIdentifiers.appID + ".game."]
+            .contains { id.hasPrefix($0) }
     }
 
     // MARK: - Escaping

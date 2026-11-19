@@ -6,7 +6,7 @@ import Testing
 /// stopped. The `lsappinfo` text is verbatim from the God of War measurement of 2026-10-12 (DXMT run), next
 /// to the still-running Steam host and an unrelated app.
 struct HostSystemServicesTests {
-    private let gow = "com.mikael.silo.host.538C9332-8799-4259-8C93-7F8E43B4CBA7"
+    private let gow = "io.github.dino0005.silo.host.538C9332-8799-4259-8C93-7F8E43B4CBA7"
 
     private let lsappinfo = """
     97) "Safari" ASN:0x0-0x1d01d0:
@@ -14,7 +14,7 @@ struct HostSystemServicesTests {
         pid = 1200 token=[sess=100020 pid=1200] type="Foreground" flavor=3 Version="26.0" fileType="APPL" Arch=ARM64
         coalition: 4000  { 1200 1201 }
     98) "God of War" ASN:0x0-0x2a02a0:
-        bundleID="com.mikael.silo.host.538C9332-8799-4259-8C93-7F8E43B4CBA7"
+        bundleID="io.github.dino0005.silo.host.538C9332-8799-4259-8C93-7F8E43B4CBA7"
         bundle path="/Users/x/Library/Application Support/Silo/HostApps/538C9332-8799-4259-8C93-7F8E43B4CBA7/God of War.app"
         executable path="/Users/x/Library/Application Support/Silo/HostApps/538C9332-8799-4259-8C93-7F8E43B4CBA7/God of War.app/Contents/MacOS/SiloGameHost"
         pid = 34553 token=[sess=100020 pid=34553 uid:501,501,501 g:20,20 pV:69018] type="Foreground" flavor=3 Version=[ NULL ]  fileType="APPL" creator="????" Arch=x86_64 (exited-with-subordinates)
@@ -24,7 +24,7 @@ struct HostSystemServicesTests {
         bundleID="com.apple.SafariPlatformSupport.Helper"
         pid = 34576 token=[sess=100020 pid=34576] type="BackgroundOnly" flavor=2 fileType="XPC!" Arch=ARM64 sandboxed
     100) "Steam" ASN:0x0-0x2ae2ae:
-        bundleID="com.mikael.silo.host.steam-client"
+        bundleID="io.github.dino0005.silo.host.steam-client"
         pid = 34900 token=[sess=100020 pid=34900] type="Foreground" flavor=3 Version=[ NULL ]  fileType="APPL" Arch=x86_64
         coalition: 5407  { 34900 34925 34927 34928 }
     """
@@ -42,7 +42,7 @@ struct HostSystemServicesTests {
         let gowReg = regs.first { $0.bundleID == gow }
         #expect(gowReg?.hasExited == true)
         #expect(gowReg?.coalition == [34571, 34576, 34580, 34582])
-        #expect(regs.first { $0.bundleID == "com.mikael.silo.host.steam-client" }?.hasExited == false)
+        #expect(regs.first { $0.bundleID == "io.github.dino0005.silo.host.steam-client" }?.hasExited == false)
         // An XPC registration without a coalition line parses with an empty one.
         #expect(regs.first { $0.bundleID == "com.apple.SafariPlatformSupport.Helper" }?.coalition == [])
     }

@@ -147,6 +147,6 @@ struct NativeSteamGuardTests {
         #expect(plist["KeepAlive"] as? Bool == true)
         #expect(plist["StandardOutPath"] as? String == "/L/native-steam-guard.log")
         #expect(NativeSteamGuard.launchAgentURL(home: URL(fileURLWithPath: "/Users/x")).path
-                == "/Users/x/Library/LaunchAgents/com.mikael.silo.native-steam-guard.plist")
+                == "/Users/x/Library/LaunchAgents/io.github.dino0005.silo.native-steam-guard.plist")
     }
 }

@@ -88,7 +88,7 @@ public struct SteamWithSilo: Sendable {
 /// Steam Input's virtual gamepad isn't created (measured 2026-11-13). A background agent (`LSUIElement`).
 public struct SteamLauncherApp: Sendable {
     public static let fileName = "Steam (Silo).app"
-    static let bundleIdentifier = "com.mikael.silo.steam-launcher"
+    static let bundleIdentifier = Silo.bundleID + ".steam-launcher"
     static let launcherRelativePath = "Contents/Helpers/SiloSteamLauncher"
     /// The privacy grant Steam inherits from the launcher: Accessibility, listed by macOS 27 as "Controllo del
     /// dispositivo e accesso ai dati" (measured 2026-11-15 — resetting PostEvent left the entry on).
@@ -147,6 +147,14 @@ public struct SteamLauncherApp: Sendable {
             && (try? String(contentsOf: resources.appendingPathComponent(Self.hookFileName), encoding: .utf8))
                 == hook.path + "\n"
             && fileManager.fileExists(atPath: app.appendingPathComponent("Contents/_CodeSignature").path)
+            // An earlier Silo's launcher under another identifier (upstream's, before 2026-11-19) is rewritten too.
+            && Self.identifier(ofApp: app) == Self.bundleIdentifier
+    }
+
+    static func identifier(ofApp app: URL) -> String? {
+        (try? Data(contentsOf: app.appendingPathComponent("Contents/Info.plist")))
+            .flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: Any] }?["CFBundleIdentifier"]
+            as? String
     }
 
     static let sourceFileName = "silo-launcher-source"

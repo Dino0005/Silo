@@ -16,6 +16,13 @@ the commit message says why.
   GitHub release Silo already checks, shown with their headings and lists, with *Open on GitHub* and, for a new
   version, *Update & Relaunch*. The update notice in the Library made it easy to update without ever reading them.
 
+### Changed
+- **Silo has its own identifier.** The app and everything it writes (game apps, shortcuts, *Steam (Silo)*, the guard)
+  move from upstream's `com.mikael.silo` to this fork's `io.github.dino0005.silo`. At the first start Silo carries
+  over its preferences and replaces what an earlier version left under the old name; game apps and hosts are rewritten
+  at their next launch. macOS sees a new app, so it asks again for any permission Silo had, and *Steam (Silo)* asks
+  for its Accessibility grant once more.
+
 ### Fixed
 - **Steam's overlay on Metal 4 games (macOS Steam).** Games that D3DMetal renders through Metal 4 (Marvel's
   Spider-Man Remastered) present their frames in a way Steam's overlay never sees: Shift-Tab drew nothing and the

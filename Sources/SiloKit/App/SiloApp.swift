@@ -11,6 +11,8 @@ public struct SiloApp: App {
         // A roomier shared URL cache so library cover-art (Steam header.jpg) is a memory/disk hit on
         // scroll-back instead of a re-fetch — AsyncImage loads via URLSession.shared, which reads this.
         URLCache.shared = URLCache(memoryCapacity: 32 << 20, diskCapacity: 128 << 20)
+        // Before any view reads them (the onboarding flag): an earlier Silo's preferences, kept under upstream's id.
+        LegacyIdentifiers.migratePreferences()
     }
 
     /// Ask before quitting when something is still running in a bottle.

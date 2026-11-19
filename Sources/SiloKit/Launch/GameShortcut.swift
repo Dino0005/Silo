@@ -24,7 +24,7 @@ public struct GameShortcut: Sendable {
 
     /// The `CFBundleIdentifier` prefix every Silo shortcut carries — used to tell OUR shortcut `.app`s
     /// (safe to replace) apart from an unrelated item that happens to share the file name.
-    static let bundleIDPrefix = "com.mikael.silo.shortcut."
+    static let bundleIDPrefix = Silo.bundleID + ".shortcut."
 
     public enum ShortcutError: Error, Sendable, Equatable {
         case writeFailed(String)
@@ -116,7 +116,7 @@ public struct GameShortcut: Sendable {
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let id = (plist as? [String: Any])?["CFBundleIdentifier"] as? String
         else { return false }
-        return id.hasPrefix(bundleIDPrefix)
+        return id.hasPrefix(bundleIDPrefix) || id.hasPrefix(LegacyIdentifiers.appID + ".shortcut.")
     }
 
     // MARK: - Escaping

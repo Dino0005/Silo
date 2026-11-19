@@ -35,6 +35,13 @@ struct SteamWithSiloTests {
         try FileManager.default.createDirectory(at: app.appendingPathComponent("Contents/_CodeSignature"),
                                                 withIntermediateDirectories: true)
         #expect(launcher.isCurrent(in: apps))
+        // An earlier Silo's launcher, under upstream's identifier: rewritten.
+        let plist = app.appendingPathComponent("Contents/Info.plist")
+        let current = try String(contentsOf: plist, encoding: .utf8)
+        try Data(current.replacingOccurrences(of: Silo.bundleID, with: LegacyIdentifiers.appID).utf8).write(to: plist)
+        #expect(!launcher.isCurrent(in: apps))
+        try Data(current.utf8).write(to: plist)
+        #expect(launcher.isCurrent(in: apps))
         try Data("bin2".utf8).write(to: binary)
         #expect(!launcher.isCurrent(in: apps))
     }

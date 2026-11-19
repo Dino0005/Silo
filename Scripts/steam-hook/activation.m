@@ -8,14 +8,14 @@
 
 void silo_hook_log(const char *fmt, ...);
 
-// …/Application Support/Silo/GameApps/<id>/<name>.app/Contents/MacOS/wine, identifier com.mikael.silo.game.*
+// …/Application Support/Silo/GameApps/<id>/<name>.app/Contents/MacOS/wine, identifier io.github.dino0005.silo.game.*
 static BOOL is_silo_game_app(NSRunningApplication *app) {
     NSArray<NSString *> *parts = app.executableURL.URLByResolvingSymlinksInPath.pathComponents;
     NSUInteger n = parts.count;
     if (n < 8 || ![parts[n - 1] isEqual:@"wine"] || ![parts[n - 2] isEqual:@"MacOS"] ||
         ![parts[n - 3] isEqual:@"Contents"] || ![parts[n - 4] hasSuffix:@".app"]) return NO;
     if (![parts[n - 6] isEqual:@"GameApps"] || ![parts[n - 7] isEqual:@"Silo"]) return NO;
-    return [app.bundleIdentifier hasPrefix:@"com.mikael.silo.game."];
+    return [app.bundleIdentifier hasPrefix:@"io.github.dino0005.silo.game."];
 }
 
 // Hands the front to `game` once Steam is the active frontmost app. A game app usually turns regular before Steam

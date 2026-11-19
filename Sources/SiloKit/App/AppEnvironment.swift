@@ -412,6 +412,8 @@ public final class AppEnvironment {
         // Silo moved or replaced (e.g. a new version dragged into Applications): Steam for macOS still runs the old
         // copy's path — repoint it at this app, and say so; a rewritten "Steam (Silo)" needs its privacy grant again
         // (it is rewritten also when only its launcher changed, Silo not moved — so that message doesn't say "moved").
+        // An earlier Silo's guard, under upstream's label: gone, so the repoint below installs it under ours.
+        await LegacyIdentifiers.retireGuard(home: FileManager.default.homeDirectoryForCurrentUser, runner: runner)
         if let done = try? await NativeSteamSetup(paths: paths).repointIfMoved(), !done.isEmpty {
             if NativeSteamSetup.launcherRewritten(done) {
                 gameLibrary.setStatus(String(localized:

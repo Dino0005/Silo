@@ -8,7 +8,7 @@ import Foundation
 /// `NativeSteamInstaller.protectInstalledWindowsGames`, so the next Steam start always reads a protected cache —
 /// including games installed meanwhile by Silo's classic Windows Steam into a shared library.
 public enum NativeSteamGuard {
-    public static let label = "com.mikael.silo.native-steam-guard"
+    public static let label = Silo.bundleID + ".native-steam-guard"
     /// The argument that runs the guard loop.
     public static let flag = "--native-steam-guard"
 

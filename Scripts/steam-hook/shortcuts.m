@@ -49,7 +49,7 @@ static NSString *silo_game_icon(NSString *gameApps, int appID) {
 static BOOL silo_game_running(void) {
     for (NSRunningApplication *app in NSWorkspace.sharedWorkspace.runningApplications) {
         NSString *bundle = app.bundleIdentifier;
-        if ([bundle hasPrefix:@"com.mikael.silo.game."] || [bundle hasPrefix:@"com.mikael.silo.host."]) return YES;
+        if ([bundle hasPrefix:@"io.github.dino0005.silo.game."] || [bundle hasPrefix:@"io.github.dino0005.silo.host."]) return YES;
     }
     return NO;
 }

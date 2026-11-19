@@ -41,7 +41,7 @@ struct GameAppLoaderTests {
     func rewritesEmbeddedPlist() throws {
         let original = Self.machO(plist: Self.wineloaderPlist)
         let out = try EmbeddedInfoPlist.rewrite(
-            original, entries: EmbeddedInfoPlist.gameEntries(identifier: "com.mikael.silo.game.544750", name: "SC VI"))
+            original, entries: EmbeddedInfoPlist.gameEntries(identifier: "io.github.dino0005.silo.game.544750", name: "SC VI"))
         #expect(out.count == original.count)
         #expect(out.suffix(4) == Data("CODE".utf8))   // nothing outside the section moves
         let section = try EmbeddedInfoPlist.section(in: out)
@@ -50,7 +50,7 @@ struct GameAppLoaderTests {
             .withUnsafeBytes { $0.loadUnaligned(as: UInt64.self) })
         let plist = try #require(PropertyListSerialization.propertyList(from: bytes.prefix(length), format: nil)
             as? [String: Any])
-        #expect(plist["CFBundleIdentifier"] as? String == "com.mikael.silo.game.544750")
+        #expect(plist["CFBundleIdentifier"] as? String == "io.github.dino0005.silo.game.544750")
         #expect(plist["CFBundleName"] as? String == "SC VI")
         #expect(plist["LSApplicationCategoryType"] as? String == "public.app-category.games")
         #expect(plist["LSSupportsGameMode"] as? Bool == true)
@@ -73,7 +73,7 @@ struct GameAppLoaderTests {
         try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
         try Data("host".utf8).write(to: macOS.appendingPathComponent("SiloGameHost"))
 
-        let staged = try GameAppLoader.stage(unixDir: unix, in: macOS, identifier: "com.mikael.silo.game.1", name: "G")
+        let staged = try GameAppLoader.stage(unixDir: unix, in: macOS, identifier: "io.github.dino0005.silo.game.1", name: "G")
         let unsigned = try #require(staged.unsigned)
         #expect(staged.loader.lastPathComponent == "wine")
         #expect(try Data(contentsOf: unix.appendingPathComponent("wine")) == Self.machO(
@@ -83,14 +83,14 @@ struct GameAppLoaderTests {
                 == unix.appendingPathComponent("ntdll.so").path)
         #expect(FileManager.default.fileExists(atPath: macOS.appendingPathComponent("SiloGameHost").path))
 
-        try GameAppLoader.install(staged, unixDir: unix, identifier: "com.mikael.silo.game.1", name: "G")
+        try GameAppLoader.install(staged, unixDir: unix, identifier: "io.github.dino0005.silo.game.1", name: "G")
         #expect(FileManager.default.fileExists(atPath: staged.loader.path) && !FileManager.default.fileExists(atPath: unsigned.path))
         // The marker sits in Resources: Contents/MacOS holds only code, so the bundle can be signed as a whole.
         #expect(FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent("Game.app/Contents/Resources/.wine.silo-source").path))
         #expect(!FileManager.default.fileExists(atPath: macOS.appendingPathComponent(".wine.silo-source").path))
-        #expect(try GameAppLoader.stage(unixDir: unix, in: macOS, identifier: "com.mikael.silo.game.1", name: "G").unsigned == nil)
+        #expect(try GameAppLoader.stage(unixDir: unix, in: macOS, identifier: "io.github.dino0005.silo.game.1", name: "G").unsigned == nil)
         // Another identity rebuilds.
-        #expect(try GameAppLoader.stage(unixDir: unix, in: macOS, identifier: "com.mikael.silo.game.1", name: "H").unsigned != nil)
+        #expect(try GameAppLoader.stage(unixDir: unix, in: macOS, identifier: "io.github.dino0005.silo.game.1", name: "H").unsigned != nil)
     }
 
     @Test("Another runtime repoints the siblings and rebuilds the loader")
@@ -117,7 +117,7 @@ struct GameAppLoaderTests {
                                    executable: GameAppLoader.loaderName, idPrefix: GameHostBundle.gameAppIDPrefix)
             .infoPlist()
         #expect(plist.contains("<key>CFBundleExecutable</key><string>wine</string>"))
-        #expect(plist.contains("<string>com.mikael.silo.game.544750</string>"))
+        #expect(plist.contains("<string>io.github.dino0005.silo.game.544750</string>"))
         #expect(plist.contains("public.app-category.games") && plist.contains("LSSupportsGameMode"))
         #expect(!plist.contains("LSEnvironment"))   // none asked for
         // The Games app's hand-off: LSEnvironment carries the library and where to hand a start with no game.
@@ -134,7 +134,7 @@ struct GameAppLoaderTests {
         // The host keeps its own.
         let host = GameHostBundle(name: "SOULCALIBUR VI", id: "544750").infoPlist()
         #expect(host.contains("<key>CFBundleExecutable</key><string>SiloGameHost</string>"))
-        #expect(host.contains("<string>com.mikael.silo.host.544750</string>"))
+        #expect(host.contains("<string>io.github.dino0005.silo.host.544750</string>"))
     }
 
     @Test("Every command of the launch carries the game app's variables with Steam's libraries")

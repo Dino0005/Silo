@@ -16,7 +16,7 @@ struct GameHostBundleTests {
         #expect(plist.contains("<key>CFBundleName</key><string>Tekken 8</string>"))
         #expect(plist.contains("<key>CFBundleDisplayName</key><string>Tekken 8</string>"))
         #expect(plist.contains(
-            "<key>CFBundleIdentifier</key><string>com.mikael.silo.host.1778820</string>"))
+            "<key>CFBundleIdentifier</key><string>io.github.dino0005.silo.host.1778820</string>"))
         #expect(plist.contains("<key>CFBundleIconFile</key><string>AppIcon</string>"))
         #expect(plist.contains("<key>CFBundlePackageType</key><string>APPL</string>"))
     }
@@ -68,7 +68,7 @@ struct GameHostBundleTests {
 
     @Test func identifierSlugsUnsafeCharactersInTheID() {
         let plist = GameHostBundle(name: "G", id: "A1B2/C3 D4").infoPlist()
-        #expect(plist.contains("<string>com.mikael.silo.host.A1B2-C3-D4</string>"))
+        #expect(plist.contains("<string>io.github.dino0005.silo.host.A1B2-C3-D4</string>"))
     }
 
     // MARK: - Paths
