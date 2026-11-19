@@ -23,6 +23,11 @@ the commit message says why.
   game's own work, which is where the overlay draws; Metal 3 games are untouched. `SILO_OVERLAY_BRIDGE=0` in a
   game's environment turns it off.
 
+### Known issues
+- **DualSense lights with macOS Steam.** A DualSense switched on while Steam is already open can lose its lights:
+  macOS's own controller service sets them at the same moment as Steam, and macOS often wins. Switch the pad on
+  before opening Steam (Silo), or click Steam in the Dock first, and Steam's lights stay.
+
 ## 0.7.4
 
 ### Changed
