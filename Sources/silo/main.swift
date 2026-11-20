@@ -285,6 +285,7 @@ if CommandLine.arguments.contains("--smoke")
         let isPlaying = running && playing.isPlaying()
         if isPlaying != wasPlaying {
             _ = try? await cef.evaluate(SteamLibraryFilters.pause(isPlaying))
+            _ = try? await cef.evaluate(SteamCompatibilityPage.pause(isPlaying))
             log(isPlaying ? "game running: Steam UI checks paused" : "game ended: Steam UI checks resumed")
             wasPlaying = isPlaying
             nextFilterCheck = Date()
@@ -300,6 +301,16 @@ if CommandLine.arguments.contains("--smoke")
                 filtersLive = reply.hasPrefix("silo filters")
             } else if live != filtersLive {
                 filtersLive = live
+            }
+            // The Compatibility page in each game's Properties (same cadence as the filters).
+            if (try? await cef.evaluate(SteamCompatibilityPage.probe)) != "true",
+               let ids = try? installer.windowsGameIDsInCache() {
+                let tools = SteamCompatMapping.installedToolList(
+                    in: installer.steamRoot.appendingPathComponent("compatibilitytools.d"))
+                if let reply = try? await cef.evaluate(SteamCompatibilityPage.script(
+                    tools: tools, windowsOnly: ids.windowsOnly, windowsBuild: ids.windowsBuild)) {
+                    log("compatibility page: \(reply)")
+                }
             }
             // "Install" on a Windows game Steam can't install by itself goes to Silo (same cadence as the filters).
             if (try? await cef.evaluate(SteamInstallWithSilo.probe)) != "true",

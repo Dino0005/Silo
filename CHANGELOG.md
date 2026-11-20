@@ -10,6 +10,13 @@ the commit message says why.
 
 ## Unreleased
 
+### Added
+- **A Compatibility page in Steam for macOS.** Each game's Properties get the *Compatibility* page the Linux client
+  has and the Mac one hides, with Steam's own wording: choose *Silo* (or another installed compatibility tool) or
+  *Default*. For a game that has both a Mac and a Windows version, choosing Silo makes Steam install and run the
+  Windows version, the way CrossOver documents it for its own tool; *Default* goes back to the Mac version. Windows-only
+  games keep Silo, Mac-only games show the page with the choice disabled.
+
 ### Fixed
 - **The old guard is always stopped.** After the identifier change, Silo stops the Steam for macOS guard still
   running under the old name even when its file is already gone; on one Mac both guards were running side by side.

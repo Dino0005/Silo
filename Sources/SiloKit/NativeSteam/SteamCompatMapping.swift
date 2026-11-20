@@ -47,6 +47,20 @@ public enum SteamCompatMapping {
         return names
     }
 
+    /// The tools in `compatibilitytools.d`, as (name, name Steam shows), sorted by the name shown — the choices of
+    /// Silo's Compatibility page (`SteamCompatibilityPage`).
+    public static func installedToolList(in toolsDir: URL, fileManager: FileManager = .default) -> [(name: String, display: String)] {
+        var list: [String: String] = [:]
+        for dir in (try? fileManager.contentsOfDirectory(at: toolsDir, includingPropertiesForKeys: nil)) ?? [] {
+            guard let text = try? String(contentsOf: dir.appendingPathComponent("compatibilitytool.vdf"), encoding: .utf8),
+                  let tools = (try? KeyValuesParser().parse(text: text)).flatMap({ find("compat_tools", in: $0) })
+            else { continue }
+            for pair in tools.pairs { list[pair.key] = pair.value["display_name"]?.stringValue ?? pair.key }
+        }
+        return list.map { (name: $0.key, display: $0.value) }
+            .sorted { ($0.display.localizedLowercase, $0.name) < ($1.display.localizedLowercase, $1.name) }
+    }
+
     /// The names one tool folder declares.
     static func toolNames(inToolDir dir: URL) -> Set<String> {
         guard let text = try? String(contentsOf: dir.appendingPathComponent("compatibilitytool.vdf"), encoding: .utf8),
