@@ -18,7 +18,7 @@ import Foundation
 /// gets the page with the menu disabled. A Windows-only game set to Default is mapped back to Silo by the guard.
 public enum SteamCompatibilityPage {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 1
+    public static let version = 2
 
     /// JavaScript that answers whether this version of the page is live in Steam.
     public static let probe = "String(window.__siloCompat && window.__siloCompat.version === \(version) && window.__siloCompat.installed === true)"
@@ -38,6 +38,7 @@ public enum SteamCompatibilityPage {
             .replacingOccurrences(of: "__SILO_TOOLS__", with: json)
             .replacingOccurrences(of: "__SILO_WINDOWS_ONLY__", with: list(windowsOnly))
             .replacingOccurrences(of: "__SILO_WINDOWS_BUILD__", with: list(windowsBuild))
+            .replacingOccurrences(of: "__SILO_TOOL__", with: SiloCompatTool.name)
     }
 
     static let template = #"""
@@ -47,15 +48,33 @@ public enum SteamCompatibilityPage {
       S.tools = __SILO_TOOLS__;            // [[name, display name], ...] installed in compatibilitytools.d
       S.winOnly = new Set([__SILO_WINDOWS_ONLY__]);
       S.win = new Set([__SILO_WINDOWS_BUILD__]);
+      S.siloTool = '__SILO_TOOL__';
+      // Each game's Silo settings (SteamGameSettings), handed over by the guard; the changes made here wait in
+      // S.changes until the guard writes them to Silo's config.json.
+      S.settings = S.settings || {};
+      S.changes = S.changes || [];
       const it = /LANGUAGE=italian/.test(location.href);
       const T = it ? {
         macOnly: 'Questo gioco non ha una versione per Windows.',
         winOnly: 'Gioco solo per Windows: Steam lo installa e lo avvia con lo strumento scelto.',
-        dual: 'Predefinito: Steam installa la versione per Mac. Con uno strumento, Steam installa e avvia la versione per Windows (quella installata viene sostituita).'
+        dual: 'Predefinito: Steam installa la versione per Mac. Con uno strumento, Steam installa e avvia la versione per Windows (quella installata viene sostituita).',
+        silo: 'Silo', graphics: 'Backend grafico', auto: 'Automatico',
+        graphicsNote: 'La modalità automatica sceglie il miglior livello di traduzione per ogni gioco — i giochi a 32 bit usano DXMT, gli altri partono con GPTK / D3DMetal e passano a DXMT se GPTK non riesce ad avviarli. Per usare DXMT è necessario installarlo in Impostazioni → DXMT. Ha effetto al prossimo avvio.',
+        learned: b => 'La modalità automatica sta usando ' + b + ' — GPTK non è riuscito ad avviare questo gioco.',
+        shared: 'Sono le stesse impostazioni del gioco in Silo: cambiarle qui o in Silo è la stessa cosa.'
       } : {
         macOnly: 'This game has no Windows version.',
         winOnly: 'Windows-only game: Steam installs and starts it with the chosen tool.',
-        dual: 'Default: Steam installs the Mac version. With a tool, Steam installs and starts the Windows version (the installed one is replaced).'
+        dual: 'Default: Steam installs the Mac version. With a tool, Steam installs and starts the Windows version (the installed one is replaced).',
+        silo: 'Silo', graphics: 'Graphics backend', auto: 'Automatic',
+        graphicsNote: "Automatic picks the best translation layer per game — 32-bit games use DXMT, others start on GPTK / D3DMetal and switch to DXMT if GPTK can't run them. Using DXMT requires installing it in Settings → DXMT. Takes effect next launch.",
+        learned: b => 'Automatic is using ' + b + " — GPTK couldn't run this game.",
+        shared: "These are the game's settings in Silo: changing them here or in Silo is the same."
+      };
+      const DEFAULTS = { graphics: 'auto', learned: '' };
+      const valueOf = (appid, key) => {
+        const g = S.settings[String(appid)];
+        return g && g[key] != null ? g[key] : DEFAULTS[key];
       };
       const L = (token, fallback) => {
         try { const s = window.LocalizationManager.LocalizeString(token); if (s && s !== token) return s; } catch (e) {}
@@ -184,17 +203,71 @@ public enum SteamCompatibilityPage {
         if (current && ![...select.options].some(o => o.value === current)) add(current, (d && d.strCompatToolDisplayName) || current);
         select.value = current;
         select.disabled = kind === 'macOnly';
+        const silo = siloSection(doc, appid, el);
+        const showSilo = () => { silo.style.display = select.value === S.siloTool ? '' : 'none'; };
         select.addEventListener('change', () => {
           try { SteamClient.Apps.SpecifyCompatTool(appid, select.value); } catch (e) {}
+          showSilo();
         });
         row.append(label, select);
         const note = el('div', null, T[kind]);
         note.style.cssText = 'color:#8b929a;font-size:12px;margin-top:10px;line-height:1.4';
-        body.append(section, row, note);
+        showSilo();
+        body.append(section, row, note, silo);
         inner.append(body);
         page.append(inner);
         return page;
       }
+
+      // The "Silo" section: the game's own Silo settings, shown while Silo is its tool.
+      function siloSection(doc, appid, el) {
+        const box = el('div');
+        box.dataset.siloSettings = '1';
+        const header = el('div', null, T.silo);
+        header.style.cssText = 'font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#8b929a;margin:28px 0 14px';
+        const row = el('div');
+        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)';
+        const label = el('div', null, T.graphics);
+        label.style.cssText = 'color:#fff;font-size:14px';
+        const select = el('select');
+        select.style.cssText = 'min-width:220px;padding:6px 10px;background:#32353c;color:#fff;border:1px solid #4b5059;border-radius:3px;font-size:13px';
+        for (const [value, text] of [['auto', T.auto], ['gptk', 'GPTK / D3DMetal'], ['dxmt', 'DXMT']]) {
+          const o = el('option', null, text); o.value = value; select.append(o);
+        }
+        const note = el('div');
+        note.style.cssText = 'color:#8b929a;font-size:12px;margin-top:10px;line-height:1.4';
+        const shared = el('div', null, T.shared);
+        shared.style.cssText = 'color:#8b929a;font-size:12px;margin-top:14px;line-height:1.4;font-style:italic';
+        const refresh = () => {
+          select.value = valueOf(appid, 'graphics');
+          const learned = valueOf(appid, 'learned');
+          note.textContent = select.value === 'auto' && learned ? T.learned(learned) : T.graphicsNote;
+        };
+        select.addEventListener('change', () => {
+          const key = String(appid);
+          S.settings[key] = Object.assign({}, S.settings[key] || DEFAULTS, { graphics: select.value });
+          S.changes.push({ appid, key: 'graphics', value: select.value });
+          refresh();
+        });
+        box.__siloRefresh = refresh;
+        refresh();
+        row.append(label, select);
+        box.append(header, row, note, shared);
+        return box;
+      }
+
+      // New values from the guard (config.json changed): every open Silo section shows them.
+      S.setSettings = values => {
+        S.settings = values || {};
+        try {
+          for (const p of window.g_PopupManager.GetPopups()) {
+            const d = p.m_popup && p.m_popup.document; if (!d) continue;
+            for (const box of d.querySelectorAll('[data-silo-settings]')) if (box.__siloRefresh) box.__siloRefresh();
+          }
+        } catch (e) {}
+        return true;
+      };
+      S.takeChanges = () => { const c = S.changes; S.changes = []; return c; };
 
       // A new version replaces the old one's tabs and pages (their listeners belong to the old script).
       try {

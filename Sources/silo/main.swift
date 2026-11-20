@@ -276,6 +276,9 @@ if CommandLine.arguments.contains("--smoke")
                                   environment: [:], currentDirectory: nil)
     }
     var restartedSession: String?
+    // The config.json the Compatibility page's Silo section was last given (its modification date); nil = give it again.
+    var settingsGiven: Date?
+    let configStore = ConfigStore(paths: paths)
     while true {
         let running = steamRunning()
         // Off in Settings: only the protection below runs — nothing inside Steam's UI, no tool mapping.
@@ -310,6 +313,7 @@ if CommandLine.arguments.contains("--smoke")
                 if let reply = try? await cef.evaluate(SteamCompatibilityPage.script(
                     tools: tools, windowsOnly: ids.windowsOnly, windowsBuild: ids.windowsBuild)) {
                     log("compatibility page: \(reply)")
+                    settingsGiven = nil
                 }
             }
             // "Install" on a Windows game Steam can't install by itself goes to Silo (same cadence as the filters).
@@ -339,6 +343,29 @@ if CommandLine.arguments.contains("--smoke")
                                                              libraries: installer.libraries(),
                                                              installed: Set(installer.installedAppIDs()))
                 NativeSteamCleanup.remove(leftovers).forEach(log)
+            }
+        }
+        // The Silo settings changed on the Compatibility page, written to config.json (the same field-scoped update Silo's
+        // own settings sheet uses); then the page gets config.json's values again whenever the file has changed.
+        if enabled, running, !isPlaying {
+            let changes = SteamGameSettings.changes(fromReply: (try? await cef.evaluate(SteamGameSettings.takeChanges)) ?? "")
+            for appID in Set(changes.map(\.appid)).sorted() {
+                let mine = changes.filter { $0.appid == appID }
+                var preview = await configStore.load().config(for: appID)
+                let lines = SteamGameSettings.apply(mine, to: &preview)
+                guard !lines.isEmpty else { continue }
+                do {
+                    try await configStore.updateGame(appID: appID) { _ = SteamGameSettings.apply(mine, to: &$0) }
+                    lines.forEach(log)
+                } catch {
+                    log("settings \(appID) not saved: \(error)")
+                }
+            }
+            let stamp = (try? FileManager.default.attributesOfItem(atPath: paths.configFile.path))?[.modificationDate] as? Date
+                ?? .distantPast
+            if stamp != settingsGiven,
+               (try? await cef.evaluate(SteamGameSettings.snapshotScript(state: await configStore.load()))) == "true" {
+                settingsGiven = stamp
             }
         }
         // An Install pressed on such a game: ask, then restart Steam with the game readied in the external library.
