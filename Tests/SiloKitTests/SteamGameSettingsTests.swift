@@ -11,10 +11,12 @@ struct SteamGameSettingsTests {
         var gow = state.config(for: 1593500); gow.learnedBackend = .dxmt; gow.learnedUnderRuntime = "GPTK-4"
         var old = state.config(for: 7); old.learnedBackend = .dxmt; old.learnedUnderRuntime = "GPTK-3"
         state.upsert(tekken); state.upsert(gow); state.upsert(old)
-        let js = SteamGameSettings.snapshotScript(state: state)
-        #expect(js.contains(#""1778820":{"graphics":"dxmt","learned":""}"#))
-        #expect(js.contains(#""1593500":{"graphics":"auto","learned":"DXMT"}"#))
-        #expect(js.contains(#""7":{"graphics":"auto","learned":""}"#))
+        let js = SteamGameSettings.snapshotScript(state: state, mediaFoundation: true)
+        #expect(js.contains(#""1778820":{"advertiseAVX":"#))
+        #expect(js.contains(#""graphics":"dxmt","learned":"","mediaFoundationNative":"0","metalBackend":"auto""#))
+        #expect(js.contains(#""graphics":"auto","learned":"DXMT""#))
+        #expect(js.contains(#""mediaFoundation":true"#))
+        #expect(js.contains(#""defaults":{"#))
         #expect(js.hasPrefix("String(!!(window.__siloCompat && window.__siloCompat.setSettings"))
     }
 
@@ -28,13 +30,29 @@ struct SteamGameSettingsTests {
         let lines = SteamGameSettings.apply(all, to: &config)
         #expect(lines == ["settings 391220: graphics = dxmt"])
         #expect(config.graphics == .dxmt)
+        // Every field round-trips through the page's text values.
+        var edited = AppState().config(for: 1)
+        let flips: [SteamGameSettings.Change] = [
+            .init(appid: 1, key: "syncMode", value: "esync"), .init(appid: 1, key: "advertiseAVX", value: "0"),
+            .init(appid: 1, key: "metalHUD", value: "1"), .init(appid: 1, key: "metalFX", value: "1"),
+            .init(appid: 1, key: "dxr", value: "1"), .init(appid: 1, key: "metalBackend", value: "metal3"),
+            .init(appid: 1, key: "depthFix", value: "1"), .init(appid: 1, key: "disableHidraw", value: "1"),
+            .init(appid: 1, key: "mediaFoundationNative", value: "1"), .init(appid: 1, key: "dxr", value: "yes"),
+        ]
+        #expect(SteamGameSettings.apply(flips, to: &edited).count == 9)   // "yes" isn't a bit
+        let f = edited.envFlags
+        #expect(f.syncMode == .esync && !f.advertiseAVX && f.metalHUD && f.metalFX && f.dxr && f.metalBackend == .metal3)
+        #expect(f.depthFix && f.disableHidraw && f.mediaFoundationNative)
+        for field in SteamGameSettings.Field.allCases {
+            #expect(SteamGameSettings.set(field, to: SteamGameSettings.value(field, of: edited), in: &edited))
+        }
     }
 
     @Test("The page script knows Silo's tool and carries the Silo section")
     func pageScript() {
         let js = SteamCompatibilityPage.script(tools: [(name: SiloCompatTool.name, display: "Silo")], windowsOnly: [], windowsBuild: [])
         #expect(js.contains("S.siloTool = '\(SiloCompatTool.name)';"))
-        for needle in ["S.setSettings = ", "S.takeChanges = ", "S.changes.push({ appid, key: 'graphics'", "data-silo-settings"] {
+        for needle in ["S.setSettings = ", "S.takeChanges = ", "S.changes.push({ appid, key, value })", "picker('metalBackend'", "toggle('mediaFoundationNative'", "data-silo-settings"] {
             #expect(js.contains(needle), "\(needle)")
         }
     }

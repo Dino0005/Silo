@@ -18,7 +18,7 @@ import Foundation
 /// gets the page with the menu disabled. A Windows-only game set to Default is mapped back to Silo by the guard.
 public enum SteamCompatibilityPage {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 2
+    public static let version = 3
 
     /// JavaScript that answers whether this version of the page is live in Steam.
     public static let probe = "String(window.__siloCompat && window.__siloCompat.version === \(version) && window.__siloCompat.installed === true)"
@@ -61,7 +61,18 @@ public enum SteamCompatibilityPage {
         silo: 'Silo', graphics: 'Backend grafico', auto: 'Automatico',
         graphicsNote: 'La modalità automatica sceglie il miglior livello di traduzione per ogni gioco — i giochi a 32 bit usano DXMT, gli altri partono con GPTK / D3DMetal e passano a DXMT se GPTK non riesce ad avviarli. Per usare DXMT è necessario installarlo in Impostazioni → DXMT. Ha effetto al prossimo avvio.',
         learned: b => 'La modalità automatica sta usando ' + b + ' — GPTK non è riuscito ad avviare questo gioco.',
-        shared: 'Sono le stesse impostazioni del gioco in Silo: cambiarle qui o in Silo è la stessa cosa.'
+        shared: 'Sono le stesse impostazioni del gioco in Silo: cambiarle qui o in Silo è la stessa cosa.',
+        performance: 'Prestazioni', sync: 'Sincronizzazione', msync: 'MSync (consigliato)', esync: 'ESync', off: 'Disattivato',
+        avx: 'Supporto AVX (Rosetta)', hud: 'HUD prestazioni (FPS / frame time)', metalFX: 'Upscaling MetalFX',
+        dxr: 'Ray tracing DirectX (M3 o successivi)', metalBackend: 'Backend Metal', metal4: 'Metal 4', metal3: 'Metal 3 (compatibilità)',
+        perfNote: "MSync + Supporto AVX è la configurazione di base consigliata per Apple Silicon. L'HUD Prestazioni mostra FPS/frame time in tempo reale sul gioco. MetalFX aumenta gli FPS tramite upscaling; il ray tracing richiede un M3 o successivo. Backend Metal sceglie il renderer attraverso cui passa il percorso DirectX 12 di GPTK: Automatico segue la scelta predefinita di Apple — Metal 3 su macOS 26, Metal 4 su macOS 27 e successivi. Se un gioco è peggiorato dopo un aggiornamento di GPTK, prova prima Metal 3. Solo GPTK.",
+        perfNoteDXMT: "MSync + Supporto AVX è la configurazione di base consigliata per Apple Silicon. L'HUD Prestazioni mostra FPS/frame time in tempo reale sul gioco. MetalFX aumenta gli FPS tramite upscaling; il ray tracing richiede un M3 o successivo.",
+        rendering: 'Rendering', depthFix: 'Correzione profondità',
+        depthNote: 'Elimina i puntini bianchi sui personaggi nei giochi che ridisegnano la scena con un test di profondità esatto (God of War). Solo per i giochi che ne hanno bisogno: su altri può far vedere oggetti attraverso i muri. Funziona con GPTK e DXMT, solo giochi DirectX 11.',
+        controllers: 'Controller (Steam per macOS)', hidraw: 'Disattiva hidraw',
+        hidrawNote: 'Quando Steam Input gestisce un controller, Silo lo nasconde al gioco, così i due non lo usano insieme, e il gioco riceve invece il controller virtuale di Steam, come controller Xbox (i giochi che chiedono a Steam il tipo di controller mostrano comunque i simboli PlayStation). «Disattiva hidraw» fa leggere ogni controller tramite SDL (simboli Xbox), per un pad che non funziona bene: usalo con Steam Input disattivato.',
+        mf: 'Media Foundation', mfToggle: 'Esegui nella bottiglia Media Foundation',
+        mfNote: 'Per i giochi i cui video interni restano neri. Ha effetto al prossimo avvio. Le cartelle di salvataggio da condividere con quella bottiglia si scelgono in Silo.'
       } : {
         macOnly: 'This game has no Windows version.',
         winOnly: 'Windows-only game: Steam installs and starts it with the chosen tool.',
@@ -69,12 +80,24 @@ public enum SteamCompatibilityPage {
         silo: 'Silo', graphics: 'Graphics backend', auto: 'Automatic',
         graphicsNote: "Automatic picks the best translation layer per game — 32-bit games use DXMT, others start on GPTK / D3DMetal and switch to DXMT if GPTK can't run them. Using DXMT requires installing it in Settings → DXMT. Takes effect next launch.",
         learned: b => 'Automatic is using ' + b + " — GPTK couldn't run this game.",
-        shared: "These are the game's settings in Silo: changing them here or in Silo is the same."
+        shared: "These are the game's settings in Silo: changing them here or in Silo is the same.",
+        performance: 'Performance', sync: 'Sync', msync: 'MSync (recommended)', esync: 'ESync', off: 'Off',
+        avx: 'Advertise AVX (Rosetta)', hud: 'Performance HUD (FPS / frame time)', metalFX: 'MetalFX upscaling',
+        dxr: 'DirectX Raytracing (M3+)', metalBackend: 'Metal backend', metal4: 'Metal 4', metal3: 'Metal 3 (compatibility)',
+        perfNote: "MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer. Metal backend picks the renderer GPTK's DirectX 12 path translates through: Automatic follows Apple's default — Metal 3 on macOS 26, Metal 4 on macOS 27 and later. If a game regressed after a GPTK update, try Metal 3 first. GPTK only.",
+        perfNoteDXMT: 'MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer.',
+        rendering: 'Rendering', depthFix: 'Depth fix',
+        depthNote: 'Fixes white specks on characters in games that redraw the scene with an exact depth test (God of War). Only for games that need it: on others it can draw things through walls. Works with GPTK and DXMT, DirectX 11 games only.',
+        controllers: 'Controllers (macOS Steam)', hidraw: 'Disable hidraw',
+        hidrawNote: "While Steam Input handles a controller, Silo hides it from the game so the two don't drive it together, and the game gets Steam's virtual controller instead, as an Xbox controller (games that ask Steam for the controller type still show PlayStation glyphs). \"Disable hidraw\" reads every controller through SDL (Xbox glyphs), for a pad that misbehaves — use it with Steam Input off.",
+        mf: 'Media Foundation', mfToggle: 'Run in the Media Foundation bottle',
+        mfNote: 'For games whose in-game videos come up black. Takes effect next launch. The save folders to share with that bottle are chosen in Silo.'
       };
-      const DEFAULTS = { graphics: 'auto', learned: '' };
+      S.defaults = S.defaults || {};
       const valueOf = (appid, key) => {
         const g = S.settings[String(appid)];
-        return g && g[key] != null ? g[key] : DEFAULTS[key];
+        if (g && g[key] != null) return g[key];
+        return S.defaults[key] != null ? S.defaults[key] : '';
       };
       const L = (token, fallback) => {
         try { const s = window.LocalizationManager.LocalizeString(token); if (s && s !== token) return s; } catch (e) {}
@@ -219,46 +242,115 @@ public enum SteamCompatibilityPage {
         return page;
       }
 
-      // The "Silo" section: the game's own Silo settings, shown while Silo is its tool.
+      // The "Silo" section: the game's own Silo settings, shown while Silo is its tool — the same groups, labels and
+      // notes as Silo's settings sheet for the game.
       function siloSection(doc, appid, el) {
         const box = el('div');
         box.dataset.siloSettings = '1';
-        const header = el('div', null, T.silo);
-        header.style.cssText = 'font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#8b929a;margin:28px 0 14px';
-        const row = el('div');
-        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)';
-        const label = el('div', null, T.graphics);
-        label.style.cssText = 'color:#fff;font-size:14px';
-        const select = el('select');
-        select.style.cssText = 'min-width:220px;padding:6px 10px;background:#32353c;color:#fff;border:1px solid #4b5059;border-radius:3px;font-size:13px';
-        for (const [value, text] of [['auto', T.auto], ['gptk', 'GPTK / D3DMetal'], ['dxmt', 'DXMT']]) {
-          const o = el('option', null, text); o.value = value; select.append(o);
-        }
-        const note = el('div');
-        note.style.cssText = 'color:#8b929a;font-size:12px;margin-top:10px;line-height:1.4';
-        const shared = el('div', null, T.shared);
-        shared.style.cssText = 'color:#8b929a;font-size:12px;margin-top:14px;line-height:1.4;font-style:italic';
-        const refresh = () => {
-          select.value = valueOf(appid, 'graphics');
-          const learned = valueOf(appid, 'learned');
-          note.textContent = select.value === 'auto' && learned ? T.learned(learned) : T.graphicsNote;
+        const refreshers = [];
+        const header = text => {
+          const h = el('div', null, text);
+          h.style.cssText = 'font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#8b929a;margin:28px 0 6px';
+          box.append(h);
         };
-        select.addEventListener('change', () => {
-          const key = String(appid);
-          S.settings[key] = Object.assign({}, S.settings[key] || DEFAULTS, { graphics: select.value });
-          S.changes.push({ appid, key: 'graphics', value: select.value });
-          refresh();
+        const noteEl = () => {
+          const n = el('div');
+          n.style.cssText = 'color:#8b929a;font-size:12px;margin-top:8px;line-height:1.4';
+          box.append(n);
+          return n;
+        };
+        const rowEl = label => {
+          const row = el('div');
+          row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.08)';
+          const l = el('div', null, label);
+          l.style.cssText = 'color:#fff;font-size:14px';
+          row.append(l);
+          box.append(row);
+          return row;
+        };
+        const change = (key, value) => {
+          const k = String(appid);
+          S.settings[k] = Object.assign({}, S.defaults, S.settings[k] || {}, { [key]: value });
+          S.changes.push({ appid, key, value });
+          refreshers.forEach(f => f());
+        };
+        const picker = (key, label, options) => {
+          const row = rowEl(label);
+          const select = el('select');
+          select.style.cssText = 'min-width:220px;padding:6px 10px;background:#32353c;color:#fff;border:1px solid #4b5059;border-radius:3px;font-size:13px';
+          for (const [value, text] of options) { const o = el('option', null, text); o.value = value; select.append(o); }
+          select.addEventListener('change', () => change(key, select.value));
+          row.append(select);
+          refreshers.push(() => { select.value = valueOf(appid, key); });
+          return row;
+        };
+        const toggle = (key, label) => {
+          const row = rowEl(label);
+          const box2 = el('input');
+          box2.type = 'checkbox';
+          box2.style.cssText = 'width:18px;height:18px;accent-color:#1a9fff;cursor:pointer';
+          box2.addEventListener('change', () => change(key, box2.checked ? '1' : '0'));
+          row.append(box2);
+          refreshers.push(() => { box2.checked = valueOf(appid, key) === '1'; });
+          return row;
+        };
+
+        header(T.silo);
+        picker('graphics', T.graphics, [['auto', T.auto], ['gptk', 'GPTK / D3DMetal'], ['dxmt', 'DXMT']]);
+        const graphicsNote = noteEl();
+        refreshers.push(() => {
+          const learned = valueOf(appid, 'learned');
+          graphicsNote.textContent = valueOf(appid, 'graphics') === 'auto' && learned ? T.learned(learned) : T.graphicsNote;
         });
-        box.__siloRefresh = refresh;
-        refresh();
-        row.append(label, select);
-        box.append(header, row, note, shared);
+
+        header(T.performance);
+        picker('syncMode', T.sync, [['msync', T.msync], ['esync', T.esync], ['none', T.off]]);
+        toggle('advertiseAVX', T.avx);
+        toggle('metalHUD', T.hud);
+        toggle('metalFX', T.metalFX);
+        toggle('dxr', T.dxr);
+        // Like Silo's sheet: the Metal backend is a D3DMetal option, so it isn't offered under DXMT.
+        const metalRow = picker('metalBackend', T.metalBackend, [['auto', T.auto], ['metal4', T.metal4], ['metal3', T.metal3]]);
+        const perfNote = noteEl();
+        refreshers.push(() => {
+          const dxmt = valueOf(appid, 'graphics') === 'dxmt';
+          metalRow.style.display = dxmt ? 'none' : 'flex';
+          perfNote.textContent = dxmt ? T.perfNoteDXMT : T.perfNote;
+        });
+
+        header(T.rendering);
+        toggle('depthFix', T.depthFix);
+        noteEl().textContent = T.depthNote;
+
+        header(T.controllers);
+        toggle('disableHidraw', T.hidraw);
+        noteEl().textContent = T.hidrawNote;
+
+        // Only once the Media Foundation bottle exists, like Silo's sheet.
+        const mfBox = el('div'); box.append(mfBox);
+        const mfStart = box.children.length;
+        header(T.mf);
+        toggle('mediaFoundationNative', T.mfToggle);
+        noteEl().textContent = T.mfNote;
+        const mfParts = [...box.children].slice(mfStart);
+        mfParts.forEach(n => mfBox.append(n));
+        refreshers.push(() => { mfBox.style.display = S.mediaFoundation ? '' : 'none'; });
+
+        const shared = el('div', null, T.shared);
+        shared.style.cssText = 'color:#8b929a;font-size:12px;margin-top:22px;line-height:1.4;font-style:italic';
+        box.append(shared);
+
+        box.__siloRefresh = () => refreshers.forEach(f => f());
+        box.__siloRefresh();
         return box;
       }
 
       // New values from the guard (config.json changed): every open Silo section shows them.
-      S.setSettings = values => {
-        S.settings = values || {};
+      S.setSettings = payload => {
+        payload = payload || {};
+        S.settings = payload.games || {};
+        S.defaults = payload.defaults || {};
+        S.mediaFoundation = !!payload.mediaFoundation;
         try {
           for (const p of window.g_PopupManager.GetPopups()) {
             const d = p.m_popup && p.m_popup.document; if (!d) continue;

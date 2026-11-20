@@ -364,7 +364,9 @@ if CommandLine.arguments.contains("--smoke")
             let stamp = (try? FileManager.default.attributesOfItem(atPath: paths.configFile.path))?[.modificationDate] as? Date
                 ?? .distantPast
             if stamp != settingsGiven,
-               (try? await cef.evaluate(SteamGameSettings.snapshotScript(state: await configStore.load()))) == "true" {
+               (try? await cef.evaluate(SteamGameSettings.snapshotScript(
+                state: await configStore.load(),
+                mediaFoundation: MediaFoundationInstaller.isInstalled(inPrefix: paths.steamBottleMF)))) == "true" {
                 settingsGiven = stamp
             }
         }

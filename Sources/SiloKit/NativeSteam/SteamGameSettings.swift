@@ -8,41 +8,82 @@ import Foundation
 ///   couple of seconds and writes it with `ConfigStore.updateGame`, the field-scoped update Silo itself uses.
 /// A launch from Steam reads `config.json`, so what the game runs with is always what both screens show.
 public enum SteamGameSettings {
-    /// The settings the page carries, by the key it uses for them.
+    /// The settings the page carries, by the key it uses for them: the ones Silo's settings sheet has that make sense for a game started from Steam: not the launch options
+    /// (Steam has its own, in General), the executable (Steam picks it), Steam presence or shared save folders (Silo's
+    /// Windows Steam bottle only). Booleans travel as "1" / "0".
     public enum Field: String, CaseIterable, Sendable {
-        case graphics
+        case graphics, syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, depthFix, disableHidraw
+        case mediaFoundationNative
     }
 
     /// The page's value of `field` for `config`.
     static func value(_ field: Field, of config: GameConfig) -> String {
+        let flags = config.envFlags
+        func bit(_ on: Bool) -> String { on ? "1" : "0" }
         switch field {
-        case .graphics: config.graphics.rawValue
+        case .graphics: return config.graphics.rawValue
+        case .syncMode: return flags.syncMode.rawValue
+        case .advertiseAVX: return bit(flags.advertiseAVX)
+        case .metalHUD: return bit(flags.metalHUD)
+        case .metalFX: return bit(flags.metalFX)
+        case .dxr: return bit(flags.dxr)
+        case .metalBackend: return flags.metalBackend.rawValue
+        case .depthFix: return bit(flags.depthFix)
+        case .disableHidraw: return bit(flags.disableHidraw)
+        case .mediaFoundationNative: return bit(flags.mediaFoundationNative)
         }
     }
 
     /// Sets `field` to `value`; false for a value that isn't valid (left unchanged).
     static func set(_ field: Field, to value: String, in config: inout GameConfig) -> Bool {
+        func bit() -> Bool? { value == "1" ? true : value == "0" ? false : nil }
         switch field {
         case .graphics:
             guard let choice = GraphicsChoice(rawValue: value) else { return false }
             config.graphics = choice
+        case .syncMode:
+            guard let mode = SyncMode(rawValue: value) else { return false }
+            config.envFlags.syncMode = mode
+        case .metalBackend:
+            guard let choice = MetalBackendChoice(rawValue: value) else { return false }
+            config.envFlags.metalBackend = choice
+        case .advertiseAVX, .metalHUD, .metalFX, .dxr, .depthFix, .disableHidraw, .mediaFoundationNative:
+            guard let on = bit() else { return false }
+            switch field {
+            case .advertiseAVX: config.envFlags.advertiseAVX = on
+            case .metalHUD: config.envFlags.metalHUD = on
+            case .metalFX: config.envFlags.metalFX = on
+            case .dxr: config.envFlags.dxr = on
+            case .depthFix: config.envFlags.depthFix = on
+            case .disableHidraw: config.envFlags.disableHidraw = on
+            default: config.envFlags.mediaFoundationNative = on
+            }
         }
         return true
     }
 
-    /// JavaScript that hands the page every saved game's values. A game without a saved config gets the defaults on
-    /// the page (`GameConfig`'s). `learned` is the backend Automatic switched to (shown under the choice), when it
-    /// still applies — the same rule as Play's (`learnedUnderRuntime` = the GPTK runtime in use).
-    public static func snapshotScript(state: AppState) -> String {
+    private static func values(of config: GameConfig) -> [String: String] {
+        var values: [String: String] = [:]
+        for field in Field.allCases { values[field.rawValue] = value(field, of: config) }
+        return values
+    }
+
+    /// JavaScript that hands the page every saved game's values, and the defaults a game without a saved config gets
+    /// (`GameConfig`'s own). `learned` is the backend Automatic switched to (shown under the choice), when it still
+    /// applies — the same rule as Play's (`learnedUnderRuntime` = the GPTK runtime in use). `mediaFoundation`: whether
+    /// the Media Foundation bottle exists — the page offers its switch only then, like Silo's sheet.
+    public static func snapshotScript(state: AppState, mediaFoundation: Bool) -> String {
         var games: [String: [String: String]] = [:]
         for config in state.games {
-            var values: [String: String] = [:]
-            for field in Field.allCases { values[field.rawValue] = value(field, of: config) }
+            var values = values(of: config)
             let learned = config.learnedUnderRuntime == state.backend.gptkRuntimeName ? config.learnedBackend : nil
             values["learned"] = learned?.displayName ?? ""
             games[String(config.appID)] = values
         }
-        let data = (try? JSONSerialization.data(withJSONObject: games, options: [.sortedKeys])) ?? Data("{}".utf8)
+        var defaults = values(of: AppState().config(for: 0))
+        defaults["learned"] = ""
+        let payload: [String: Any] = ["games": games, "defaults": defaults, "mediaFoundation": mediaFoundation]
+        let data = (try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])) ?? Data("{}".utf8)
         let json = String(data: data, encoding: .utf8) ?? "{}"
         return "String(!!(window.__siloCompat && window.__siloCompat.setSettings && window.__siloCompat.setSettings(\(json))))"
     }
