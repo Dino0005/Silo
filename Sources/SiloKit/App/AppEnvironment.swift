@@ -384,6 +384,8 @@ public final class AppEnvironment {
         // filesystem work — and best-effort, so a failure here never delays startup.
         let ourBottles = allBottlePrefixes()   // computed here: the sweep only touches these
         Task.detached { WineServerProbe.sweepLeftovers(prefixes: ourBottles) }
+        // The games' compiled shaders left under an earlier Silo's identifiers, carried over to ours (APFS clones).
+        Task.detached(priority: .utility) { LegacyIdentifiers.migrateMetalCaches() }
         // The depth-fix proxy at its fixed place, for NotProton running Silo's Wine (`AppPaths.depthFixDir`).
         // Every startup, so a Silo update that rebuilds the proxy reaches it. Best-effort: Silo's own
         // launches don't use this copy.

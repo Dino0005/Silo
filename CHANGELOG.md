@@ -13,6 +13,13 @@ the commit message says why.
 ### Fixed
 - **The old guard is always stopped.** After the identifier change, Silo stops the Steam for macOS guard still
   running under the old name even when its file is already gone; on one Mac both guards were running side by side.
+- **Games keep their compiled shaders after the identifier change.** macOS keeps each game's shader cache under the
+  game's identifier, so after 0.7.5 every game compiled its shaders again from scratch — stutters and long loads
+  the first time through. Silo now carries each game's old cache over to the new name, taking no extra disk space,
+  and removes the old folders. A game that is running at the time is handled at the next start.
+- **Online play with IPv6 game sockets** (needs the Wine reinstall). Some games open one network socket for both
+  IPv4 and IPv6 and set options on it that macOS refuses there, then give up — Forza Horizon 6 never finds a
+  session that way. Silo's Wine now applies the matching IPv6 option instead, as Windows effectively does.
 
 ## 0.7.5
 

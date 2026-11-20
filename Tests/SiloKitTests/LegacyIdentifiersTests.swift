@@ -66,6 +66,88 @@ struct LegacyIdentifiersTests {
         ])
     }
 
+    private static let gpu = "16777235_419"
+
+    /// A Metal cache pair `<folder>/com.apple.metal/<gpu>/<name>.data` (+ `.list`) whose data is `size` bytes.
+    @discardableResult
+    private func cache(_ tmp: TempDir, _ folder: String, _ name: String = "functions", size: Int, gpu: String = gpu) throws -> URL {
+        let dir = try tmp.makeDir("\(folder)/com.apple.metal/\(gpu)")
+        let data = dir.appendingPathComponent("\(name).data")
+        try Data(repeating: 7, count: size).write(to: data)
+        try Data("list \(size)".utf8).write(to: dir.appendingPathComponent("\(name).list"))
+        return data
+    }
+
+    private func size(_ tmp: TempDir, _ path: String) -> Int? {
+        ((try? FileManager.default.attributesOfItem(atPath: tmp.url.appendingPathComponent(path).path))?[.size] as? NSNumber)?.intValue
+    }
+
+    @Test("Each game's fullest old shader cache goes into its new host and game folders; the old folders go")
+    func metalCachesMigrate() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let host = GameHostBundle.bundleIDPrefix, game = GameHostBundle.gameAppIDPrefix
+        try cache(tmp, "com.mikael.silo.host.1778820", size: 855)
+        try cache(tmp, "com.mikael.silo.game.1778820", size: 502)
+        try cache(tmp, "com.mikael.silo.game.1778820", "libraries", size: 30, gpu: "32024")
+        try cache(tmp, "\(game)1778820", size: 323)          // rebuilt since the rename, smaller: replaced
+        try cache(tmp, "com.mikael.silo.game.2492040", size: 14)
+        try cache(tmp, "\(game)2492040", size: 1130)         // already fuller: kept
+        _ = try tmp.makeDir("com.mikael.silo.host.480/com.apple.metal/\(Self.gpu)")   // nothing in it
+        // Not a game's: never touched.
+        try cache(tmp, "com.mikael.silo.hosttest", size: 9)
+        try cache(tmp, "com.mikael.silo", size: 9)
+        try cache(tmp, "com.other.app", size: 9)
+
+        let written = LegacyIdentifiers.migrateMetalCaches(cacheRoot: tmp.url)
+        #expect(written == [
+            "\(host)1778820/\(Self.gpu)/functions.data", "\(host)1778820/32024/libraries.data",
+            "\(game)1778820/\(Self.gpu)/functions.data", "\(game)1778820/32024/libraries.data",
+            "\(host)2492040/\(Self.gpu)/functions.data",
+        ])
+        #expect(size(tmp, "\(game)1778820/com.apple.metal/\(Self.gpu)/functions.data") == 855)
+        #expect(size(tmp, "\(host)1778820/com.apple.metal/\(Self.gpu)/functions.data") == 855)
+        #expect(size(tmp, "\(game)1778820/com.apple.metal/\(Self.gpu)/functions.list") == "list 855".utf8.count)
+        #expect(size(tmp, "\(game)1778820/com.apple.metal/32024/libraries.data") == 30)
+        #expect(size(tmp, "\(game)2492040/com.apple.metal/\(Self.gpu)/functions.data") == 1130)
+        for gone in ["com.mikael.silo.host.1778820", "com.mikael.silo.game.1778820", "com.mikael.silo.game.2492040",
+                     "com.mikael.silo.host.480"] {
+            #expect(!FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent(gone).path), "\(gone)")
+        }
+        for kept in ["com.mikael.silo.hosttest", "com.mikael.silo", "com.other.app"] {
+            #expect(FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent(kept).path), "\(kept)")
+        }
+        // Done: a second start finds nothing to do.
+        #expect(LegacyIdentifiers.migrateMetalCaches(cacheRoot: tmp.url).isEmpty)
+    }
+
+    @Test("A cache a running game holds is left alone, and the old folder kept for the next start")
+    func metalCacheInUse() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let game = GameHostBundle.gameAppIDPrefix
+        try cache(tmp, "com.mikael.silo.game.1778820", size: 502)
+        let held = try cache(tmp, "\(game)1778820", size: 323)
+        let fd = open(held.path, O_RDONLY)
+        #expect(flock(fd, LOCK_EX) == 0)   // as Metal does while the game runs
+        #expect(LegacyIdentifiers.isHeld(held))
+
+        let first = LegacyIdentifiers.migrateMetalCaches(cacheRoot: tmp.url)
+        #expect(first == ["\(GameHostBundle.bundleIDPrefix)1778820/\(Self.gpu)/functions.data"])
+        #expect(size(tmp, "\(game)1778820/com.apple.metal/\(Self.gpu)/functions.data") == 323)
+        #expect(FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent("com.mikael.silo.game.1778820").path))
+
+        close(fd)   // the game quit
+        #expect(!LegacyIdentifiers.isHeld(held))
+        #expect(LegacyIdentifiers.migrateMetalCaches(cacheRoot: tmp.url) == ["\(game)1778820/\(Self.gpu)/functions.data"])
+        #expect(size(tmp, "\(game)1778820/com.apple.metal/\(Self.gpu)/functions.data") == 502)
+        #expect(!FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent("com.mikael.silo.game.1778820").path))
+    }
+
+    @Test("No cache folder at all: nothing happens")
+    func noMetalCaches() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        #expect(LegacyIdentifiers.migrateMetalCaches(cacheRoot: tmp.url.appendingPathComponent("missing")).isEmpty)
+    }
+
     @Test("An earlier Silo's host, game app and shortcut bundles are still Silo's to replace")
     func legacyBundlesAreOurs() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }
