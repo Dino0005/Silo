@@ -8,7 +8,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.7.6
 
 ### Added
 - **A Compatibility page in Steam for macOS.** Each game's Properties get the *Compatibility* page the Linux client
