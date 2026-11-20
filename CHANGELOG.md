@@ -10,6 +10,13 @@ the commit message says why.
 
 ## Unreleased
 
+### Added
+- **Set up a game from Steam, without opening Silo.** With Silo as a game's compatibility tool, its *Compatibility*
+  page in Steam for macOS gets a *Silo* section with the game's own Silo settings, worded as in Silo: graphics backend,
+  performance (sync, AVX, performance HUD, MetalFX, DirectX raytracing, Metal backend), depth fix, *Disable hidraw*, and
+  the Media Foundation bottle when it exists. They are the same settings as in Silo — a change on either side shows on
+  the other, and the game starts with them.
+
 ### Fixed
 - **Uninstalling a game from Steam for macOS removes what Silo made for it.** The game's app (its name and icon in the
   Dock and the Games app) and its `compatdata` folder — which holds only Silo's links to the bottle's saves — stayed
