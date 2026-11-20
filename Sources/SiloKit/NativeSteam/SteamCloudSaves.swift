@@ -66,7 +66,7 @@ public enum SteamCloudSaves {
         ("My Documents", "Documents"),
     ]
     /// Written into `pfx` once Silo laid it out, so a prefix that is someone else's (NotProton's) is told apart.
-    static let compatMarkerName = ".silo-cloud-links"
+    public static let compatMarkerName = ".silo-cloud-links"
 
     /// Lays out `compatData/pfx/drive_c/users/steamuser` as links to `canonicalUser` (the classic bottle's Wine user
     /// folder), so Steam Cloud reads and writes the same saves as the bottle. A `pfx` Silo didn't lay out (a NotProton

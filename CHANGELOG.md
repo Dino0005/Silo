@@ -8,6 +8,15 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Fixed
+- **Uninstalling a game from Steam for macOS removes what Silo made for it.** The game's app (its name and icon in the
+  Dock and the Games app) and its `compatdata` folder — which holds only Silo's links to the bottle's saves — stayed
+  behind after Steam had uninstalled the game. The guard now removes them within a minute. The saves stay in the
+  bottle and in Steam Cloud, a `compatdata` with anything else in it is left alone, and nothing is removed while a
+  Steam library's disk is unplugged.
+
 ## 0.7.6
 
 ### Added

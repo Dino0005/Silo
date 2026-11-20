@@ -334,6 +334,11 @@ if CommandLine.arguments.contains("--smoke")
                         log("compat tool: \(reply) (\(ids.map(String.init).joined(separator: ", ")))")
                     }
                 }
+                // What Silo made for a game that has since been uninstalled from Steam: its game app, its compatdata.
+                let leftovers = NativeSteamCleanup.leftovers(gameAppsDir: paths.gameAppsDir,
+                                                             libraries: installer.libraries(),
+                                                             installed: Set(installer.installedAppIDs()))
+                NativeSteamCleanup.remove(leftovers).forEach(log)
             }
         }
         // An Install pressed on such a game: ask, then restart Steam with the game readied in the external library.
