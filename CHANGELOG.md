@@ -8,7 +8,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.7.7
 
 ### Added
 - **Set up a game from Steam, without opening Silo.** With Silo as a game's compatibility tool, its *Compatibility*
