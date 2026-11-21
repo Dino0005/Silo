@@ -126,7 +126,8 @@ struct LegacyIdentifiersTests {
         let game = GameHostBundle.gameAppIDPrefix
         try cache(tmp, "com.mikael.silo.game.1778820", size: 502)
         let held = try cache(tmp, "\(game)1778820", size: 323)
-        let fd = open(held.path, O_RDONLY)
+        // O_CLOEXEC: a process another test spawns meanwhile must not inherit the descriptor (and the lock with it).
+        let fd = open(held.path, O_RDONLY | O_CLOEXEC)
         #expect(flock(fd, LOCK_EX) == 0)   // as Metal does while the game runs
         #expect(LegacyIdentifiers.isHeld(held))
 

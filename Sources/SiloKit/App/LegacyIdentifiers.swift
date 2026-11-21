@@ -134,7 +134,7 @@ public enum LegacyIdentifiers {
 
     /// Whether a process holds `url` the way Metal holds a cache file it is using (an exclusive `flock`).
     static func isHeld(_ url: URL) -> Bool {
-        let fd = open(url.path, O_RDONLY)
+        let fd = open(url.path, O_RDONLY | O_CLOEXEC)
         guard fd >= 0 else { return false }
         defer { close(fd) }
         guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { return errno == EWOULDBLOCK }

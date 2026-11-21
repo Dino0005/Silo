@@ -48,6 +48,22 @@ public enum NativeSteamCleanup {
         return true
     }
 
+    /// The `.app` bundles inside `leftovers`' game-app folders — registered with LaunchServices (the Games app lists them
+    /// from there), so they are unregistered when removed (`lsregisterArguments`), else the entry outlives the file.
+    public static func appBundles(in leftovers: [URL], gameAppsDir: URL, fileManager: FileManager = .default) -> [URL] {
+        leftovers.filter { $0.deletingLastPathComponent().standardizedFileURL == gameAppsDir.standardizedFileURL }
+            .flatMap { dir in
+                ((try? fileManager.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasSuffix(".app") }.sorted()
+                    .map { dir.appendingPathComponent($0, isDirectory: true) }
+            }
+    }
+
+    /// LaunchServices' own tool, which unregisters a bundle path (there is no public API for it).
+    public static let lsregister = URL(fileURLWithPath:
+        "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister")
+
+    public static func lsregisterArguments(unregistering app: URL) -> [String] { ["-u", app.path] }
+
     /// Removes `leftovers` (a symbolic link is removed itself, never what it points to). Returns one line per item.
     @discardableResult
     public static func remove(_ leftovers: [URL], fileManager: FileManager = .default) -> [String] {

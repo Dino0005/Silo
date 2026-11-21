@@ -33,6 +33,9 @@ struct NativeSteamCleanupTests {
         let installed: Set<UInt32> = [1778820]
 
         let found = NativeSteamCleanup.leftovers(gameAppsDir: apps, libraries: [main, ssd], installed: installed)
+        #expect(NativeSteamCleanup.appBundles(in: found, gameAppsDir: apps).map(\.lastPathComponent) == ["X.app"])
+        #expect(NativeSteamCleanup.lsregisterArguments(unregistering: apps.appendingPathComponent("391220/X.app"))
+                == ["-u", apps.appendingPathComponent("391220/X.app").path])
         #expect(found.map { $0.path.replacingOccurrences(of: tmp.url.path, with: "") }
                 == ["/GameApps/391220", "/ssd/steamapps/compatdata/391220"])
         #expect(NativeSteamCleanup.remove(found).count == 2)

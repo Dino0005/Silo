@@ -342,7 +342,14 @@ if CommandLine.arguments.contains("--smoke")
                 let leftovers = NativeSteamCleanup.leftovers(gameAppsDir: paths.gameAppsDir,
                                                              libraries: installer.libraries(),
                                                              installed: Set(installer.installedAppIDs()))
+                let bundles = NativeSteamCleanup.appBundles(in: leftovers, gameAppsDir: paths.gameAppsDir)
                 NativeSteamCleanup.remove(leftovers).forEach(log)
+                // Out of LaunchServices too, so the Games app doesn't keep listing a game that is gone.
+                for app in bundles {
+                    _ = try? await runner.run(executable: NativeSteamCleanup.lsregister,
+                                              arguments: NativeSteamCleanup.lsregisterArguments(unregistering: app),
+                                              environment: [:], currentDirectory: nil)
+                }
             }
         }
         // The Silo settings changed on the Compatibility page, written to config.json (the same field-scoped update Silo's
