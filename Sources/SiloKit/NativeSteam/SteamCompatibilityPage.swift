@@ -18,7 +18,7 @@ import Foundation
 /// gets the page with the menu disabled. A Windows-only game set to Default is mapped back to Silo by the guard.
 public enum SteamCompatibilityPage {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 4
+    public static let version = 5
 
     /// JavaScript that answers whether this version of the page is live in Steam.
     public static let probe = "String(window.__siloCompat && window.__siloCompat.version === \(version) && window.__siloCompat.installed === true)"
@@ -243,7 +243,7 @@ public enum SteamCompatibilityPage {
       }
 
       // Checkboxes drawn by hand: the native one is white when off, which jumps out of Steam's dark page. Off = Steam's
-      // background (#181D24, sampled from Steam by the user) with a thin border; on = Steam's blue with a white tick.
+      // background (#181D24, sampled from Steam by the user) with a thin border; on = Steam's blue with a black tick, as the native one drew it.
       function ensureCheckStyle(doc) {
         if (doc.getElementById('silo-check-style')) return;
         const st = doc.createElement('style');
@@ -253,7 +253,7 @@ public enum SteamCompatibilityPage {
             border-radius: 3px; border: 1px solid #4b5059; background: #181d24; cursor: pointer; flex: none; }
           input.silo-check:hover { border-color: #8b929a; }
           input.silo-check:checked { border-color: #1a9fff; background: #1a9fff center / 12px 12px no-repeat
-            url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2 6.2l2.6 2.6L10 3.4' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>"); }
+            url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2 6.2l2.6 2.6L10 3.4' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>"); }
           input.silo-check:focus-visible { outline: 2px solid #1a9fff; outline-offset: 2px; }`;
         (doc.head || doc.documentElement).append(st);
       }
