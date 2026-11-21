@@ -18,7 +18,7 @@ import Foundation
 /// gets the page with the menu disabled. A Windows-only game set to Default is mapped back to Silo by the guard.
 public enum SteamCompatibilityPage {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 6
+    public static let version = 7
 
     /// JavaScript that answers whether this version of the page is live in Steam.
     public static let probe = "String(window.__siloCompat && window.__siloCompat.version === \(version) && window.__siloCompat.installed === true)"
@@ -29,7 +29,8 @@ public enum SteamCompatibilityPage {
     }
 
     /// The script, with the installed tools and Silo's two game lists (`NativeSteamInstaller.windowsGameIDsInCache`).
-    public static func script(tools: [(name: String, display: String)], windowsOnly: [UInt32], windowsBuild: [UInt32]) -> String {
+    public static func script(tools: [(name: String, display: String)], windowsOnly: [UInt32], windowsBuild: [UInt32],
+                              known: [UInt32] = []) -> String {
         func list(_ ids: [UInt32]) -> String { ids.sorted().map(String.init).joined(separator: ",") }
         let pairs = tools.map { [$0.name, $0.display] }
         let json = (try? JSONSerialization.data(withJSONObject: pairs)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
@@ -38,6 +39,7 @@ public enum SteamCompatibilityPage {
             .replacingOccurrences(of: "__SILO_TOOLS__", with: json)
             .replacingOccurrences(of: "__SILO_WINDOWS_ONLY__", with: list(windowsOnly))
             .replacingOccurrences(of: "__SILO_WINDOWS_BUILD__", with: list(windowsBuild))
+            .replacingOccurrences(of: "__SILO_KNOWN__", with: list(known))
             .replacingOccurrences(of: "__SILO_TOOL__", with: SiloCompatTool.name)
     }
 
@@ -48,6 +50,40 @@ public enum SteamCompatibilityPage {
       S.tools = __SILO_TOOLS__;            // [[name, display name], ...] installed in compatibilitytools.d
       S.winOnly = new Set([__SILO_WINDOWS_ONLY__]);
       S.win = new Set([__SILO_WINDOWS_BUILD__]);
+      // A game Steam knows but Silo's lists above don't: the lists are read from appinfo.vdf when this script is put
+      // into Steam, so a game bought since (Spider-Man 2, 2026-11-21) is in neither until Steam restarts. Its
+      // platforms come from Steam itself, once (`vecPlatforms` of its app details — exact for such a game, which Silo
+      // hasn't protected yet).
+      S.known = new Set([__SILO_KNOWN__]);
+      S.live = S.live || {};
+      S.pendingLive = S.pendingLive || {};
+      S.classify = appid => {
+        if (S.known.has(appid) || appid in S.live) return Promise.resolve(S.live[appid]);
+        if (S.pendingLive[appid]) return S.pendingLive[appid];
+        return S.pendingLive[appid] = new Promise(resolve => {
+          let done = false, handle = null;
+          const finish = d => {
+            if (done) return;
+            done = true;
+            try { handle && handle.unregister(); } catch (e) {}
+            const p = (d && d.vecPlatforms) || [];
+            const win = p.includes('windows'), mac = p.includes('osx') || p.includes('macos');
+            const kind = !d ? undefined : win && !mac ? 'winOnly' : win ? 'win' : 'mac';
+            if (kind) S.live[appid] = kind;
+            if (kind === 'win' || kind === 'winOnly') S.win.add(appid);
+            if (kind === 'winOnly') S.winOnly.add(appid);
+            delete S.pendingLive[appid];
+            resolve(kind);
+          };
+          try { handle = SteamClient.Apps.RegisterForAppDetails(appid, finish); } catch (e) { finish(null); }
+          setTimeout(() => finish(null), 3000);
+        });
+      };
+      // What an earlier injection learnt that way carries over (the lists above are rebuilt from the file).
+      for (const [id, kind] of Object.entries(S.live)) {
+        if (kind !== 'mac') S.win.add(Number(id));
+        if (kind === 'winOnly') S.winOnly.add(Number(id));
+      }
       S.siloTool = '__SILO_TOOL__';
       // Each game's Silo settings (SteamGameSettings), handed over by the guard; the changes made here wait in
       // S.changes until the guard writes them to Silo's config.json.
@@ -202,6 +238,7 @@ public enum SteamCompatibilityPage {
       }
 
       async function buildPage(doc, appid) {
+        await S.classify(appid);   // a game bought since Steam started isn't in the lists yet
         const d = await details(appid);
         const current = (d && d.strCompatToolName) || '';
         const kind = S.winOnly.has(appid) ? 'winOnly' : S.win.has(appid) ? 'dual' : 'macOnly';

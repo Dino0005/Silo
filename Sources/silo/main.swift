@@ -299,7 +299,7 @@ if CommandLine.arguments.contains("--smoke")
             let live = (try? await cef.evaluate(SteamLibraryFilters.probe)) == "true"
             if !live, let ids = try? installer.windowsGameIDsInCache(),
                let reply = try? await cef.evaluate(SteamLibraryFilters.script(windowsOnly: ids.windowsOnly,
-                                                                             windowsBuild: ids.windowsBuild)) {
+                                                                             windowsBuild: ids.windowsBuild, known: ids.all)) {
                 log("library filters: \(reply)")
                 filtersLive = reply.hasPrefix("silo filters")
             } else if live != filtersLive {
@@ -311,7 +311,7 @@ if CommandLine.arguments.contains("--smoke")
                 let tools = SteamCompatMapping.installedToolList(
                     in: installer.steamRoot.appendingPathComponent("compatibilitytools.d"))
                 if let reply = try? await cef.evaluate(SteamCompatibilityPage.script(
-                    tools: tools, windowsOnly: ids.windowsOnly, windowsBuild: ids.windowsBuild)) {
+                    tools: tools, windowsOnly: ids.windowsOnly, windowsBuild: ids.windowsBuild, known: ids.all)) {
                     log("compatibility page: \(reply)")
                     settingsGiven = nil
                 }

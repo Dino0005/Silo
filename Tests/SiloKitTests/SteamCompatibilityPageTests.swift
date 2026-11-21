@@ -40,4 +40,19 @@ struct SteamCompatibilityPageTests {
         #expect(list.map(\.name) == ["bare-tool", "crossover-26", "silo-proton"])
         #expect(list.map(\.display) == ["bare-tool", "CrossOver 26", "Silo"])
     }
+
+    @Test("Both scripts carry the known app ids and ask Steam about any other game (one bought since Steam started)")
+    func liveClassification() {
+        let page = SteamCompatibilityPage.script(tools: [], windowsOnly: [1], windowsBuild: [1, 2], known: [1, 2, 3])
+        let filters = SteamLibraryFilters.script(windowsOnly: [1], windowsBuild: [1, 2], known: [1, 2, 3])
+        for js in [page, filters] {
+            #expect(js.contains("S.known = new Set([1,2,3]);"))
+            #expect(js.contains("S.classify = appid =>"))
+            #expect(js.contains("SteamClient.Apps.RegisterForAppDetails(appid, finish)"))
+            #expect(!js.contains("__SILO_"))
+        }
+        #expect(page.contains("await S.classify(appid);"))
+        #expect(filters.contains("S.classify(this.appid).then("))
+    }
 }
+

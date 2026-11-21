@@ -19,6 +19,10 @@ the commit message says why.
   the folders shared with the Media Foundation bottle are still chosen in Silo.
 
 ### Fixed
+- **A game bought while Steam is open is recognized right away.** Silo's *Mac* / *Windows* library filters and the
+  *Compatibility* page knew a game's platforms only from Steam's cache as it was when Steam started, so a newly bought
+  Windows game (Spider-Man 2) was missing from the Windows filter and its page said it had no Windows version, until
+  Steam was restarted. For a game they don't know, they now ask Steam directly.
 - **Steam for macOS says when Wine has to be reinstalled.** A game started from Steam needs the bridge built into the
   Wine runtime since 0.7.5; with an older copy the game simply didn't open, and only Silo's log said why. *Settings →
   Steam for macOS* now shows *Wine for Steam games: Reinstall Wine*, with what to do, until it is.

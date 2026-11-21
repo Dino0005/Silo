@@ -137,7 +137,7 @@ public struct NativeSteamInstaller: Sendable {
     /// games with no Mac build of their own (`AppInfoPatcher.isWindowsGame`), and every app with a Windows build
     /// (`common.oslist` has `windows` — Silo only ever adds `macos`, so this is the original platform list).
     /// Readable while Steam runs (it rewrites the file as it goes).
-    public func windowsGameIDsInCache() throws -> (windowsOnly: [UInt32], windowsBuild: [UInt32]) {
+    public func windowsGameIDsInCache() throws -> (windowsOnly: [UInt32], windowsBuild: [UInt32], all: [UInt32]) {
         let cache = try AppInfoCache(contentsOf: appInfoURL)
         var only: [UInt32] = [], build: [UInt32] = []
         for id in cache.appIDs {
@@ -145,7 +145,7 @@ public struct NativeSteamInstaller: Sendable {
             if (info.map("common")?.string("oslist") ?? "").osList.contains("windows") { build.append(id) }
             if AppInfoPatcher.isWindowsGame(info) { only.append(id) }
         }
-        return (only, build)
+        return (only, build, cache.appIDs)
     }
 
     /// Windows games (`AppInfoPatcher.isWindowsGame`) Silo hasn't protected yet — `common.oslist` without `macos`,

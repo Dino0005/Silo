@@ -14,7 +14,7 @@ import Foundation
 /// Steam's look. A timer puts them back if React re-renders the row.
 public enum SteamLibraryFilters {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 5
+    public static let version = 6
 
     /// The file that makes Steam open its CEF debugging port (127.0.0.1:8080) at every start, in the folder
     /// of the `steam_osx` binary (measured 2026-11-09; the same file in Steam's data folder does nothing).
@@ -44,12 +44,13 @@ public enum SteamLibraryFilters {
     /// The script, with Silo's two lists: `windowsOnly` — Windows games without a Mac build of their own
     /// (`AppInfoPatcher.isWindowsGame`), kept off the Apple side even though Silo marks them `macos` — and
     /// `windowsBuild` — every game with a Windows build (the Windows side).
-    public static func script(windowsOnly: [UInt32], windowsBuild: [UInt32]) -> String {
+    public static func script(windowsOnly: [UInt32], windowsBuild: [UInt32], known: [UInt32] = []) -> String {
         func list(_ ids: [UInt32]) -> String { ids.sorted().map(String.init).joined(separator: ",") }
         return template
             .replacingOccurrences(of: "__SILO_VERSION__", with: String(version))
             .replacingOccurrences(of: "__SILO_WINDOWS_ONLY__", with: list(windowsOnly))
             .replacingOccurrences(of: "__SILO_WINDOWS_BUILD__", with: list(windowsBuild))
+            .replacingOccurrences(of: "__SILO_KNOWN__", with: list(known))
     }
 
     static let template = #"""
@@ -58,6 +59,40 @@ public enum SteamLibraryFilters {
       S.version = __SILO_VERSION__;
       S.winOnly = new Set([__SILO_WINDOWS_ONLY__]);
       S.win = new Set([__SILO_WINDOWS_BUILD__]);
+      // A game Steam knows but Silo's lists above don't: the lists are read from appinfo.vdf when this script is put
+      // into Steam, so a game bought since (Spider-Man 2, 2026-11-21) is in neither until Steam restarts. Its
+      // platforms come from Steam itself, once (`vecPlatforms` of its app details — exact for such a game, which Silo
+      // hasn't protected yet).
+      S.known = new Set([__SILO_KNOWN__]);
+      S.live = S.live || {};
+      S.pendingLive = S.pendingLive || {};
+      S.classify = appid => {
+        if (S.known.has(appid) || appid in S.live) return Promise.resolve(S.live[appid]);
+        if (S.pendingLive[appid]) return S.pendingLive[appid];
+        return S.pendingLive[appid] = new Promise(resolve => {
+          let done = false, handle = null;
+          const finish = d => {
+            if (done) return;
+            done = true;
+            try { handle && handle.unregister(); } catch (e) {}
+            const p = (d && d.vecPlatforms) || [];
+            const win = p.includes('windows'), mac = p.includes('osx') || p.includes('macos');
+            const kind = !d ? undefined : win && !mac ? 'winOnly' : win ? 'win' : 'mac';
+            if (kind) S.live[appid] = kind;
+            if (kind === 'win' || kind === 'winOnly') S.win.add(appid);
+            if (kind === 'winOnly') S.winOnly.add(appid);
+            delete S.pendingLive[appid];
+            resolve(kind);
+          };
+          try { handle = SteamClient.Apps.RegisterForAppDetails(appid, finish); } catch (e) { finish(null); }
+          setTimeout(() => finish(null), 3000);
+        });
+      };
+      // What an earlier injection learnt that way carries over (the lists above are rebuilt from the file).
+      for (const [id, kind] of Object.entries(S.live)) {
+        if (kind !== 'mac') S.win.add(Number(id));
+        if (kind === 'winOnly') S.winOnly.add(Number(id));
+      }
       if (S.mode === undefined) S.mode = null;
       const it = /LANGUAGE=italian/.test(location.href);
       const TITLE = { mac: it ? 'Mostra solo i giochi macOS' : 'Show only macOS games',
@@ -79,6 +114,14 @@ public enum SteamLibraryFilters {
           configurable: true,
           get() {
             const steam = S.origGetter.call(this);
+            // Not in the lists yet: ask Steam, then filter again once the answer adds it to the Windows side.
+            if (S.mode && !S.known.has(this.appid) && !(this.appid in S.live)) {
+              S.classify(this.appid).then(kind => {
+                if (!kind || kind === 'mac' || !S.mode) return;
+                clearTimeout(S.refilter);
+                S.refilter = setTimeout(() => { const d = doc(); if (d) apply(d, S.mode); }, 300);
+              });
+            }
             if (S.mode === 'mac') return !!steam && !S.winOnly.has(this.appid);
             if (S.mode === 'win') return S.win.has(this.appid);
             return steam;
