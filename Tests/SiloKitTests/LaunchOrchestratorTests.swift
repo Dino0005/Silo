@@ -371,6 +371,50 @@ struct LaunchPipelineTests {
         #expect(spawn.arguments == [lib.appendingPathComponent("steamapps/common/Half-Life 2/hl2.exe").path])
     }
 
+    @Test("Steam for macOS's bottle (sharedBottle false) runs the game under its own Sync setting")
+    func honorsSyncOutsideSharedBottle() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let paths = AppPaths(supportDir: tmp.url.appendingPathComponent("Silo"))
+        let fake = FakeProcessRunner()
+        let orchestrator = LaunchOrchestrator(runner: fake, linker: GraphicsLinker())
+
+        // A fake wine runtime + GPTK runtime, a fake install tree with the exe, and the shared bottle prefix.
+        let wine = try tmp.write("wine/bin/wine64", "#!/bin/sh")
+        try tmp.makeDir("wine/lib/wine/x86_64-windows")
+        try tmp.makeDir("wine/lib/wine/x86_64-unix")
+        let gptkLibDir = try tmp.makeDir("gptk/lib/wine/x86_64-windows")
+        try tmp.write("gptk/lib/wine/x86_64-windows/d3d11.dll", "D3DMETAL-PE")
+        let gptkUnix = try tmp.makeDir("gptk/lib/wine/x86_64-unix")
+        try FileManager.default.createSymbolicLink(
+            atPath: gptkUnix.appendingPathComponent("d3d11.so").path,
+            withDestinationPath: "../../external/libd3dshared.dylib")
+        try tmp.write("gptk/lib/external/libd3dshared.dylib", "DYLIB")
+        let lib = try tmp.makeDir("lib")
+        try tmp.write("lib/steamapps/common/Half-Life 2/hl2.exe", "MZ")
+        let prefix = try tmp.makeDir("bottle")
+
+        var backend = BackendConfig()
+        backend.wineBinaryPath = wine
+        backend.gptkLibDirPath = gptkLibDir
+
+        let app = SteamApp(appID: 220, name: "HL2", installDir: "Half-Life 2",
+                           stateFlags: .fullyInstalled, sizeOnDisk: 1, libraryPath: lib)
+        var cfg = GameConfig(appID: 220)
+        cfg.executableRelativePath = "hl2.exe"
+        cfg.envFlags.syncMode = .none
+
+        _ = try await orchestrator.launchInBottle(
+            app: app, config: cfg, backend: backend, graphics: .gptk, prefix: prefix,
+            logURL: paths.log(forAppID: 220), sharedBottle: false)
+        let spawn = try #require(fake.invocations.last { $0.detached })
+        #expect(spawn.environment["WINEMSYNC"] == nil && spawn.environment["WINEESYNC"] == nil)
+
+        _ = try await orchestrator.launchInBottle(
+            app: app, config: cfg, backend: backend, graphics: .gptk, prefix: prefix,
+            logURL: paths.log(forAppID: 220))
+        #expect(try #require(fake.invocations.last { $0.detached }).environment["WINEMSYNC"] == "1")
+    }
+
     @Test("Throws executableNotFound when no exe can be resolved")
     func noExecutable() async throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

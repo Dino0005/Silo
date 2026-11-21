@@ -108,7 +108,7 @@ public struct SteamInstallScriptRunner: Sendable {
     static func recordURL(prefix: URL) -> URL { prefix.appendingPathComponent(".silo-installscript.json") }
 
     @discardableResult
-    public func run(appID: Int, installDir: URL, prefix: URL, wine: URL,
+    public func run(appID: Int, installDir: URL, prefix: URL, wine: URL, syncMode: SyncMode = .msync,
                     fileManager: FileManager = .default) async -> [Outcome] {
         guard let script = SteamInstallScript.load(installDir: installDir, fileManager: fileManager),
               !script.steps.isEmpty else { return [] }
@@ -127,7 +127,7 @@ public struct SteamInstallScriptRunner: Sendable {
                 let result = try? await runner.run(
                     executable: wine,
                     arguments: SteamInstallScript.wineArguments(for: command, installDir: installDir),
-                    environment: Silo.msyncWineEnvironment(prefix: prefix, wine: wine),
+                    environment: Silo.syncWineEnvironment(prefix: prefix, wine: wine, syncMode: syncMode),
                     currentDirectory: installDir)
                 exit = result?.exitCode ?? -1
             }

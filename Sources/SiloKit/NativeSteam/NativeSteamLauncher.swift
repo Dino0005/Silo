@@ -164,7 +164,8 @@ public struct NativeSteamLauncher: Sendable {
 
         // What Windows Steam would do on first launch and macOS Steam never does: the game's install script.
         for outcome in await SteamInstallScriptRunner(runner: runner).run(
-            appID: app.appID, installDir: app.installURL, prefix: bottle.prefix, wine: context.wineBinary) {
+            appID: app.appID, installDir: app.installURL, prefix: bottle.prefix, wine: context.wineBinary,
+            syncMode: config.envFlags.syncMode) {
             switch outcome {
             case .ran(let step, let code): log("install script \"\(step)\": exit \(code)")
             case .skipped: break
@@ -180,7 +181,9 @@ public struct NativeSteamLauncher: Sendable {
                 clientInstallPath: NativeSteamBridge.defaultClientInstallPath(),
                 nativeVCRuntime: NativeSteamBridge.nativeVCRuntime(
                     inSystem32: bottle.prefix.appendingPathComponent("drive_c/windows/system32")),
-                overlayLibraries: overlay, steamEnvironment: environment))
+                overlayLibraries: overlay, steamEnvironment: environment),
+            // The game's own Sync setting (the helpers above ran under the same one, so they share its wineserver).
+            sharedBottle: false)
         log("started \(app.name) (pid \(pid))")
         _ = try? await ConfigStore(paths: paths).updateGame(appID: app.appID) { $0.lastPlayed = Date() }
 

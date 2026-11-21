@@ -102,4 +102,17 @@ struct SteamInstallScriptTests {
             wine: URL(fileURLWithPath: "/w")).isEmpty)
         #expect(fake.invocations.isEmpty)
     }
+
+    @Test("The script runs under the game's Sync setting, so the game's wineserver accepts it")
+    func followsSyncMode() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        try tmp.write("game/install-script.vdf", Self.tlou)
+        let prefix = try tmp.makeDir("bottle")
+        let fake = FakeProcessRunner()
+        _ = await SteamInstallScriptRunner(runner: fake).run(
+            appID: 7, installDir: tmp.url.appendingPathComponent("game"), prefix: prefix,
+            wine: URL(fileURLWithPath: "/r/bin/wine64"), syncMode: .none)
+        let call = try #require(fake.lastInvocation)
+        #expect(call.environment["WINEMSYNC"] == nil && call.environment["WINEESYNC"] == nil)
+    }
 }

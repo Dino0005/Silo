@@ -301,13 +301,16 @@ public struct LaunchOrchestrator: Sendable {
     /// `SteamBottle`). Returns the child PID.
     /// - Parameter desktopGeometry: forwarded to `makePlan` — see its doc comment. Nil (the default) keeps
     ///   the prior rootless behavior; callers pass `ScreenGeometry.nativeResolution()` to get the fix.
+    /// - Parameter sharedBottle: forwarded to `makePlan`. False for Steam for macOS's bottle, where no Windows Steam
+    ///   client runs: only Silo's stand-in, started with the game under the same environment, so the game's Sync
+    ///   setting is honored there.
     @discardableResult
     public func launchInBottle(
         app: SteamApp, config: GameConfig, backend: BackendConfig,
         graphics: GraphicsBackend, wine: URL? = nil, prefix: URL, logURL: URL,
         gameExe: URL? = nil, desktopGeometry: String? = nil,
         altLoaderSocket: URL? = nil, altLoaderTarget: AltLoaderSession.Target? = nil,
-        steamBridge: NativeSteamBridge? = nil
+        steamBridge: NativeSteamBridge? = nil, sharedBottle: Bool = true
     ) async throws -> Int32 {
         guard let launchWine = wine ?? backend.wineBinaryPath else { throw LaunchError.wineNotConfigured }
         // Reuse the exe the caller already resolved (the VM resolves it once to pick the backend), else
@@ -330,7 +333,8 @@ public struct LaunchOrchestrator: Sendable {
         }
         let plan = try Self.makePlan(
             config: config, backend: backend, graphics: graphics, wine: launchWine,
-            gameExe: gameExe, prefix: prefix, logURL: logURL, desktopGeometry: desktopGeometry,
+            gameExe: gameExe, prefix: prefix, logURL: logURL, sharedBottle: sharedBottle,
+            desktopGeometry: desktopGeometry,
             steamArguments: steamLaunchEntry(for: app)?.arguments ?? [],
             altLoaderSocket: socket,
             dxmtDLSS: graphics == .dxmt && config.envFlags.metalFX && Self.dxmtDLSS(backend: backend, gameExe: gameExe),
