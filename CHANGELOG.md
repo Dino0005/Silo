@@ -15,7 +15,8 @@ the commit message says why.
   page in Steam for macOS gets a *Silo* section with the game's own Silo settings, worded as in Silo: graphics backend,
   performance (sync, AVX, performance HUD, MetalFX, DirectX raytracing, Metal backend), depth fix, *Disable hidraw*, and
   the Media Foundation bottle when it exists. They are the same settings as in Silo — a change on either side shows on
-  the other, and the game starts with them.
+  the other, and the game starts with them. Launch options stay where Steam has them, in the game's *General* page;
+  the folders shared with the Media Foundation bottle are still chosen in Silo.
 
 ### Fixed
 - **Steam for macOS says when Wine has to be reinstalled.** A game started from Steam needs the bridge built into the
