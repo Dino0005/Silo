@@ -38,6 +38,12 @@ the commit message says why.
   behind after Steam had uninstalled the game. The guard now removes them within a minute. The saves stay in the
   bottle and in Steam Cloud, a `compatdata` with anything else in it is left alone, and nothing is removed while a
   Steam library's disk is unplugged. The game also leaves macOS's list of apps, so the Games app stops showing it.
+- **Marvel's Spider-Man 2 no longer stays on a black window** (needs the Wine reinstall). Wine asked the game for its
+  Dock icon again on each thread's first use of the desktop; on the game's render thread that request came from inside
+  D3DMetal and Wine looped on an error there forever. Wine patch 0016 sets the icon once per game instead, as CrossOver
+  already does for Helldivers 2 alone. Under Metal 4 the game then flashes white: set its *Metal backend* to Metal 3.
+- **A game started from Steam for macOS honors its Sync setting.** Silo always used msync there, as in Silo's own
+  Windows Steam bottle; no Windows Steam client runs in the Steam for macOS bottle, so the game's choice now applies.
 
 ## 0.7.6
 

@@ -1,0 +1,49 @@
+Silo patch 0016 — winemac.drv: set the application icon once per process
+
+Origin: Silo (2026-11-21). It generalizes CrossOver's own CW Hack #26536, which does the same for Helldivers 2 only.
+License: LGPL-2.1-or-later, like Wine.
+
+Why Silo carries it: Marvel's Spider-Man 2 shows only a black window. Win32u calls the driver's SetDesktopWindow on
+each thread's first use of the desktop window, and set_app_icon() there runs a user callback (macdrv_app_icon) to
+load the icon from the exe. The game's render thread (NxInternalRenderThread) first reaches the desktop window from
+inside a unix call made by D3DMetal, not from a syscall, so the callback's NtCallbackReturn finds a syscall frame that
+isn't the callback's: user_mode_callback_return writes through a NULL return pointer (c0000005), and every retry gets
+STATUS_NO_CALLBACK_ACTIVE (c0000258), forever. Measured 2026-11-21 with +syscall: the render thread logs
+"UserCall NtUserCallDispatchCallback" with no SysCall around it, creates the 16-128 px icons, then crashes in
+NtCallbackReturn(…, 0x78, 0) — five app_icon_entry. Same with GPTK 4.0 beta 2 and beta 3, Metal 3 and 4, msync on
+or off, DLSS on or off; reported on CrossOver 26.1 too. One call per process sets the icon from the first thread that
+gets there and keeps the callback off later threads. Measured 2026-11-21 with this winemac.so in a copy of
+wine-cx-26.3.0 (GPTK 4.0 beta 3): no c0000005 / c0000258 at all, the game runs with sound and picture (its white
+flashing under Metal 4 is D3DMetal's, gone with Metal 3). dlls/winemac.drv/window.c only.
+
+--- a/dlls/winemac.drv/window.c
++++ b/dlls/winemac.drv/window.c
+@@ -1276,21 +1276,15 @@
+         SERVER_END_REQ;
+     }
+ 
+-    /* CW Hack #26536 */
++    /* Silo: the application icon once per process. Win32u calls this on each thread's first use of the desktop
++     * window, and set_app_icon() runs a user callback to load the icon. When that first use comes from inside a unix
++     * call instead of a syscall (D3DMetal's render thread in Marvel's Spider-Man 2), the callback returns into a
++     * syscall frame that isn't its own and the thread loops on c0000005 / c0000258 with a black window. One call per
++     * process (the generalization of CW Hack #26536, made for Helldivers 2) keeps that off later threads. */
+     {
+-        static const WCHAR helldivers2_exeW[] = {'\\','h','e','l','l','d','i','v','e','r','s','2','.','e','x','e',0};
+-        WCHAR *path = NtCurrentTeb()->Peb->ProcessParameters->ImagePathName.Buffer;
+-        size_t suffix_len = ARRAY_SIZE(helldivers2_exeW) - 1, path_len = wcslen(path);
+-        if (path_len > suffix_len && !wcsicmp(path + path_len - suffix_len, helldivers2_exeW))
+-        {
+-            static pthread_once_t app_icon_once = PTHREAD_ONCE_INIT;
+-            ERR("HACK: only doing set_app_icon once for Helldivers 2\n");
+-            pthread_once(&app_icon_once, set_app_icon);
+-            return;
+-        }
++        static pthread_once_t app_icon_once = PTHREAD_ONCE_INIT;
++        pthread_once(&app_icon_once, set_app_icon);
+     }
+-
+-    set_app_icon();
+ }
+ 
+ #define WM_WINE_NOTIFY_ACTIVITY WM_USER
