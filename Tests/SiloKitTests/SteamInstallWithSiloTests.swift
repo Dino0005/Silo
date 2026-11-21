@@ -4,14 +4,17 @@ import Testing
 
 @Suite("SteamInstallWithSilo")
 struct SteamInstallWithSiloTests {
-    @Test("The script carries the version and the sorted game list, and wraps Steam's install wizard")
+    @Test("The script gives Silo's tool to Windows-only games without one, and gives Steam its install function back")
     func script() {
-        let js = SteamInstallWithSilo.script(appIDs: [2_531_310, 480])
+        let js = SteamInstallWithSilo.script()
         #expect(js.contains("S.version = \(SteamInstallWithSilo.version);"))
-        #expect(js.contains("new Set([480,2531310])"))
-        #expect(js.contains("I.OpenInstallWizard = function"))
+        #expect(js.contains("S.tool = '\(SiloCompatTool.name)';"))
+        #expect(js.contains("SteamClient.Apps.SpecifyCompatTool(o.appid, S.tool)"))
+        #expect(js.contains("d.strCompatToolName) continue;"))           // a tool the user chose stays
+        #expect(js.contains("SteamClient.Installs.OpenInstallWizard = S.orig"))
         #expect(!js.contains("__SILO_"))
         #expect(SteamInstallWithSilo.probe.contains("version === \(SteamInstallWithSilo.version)"))
+        #expect(SteamInstallWithSilo.pause(true).contains("pause(true)"))
     }
 
     @Test("Queued requests are read back as unique app ids; junk is no request")

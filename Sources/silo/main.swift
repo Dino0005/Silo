@@ -289,6 +289,7 @@ if CommandLine.arguments.contains("--smoke")
         if isPlaying != wasPlaying {
             _ = try? await cef.evaluate(SteamLibraryFilters.pause(isPlaying))
             _ = try? await cef.evaluate(SteamCompatibilityPage.pause(isPlaying))
+            _ = try? await cef.evaluate(SteamInstallWithSilo.pause(isPlaying))
             log(isPlaying ? "game running: Steam UI checks paused" : "game ended: Steam UI checks resumed")
             wasPlaying = isPlaying
             nextFilterCheck = Date()
@@ -316,10 +317,9 @@ if CommandLine.arguments.contains("--smoke")
                     settingsGiven = nil
                 }
             }
-            // "Install" on a Windows game Steam can't install by itself goes to Silo (same cadence as the filters).
+            // Silo's tool for every Windows-only game without one, so Steam's own Install works (same cadence as the filters).
             if (try? await cef.evaluate(SteamInstallWithSilo.probe)) != "true",
-               let ids = try? installer.windowsGamesNeedingSilo(),
-               let reply = try? await cef.evaluate(SteamInstallWithSilo.script(appIDs: ids)) {
+               let reply = try? await cef.evaluate(SteamInstallWithSilo.script()) {
                 log("install takeover: \(reply)")
             }
             nextFilterCheck = Date().addingTimeInterval(filtersLive ? 10 : 2)

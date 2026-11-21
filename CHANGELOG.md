@@ -18,6 +18,13 @@ the commit message says why.
   the other, and the game starts with them. Launch options stay where Steam has them, in the game's *General* page;
   the folders shared with the Media Foundation bottle are still chosen in Silo.
 
+### Changed
+- **Installing a Windows game from Steam for macOS no longer restarts Steam.** Steam for Mac greys out *Install* for
+  a Windows-only game until it has a compatibility tool, and installs it by itself — its own dialog, your choice of
+  library — once it has one. Silo now gives its tool to every Windows-only game in the library that has none, including
+  one bought while Steam is open, so *Install* simply works; a tool you picked yourself is left alone. This replaces
+  *Install with Silo*, which asked to restart Steam and readied the game itself.
+
 ### Fixed
 - **A game bought while Steam is open is recognized right away.** Silo's *Mac* / *Windows* library filters and the
   *Compatibility* page knew a game's platforms only from Steam's cache as it was when Steam started, so a newly bought

@@ -1,17 +1,22 @@
 import Foundation
 
-/// "Install" on a Windows game macOS Steam can't install by itself (not yet protected by Silo — Steam answers
-/// "Invalid platform"): Steam's own Install button, taken over for exactly those games.
+/// "Install" on a Windows game in Steam for macOS.
 ///
-/// Measured 2026-11-10: the game page's Install button calls `SteamClient.Installs.OpenInstallWizard([appid],
-/// clientID)` in Steam's SharedJSContext. The script (injected by the guard through `SteamCEFClient`) wraps that
-/// call: for a game in Silo's list it queues the app id instead of opening Steam's wizard; every other call goes
-/// to Steam unchanged. The guard drains the queue (`takeRequests`), asks the user to restart Steam, and readies
-/// the game with `NativeSteamInstaller.prepareInstall` while Steam is closed — the next start downloads its
-/// Windows build into the external library.
+/// Steam for Mac greys out Install for a Windows-only game until the game has a compatibility tool — and installs it by
+/// itself, with its own dialog and library choice, once it has one (measured 2026-11-21: Aimlabs, added with Steam open,
+/// was greyed out; given Silo's tool through `SteamClient.Apps.SpecifyCompatTool`, Install lit up and opened Steam's
+/// own dialog; Spider-Man 2 downloaded that way). So the script (injected by the guard through `SteamCEFClient`) gives
+/// Silo's tool to every Windows-only game in the library that has none — installed or not, bought before or after Steam
+/// started — checking each game once, from Steam's own app details (`vecPlatforms`, `strCompatToolName`). A tool the
+/// user chose is left alone. Paused while a game runs, like the library filters.
+///
+/// It replaces version 1 (2026-11-10), which took the Install button over for a list of such games read at startup,
+/// restarted Steam and readied the game itself (`NativeSteamInstaller.prepareInstall`): that list missed a game bought
+/// with Steam open, and the restart was never needed once the game has a tool. The queue (`takeRequests`) stays, empty,
+/// so a guard from before this version keeps working; v1's wrapper is taken off Steam's install function.
 public enum SteamInstallWithSilo {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 1
+    public static let version = 2
 
     /// JavaScript that answers whether this version is live in the page.
     public static let probe = "String(window.__siloInstall && window.__siloInstall.version === \(version))"
@@ -28,11 +33,16 @@ public enum SteamInstallWithSilo {
         return ids.compactMap { $0 >= 0 && $0 <= Double(UInt32.max) ? UInt32($0) : nil }.filter { seen.insert($0).inserted }
     }
 
-    /// The script, with the games whose Install Silo takes over.
-    public static func script(appIDs: [UInt32]) -> String {
+    /// The script.
+    public static func script() -> String {
         template
             .replacingOccurrences(of: "__SILO_VERSION__", with: String(version))
-            .replacingOccurrences(of: "__SILO_IDS__", with: appIDs.sorted().map(String.init).joined(separator: ","))
+            .replacingOccurrences(of: "__SILO_TOOL__", with: SiloCompatTool.name)
+    }
+
+    /// Stops (true) or restarts (false) the script's timer — paused while a game runs.
+    public static func pause(_ on: Bool) -> String {
+        "String(!!(window.__siloInstall && window.__siloInstall.pause && window.__siloInstall.pause(\(on))))"
     }
 
     /// The question asked before Steam is restarted — in Italian when the system's first language is.
@@ -60,21 +70,41 @@ public enum SteamInstallWithSilo {
     (() => {
       const S = window.__siloInstall || (window.__siloInstall = {});
       S.version = __SILO_VERSION__;
-      S.ids = new Set([__SILO_IDS__]);
-      S.queue = S.queue || [];
-      const I = SteamClient.Installs;
-      // Steam's own function is saved once; the wrapper is redefined on every injection, so a newer list wins.
-      if (!S.orig) S.orig = I.OpenInstallWizard;
-      I.OpenInstallWizard = function (apps, ...rest) {
-        const list = (Array.isArray(apps) ? apps : [apps]).map(Number);
-        const mine = list.filter((id) => S.ids.has(id));
-        for (const id of mine) if (!S.queue.includes(id)) S.queue.push(id);
-        const others = list.filter((id) => !S.ids.has(id));
-        if (!others.length) return Promise.resolve();
-        return S.orig.call(I, others, ...rest);
-      };
+      S.tool = '__SILO_TOOL__';
+      S.queue = [];
+      // Version 1 wrapped Steam's install function: Steam's own goes back.
+      if (S.orig) { SteamClient.Installs.OpenInstallWizard = S.orig; S.orig = null; }
+      S.checked = S.checked || new Set();
+      S.given = S.given || [];
+      const details = appid => new Promise(resolve => {
+        let done = false, handle = null;
+        const finish = d => { if (done) return; done = true; try { handle && handle.unregister(); } catch (e) {} resolve(d); };
+        try { handle = SteamClient.Apps.RegisterForAppDetails(appid, finish); } catch (e) { finish(null); }
+        setTimeout(() => finish(null), 3000);
+      });
+      // Every game in the library once (a new one as it appears): Windows-only and no tool → Silo's tool.
+      async function pass() {
+        if (S.paused || S.running) return;
+        S.running = true;
+        try {
+          for (const o of [...(appStore.allApps || [])]) {
+            if (S.paused) break;
+            if (!o || o.app_type !== 1 || S.checked.has(o.appid)) continue;
+            const d = await details(o.appid);
+            if (!d) continue;   // no answer: asked again next time
+            S.checked.add(o.appid);
+            const p = d.vecPlatforms || [];
+            if (!p.includes('windows') || p.includes('osx') || p.includes('macos') || d.strCompatToolName) continue;
+            try { SteamClient.Apps.SpecifyCompatTool(o.appid, S.tool); S.given.push(o.appid); } catch (e) {}
+          }
+        } finally { S.running = false; }
+      }
       S.take = () => { const q = S.queue; S.queue = []; return q; };
-      return 'silo install v' + S.version + ': ' + S.ids.size + ' games';
+      S.pause = on => { S.paused = !!on; return true; };
+      if (S.timer) clearInterval(S.timer);
+      S.timer = setInterval(pass, 5000);
+      pass();
+      return 'silo install v' + S.version + ': Silo for Windows-only games without a tool';
     })()
     """#
 }
