@@ -40,6 +40,10 @@ public struct NativeSteamSetup: Sendable {
         /// Games Steam maps to Silo's tool.
         public var gamesOnTool = 0
         public var bottles = false
+        /// Whether a game started from Steam finds the bridge (lsteamclient + the stand-in steam.exe) in the Wine
+        /// runtime Silo uses — a runtime from before the bridge was built in has none, and the game then doesn't open.
+        /// nil while no Wine is set up.
+        public var wineBridge: Bool?
         public init() {}
     }
 
@@ -89,6 +93,21 @@ public struct NativeSteamSetup: Sendable {
             .contains { fileManager.fileExists(atPath: $0.path) }
     }
 
+    /// Whether a launch finds the bridge for `wine`: the same lookup the launch makes (`NativeSteamBottle.bridgeSource`),
+    /// the runtime first, then the development folder. nil without a Wine.
+    public func bridgeReady(wine: URL?, fileManager: FileManager = .default) -> Bool? {
+        guard let wine else { return nil }
+        let source = NativeSteamBottle(paths: paths, runner: runner).bridgeSource(wine: wine, fileManager: fileManager)
+        return NativeSteamBottle.missingBridgeFiles(in: source, fileManager: fileManager).isEmpty
+    }
+
+    /// The Wine binary Silo launches with, from `config.json` (read here, not through `ConfigStore`, so the status
+    /// stays synchronous; the store writes the file atomically).
+    func configuredWine() -> URL? {
+        (try? Data(contentsOf: paths.configFile))
+            .flatMap { try? JSONDecoder().decode(AppState.self, from: $0) }?.backend.wineBinaryPath
+    }
+
     public func status(fileManager: FileManager = .default) -> Status {
         var status = Status()
         status.enabled = isEnabled
@@ -99,6 +118,7 @@ public struct NativeSteamSetup: Sendable {
         let config = (try? String(contentsOf: configVDF, encoding: .utf8)) ?? ""
         status.gamesOnTool = SteamCompatMapping.mappings(configVDF: config)
             .filter { $0.value == SiloCompatTool.name && !SteamCompatMapping.notGames.contains($0.key) }.count
+        status.wineBridge = bridgeReady(wine: configuredWine(), fileManager: fileManager)
         status.bottles = [paths.nativeSteamBottle, paths.nativeSteamBottleMF].contains {
             fileManager.fileExists(atPath: $0.path)
         }

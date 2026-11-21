@@ -45,6 +45,17 @@ struct NativeSteamSettingsView: View {
                 statusRow("Compatibility tool “Silo”", model.status.tool)
                 statusRow("Protection of Windows games", model.status.guardAgent)
                 LabeledContent("Games using Silo") { Text("\(model.status.gamesOnTool)").foregroundStyle(.secondary) }
+                if let bridge = model.status.wineBridge {
+                    LabeledContent("Wine for Steam games") {
+                        Label(bridge ? "Ready" : "Reinstall Wine",
+                              systemImage: bridge ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(bridge ? .green : .orange)
+                    }
+                    if !bridge {
+                        Text("The installed Wine is older than the bridge Steam for macOS uses, so games started from Steam won't open. Remove Wine in Settings → Wine and install it again.")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                }
             }
 
             if model.status.bottles {

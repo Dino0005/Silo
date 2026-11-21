@@ -18,11 +18,14 @@ the commit message says why.
   the other, and the game starts with them.
 
 ### Fixed
+- **Steam for macOS says when Wine has to be reinstalled.** A game started from Steam needs the bridge built into the
+  Wine runtime since 0.7.5; with an older copy the game simply didn't open, and only Silo's log said why. *Settings →
+  Steam for macOS* now shows *Wine for Steam games: Reinstall Wine*, with what to do, until it is.
 - **Uninstalling a game from Steam for macOS removes what Silo made for it.** The game's app (its name and icon in the
   Dock and the Games app) and its `compatdata` folder — which holds only Silo's links to the bottle's saves — stayed
   behind after Steam had uninstalled the game. The guard now removes them within a minute. The saves stay in the
   bottle and in Steam Cloud, a `compatdata` with anything else in it is left alone, and nothing is removed while a
-  Steam library's disk is unplugged.
+  Steam library's disk is unplugged. The game also leaves macOS's list of apps, so the Games app stops showing it.
 
 ## 0.7.6
 

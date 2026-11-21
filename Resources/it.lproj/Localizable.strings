@@ -483,3 +483,6 @@
 "Steam for macOS isn't installed" = "Steam per macOS non è installato";
 "Install Steam for Mac from Valve, open it once and sign in, then turn this on." = "Installa Steam per Mac dal sito di Valve, aprilo una volta ed effettua l’accesso, poi attiva questa opzione.";
 "Steam for macOS isn't installed. Install it from Steam's website, open it once to sign in, then come back here." = "Steam per macOS non è installato. Installalo dal sito di Steam, aprilo una volta per effettuare l’accesso, poi torna qui.";
+"Wine for Steam games" = "Wine per i giochi di Steam";
+"Reinstall Wine" = "Reinstalla Wine";
+"The installed Wine is older than the bridge Steam for macOS uses, so games started from Steam won't open. Remove Wine in Settings → Wine and install it again." = "La Wine installata è precedente al ponte che usa Steam per macOS, quindi i giochi avviati da Steam non si aprono. Rimuovi Wine in Impostazioni → Wine e installala di nuovo.";

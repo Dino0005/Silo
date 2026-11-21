@@ -196,4 +196,21 @@ struct NativeSteamSettingsModelTests {
         await blocked.setEnabled(false)
         #expect(blocked.message == "Quit Steam first." && blocked.status.enabled)
     }
+
+    @Test("The status says whether the configured Wine has the bridge; nothing while no Wine is set up")
+    func wineBridge() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let (setup, _) = try NativeSteamSetupTests.fixture(tmp)
+        #expect(setup.status().wineBridge == nil)                      // no config.json yet
+        let wine = tmp.url.appendingPathComponent("Silo/Runtimes/wine-cx/bin/wine64")
+        _ = try tmp.write("Silo/Runtimes/wine-cx/bin/wine64", "")
+        var state = AppState(); state.backend.wineBinaryPath = wine
+        try await ConfigStore(paths: setup.paths).save(state)
+        #expect(setup.status().wineBridge == false)                    // an older runtime: no bridge
+        for file in NativeSteamBottle.bridgeFiles {
+            _ = try tmp.write(file == "steam.exe" ? "Silo/Runtimes/wine-cx/share/silo/native-steam/steam.exe"
+                                                  : "Silo/Runtimes/wine-cx/lib/wine/\(file)", "x")
+        }
+        #expect(setup.status().wineBridge == true)
+    }
 }
