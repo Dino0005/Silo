@@ -18,7 +18,7 @@ import Foundation
 /// gets the page with the menu disabled. A Windows-only game set to Default is mapped back to Silo by the guard.
 public enum SteamCompatibilityPage {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 3
+    public static let version = 4
 
     /// JavaScript that answers whether this version of the page is live in Steam.
     public static let probe = "String(window.__siloCompat && window.__siloCompat.version === \(version) && window.__siloCompat.installed === true)"
@@ -242,6 +242,22 @@ public enum SteamCompatibilityPage {
         return page;
       }
 
+      // Checkboxes drawn by hand: the native one is white when off, which jumps out of Steam's dark page. Off = Steam's
+      // background (#181D24, sampled from Steam by the user) with a thin border; on = Steam's blue with a white tick.
+      function ensureCheckStyle(doc) {
+        if (doc.getElementById('silo-check-style')) return;
+        const st = doc.createElement('style');
+        st.id = 'silo-check-style';
+        st.textContent = `
+          input.silo-check { -webkit-appearance: none; appearance: none; margin: 0; width: 18px; height: 18px;
+            border-radius: 3px; border: 1px solid #4b5059; background: #181d24; cursor: pointer; flex: none; }
+          input.silo-check:hover { border-color: #8b929a; }
+          input.silo-check:checked { border-color: #1a9fff; background: #1a9fff center / 12px 12px no-repeat
+            url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2 6.2l2.6 2.6L10 3.4' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>"); }
+          input.silo-check:focus-visible { outline: 2px solid #1a9fff; outline-offset: 2px; }`;
+        (doc.head || doc.documentElement).append(st);
+      }
+
       // The "Silo" section: the game's own Silo settings, shown while Silo is its tool — the same groups, labels and
       // notes as Silo's settings sheet for the game.
       function siloSection(doc, appid, el) {
@@ -288,7 +304,8 @@ public enum SteamCompatibilityPage {
           const row = rowEl(label);
           const box2 = el('input');
           box2.type = 'checkbox';
-          box2.style.cssText = 'width:18px;height:18px;accent-color:#1a9fff;cursor:pointer';
+          box2.className = 'silo-check';
+          ensureCheckStyle(doc);
           box2.addEventListener('change', () => change(key, box2.checked ? '1' : '0'));
           row.append(box2);
           refreshers.push(() => { box2.checked = valueOf(appid, key) === '1'; });
