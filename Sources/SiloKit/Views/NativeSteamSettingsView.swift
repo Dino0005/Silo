@@ -44,7 +44,6 @@ struct NativeSteamSettingsView: View {
                 statusRow("Steam (Silo)", model.status.launcherApp)
                 statusRow("Compatibility tool “Silo”", model.status.tool)
                 statusRow("Protection of Windows games", model.status.guardAgent)
-                LabeledContent("Games using Silo") { Text("\(model.status.gamesOnTool)").foregroundStyle(.secondary) }
                 if let bridge = model.status.wineBridge {
                     LabeledContent("Wine for Steam games") {
                         Label(bridge ? "Ready" : "Reinstall Wine",
@@ -56,6 +55,7 @@ struct NativeSteamSettingsView: View {
                             .font(.caption).foregroundStyle(.orange)
                     }
                 }
+                LabeledContent("Games using Silo") { Text("\(model.status.gamesOnTool)").foregroundStyle(.secondary) }
             }
 
             if model.status.bottles {
