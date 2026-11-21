@@ -18,7 +18,7 @@ import Foundation
 /// gets the page with the menu disabled. A Windows-only game set to Default is mapped back to Silo by the guard.
 public enum SteamCompatibilityPage {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 5
+    public static let version = 6
 
     /// JavaScript that answers whether this version of the page is live in Steam.
     public static let probe = "String(window.__siloCompat && window.__siloCompat.version === \(version) && window.__siloCompat.installed === true)"
@@ -209,6 +209,9 @@ public enum SteamCompatibilityPage {
         const page = el('div', 'DialogContent _DialogLayout');
         page.dataset.siloCompatPage = '1';
         page.setAttribute('role', 'tabpanel');
+        // Steam's page background with its light turned the other way (bottom left instead of top left), so the page
+        // darkens upwards like the sidebar beside it (user, 2026-11-21). Steam's own pages keep theirs.
+        page.style.background = 'radial-gradient(circle at bottom left, rgba(74, 81, 92, 0.4) 0%, rgba(75, 81, 92, 0) 60%), #25282e';
         const inner = el('div', 'DialogContent_InnerWidth');
         inner.append(el('div', 'DialogHeader', L('#AppProperties_CompatibilityPage', it ? 'Compatibilità' : 'Compatibility')));
         const body = el('div', 'DialogBody');
