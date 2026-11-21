@@ -137,6 +137,9 @@ struct LegacyIdentifiersTests {
         #expect(FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent("com.mikael.silo.game.1778820").path))
 
         close(fd)   // the game quit
+        // A process another test spawns in parallel holds a copy of every descriptor between its fork and its exec,
+        // the lock included: give that instant a moment to pass.
+        for _ in 0..<100 where LegacyIdentifiers.isHeld(held) { usleep(10_000) }
         #expect(!LegacyIdentifiers.isHeld(held))
         #expect(LegacyIdentifiers.migrateMetalCaches(cacheRoot: tmp.url) == ["\(game)1778820/\(Self.gpu)/functions.data"])
         #expect(size(tmp, "\(game)1778820/com.apple.metal/\(Self.gpu)/functions.data") == 502)

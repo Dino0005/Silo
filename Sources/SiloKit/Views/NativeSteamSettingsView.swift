@@ -46,7 +46,7 @@ struct NativeSteamSettingsView: View {
                 statusRow("Protection of Windows games", model.status.guardAgent)
                 if let bridge = model.status.wineBridge {
                     LabeledContent("Wine for Steam games") {
-                        Label(bridge ? "Ready" : "Reinstall Wine",
+                        Label(bridge ? "Installed" : "Reinstall Wine",
                               systemImage: bridge ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                             .foregroundStyle(bridge ? .green : .orange)
                     }
