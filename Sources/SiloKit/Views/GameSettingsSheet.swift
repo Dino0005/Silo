@@ -98,6 +98,9 @@ struct GameSettingsSheet: View {
 
             PerformanceFlagsSection(flags: $vm.config.envFlags, graphics: vm.config.graphics)
             DepthFixSection(flags: $vm.config.envFlags)
+            if game.appID == SpiderMan2Fix.appID {
+                SpiderMan2FixSection(flags: $vm.config.envFlags)
+            }
             ControllersSection(flags: $vm.config.envFlags)
 
             // Only offered once the Media Foundation bottle exists — otherwise there's nothing to switch

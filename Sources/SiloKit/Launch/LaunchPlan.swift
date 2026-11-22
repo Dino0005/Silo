@@ -27,11 +27,13 @@ public struct LaunchPlan: Sendable, Equatable {
     /// binary, arguments, working directory, and the full Silo-set environment (sorted). Makes a
     /// black-window / "failed to initialize graphics" report self-explanatory — you see exactly what was
     /// launched and with which GPTK/wine env, without re-deriving it. Pure (timestamp injected).
-    public func logHeader(at date: Date) -> String {
+    /// `notes`: one line each about what Silo did before the launch (e.g. `SpiderMan2Fix.Outcome.logLine`).
+    public func logHeader(at date: Date, notes: [String] = []) -> String {
         var lines = ["===== Silo launch @ \(Self.timestampFormatter.string(from: date)) ====="]
         lines.append("exe   : \(executable.path)")
         lines.append("args  : \(arguments.joined(separator: " "))")
         lines.append("cwd   : \(currentDirectory.path)")
+        for note in notes { lines.append("note  : \(note)") }
         lines.append("env   :")
         for key in environment.keys.sorted() {
             lines.append("    \(key)=\(environment[key] ?? "")")

@@ -12,19 +12,23 @@ public struct LaunchOrchestrator: Sendable {
     /// The Windows Steam install in the bottle. `appcache/appinfo.vdf`, Steam's launch configuration, lives
     /// there — and ONLY there, not in a secondary library folder. Looked up first, before `app.libraryPath`.
     private let steamClientRoot: URL?
+    /// Spider-Man 2's T-pose fix in the game's folder (`SpiderMan2Fix`), synced before each Steam launch.
+    private let spiderMan2Fix: SpiderMan2Fix
 
     public init(
         runner: ProcessRunning,
         linker: GraphicsLinker,
         presenceInstaller: SteamPresenceInstaller = SteamPresenceInstaller(),
         altLoader: AltLoaderSession? = nil,
-        steamClientRoot: URL? = nil
+        steamClientRoot: URL? = nil,
+        spiderMan2Fix: SpiderMan2Fix? = nil
     ) {
         self.runner = runner
         self.linker = linker
         self.presenceInstaller = presenceInstaller
         self.altLoader = altLoader ?? AltLoaderSession(runner: runner)
         self.steamClientRoot = steamClientRoot
+        self.spiderMan2Fix = spiderMan2Fix ?? SpiderMan2Fix(paths: nil, runner: runner)
     }
 
     /// Steam's own launch entry for `app`. The Steam install is asked first: with `app.libraryPath` alone, a
@@ -321,6 +325,8 @@ public struct LaunchOrchestrator: Sendable {
         try linkGraphics(backendConfig: backend, graphics: graphics, wine: launchWine, prefix: prefix,
                          depthFix: config.envFlags.depthFix)
         try presenceInstaller.apply(strategy: config.presence, appID: app.appID, gameExe: gameExe)
+        // A D3DMetal bug only (the fix rides on D3D12): under DXMT the folder goes back to the game's own files.
+        let fix = await spiderMan2Fix.sync(gameExe: gameExe, enabled: config.envFlags.spiderMan2Fix && graphics == .gptk)
         var socket = altLoaderSocket
         if socket == nil {
             socket = await prepareAltLoader(
@@ -339,7 +345,7 @@ public struct LaunchOrchestrator: Sendable {
             altLoaderSocket: socket,
             dxmtDLSS: graphics == .dxmt && config.envFlags.metalFX && Self.dxmtDLSS(backend: backend, gameExe: gameExe),
             steamBridge: steamBridge)
-        return try await spawn(plan)
+        return try await spawn(plan, notes: [fix.logLine].compactMap { $0 })
     }
 
     /// Prepare the alt-loader hand-over for `target`, returning the socket to publish — or `nil`, which
@@ -518,8 +524,8 @@ public struct LaunchOrchestrator: Sendable {
         return result
     }
 
-    private func spawn(_ plan: LaunchPlan) async throws -> Int32 {
-        writeLogHeader(for: plan)
+    private func spawn(_ plan: LaunchPlan, notes: [String] = []) async throws -> Int32 {
+        writeLogHeader(for: plan, notes: notes)
         return try await runner.spawnDetached(
             executable: plan.executable, arguments: plan.arguments,
             environment: plan.environment, currentDirectory: plan.currentDirectory, logURL: plan.logURL)
@@ -528,11 +534,11 @@ public struct LaunchOrchestrator: Sendable {
     /// Truncate the log and write the resolved launch context at the top (a fresh log per launch); the
     /// child's stdout/stderr then appends after it (`spawnDetached` seeks to end). Best-effort — a failed
     /// header write never blocks the launch.
-    private func writeLogHeader(for plan: LaunchPlan) {
+    private func writeLogHeader(for plan: LaunchPlan, notes: [String] = []) {
         try? FileManager.default.createDirectory(
             at: plan.logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         LogRotation.rotate(plan.logURL)   // keep the previous launches — see `LogRotation`
-        try? Data(plan.logHeader(at: Date()).utf8).write(to: plan.logURL)
+        try? Data(plan.logHeader(at: Date(), notes: notes).utf8).write(to: plan.logURL)
     }
 
     /// Whether a launched process is still alive (best-effort). Used only by the first-run Steam WARM-UP,

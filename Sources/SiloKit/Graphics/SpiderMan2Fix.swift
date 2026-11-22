@@ -67,10 +67,11 @@ public struct SpiderMan2Fix: Sendable {
         self.buildShaders = buildShaders
     }
 
-    /// The real thing: DXC from this repo's `dxc-*` release, then `ShaderBuilder`.
-    public init(paths: AppPaths, runner: ProcessRunning) {
+    /// The real thing: DXC from this repo's `dxc-*` release, then `ShaderBuilder`. `paths` nil = `AppPaths.standard()`,
+    /// resolved only when shaders are actually built.
+    public init(paths: AppPaths?, runner: ProcessRunning) {
         self.init { exe in
-            let tools = try await DXCTools(paths: paths, runner: runner).ensure()
+            let tools = try await DXCTools(paths: paths ?? .standard(), runner: runner).ensure()
             return try await ShaderBuilder(tools: tools, runner: runner).build(fromGame: exe)
         }
     }

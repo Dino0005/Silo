@@ -14,9 +14,13 @@ let package = Package(
         // All app logic + views live here so the test target can import them.
         .target(
             name: "SiloKit",
+            dependencies: ["CShaderFix"],
             resources: [.process("Resources")],   // steam.png (toolbar "Open Steam" icon)
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // macprotips' SpiderMan2Fix shader rewrite (public domain, C): typed pool access → raw, on the
+        // `dxc -dumpbin` text of the game's own shaders (`SpiderMan2Fix.ShaderBuilder`).
+        .target(name: "CShaderFix"),
         .testTarget(
             name: "SiloKitTests",
             dependencies: ["SiloKit"],

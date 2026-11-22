@@ -60,6 +60,20 @@ struct DepthFixSection: View {
     }
 }
 
+/// The Spider-Man 2 fix's toggle (`EnvFlags.spiderMan2Fix`), offered only for that game (`SpiderMan2Fix.appID`).
+struct SpiderMan2FixSection: View {
+    @Binding var flags: EnvFlags
+
+    var body: some View {
+        Section {
+            Toggle("Spider-Man 2 fix", isOn: $flags.spiderMan2Fix)
+        } footer: {
+            Text("Fixes characters stuck in a T-pose, missing heads and the symbiote on M1–M4 Macs (macprotips' fix). Silo puts it in the game's folder before each launch and rebuilds its shaders from your copy of the game; the first time, it downloads Microsoft's shader tools (6 MB). Turned off, the folder goes back to how the game shipped it. GPTK only.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// Controller handling for a game started from macOS Steam (`EnvFlags.disableHidraw`,
 /// applied by `SteamInputControllers`). Steam games only: a manual game never runs next to macOS Steam.
 struct ControllersSection: View {

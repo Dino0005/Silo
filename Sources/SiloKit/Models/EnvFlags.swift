@@ -100,6 +100,9 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// instead of directly (Xbox glyphs) — for a pad that misbehaves over hidraw, meant with Steam Input off. Silo
     /// removes the value again only if it set it. macOS Steam launches only (NotProton's `NOTPROTON_DISABLE_HIDRAW`).
     public var disableHidraw: Bool
+    /// "Correzione Spider-Man 2": Silo's carrier for macprotips' T-pose fix in Marvel's Spider-Man 2's folder
+    /// (`SpiderMan2Fix`, synced before each launch). On by default; does nothing for any other game, or under DXMT.
+    public var spiderMan2Fix: Bool
     /// Free-form extra environment variables — a config.json-only escape hatch (no UI). Merged last in
     /// `environment()`, so it overrides the flags above — EXCEPT the sync keys (`WINEMSYNC`/`WINEESYNC`),
     /// which `LaunchOrchestrator.makePlan` force-overrides afterward for shared-bottle co-residency.
@@ -115,6 +118,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         mediaFoundationNative: Bool = false,
         depthFix: Bool = false,
         disableHidraw: Bool = false,
+        spiderMan2Fix: Bool = true,
         extra: [String: String] = [:]
     ) {
         self.syncMode = syncMode
@@ -126,6 +130,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.mediaFoundationNative = mediaFoundationNative
         self.depthFix = depthFix
         self.disableHidraw = disableHidraw
+        self.spiderMan2Fix = spiderMan2Fix
         self.extra = extra
     }
 
@@ -168,7 +173,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, depthFix
-        case disableHidraw, extra
+        case disableHidraw, spiderMan2Fix, extra
         case esync, msync   // legacy fields from configs written before the SyncMode enum
     }
 
@@ -195,6 +200,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         mediaFoundationNative = try c.decodeIfPresent(Bool.self, forKey: .mediaFoundationNative) ?? false
         depthFix = try c.decodeIfPresent(Bool.self, forKey: .depthFix) ?? false
         disableHidraw = try c.decodeIfPresent(Bool.self, forKey: .disableHidraw) ?? false
+        spiderMan2Fix = try c.decodeIfPresent(Bool.self, forKey: .spiderMan2Fix) ?? true
         extra = try c.decodeIfPresent([String: String].self, forKey: .extra) ?? [:]
     }
 
@@ -209,6 +215,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         try c.encode(mediaFoundationNative, forKey: .mediaFoundationNative)
         try c.encode(depthFix, forKey: .depthFix)
         try c.encode(disableHidraw, forKey: .disableHidraw)
+        try c.encode(spiderMan2Fix, forKey: .spiderMan2Fix)
         try c.encode(extra, forKey: .extra)
     }
 }

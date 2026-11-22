@@ -108,7 +108,9 @@ public struct NativeSteamLauncher: Sendable {
         let runner: ProcessRunning = overlay.isEmpty ? self.runner
             : SteamLibrariesRunner(base: self.runner, libraries: overlay.map(\.path).joined(separator: ":"),
                                    extraEnvironment: gameApp ?? [:])
-        let orchestrator = LaunchOrchestrator(runner: runner, linker: GraphicsLinker(), steamClientRoot: steamClientRoot)
+        // The fix's shader tools are arm64 macOS programs: they get the plain runner, without Steam's libraries.
+        let orchestrator = LaunchOrchestrator(runner: runner, linker: GraphicsLinker(), steamClientRoot: steamClientRoot,
+                                              spiderMan2Fix: SpiderMan2Fix(paths: paths, runner: self.runner))
         // Native Media Foundation as in the library's Play: only with a ready MF bottle built under this Wine.
         let mediaFoundation = config.envFlags.mediaFoundationNative
             && Self.mediaFoundationReady(paths: paths, currentRuntime: backend.wineRuntimeName)

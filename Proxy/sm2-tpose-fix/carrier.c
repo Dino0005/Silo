@@ -31,6 +31,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define COBJMACROS
 #include <windows.h>
+#include <winternl.h>
 #include <initguid.h>
 #include <d3d12.h>
 #include <stddef.h>

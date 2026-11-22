@@ -8,6 +8,18 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Added
+- **Marvel's Spider-Man 2: no more T-pose on M1–M4 Macs.** Characters stuck in a T-pose, missing heads and a broken
+  symbiote all came from one D3DMetal limit (typed buffer views stop at 2^28 elements). Silo now applies
+  [macprotips' SpiderMan2Fix](https://github.com/macprotips/SpiderMan2Fix) by itself, on its own carrier DLL, so it
+  works from Silo's library and from Steam for macOS alike, plus the volumetric-fog barrier vkd3d-proton adds for this
+  game. Before each launch Silo puts it in the game's folder, rebuilding its four shaders from your own copy of the
+  game (no game data ships with Silo); the first time it downloads Microsoft's shader tools (6 MB) from this repo's
+  releases. After a game update it rebuilds them by itself. On by default, as *Spider-Man 2 fix* in the game's
+  settings and on its *Compatibility* page in Steam; turned off, the folder goes back to how the game shipped it.
+
 ## 0.7.7
 
 ### Added
