@@ -20,6 +20,17 @@ the commit message says why.
   releases. After a game update it rebuilds them by itself. On by default, as *Spider-Man 2 fix* in the game's
   settings and on its *Compatibility* page in Steam; turned off, the folder goes back to how the game shipped it.
 
+### Fixed
+- **DXMT games that reset their frame latency no longer run CPU and GPU in lockstep** (needs the DXMT reinstall).
+  A Direct3D 11 game may call `SetMaximumFrameLatency(0)`, which means "back to the default of 3"; DXMT took the 0
+  literally, so every frame waited for the GPU to finish the one just submitted before the next could start.
+  Mavrik measured Civilization VI's benchmark at 38–39 fps without the fix and 95–98 fps with it. Games that never
+  make the call, or pass another value, behave exactly as before (checked: God of War doesn't make it). The fix is
+  Cam Steinberg's, from [mavrik-engine](https://github.com/camsteinberg/mavrik-engine) (LGPL-2.1), carried unchanged
+  as DXMT patch 0006; it also adds DXVK's `dxgi.maxFrameLatency` option to cap the latency.
+  **`dxmt-v0.72-cx26.3.0` has to be re-downloaded** (*Settings → DXMT*: remove, then install again); the rebuilt
+  runtime is published under the same name.
+
 ## 0.7.7
 
 ### Added
