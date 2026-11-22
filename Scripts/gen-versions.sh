@@ -20,6 +20,9 @@ public enum Versions {
     /// CrossOver FOSS source version the Wine runtime is built from (CI/build input only — the app
     /// downloads the latest published wine-cx-* release at runtime).
     public static let crossoverVersion = "${CROSSOVER_VERSION}"
+    /// DirectXShaderCompiler commit of the shader tools the Spider-Man 2 fix downloads (release
+    /// \`dxc-<first 8 hex>\`, built by build-dxc.yml).
+    public static let dxcCommit = "${DXC_COMMIT}"
 }
 EOF
 

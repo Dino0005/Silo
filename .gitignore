@@ -34,3 +34,6 @@ Scripts/overlay-fix/silo-overlay-fix.dylib
 .toolchains/
 Scripts/steam-hook/silo-steam-hook.dylib
 Scripts/steam-launcher/SiloSteamLauncher
+
+# DXC build tree (Scripts/build-dxc.sh)
+.dxc-build/

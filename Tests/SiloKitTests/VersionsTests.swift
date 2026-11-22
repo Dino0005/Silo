@@ -25,6 +25,7 @@ struct VersionsTests {
         #expect(try envValue("SILO_VERSION") == Versions.silo)
         #expect(try envValue("SILO_GITHUB_REPO") == Versions.githubRepo)
         #expect(try envValue("CROSSOVER_VERSION") == Versions.crossoverVersion)
+        #expect(try envValue("DXC_COMMIT") == Versions.dxcCommit)
     }
 
     @Test("Silo's public constants are sourced from Versions")

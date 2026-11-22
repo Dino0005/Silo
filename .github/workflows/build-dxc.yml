@@ -1,0 +1,63 @@
+name: Build DXC (shader tools for the Spider-Man 2 fix)
+
+# Builds Microsoft's DirectXShaderCompiler tools (dxc, dxa, dxv) at DXC_COMMIT (versions.env) for Apple Silicon
+# and publishes them to this repo's Releases as dxc-<first 8 hex of the commit>. Silo downloads that release the
+# first time the Spider-Man 2 fix has to build its shaders from the user's own Spider-Man2.exe (`SpiderMan2Fix`).
+# Same recipe as Scripts/build-dxc.sh, which this runs. Manual (workflow_dispatch): the commit changes only
+# together with the fix's verified shader hashes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: "Create the release as a DRAFT (visible only to the repo's maintainers) — for test runs"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dxc-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Apple Silicon runner: the tools run natively on the user's Mac (arm64).
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve the release tag (versions.env is the single source of truth)
+        run: |
+          set -eo pipefail
+          # shellcheck disable=SC1091
+          set -a; . ./versions.env; set +a
+          echo "REL_TAG=dxc-${DXC_COMMIT:0:8}" >> "$GITHUB_ENV"
+          echo "DXC_COMMIT=$DXC_COMMIT" >> "$GITHUB_ENV"
+          echo "Building DXC $DXC_COMMIT → publishing dxc-${DXC_COMMIT:0:8}"
+
+      - name: Host tools (cmake)
+        run: |
+          set -eo pipefail
+          ./Scripts/host-tools.sh | tail -1 | tr ':' '\n' >> "$GITHUB_PATH"
+
+      - name: Build + package
+        run: |
+          set -eo pipefail
+          # Paths from the workspace root (the script resolves its own repo root; no cd needed).
+          "$GITHUB_WORKSPACE/Scripts/build-dxc.sh" "$RUNNER_TEMP/dxc"
+          test -s "$GITHUB_WORKSPACE/dist/dxc.tar.xz"
+          tar -tJf "$GITHUB_WORKSPACE/dist/dxc.tar.xz" | grep -qx 'dxc/bin/dxv'
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.REL_TAG }}
+          name: ${{ env.REL_TAG }}
+          draft: ${{ inputs.draft }}
+          files: |
+            dist/dxc.tar.xz
+            dist/dxc.tar.xz.sha256
+          body: "Microsoft's DirectXShaderCompiler tools (dxc, dxa, dxv) at ${{ env.DXC_COMMIT }}, for Apple Silicon. Silo downloads them by itself the first time the Spider-Man 2 fix builds its shaders from your own copy of the game. DXC is open source (University of Illinois/NCSA licence, included in the archive)."
