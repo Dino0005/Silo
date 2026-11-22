@@ -30,6 +30,16 @@ the commit message says why.
   as DXMT patch 0006; it also adds DXVK's `dxgi.maxFrameLatency` option to cap the latency.
   **`dxmt-v0.72-cx26.3.0` has to be re-downloaded** (*Settings → DXMT*: remove, then install again); the rebuilt
   runtime is published under the same name.
+- **A game's sound follows the Mac's output** (needs the Wine reinstall). Sound stayed on the device that was the
+  default when the game started: taking the AirPods out left it on the speakers, and putting them back in the case
+  left the game silent until it was restarted. Wine now lists *System Default Output* first, as the default device,
+  and a game on it moves with macOS to each new output; a game set to a named device stays there, as on Windows.
+  A second fix sizes the Mac's audio buffer in the output's own sample rate, so a game whose rate differs from the
+  output's (48 kHz on a 44.1 kHz device) no longer gets buffers longer than it refills. Both are Cam Steinberg's, from
+  [mavrik-engine](https://github.com/camsteinberg/mavrik-engine) (LGPL-2.1), carried as Wine patches 0017 and 0018,
+  on top of Silo's surround mixer from 0.7.2. Checked on UNCHARTED: Legacy of Thieves Collection: the sound followed
+  the AirPods out of the case and back, and its default *Automatic (Traditional)* output mode, which still crackled
+  in 0.7.2, played clean on the speakers.
 
 ## 0.7.7
 

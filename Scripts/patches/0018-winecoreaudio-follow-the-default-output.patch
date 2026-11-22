@@ -21,11 +21,13 @@ OnDefaultDeviceChanged is not sent (as under winepulse).
 
 Silo-specific: our 0007 adds a SpatialMixer when a stream has more channels than the device; that mixer is built
 for the device the stream starts on, and after a move Apple's output unit converts its output to the new device.
-Mavrik doesn't carry the SpatialMixer, so this combination is Silo's alone to verify (Uncharted's 7.1 stream while
-switching speakers <-> AirPods).
+Mavrik doesn't carry the SpatialMixer, so this combination was Silo's alone to verify.
 
 Checked here: applies after 0002-0017 (with the two hand-applied call sites); coreaudio.c compiles with the
-runtime's flags with no warning.
+runtime's flags with no warning. On device (2026-11-22, user-verified, winecoreaudio.so with 0017+0018 swapped into
+wine-cx-26.3.0): UNCHARTED: Legacy of Thieves Collection in "Automatico (Tradizionale)", its 7.1 stream through the
+SpatialMixer, played clean on the MacBook speakers (48 kHz); taking the AirPods out moved the sound to them, and
+putting them back in the case brought it back to the speakers, not silence.
 
 diff --git a/dlls/winecoreaudio.drv/coreaudio.c b/dlls/winecoreaudio.drv/coreaudio.c
 index e99b54a..385e1ef 100644
