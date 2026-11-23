@@ -103,15 +103,18 @@ struct GameAppIcon<Fallback: View>: View {
     var body: some View {
         Group {
             if let icon {
+                // Every icon in the same box: its own margin is trimmed away (`IconTrim`).
                 Image(nsImage: icon).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                    .frame(width: TileStyle.iconArtSide, height: TileStyle.iconArtSide)
+                    .frame(width: TileStyle.iconSize, height: TileStyle.iconSize)
             } else if looked {
-                // Inset like a system icon, which leaves a margin inside its frame. Framed square and
-                // clipped first: the artwork fills, and unframed it spilled over the title beside it.
-                let side = TileStyle.iconSize * 0.84
+                // The same box as an icon. Framed square and clipped first: the artwork fills, and unframed it
+                // spilled over the title beside it.
+                let side = TileStyle.iconArtSide
                 fallback()
                     .frame(width: side, height: side)
                     .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: TileStyle.iconSize * 0.2, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: side * 0.225, style: .continuous))
                     .frame(width: TileStyle.iconSize, height: TileStyle.iconSize)
             } else {
                 Color.clear
@@ -122,7 +125,7 @@ struct GameAppIcon<Fallback: View>: View {
                                                   gameAppsDir: env.paths.gameAppsDir) {
                 let image = NSWorkspace.shared.icon(forFile: app.path)
                 image.size = NSSize(width: 512, height: 512)   // ask for a large representation
-                icon = image
+                icon = IconTrim.trimmed(image)
             }
             looked = true
         }

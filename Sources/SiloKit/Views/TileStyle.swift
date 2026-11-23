@@ -18,8 +18,11 @@ enum TileStyle: String, CaseIterable, Identifiable {
 
     /// Steam's `header.jpg` is 460×215.
     static let headerAspect: CGFloat = 460.0 / 215.0
-    /// The icon's side in the `.icons` layout.
-    static let iconSize: CGFloat = 84
+    /// The icon's side in the `.icons` layout — also the row's height, so the Play capsule sits level with the
+    /// icon's foot in every row, as in the Games app.
+    static let iconSize: CGFloat = 88
+    /// What an icon fills inside that square, the same for every game (`IconTrim` removes each icon's own margin).
+    static let iconArtSide: CGFloat = iconSize * 0.92
 }
 
 extension View {

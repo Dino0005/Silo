@@ -53,15 +53,23 @@ struct GameTileCard<Artwork: View, Subtitle: View, MenuItems: View>: View {
             HStack(alignment: .top, spacing: 14) {
                 artwork(style)
                     .frame(width: TileStyle.iconSize, height: TileStyle.iconSize)
-                VStack(alignment: .leading, spacing: 4) {
+                // Exactly the icon's height, the Play capsule at its foot: the capsule sits level with the icon in
+                // every row, whether the title takes one line or two (it was pushed down by two-line titles).
+                VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.title3.weight(.semibold)).lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 6) { subtitle() }
-                    Spacer(minLength: 6)
-                    iconsPlayButton
+                    Spacer(minLength: 0)
+                    // The menu on the Play capsule's row, at its right: the title gets the full width above.
+                    HStack(spacing: 8) {
+                        iconsPlayButton
+                        Spacer(minLength: 0)
+                        Menu { menuItems() } label: { Image(systemName: "ellipsis.circle") }
+                            .menuStyle(.borderlessButton).fixedSize()
+                    }
                 }
-                .frame(maxWidth: .infinity, minHeight: TileStyle.iconSize, alignment: .leading)
-                Menu { menuItems() } label: { Image(systemName: "ellipsis.circle") }
-                    .menuStyle(.borderlessButton).fixedSize()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: TileStyle.iconSize, alignment: .top)
             }
             .padding(8)
         case .portrait:
@@ -114,8 +122,9 @@ struct GameTileCard<Artwork: View, Subtitle: View, MenuItems: View>: View {
             }
             .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(true)
         } else {
+            // The Games app's regular-size capsule (the large one left no room for a two-line title).
             Button(action: onPlay) { Text("Play").frame(minWidth: 56) }
-                .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.large)
+                .buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
                 .disabled(!canLaunch)
         }
     }

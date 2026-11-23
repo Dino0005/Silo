@@ -13,6 +13,10 @@ the commit message says why.
 ### Changed
 - **Silo is now licensed under the GPL-3.0-or-later**, instead of the LGPL-2.1-or-later. The code that comes from
   upstream is carried under the GPL as the LGPL allows; [NOTICE](NOTICE) has the details. Wine keeps its own license.
+- **The library's icon tiles look like Apple's Games app.** Every row is as tall as its icon, with the *Play* button
+  level with the icon's foot whatever the title's length; a two-line title used to push it down for the whole row.
+  The ⋯ menu moved onto the *Play* button's row, so the title gets the full width above (long titles are no longer
+  cut short), and every icon fills the same, slightly larger box — the artwork of a game never launched included.
 
 ### Fixed
 - **A game only ever started from Steam for macOS shows its own icon in the library.** With the icon tiles, Marvel's
