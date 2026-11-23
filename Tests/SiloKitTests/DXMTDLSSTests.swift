@@ -25,6 +25,7 @@ struct DXMTDLSSTests {
         var cfg = GameConfig(appID: 220)
         cfg.envFlags.metalFX = metalFX
         cfg.envFlags.extra = extra
+        cfg.envFlags.depthFix = false   // God of War's own fix (on by default for it) isn't what these tests look at
         return try LaunchOrchestrator.makePlan(
             config: cfg, backend: backend(), graphics: graphics, gameExe: exe, prefix: prefix, logURL: log,
             dxmtDLSS: dlss).environment

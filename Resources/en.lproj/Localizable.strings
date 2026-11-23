@@ -407,7 +407,7 @@
 /* Depth fix (per-game, GameSettingsSections.DepthFixSection) */
 "Rendering" = "Rendering";
 "Depth fix" = "Depth fix";
-"Fixes white specks on characters in games that redraw the scene with an exact depth test (God of War). Only for games that need it: on others it can draw things through walls. Works with GPTK and DXMT, DirectX 11 games only." = "Fixes white specks on characters in games that redraw the scene with an exact depth test (God of War). Only for games that need it: on others it can draw things through walls. Works with GPTK and DXMT, DirectX 11 games only.";
+"Fixes white specks on characters in God of War: the game redraws the scene with an exact depth test, which a few pixels fail on Metal. God of War only, from Steam or GOG. Works with GPTK and DXMT." = "Fixes white specks on characters in God of War: the game redraws the scene with an exact depth test, which a few pixels fail on Metal. God of War only, from Steam or GOG. Works with GPTK and DXMT.";
 "Spider-Man 2 fix" = "Spider-Man 2 fix";
 "Fixes characters stuck in a T-pose, missing heads and the symbiote on M1–M4 Macs (macprotips' fix). Silo puts it in the game's folder before each launch and rebuilds its shaders from your copy of the game; the first time, it downloads Microsoft's shader tools (6 MB). Turned off, the folder goes back to how the game shipped it. GPTK only." = "Fixes characters stuck in a T-pose, missing heads and the symbiote on M1–M4 Macs (macprotips' fix). Silo puts it in the game's folder before each launch and rebuilds its shaders from your copy of the game; the first time, it downloads Microsoft's shader tools (6 MB). Turned off, the folder goes back to how the game shipped it. GPTK only.";
 "Uncharted fix" = "Uncharted fix";

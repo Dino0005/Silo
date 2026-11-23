@@ -22,14 +22,15 @@ struct DepthFixTests {
 
     // MARK: - Flag
 
-    @Test("depthFix defaults to off, survives a round trip, and an old config without it decodes")
+    @Test("depthFix defaults to on (God of War only), survives a round trip, and an old config without it decodes")
     func flagCodable() throws {
-        #expect(EnvFlags().depthFix == false)
-        let on = EnvFlags(depthFix: true)
-        let decoded = try JSONDecoder().decode(EnvFlags.self, from: JSONEncoder().encode(on))
-        #expect(decoded.depthFix == true)
+        #expect(EnvFlags().depthFix == true)
+        let off = EnvFlags(depthFix: false)
+        let decoded = try JSONDecoder().decode(EnvFlags.self, from: JSONEncoder().encode(off))
+        #expect(decoded.depthFix == false)
         let legacy = try JSONDecoder().decode(EnvFlags.self, from: Data(#"{"metalHUD":true}"#.utf8))
-        #expect(legacy.depthFix == false)
+        #expect(legacy.depthFix == true)
+        let on = EnvFlags(depthFix: true)
         // Like mediaFoundationNative it emits nothing itself — makePlan applies it.
         #expect(on.environment(graphics: .gptk) == EnvFlags().environment(graphics: .gptk))
     }
@@ -239,4 +240,37 @@ struct DepthFixTests {
         #expect(!FileManager.default.fileExists(atPath: dir.path))
     }
 
+    // MARK: - God of War only
+
+    @Test("Applied only when the game started is God of War's exe, from Steam or GOG, in any case")
+    func appliesToGodOfWarOnly() {
+        let on = EnvFlags(depthFix: true)
+        #expect(DepthFix.applies(on, gameExe: URL(fileURLWithPath: "/Volumes/X/GOG/God of War/GoW.exe")))
+        #expect(DepthFix.applies(on, gameExe: URL(fileURLWithPath: "/steamapps/common/GodOfWar/gow.EXE")))
+        #expect(!DepthFix.applies(on, gameExe: URL(fileURLWithPath: "/steamapps/common/Other/Game.exe")))
+        #expect(!DepthFix.applies(EnvFlags(depthFix: false), gameExe: URL(fileURLWithPath: "/g/GoW.exe")))
+    }
+
+    @Test("Offered for God of War's Steam app, or a manual game that is God of War (by exe or linked app)")
+    func offeredForGodOfWarOnly() {
+        #expect(DepthFix.offered(steamAppID: DepthFix.steamAppID, exe: nil))
+        #expect(DepthFix.offered(steamAppID: nil, exe: URL(fileURLWithPath: "/GOG/God of War/GoW.exe")))
+        #expect(DepthFix.offered(steamAppID: DepthFix.steamAppID, exe: URL(fileURLWithPath: "/x/launcher.exe")))
+        #expect(!DepthFix.offered(steamAppID: 220, exe: nil))
+        #expect(!DepthFix.offered(steamAppID: nil, exe: URL(fileURLWithPath: "/x/Game.exe")))
+    }
+
+    @Test("Another game with the option left on launches exactly as without it")
+    func otherGameIgnoresIt() throws {
+        var cfg = GameConfig(appID: 220)
+        cfg.envFlags.depthFix = true
+        for graphics in [GraphicsBackend.gptk, .dxmt] {
+            let env = try LaunchOrchestrator.makePlan(
+                config: cfg, backend: backend(), graphics: graphics,
+                gameExe: URL(fileURLWithPath: "/lib/game/hl2.exe"), prefix: prefix, logURL: log).environment
+            #expect(!(env["WINEDLLOVERRIDES"] ?? "").contains("d3d11=n,b"))
+            #expect(env["SILO_REAL_D3D11"] == nil)
+            #expect(env["DXMT_CONFIG"] == nil)
+        }
+    }
 }

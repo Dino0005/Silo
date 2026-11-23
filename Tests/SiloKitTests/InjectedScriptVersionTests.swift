@@ -18,8 +18,11 @@ struct InjectedScriptVersionTests {
 
     private func check(_ name: String, version: Int, script: String, pinned: [Int: String]) {
         let actual = Self.fingerprint(script)
-        #expect(pinned[version] == actual,
-                "\(name) changed: bump its version (now \(version)) and pin \(version + 1): \"\(actual)\" here")
+        // Not pinned at this version yet: the version was bumped, pin it. Pinned but different: bump it first.
+        let advice = pinned[version] == nil
+            ? "pin \(version): \"\(actual)\" here"
+            : "bump its version to \(version + 1) and pin \(version + 1): \"\(actual)\" here"
+        #expect(pinned[version] == actual, "\(name) changed: \(advice)")
     }
 
     @Test("Compatibility page")
@@ -27,7 +30,7 @@ struct InjectedScriptVersionTests {
         check("SteamCompatibilityPage", version: SteamCompatibilityPage.version,
               script: SteamCompatibilityPage.script(tools: [("silo", "Silo")], windowsOnly: [1], windowsBuild: [2],
                                                     known: [1, 2, 3]),
-              pinned: [8: "4e4d92461a36010b"])
+              pinned: [9: "dc38a2d01331c0f2"])
     }
 
     @Test("Library filters")

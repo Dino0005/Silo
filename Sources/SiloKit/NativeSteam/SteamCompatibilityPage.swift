@@ -18,7 +18,7 @@ import Foundation
 /// gets the page with the menu disabled. A Windows-only game set to Default is mapped back to Silo by the guard.
 public enum SteamCompatibilityPage {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 8
+    public static let version = 9
 
     /// JavaScript that answers whether this version of the page is live in Steam.
     public static let probe = "String(window.__siloCompat && window.__siloCompat.version === \(version) && window.__siloCompat.installed === true)"
@@ -104,7 +104,7 @@ public enum SteamCompatibilityPage {
         perfNote: "MSync + Supporto AVX è la configurazione di base consigliata per Apple Silicon. L'HUD Prestazioni mostra FPS/frame time in tempo reale sul gioco. MetalFX aumenta gli FPS tramite upscaling; il ray tracing richiede un M3 o successivo. Backend Metal sceglie il renderer attraverso cui passa il percorso DirectX 12 di GPTK: Automatico segue la scelta predefinita di Apple — Metal 3 su macOS 26, Metal 4 su macOS 27 e successivi. Se un gioco è peggiorato dopo un aggiornamento di GPTK, prova prima Metal 3. Solo GPTK.",
         perfNoteDXMT: "MSync + Supporto AVX è la configurazione di base consigliata per Apple Silicon. L'HUD Prestazioni mostra FPS/frame time in tempo reale sul gioco. MetalFX aumenta gli FPS tramite upscaling; il ray tracing richiede un M3 o successivo.",
         rendering: 'Rendering', depthFix: 'Correzione profondità',
-        depthNote: 'Elimina i puntini bianchi sui personaggi nei giochi che ridisegnano la scena con un test di profondità esatto (God of War). Solo per i giochi che ne hanno bisogno: su altri può far vedere oggetti attraverso i muri. Funziona con GPTK e DXMT, solo giochi DirectX 11.',
+        depthNote: "Elimina i puntini bianchi sui personaggi in God of War: il gioco ridisegna la scena con un test di profondità esatto, che su Metal alcuni pixel non superano. Solo per God of War, da Steam o GOG. Funziona con GPTK e DXMT.",
         sm2Fix: 'Correzione Spider-Man 2',
         sm2Note: "Corregge i personaggi bloccati in T-pose, le teste mancanti e il simbionte sui Mac M1–M4 (la correzione di macprotips). Silo la mette nella cartella del gioco prima di ogni avvio e ne ricostruisce gli shader dalla tua copia del gioco; la prima volta scarica gli strumenti shader di Microsoft (6 MB). Se la disattivi, la cartella torna com'era. Solo GPTK.",
         unchartedFix: 'Correzione Uncharted',
@@ -127,7 +127,7 @@ public enum SteamCompatibilityPage {
         perfNote: "MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer. Metal backend picks the renderer GPTK's DirectX 12 path translates through: Automatic follows Apple's default — Metal 3 on macOS 26, Metal 4 on macOS 27 and later. If a game regressed after a GPTK update, try Metal 3 first. GPTK only.",
         perfNoteDXMT: 'MSync + advertise-AVX is the recommended Apple-Silicon baseline. The Performance HUD overlays live FPS/frame time on the game. MetalFX upscales for more FPS; Raytracing needs an M3 or newer.',
         rendering: 'Rendering', depthFix: 'Depth fix',
-        depthNote: 'Fixes white specks on characters in games that redraw the scene with an exact depth test (God of War). Only for games that need it: on others it can draw things through walls. Works with GPTK and DXMT, DirectX 11 games only.',
+        depthNote: "Fixes white specks on characters in God of War: the game redraws the scene with an exact depth test, which a few pixels fail on Metal. God of War only, from Steam or GOG. Works with GPTK and DXMT.",
         sm2Fix: 'Spider-Man 2 fix',
         sm2Note: "Fixes characters stuck in a T-pose, missing heads and the symbiote on M1–M4 Macs (macprotips' fix). Silo puts it in the game's folder before each launch and rebuilds its shaders from your copy of the game; the first time, it downloads Microsoft's shader tools (6 MB). Turned off, the folder goes back to how the game shipped it. GPTK only.",
         unchartedFix: 'Uncharted fix',
@@ -383,9 +383,13 @@ public enum SteamCompatibilityPage {
           perfNote.textContent = dxmt ? T.perfNoteDXMT : T.perfNote;
         });
 
-        header(T.rendering);
-        toggle('depthFix', T.depthFix);
-        noteEl().textContent = T.depthNote;
+        // Each fix is offered for its own game only; the section only when the game has one.
+        if (appid === 1593500 || appid === 2651280 || appid === 1659420) header(T.rendering);
+        // God of War only (DepthFix.steamAppID).
+        if (appid === 1593500) {
+          toggle('depthFix', T.depthFix);
+          noteEl().textContent = T.depthNote;
+        }
         // Marvel's Spider-Man 2 only (SpiderMan2Fix.appID).
         if (appid === 2651280) {
           toggle('spiderMan2Fix', T.sm2Fix);

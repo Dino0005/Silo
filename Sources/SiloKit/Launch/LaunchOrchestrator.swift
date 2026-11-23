@@ -169,11 +169,11 @@ public struct LaunchOrchestrator: Sendable {
             // `extra`'s documented "overrides anything". First user: a per-game d3d11 proxy in front of
             // D3DMetal (`d3d11=n,b`), God of War, 2026-10-12.
             var overrides = graphics.dllOverrides
-            // The depth fix (`EnvFlags.depthFix`). GPTK: d3d11 becomes Silo's proxy in system32 (native,
+            // The depth fix (`EnvFlags.depthFix`), God of War only (`DepthFix`). GPTK: d3d11 becomes Silo's proxy in system32 (native,
             // placed by `linkGraphics`), which reaches D3DMetal through the renamed copy beside it — by full
             // path, since a bottle booted by another runtime has no system32 placeholder for that name.
             // DXMT: its own option, from Silo's DXMT patch 0003.
-            if config.envFlags.depthFix {
+            if DepthFix.applies(config.envFlags, gameExe: gameExe) {
                 switch graphics {
                 case .gptk:
                     overrides = mergeOverride(overrides, "d3d11=n,b")
@@ -337,7 +337,7 @@ public struct LaunchOrchestrator: Sendable {
         let gameExe = try gameExe ?? resolveExecutable(app: app, config: config)
         try check32BitSupported(gameExe, graphics: graphics)
         try linkGraphics(backendConfig: backend, graphics: graphics, wine: launchWine, prefix: prefix,
-                         depthFix: config.envFlags.depthFix)
+                         depthFix: DepthFix.applies(config.envFlags, gameExe: gameExe))
         try presenceInstaller.apply(strategy: config.presence, appID: app.appID, gameExe: gameExe)
         // A D3DMetal bug only (the fix rides on D3D12): under DXMT the folder goes back to the game's own files.
         let fix = await spiderMan2Fix.sync(gameExe: gameExe, enabled: config.envFlags.spiderMan2Fix && graphics == .gptk)
@@ -490,7 +490,7 @@ public struct LaunchOrchestrator: Sendable {
         }
         try check32BitSupported(game.executablePath, graphics: graphics)
         try linkGraphics(backendConfig: backend, graphics: graphics, wine: launchWine, prefix: prefix,
-                         depthFix: game.envFlags.depthFix)
+                         depthFix: DepthFix.applies(game.envFlags, gameExe: game.executablePath))
         var socket = altLoaderSocket
         if socket == nil {
             // The game's own sync mode: its isolated bottle honors it (`makePlan`, `sharedBottle: false`),

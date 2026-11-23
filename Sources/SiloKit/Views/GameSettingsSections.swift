@@ -43,8 +43,8 @@ struct PerformanceFlagsSection: View {
     }
 }
 
-/// The depth-fix toggle (`EnvFlags.depthFix`), shared by both settings sheets. Its own section, because it
-/// is a per-game workaround rather than a performance flag, and the warning belongs right under it.
+/// The depth-fix toggle (`EnvFlags.depthFix`), shared by both settings sheets and offered for God of War only
+/// (`DepthFix.offered`). Its own section, because it is a per-game workaround rather than a performance flag.
 struct DepthFixSection: View {
     @Binding var flags: EnvFlags
 
@@ -54,7 +54,7 @@ struct DepthFixSection: View {
         } header: {
             Text("Rendering")
         } footer: {
-            Text("Fixes white specks on characters in games that redraw the scene with an exact depth test (God of War). Only for games that need it: on others it can draw things through walls. Works with GPTK and DXMT, DirectX 11 games only.")
+            Text("Fixes white specks on characters in God of War: the game redraws the scene with an exact depth test, which a few pixels fail on Metal. God of War only, from Steam or GOG. Works with GPTK and DXMT.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -67,6 +67,8 @@ struct SpiderMan2FixSection: View {
     var body: some View {
         Section {
             Toggle("Spider-Man 2 fix", isOn: $flags.spiderMan2Fix)
+        } header: {
+            Text("Rendering")
         } footer: {
             Text("Fixes characters stuck in a T-pose, missing heads and the symbiote on M1–M4 Macs (macprotips' fix). Silo puts it in the game's folder before each launch and rebuilds its shaders from your copy of the game; the first time, it downloads Microsoft's shader tools (6 MB). Turned off, the folder goes back to how the game shipped it. GPTK only.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -81,6 +83,8 @@ struct UnchartedFixSection: View {
     var body: some View {
         Section {
             Toggle("Uncharted fix", isOn: $flags.unchartedFix)
+        } header: {
+            Text("Rendering")
         } footer: {
             Text("Fixes the crash when you quit from the game's menu, and the safe-mode prompt it left for the next start: the game releases some textures one time too many, and Silo keeps them alive a moment longer so the extra release does no harm. Silo puts a small d3d12.dll of its own in the game's folder before each launch; turned off, it takes it away. GPTK only.")
                 .font(.caption).foregroundStyle(.secondary)

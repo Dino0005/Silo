@@ -20,6 +20,12 @@ the commit message says why.
   releases. After a game update it rebuilds them by itself. On by default, as *Spider-Man 2 fix* in the game's
   settings and on its *Compatibility* page in Steam; turned off, the folder goes back to how the game shipped it.
 
+### Changed
+- **The depth fix is God of War's own now.** It removes the white specks on God of War's characters, but on another
+  game the same change could draw things through walls, so it is no longer offered for every game: it shows only in
+  God of War's settings — the Steam release and the GOG one alike (Silo recognises `GoW.exe`) — and on its
+  *Compatibility* page in Steam, and it is on by default there. A game that had it switched on simply runs without it.
+
 ### Fixed
 - **DXMT games that reset their frame latency no longer run CPU and GPU in lockstep** (needs the DXMT reinstall).
   A Direct3D 11 game may call `SetMaximumFrameLatency(0)`, which means "back to the default of 3"; DXMT took the 0

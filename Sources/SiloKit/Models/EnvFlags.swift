@@ -94,7 +94,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// (`GraphicsLinker.installDepthFixProxy`, `LaunchOrchestrator.makePlan`). DXMT: DXMT's own
     /// `d3d11.depthEqualAsGreaterEqual` option (Silo's DXMT patch 0003) via `DXMT_CONFIG`. Like
     /// `mediaFoundationNative`, nothing is emitted from `environment(graphics:)`: it's applied in `makePlan`,
-    /// which knows the runtime.
+    /// which knows the runtime. God of War only (`DepthFix`): on by default, and does nothing for any other game.
     public var depthFix: Bool
     /// "Disattiva hidraw": `WineBus` `DisableHidraw=1` in the game's bottle, so Wine reads every pad through SDL
     /// instead of directly (Xbox glyphs) — for a pad that misbehaves over hidraw, meant with Steam Input off. Silo
@@ -120,7 +120,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         dxr: Bool = false,
         metalBackend: MetalBackendChoice = .auto,
         mediaFoundationNative: Bool = false,
-        depthFix: Bool = false,
+        depthFix: Bool = true,
         disableHidraw: Bool = false,
         spiderMan2Fix: Bool = true,
         unchartedFix: Bool = true,
@@ -204,7 +204,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         metalBackend = (try c.decodeIfPresent(String.self, forKey: .metalBackend))
             .flatMap(MetalBackendChoice.init(rawValue:)) ?? .auto
         mediaFoundationNative = try c.decodeIfPresent(Bool.self, forKey: .mediaFoundationNative) ?? false
-        depthFix = try c.decodeIfPresent(Bool.self, forKey: .depthFix) ?? false
+        depthFix = try c.decodeIfPresent(Bool.self, forKey: .depthFix) ?? true
         disableHidraw = try c.decodeIfPresent(Bool.self, forKey: .disableHidraw) ?? false
         spiderMan2Fix = try c.decodeIfPresent(Bool.self, forKey: .spiderMan2Fix) ?? true
         unchartedFix = try c.decodeIfPresent(Bool.self, forKey: .unchartedFix) ?? true

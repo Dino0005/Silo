@@ -163,11 +163,12 @@ struct UnchartedFixTests {
         #expect(env["SILO_REAL_D3D12"] == #"Z:\w\lib\wine\x86_64-windows\d3dm_d3d12.dll"#)
     }
 
-    @Test("With the depth fix too, both proxies; a hand-written extra override still comes last")
+    @Test("A hand-written extra override still comes last; the depth fix (God of War's) stays out even if on")
     func planWithOthers() throws {
         let env = try plan(active: true, graphics: .gptk, extra: ["WINEDLLOVERRIDES": "foo=d"], depthFix: true)
             .environment
-        #expect(env["WINEDLLOVERRIDES"] == GraphicsBackend.gptk.dllOverrides + ";d3d11=n,b;d3d12=n,b;foo=d")
+        #expect(env["WINEDLLOVERRIDES"] == GraphicsBackend.gptk.dllOverrides + ";d3d12=n,b;foo=d")
+        #expect(env["SILO_REAL_D3D11"] == nil)
     }
 
     @Test("Not in place, or under DXMT: the launch is exactly as without the fix")

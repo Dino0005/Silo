@@ -173,7 +173,9 @@ struct ManualGameSettingsSheet: View {
                 }
 
                 PerformanceFlagsSection(flags: $game.envFlags, graphics: game.graphics)
-                DepthFixSection(flags: $game.envFlags)
+                if DepthFix.offered(steamAppID: game.steamAppID, exe: game.executablePath) {
+                    DepthFixSection(flags: $game.envFlags)
+                }
                 LaunchOptionsSection(text: $game.launchOptionsString)
             }
             .formStyle(.grouped)
