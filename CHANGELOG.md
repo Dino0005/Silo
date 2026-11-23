@@ -40,6 +40,16 @@ the commit message says why.
   on top of Silo's surround mixer from 0.7.2. Checked on UNCHARTED: Legacy of Thieves Collection: the sound followed
   the AirPods out of the case and back, and its default *Automatic (Traditional)* output mode, which still crackled
   in 0.7.2, played clean on the speakers.
+- **UNCHARTED: Legacy of Thieves Collection no longer crashes when you quit from its menu**, and no longer asks to
+  start in safe mode the next time. The game releases some of its textures one time too many: its cleanup loop then
+  touched a texture that was already gone, and the same happened, silently, about once a second while playing.
+  Silo now puts a small `d3d12.dll` of its own in the game's folder before each launch, which keeps each texture
+  alive for two seconds after the game lets go of it, so the extra release does no harm; everything else goes
+  straight to D3DMetal. On by default, as *Uncharted fix* in the game's settings and on its *Compatibility* page in
+  Steam; turned off, Silo takes the file away again. GPTK only. Checked over a 50-minute session from Steam for macOS.
+- **After a Silo update, Steam for macOS gets the new version right away.** The helper that protects Windows games
+  and draws Silo's pages inside Steam kept running the old version until you logged out, so a new setting could be
+  missing from a game's *Compatibility* page. It now restarts by itself a few seconds after Silo is updated.
 
 ## 0.7.7
 
