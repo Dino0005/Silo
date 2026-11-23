@@ -89,7 +89,8 @@ struct SteamPortraitArt<Fallback: View>: View {
 }
 
 /// A game's app icon for the `.icons` tile: its host app's icon as macOS draws it (already in the system's
-/// rounded-square shape), the same one Apple's Games app shows. A game never launched has no host app yet;
+/// rounded-square shape), the same one Apple's Games app shows — or its game app's, for a game only ever started
+/// from Steam for macOS (`HostAppLookup.iconBundle`). A game never launched has neither yet;
 /// it gets `fallback` cropped to the same rounded square.
 struct GameAppIcon<Fallback: View>: View {
     @Environment(AppEnvironment.self) private var env
@@ -117,7 +118,8 @@ struct GameAppIcon<Fallback: View>: View {
             }
         }
         .task(id: hostID) {
-            if let app = HostAppLookup.bundle(forID: hostID, in: env.paths.hostAppsDir) {
+            if let app = HostAppLookup.iconBundle(forID: hostID, hostAppsDir: env.paths.hostAppsDir,
+                                                  gameAppsDir: env.paths.gameAppsDir) {
                 let image = NSWorkspace.shared.icon(forFile: app.path)
                 image.size = NSSize(width: 512, height: 512)   // ask for a large representation
                 icon = image

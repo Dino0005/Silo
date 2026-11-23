@@ -14,6 +14,12 @@ the commit message says why.
 - **Silo is now licensed under the GPL-3.0-or-later**, instead of the LGPL-2.1-or-later. The code that comes from
   upstream is carried under the GPL as the LGPL allows; [NOTICE](NOTICE) has the details. Wine keeps its own license.
 
+### Fixed
+- **A game only ever started from Steam for macOS shows its own icon in the library.** With the icon tiles, Marvel's
+  Spider-Man 2 showed Steam's artwork cropped to a square instead of the icon taken from its exe: the library looked
+  for it only in the app Silo makes when it starts a game itself. It now also uses the game's app that Steam for macOS
+  starts it through, which carries the same icon.
+
 ## 0.7.8
 
 ### Added
