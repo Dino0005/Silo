@@ -178,6 +178,9 @@ if CommandLine.arguments.contains("--smoke")
     func log(_ line: String) { print("\(ISO8601DateFormatter().string(from: Date())) \(line)"); fflush(stdout) }
     let setup = NativeSteamSetup(paths: paths, isSteamRunning: steamRunning)
     log("guard started" + (setup.isEnabled ? "" : " (Steam per macOS is off: protection only)"))
+    // This binary as it was at start: once a Silo update replaces it, the guard exits and launchd starts the new one.
+    let selfBinary = Bundle.main.executableURL
+    let startedAs = selfBinary.flatMap { NativeSteamGuard.BinaryIdentity.of($0) }
     var watch = NativeSteamGuard.Watch()
     let cef = SteamCEFClient()
     var filtersLive = false
@@ -280,6 +283,11 @@ if CommandLine.arguments.contains("--smoke")
     var settingsGiven: Date?
     let configStore = ConfigStore(paths: paths)
     while true {
+        if let selfBinary, NativeSteamGuard.shouldRestartForUpdate(
+            started: startedAs, now: NativeSteamGuard.BinaryIdentity.of(selfBinary)) {
+            log("Silo was updated: restarting the guard with the new version")
+            exit(0)
+        }
         let running = steamRunning()
         // Off in Settings: only the protection below runs — nothing inside Steam's UI, no tool mapping.
         let enabled = setup.isEnabled

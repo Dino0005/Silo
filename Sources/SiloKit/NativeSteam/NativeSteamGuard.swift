@@ -55,6 +55,39 @@ public enum NativeSteamGuard {
         return lines[first]
     }
 
+    /// Which file a binary is: a Silo update replaces the app, so the guard's executable gets a new inode, size or
+    /// modification date.
+    public struct BinaryIdentity: Sendable, Equatable {
+        public let inode: UInt64
+        public let size: UInt64
+        public let modified: Date
+
+        public init(inode: UInt64, size: UInt64, modified: Date) {
+            self.inode = inode
+            self.size = size
+            self.modified = modified
+        }
+
+        /// The file at `url` now; nil while it is missing (mid-update).
+        public static func of(_ url: URL, fileManager: FileManager = .default) -> BinaryIdentity? {
+            guard let a = try? fileManager.attributesOfItem(atPath: url.path),
+                  let inode = (a[.systemFileNumber] as? NSNumber)?.uint64Value,
+                  let size = (a[.size] as? NSNumber)?.uint64Value,
+                  let modified = a[.modificationDate] as? Date else { return nil }
+            return BinaryIdentity(inode: inode, size: size, modified: modified)
+        }
+    }
+
+    /// Pure: whether the guard should exit so launchd (`KeepAlive`) starts it again from the updated Silo. Nothing
+    /// restarted it after an update, so the old binary kept running until the next login — with the old Compatibility
+    /// page and the old protection (found 2026-11-23: the "Uncharted fix" switch missing from Steam's page). Only once
+    /// the new file has been left alone for `settle`, so the restart never picks up a copy still being written.
+    public static func shouldRestartForUpdate(started: BinaryIdentity?, now: BinaryIdentity?, at date: Date = Date(),
+                                              settle: TimeInterval = 5) -> Bool {
+        guard let started, let now, now != started else { return false }
+        return date.timeIntervalSince(now.modified) >= settle
+    }
+
     /// Decides, from successive "is Steam running" samples, when to protect: on the first sample with Steam
     /// closed (the guard just started) and on every running → closed edge. Never while Steam runs.
     public struct Watch: Sendable {

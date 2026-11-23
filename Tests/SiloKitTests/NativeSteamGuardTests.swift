@@ -149,4 +149,35 @@ struct NativeSteamGuardTests {
         #expect(NativeSteamGuard.launchAgentURL(home: URL(fileURLWithPath: "/Users/x")).path
                 == "/Users/x/Library/LaunchAgents/io.github.dino0005.silo.native-steam-guard.plist")
     }
+
+    // MARK: - Restart after a Silo update
+
+    @Test("The guard restarts once its binary has been replaced and left alone for a few seconds")
+    func restartsAfterUpdate() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let old = NativeSteamGuard.BinaryIdentity(inode: 1, size: 100, modified: now.addingTimeInterval(-86_400))
+        let new = NativeSteamGuard.BinaryIdentity(inode: 2, size: 120, modified: now.addingTimeInterval(-30))
+        #expect(NativeSteamGuard.shouldRestartForUpdate(started: old, now: new, at: now))
+        // Same file: keep running.
+        #expect(!NativeSteamGuard.shouldRestartForUpdate(started: old, now: old, at: now))
+        // Mid-update: the file is missing, or still being written.
+        #expect(!NativeSteamGuard.shouldRestartForUpdate(started: old, now: nil, at: now))
+        let fresh = NativeSteamGuard.BinaryIdentity(inode: 2, size: 120, modified: now.addingTimeInterval(-1))
+        #expect(!NativeSteamGuard.shouldRestartForUpdate(started: old, now: fresh, at: now))
+        // Unknown at start (couldn't read it): never restart on a guess.
+        #expect(!NativeSteamGuard.shouldRestartForUpdate(started: nil, now: new, at: now))
+    }
+
+    @Test("A replaced file reads as a different identity")
+    func identityOfAReplacedFile() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let url = tmp.url.appendingPathComponent("Silo")
+        try Data("v1".utf8).write(to: url)
+        let first = try #require(NativeSteamGuard.BinaryIdentity.of(url))
+        #expect(NativeSteamGuard.BinaryIdentity.of(url) == first)
+        try FileManager.default.removeItem(at: url)
+        #expect(NativeSteamGuard.BinaryIdentity.of(url) == nil)
+        try Data("version 2".utf8).write(to: url)
+        #expect(NativeSteamGuard.BinaryIdentity.of(url) != first)
+    }
 }
