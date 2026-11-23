@@ -8,7 +8,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.7.8
 
 ### Added
 - **Marvel's Spider-Man 2: no more T-pose on M1–M4 Macs.** Characters stuck in a T-pose, missing heads and a broken

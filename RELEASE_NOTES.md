@@ -1,50 +1,66 @@
-# Silo 0.7.7
+# Silo 0.7.8
 
-Set up a Windows game from inside Steam for macOS, install it without restarting Steam, and play Marvel's
-Spider-Man 2.
+Marvel's Spider-Man 2 without the T-pose, UNCHARTED that quits cleanly, and game sound that follows your Mac's
+output.
 
-## Wine: reinstall once (Spider-Man 2)
+## Reinstall once: Wine and DXMT
 
-The Spider-Man 2 fix below is in the rebuilt runtime `wine-cx-26.3.0`, published under the same name. To get it,
-remove Wine in *Settings → Wine* and install it again. Everything else in this release works with the copy you have.
+Two runtimes were rebuilt and published under the same names. To get them:
+- **Wine** (`wine-cx-26.3.0`, for the sound fixes below): remove Wine in *Settings → Wine* and install it again.
+- **DXMT** (`dxmt-v0.72-cx26.3.0`, for the frame latency fix below): remove DXMT in *Settings → DXMT* and install it
+  again.
 
-## Silo's settings in Steam
+Everything else in this release works with the copies you have.
 
-When Silo is a game's compatibility tool, the game's *Compatibility* page in Steam for macOS now has a **Silo**
-section. It holds the game's own Silo settings, with the same names as in Silo:
-- the graphics backend;
-- sync, AVX, the performance HUD, MetalFX, DirectX raytracing and the Metal backend;
-- the depth fix and *Disable hidraw*;
-- the Media Foundation bottle, when you have one.
+## Marvel's Spider-Man 2: no more T-pose
 
-These are the same settings Silo shows, not a copy: change one in Steam and Silo shows it, change it in Silo and Steam
-does. The game starts with them either way.
+On M1–M4 Macs, characters stuck in a T-pose, missing heads and a broken symbiote all came from one D3DMetal limit.
+Silo now applies [macprotips' SpiderMan2Fix](https://github.com/macprotips/SpiderMan2Fix) by itself, from Silo's
+library and from Steam for macOS alike:
+- before each launch, Silo puts the fix in the game's folder and rebuilds its four shaders from your own copy of the
+  game, so no game data ships with Silo;
+- the first time, it downloads Microsoft's shader tools (6 MB) from Silo's releases;
+- after a game update, it rebuilds the shaders by itself.
 
-Launch options stay where Steam keeps them, on the game's *General* page.
+It is on by default, as *Spider-Man 2 fix* in the game's settings and on its *Compatibility* page in Steam. Turned
+off, the game's folder goes back to how the game shipped it. Keep the game's *Metal backend* on **Metal 3**: under
+Metal 4 it flashes white.
 
-## Installing without restarting Steam
+## UNCHARTED: no more crash when you quit
 
-Steam for Mac greys out *Install* for a Windows-only game until the game has a compatibility tool. Silo now assigns
-its own tool to every Windows-only game in your library that has none, including one you buy while Steam is open.
-*Install* then works as usual, with Steam's own dialog and your choice of library. A tool you picked yourself is
-left alone.
+UNCHARTED: Legacy of Thieves Collection crashed every time you quit from its menu, and then asked to start in safe
+mode. The game releases some of its textures one time too many. Silo now puts a small `d3d12.dll` of its own in the
+game's folder, which keeps each texture alive a moment longer, so the extra release does no harm.
 
-This replaces *Install with Silo*, which needed a Steam restart.
+It is on by default, as *Uncharted fix* in the game's settings and on its *Compatibility* page in Steam. GPTK only.
+
+## Sound follows your Mac's output (needs the Wine reinstall)
+
+A game's sound used to stay on the device that was active when the game started. Taking your AirPods out left it on
+the speakers, and putting them back in the case left the game silent until you restarted it. Now the sound moves
+with your Mac's output, as in any Mac app. A game set to a specific device in its own options stays on that device.
+
+The same Wine also fixes the crackle in UNCHARTED's default *Automatic (Traditional)* sound mode.
+
+Both fixes come from Cam Steinberg's [mavrik-engine](https://github.com/camsteinberg/mavrik-engine).
+
+## Changed
+
+- **The depth fix is now God of War's only.** On other games it could draw things through walls, so it no longer
+  shows up for every game. It appears in God of War's settings, for the Steam and the GOG version alike, and it is on
+  by default there. A game that had it switched on now runs without it.
 
 ## Fixed
 
-- **Marvel's Spider-Man 2 no longer stays on a black window** (needs the Wine reinstall). Each time a thread of the
-  game first used the desktop, Wine asked the game for its Dock icon again. On the render thread that request came
-  from inside D3DMetal, and Wine got stuck in an endless error loop. Wine now sets the icon once per game. Under
-  Metal 4 the game then flashes white, so set its *Metal backend* to **Metal 3**, in Silo or on the Compatibility page.
-  Some characters still appear in a T-pose or without a head: that is a D3DMetal limit, and a fix is planned.
-- **A game bought while Steam is open is recognized right away.** Before, it was missing from the *Windows* filter,
-  and its Compatibility page said it had no Windows version, until Steam was restarted.
-- **The Sync setting now applies to games started from Steam for macOS.** Before, Silo always used msync for them.
-- **Uninstalling a game from Steam for macOS removes what Silo made for it**:
-  - the game's app, which gives it its name and icon in the Dock and the Games app;
-  - its `compatdata` folder, which holds only Silo's links to your saves.
+- **DXMT games that reset their frame latency run much faster** (needs the DXMT reinstall). Some Direct3D 11 games
+  ask for the default frame latency in a way DXMT misread, so each frame waited for the previous one to finish on the
+  GPU. In mavrik-engine's measurement, Civilization VI went from 38 to 97 fps. Games that don't make that request
+  run as before. This fix also comes from mavrik-engine.
+- **After a Silo update, Steam for macOS uses the new version right away.** Before, the part of Silo that runs
+  alongside Steam kept the old version until you logged out, so a new setting could be missing from a game's
+  *Compatibility* page.
 
-  Your saves stay in the bottle and in Steam Cloud. Nothing is removed while a Steam library's disk is unplugged.
-- **Settings → Steam for macOS says when Wine has to be reinstalled.** Before, a game that needed the newer runtime
-  simply didn't open.
+## Known issues
+
+- **UNCHARTED with Steam Input on:** while a button hint is on screen, the DualSense touchpad opens the game's
+  settings instead of the journal. Press **J** on the keyboard, or press the touchpad again once the hint is gone.
