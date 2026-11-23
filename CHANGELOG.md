@@ -10,6 +10,14 @@ the commit message says why.
 
 ## Unreleased
 
+### Added
+- **Each game's shader cache, and a way to clear it.** At the end of a game's settings, *Shader cache* shows the space
+  the shaders Metal compiled for it take — one row for launches from Steam for macOS, one for launches from Silo — and
+  warns when a cache is full: Metal stops at about 1.1 GB and keeps what it holds, so a full cache makes the game compile
+  some of its shaders again at every launch (UNCHARTED's was). Each row has its own *Clear…*, and *Clear All…* empties
+  both; the next launch from there compiles the shaders again, so it loads slower and stutters for a while. Refused
+  while the game runs.
+
 ### Changed
 - **Silo is now licensed under the GPL-3.0-or-later**, instead of the LGPL-2.1-or-later. The code that comes from
   upstream is carried under the GPL as the LGPL allows; [NOTICE](NOTICE) has the details. Wine keeps its own license.

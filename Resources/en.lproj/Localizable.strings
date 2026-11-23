@@ -488,3 +488,19 @@
 "Wine for Steam games" = "Wine for Steam games";
 "Reinstall Wine" = "Reinstall Wine";
 "The installed Wine is older than the bridge Steam for macOS uses, so games started from Steam won't open. Remove Wine in Settings → Wine and install it again." = "The installed Wine is older than the bridge Steam for macOS uses, so games started from Steam won't open. Remove Wine in Settings → Wine and install it again.";
+
+/* Shader cache (game settings) */
+"Space used" = "Space used";
+"Full: Metal no longer keeps new shaders, so the game compiles some of them again at every launch." = "Full: Metal no longer keeps new shaders, so the game compiles some of them again at every launch.";
+"Clear Shader Cache…" = "Clear Shader Cache…";
+"Shader cache" = "Shader cache";
+"The game's shaders as Metal compiled them, so it doesn't compile them again. Clearing frees the space; the next launch compiles them again, so it loads slower and stutters for a while. Two caches made from the same one can share part of their space on disk, so the space freed can be less than their sum." = "The game's shaders as Metal compiled them, so it doesn't compile them again. Clearing frees the space; the next launch compiles them again, so it loads slower and stutters for a while. Two caches made from the same one can share part of their space on disk, so the space freed can be less than their sum.";
+"Clear the shader cache?" = "Clear the shader cache?";
+"Clear" = "Clear";
+"Freed %@." = "Freed %@.";
+"The game is running: quit it first." = "The game is running: quit it first.";
+"The next launch compiles the game's shaders again: it loads slower and stutters for a while." = "The next launch compiles the game's shaders again: it loads slower and stutters for a while.";
+"Launched from Steam for macOS" = "Launched from Steam for macOS";
+"Launched from Silo" = "Launched from Silo";
+"Clear…" = "Clear…";
+"Clear All…" = "Clear All…";

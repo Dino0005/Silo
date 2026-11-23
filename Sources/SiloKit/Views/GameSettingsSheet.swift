@@ -175,6 +175,8 @@ struct GameSettingsSheet: View {
                 Text("steam_appid.txt is enough for most games. Titles that hard-require the Steam client (they quit with “Steam not initialized”) aren't supported yet — running a real Steam client in the prefix is planned.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+
+            ShaderCacheSection(gameID: String(game.appID))
         }
         .formStyle(.grouped)
         .sheet(isPresented: Binding(

@@ -490,3 +490,19 @@
 "Wine for Steam games" = "Wine per i giochi di Steam";
 "Reinstall Wine" = "Reinstalla Wine";
 "The installed Wine is older than the bridge Steam for macOS uses, so games started from Steam won't open. Remove Wine in Settings → Wine and install it again." = "La Wine installata è precedente al ponte che usa Steam per macOS, quindi i giochi avviati da Steam non si aprono. Rimuovi Wine in Impostazioni → Wine e installala di nuovo.";
+
+/* Shader cache (game settings) */
+"Space used" = "Spazio occupato";
+"Full: Metal no longer keeps new shaders, so the game compiles some of them again at every launch." = "Piena: Metal non conserva più gli shader nuovi, quindi il gioco ne ricompila una parte a ogni avvio.";
+"Clear Shader Cache…" = "Svuota cache shader…";
+"Shader cache" = "Cache shader";
+"The game's shaders as Metal compiled them, so it doesn't compile them again. Clearing frees the space; the next launch compiles them again, so it loads slower and stutters for a while. Two caches made from the same one can share part of their space on disk, so the space freed can be less than their sum." = "Gli shader del gioco già compilati da Metal, così non vanno ricompilati. Svuotarla libera lo spazio; al prossimo avvio il gioco li ricompila, quindi si carica più lentamente e scatta per un po'. Due cache nate dalla stessa possono condividere parte dello spazio su disco, quindi lo spazio liberato può essere minore della loro somma.";
+"Clear the shader cache?" = "Svuotare la cache shader?";
+"Clear" = "Svuota";
+"Freed %@." = "Liberati %@.";
+"The game is running: quit it first." = "Il gioco è in esecuzione: chiudilo prima.";
+"The next launch compiles the game's shaders again: it loads slower and stutters for a while." = "Al prossimo avvio il gioco ricompila i suoi shader: si carica più lentamente e scatta per un po'.";
+"Launched from Steam for macOS" = "Avvii da Steam per macOS";
+"Launched from Silo" = "Avvii da Silo";
+"Clear…" = "Svuota…";
+"Clear All…" = "Svuota tutto…";

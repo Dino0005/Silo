@@ -128,3 +128,75 @@ struct LaunchOptionsSection: View {
         }
     }
 }
+
+/// A game's compiled shaders (`ShaderCache`): one row per place it was started from, with the space it takes, a
+/// warning when Metal's cache is full, and a button to clear it — plus one for both. Clearing is the user's choice,
+/// since the next launch from there compiles the shaders again. Placed last in both settings sheets.
+struct ShaderCacheSection: View {
+    /// A Steam app id, or a manual game's UUID.
+    let gameID: String
+    @ViewState private var status = ShaderCache.Status.empty
+    /// The caches the user asked to clear, waiting for the confirmation.
+    @ViewState private var pending: Set<ShaderCache.Kind> = []
+    @ViewState private var message: String?
+
+    private func size(_ bytes: Int64) -> String { ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) }
+
+    private func title(_ kind: ShaderCache.Kind) -> LocalizedStringKey {
+        kind == .steam ? "Launched from Steam for macOS" : "Launched from Silo"
+    }
+
+    var body: some View {
+        Section {
+            if status.present.isEmpty {
+                LabeledContent("Space used") { Text(size(0)) }
+            }
+            ForEach(status.present, id: \.self) { kind in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(title(kind))
+                        Spacer()
+                        Text(size(status[kind].bytes)).foregroundStyle(.secondary)
+                        Button("Clear…") { pending = [kind] }
+                    }
+                    if status[kind].isFull {
+                        Label("Full: Metal no longer keeps new shaders, so the game compiles some of them again at every launch.",
+                              systemImage: "exclamationmark.triangle")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                }
+            }
+            if status.present.count > 1 || message != nil {
+                HStack {
+                    if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
+                    Spacer()
+                    if status.present.count > 1 {
+                        Button("Clear All…") { pending = Set(ShaderCache.Kind.allCases) }
+                    }
+                }
+            }
+        } header: {
+            Text("Shader cache")
+        } footer: {
+            Text("The game's shaders as Metal compiled them, so it doesn't compile them again. Clearing frees the space; the next launch compiles them again, so it loads slower and stutters for a while. Two caches made from the same one can share part of their space on disk, so the space freed can be less than their sum.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .task(id: gameID) { status = ShaderCache.status(forID: gameID) }
+        .confirmationDialog("Clear the shader cache?",
+                            isPresented: Binding(get: { !pending.isEmpty }, set: { if !$0 { pending = [] } }),
+                            titleVisibility: .visible) {
+            Button("Clear", role: .destructive) {
+                switch ShaderCache.clear(pending, forID: gameID) {
+                case .cleared(let freed): message = String(localized: "Freed \(size(freed)).")
+                case .nothingToClear: message = nil
+                case .inUse: message = String(localized: "The game is running: quit it first.")
+                case .failed(let reason): message = reason
+                }
+                pending = []
+                status = ShaderCache.status(forID: gameID)
+            }
+        } message: {
+            Text("The next launch compiles the game's shaders again: it loads slower and stutters for a while.")
+        }
+    }
+}
