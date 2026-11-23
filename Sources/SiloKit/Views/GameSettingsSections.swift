@@ -74,6 +74,20 @@ struct SpiderMan2FixSection: View {
     }
 }
 
+/// The Uncharted fix's toggle (`EnvFlags.unchartedFix`), offered only for that game (`UnchartedFix.appID`).
+struct UnchartedFixSection: View {
+    @Binding var flags: EnvFlags
+
+    var body: some View {
+        Section {
+            Toggle("Uncharted fix", isOn: $flags.unchartedFix)
+        } footer: {
+            Text("Fixes the crash when you quit from the game's menu, and the safe-mode prompt it left for the next start: the game releases some textures one time too many, and Silo keeps them alive a moment longer so the extra release does no harm. Silo puts a small d3d12.dll of its own in the game's folder before each launch; turned off, it takes it away. GPTK only.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// Controller handling for a game started from macOS Steam (`EnvFlags.disableHidraw`,
 /// applied by `SteamInputControllers`). Steam games only: a manual game never runs next to macOS Steam.
 struct ControllersSection: View {

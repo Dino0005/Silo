@@ -14,6 +14,8 @@ public struct LaunchOrchestrator: Sendable {
     private let steamClientRoot: URL?
     /// Spider-Man 2's T-pose fix in the game's folder (`SpiderMan2Fix`), synced before each Steam launch.
     private let spiderMan2Fix: SpiderMan2Fix
+    /// UNCHARTED's quit-crash fix in the game's folder (`UnchartedFix`), synced before each Steam launch.
+    private let unchartedFix: UnchartedFix
 
     public init(
         runner: ProcessRunning,
@@ -21,7 +23,8 @@ public struct LaunchOrchestrator: Sendable {
         presenceInstaller: SteamPresenceInstaller = SteamPresenceInstaller(),
         altLoader: AltLoaderSession? = nil,
         steamClientRoot: URL? = nil,
-        spiderMan2Fix: SpiderMan2Fix? = nil
+        spiderMan2Fix: SpiderMan2Fix? = nil,
+        unchartedFix: UnchartedFix = UnchartedFix()
     ) {
         self.runner = runner
         self.linker = linker
@@ -29,6 +32,7 @@ public struct LaunchOrchestrator: Sendable {
         self.altLoader = altLoader ?? AltLoaderSession(runner: runner)
         self.steamClientRoot = steamClientRoot
         self.spiderMan2Fix = spiderMan2Fix ?? SpiderMan2Fix(paths: nil, runner: runner)
+        self.unchartedFix = unchartedFix
     }
 
     /// Steam's own launch entry for `app`. The Steam install is asked first: with `app.libraryPath` alone, a
@@ -95,6 +99,8 @@ public struct LaunchOrchestrator: Sendable {
     ///   extensions AND the game ships DLSS (`Self.dxmtDLSS(backend:gameExe:)`). Decides what the game's
     ///   `metalFX` means under DXMT: DLSS on MetalFX's temporal scaler when true, MetalFX's spatial upscale of
     ///   the swapchain when false.
+    /// - Parameter unchartedFix: whether `UnchartedFix.sync` put its proxy in the game folder for this launch
+    ///   (`Outcome.isActive`). Under GPTK it adds `d3d12=n,b` and `SILO_REAL_D3D12`; nothing otherwise.
     /// - Parameter sharedBottle: `true` only for a game co-resident with the real Steam client in the
     ///   shared Steam bottle (`launchInBottle`) — the ONE case `Silo.enforceMsync` exists to protect
     ///   (splitting the wineserver there would silently break Steamworks IPC). Manual games each get their
@@ -115,7 +121,8 @@ public struct LaunchOrchestrator: Sendable {
         steamArguments: [String] = [],
         altLoaderSocket: URL? = nil,
         dxmtDLSS: Bool = false,
-        steamBridge: NativeSteamBridge? = nil
+        steamBridge: NativeSteamBridge? = nil,
+        unchartedFix: Bool = false
     ) throws -> LaunchPlan {
         guard let wine = wine ?? backend.wineBinaryPath else {
             throw LaunchError.wineNotConfigured
@@ -176,6 +183,13 @@ public struct LaunchOrchestrator: Sendable {
                     environment["DXMT_CONFIG"] = [environment["DXMT_CONFIG"], "d3d11.depthEqualAsGreaterEqual=True"]
                         .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ";")
                 }
+            }
+            // The Uncharted fix (`UnchartedFix`, already in the game folder when this is true): the game's d3d12
+            // becomes Silo's proxy beside the exe, which reaches D3DMetal through the renamed copy in the runtime.
+            if unchartedFix, graphics == .gptk {
+                overrides = mergeOverride(overrides, "d3d12=n,b")
+                environment["SILO_REAL_D3D12"] = dosPath(for: WineRuntimeLayout(wineBinary: wine)
+                    .windowsModulesDir.appendingPathComponent(UnchartedFix.realModuleName))
             }
             // MetalFX under DXMT. A game that ships DLSS, with a DXMT that ships its NVIDIA extensions: the
             // game's DLSS on DXMT's own `nvapi64`/`nvngx` (→ MetalFX's temporal scaler), as `D3DM_ENABLE_METALFX`
@@ -327,6 +341,8 @@ public struct LaunchOrchestrator: Sendable {
         try presenceInstaller.apply(strategy: config.presence, appID: app.appID, gameExe: gameExe)
         // A D3DMetal bug only (the fix rides on D3D12): under DXMT the folder goes back to the game's own files.
         let fix = await spiderMan2Fix.sync(gameExe: gameExe, enabled: config.envFlags.spiderMan2Fix && graphics == .gptk)
+        // Also D3DMetal only: the proxy stands in for D3DMetal's d3d12, which a DXMT launch doesn't load.
+        let uncharted = unchartedFix.sync(gameExe: gameExe, enabled: config.envFlags.unchartedFix && graphics == .gptk)
         var socket = altLoaderSocket
         if socket == nil {
             socket = await prepareAltLoader(
@@ -344,8 +360,8 @@ public struct LaunchOrchestrator: Sendable {
             steamArguments: steamLaunchEntry(for: app)?.arguments ?? [],
             altLoaderSocket: socket,
             dxmtDLSS: graphics == .dxmt && config.envFlags.metalFX && Self.dxmtDLSS(backend: backend, gameExe: gameExe),
-            steamBridge: steamBridge)
-        return try await spawn(plan, notes: [fix.logLine].compactMap { $0 })
+            steamBridge: steamBridge, unchartedFix: uncharted.isActive)
+        return try await spawn(plan, notes: [fix.logLine, uncharted.logLine].compactMap { $0 })
     }
 
     /// Prepare the alt-loader hand-over for `target`, returning the socket to publish — or `nil`, which

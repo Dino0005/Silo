@@ -196,15 +196,20 @@ public struct GraphicsLinker: Sendable {
         }
     }
 
-    /// Keep `d3dm_d3d11.dll` byte-identical to the `d3d11.dll` beside it — run with every GPTK overlay, so a
-    /// re-imported or updated GPTK never leaves a stale copy. A no-op where there is no `d3d11.dll`.
+    /// Keep `d3dm_d3d11.dll` and `d3dm_d3d12.dll` byte-identical to the `d3d11.dll` / `d3d12.dll` beside them — run
+    /// with every GPTK overlay, so a re-imported or updated GPTK never leaves a stale copy. The second one is for the
+    /// Uncharted fix's proxy (`UnchartedFix`), which stands in for the game's `d3d12.dll` the same way. A no-op for a
+    /// module that isn't there.
     func syncDepthFixRealModule(in winDir: URL) throws {
-        let d3d11 = winDir.appendingPathComponent("d3d11.dll")
-        let copy = winDir.appendingPathComponent(Self.depthFixRealModuleName)
-        guard fileManager.fileExists(atPath: d3d11.path),
-              !fileManager.contentsEqual(atPath: d3d11.path, andPath: copy.path) else { return }
-        if fileManager.fileExists(atPath: copy.path) { try fileManager.removeItem(at: copy) }
-        try fileManager.copyItem(at: d3d11, to: copy)
+        for (module, copyName) in [("d3d11.dll", Self.depthFixRealModuleName),
+                                   ("d3d12.dll", UnchartedFix.realModuleName)] {
+            let original = winDir.appendingPathComponent(module)
+            let copy = winDir.appendingPathComponent(copyName)
+            guard fileManager.fileExists(atPath: original.path),
+                  !fileManager.contentsEqual(atPath: original.path, andPath: copy.path) else { continue }
+            if fileManager.fileExists(atPath: copy.path) { try fileManager.removeItem(at: copy) }
+            try fileManager.copyItem(at: original, to: copy)
+        }
     }
 
     /// Make the bottle's `system32\d3d11.dll` match this launch: the proxy when `enabled`, otherwise back to

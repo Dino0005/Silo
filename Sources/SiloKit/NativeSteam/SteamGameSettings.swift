@@ -13,7 +13,7 @@ public enum SteamGameSettings {
     /// Windows Steam bottle only). Booleans travel as "1" / "0".
     public enum Field: String, CaseIterable, Sendable {
         case graphics, syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, depthFix, disableHidraw
-        case mediaFoundationNative, spiderMan2Fix
+        case mediaFoundationNative, spiderMan2Fix, unchartedFix
     }
 
     /// The page's value of `field` for `config`.
@@ -32,6 +32,7 @@ public enum SteamGameSettings {
         case .disableHidraw: return bit(flags.disableHidraw)
         case .mediaFoundationNative: return bit(flags.mediaFoundationNative)
         case .spiderMan2Fix: return bit(flags.spiderMan2Fix)
+        case .unchartedFix: return bit(flags.unchartedFix)
         }
     }
 
@@ -48,7 +49,8 @@ public enum SteamGameSettings {
         case .metalBackend:
             guard let choice = MetalBackendChoice(rawValue: value) else { return false }
             config.envFlags.metalBackend = choice
-        case .advertiseAVX, .metalHUD, .metalFX, .dxr, .depthFix, .disableHidraw, .mediaFoundationNative, .spiderMan2Fix:
+        case .advertiseAVX, .metalHUD, .metalFX, .dxr, .depthFix, .disableHidraw, .mediaFoundationNative, .spiderMan2Fix,
+             .unchartedFix:
             guard let on = bit() else { return false }
             switch field {
             case .advertiseAVX: config.envFlags.advertiseAVX = on
@@ -58,6 +60,7 @@ public enum SteamGameSettings {
             case .depthFix: config.envFlags.depthFix = on
             case .disableHidraw: config.envFlags.disableHidraw = on
             case .spiderMan2Fix: config.envFlags.spiderMan2Fix = on
+            case .unchartedFix: config.envFlags.unchartedFix = on
             default: config.envFlags.mediaFoundationNative = on
             }
         }

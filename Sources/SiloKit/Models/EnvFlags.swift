@@ -103,6 +103,10 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// "Correzione Spider-Man 2": Silo's carrier for macprotips' T-pose fix in Marvel's Spider-Man 2's folder
     /// (`SpiderMan2Fix`, synced before each launch). On by default; does nothing for any other game, or under DXMT.
     public var spiderMan2Fix: Bool
+    /// "Correzione Uncharted": Silo's d3d12 proxy in UNCHARTED: Legacy of Thieves Collection's folder (`UnchartedFix`,
+    /// synced before each launch), which makes the game's extra resource Releases harmless — no more crash when it is
+    /// quit from its menu. On by default; does nothing for any other game, or under DXMT.
+    public var unchartedFix: Bool
     /// Free-form extra environment variables — a config.json-only escape hatch (no UI). Merged last in
     /// `environment()`, so it overrides the flags above — EXCEPT the sync keys (`WINEMSYNC`/`WINEESYNC`),
     /// which `LaunchOrchestrator.makePlan` force-overrides afterward for shared-bottle co-residency.
@@ -119,6 +123,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         depthFix: Bool = false,
         disableHidraw: Bool = false,
         spiderMan2Fix: Bool = true,
+        unchartedFix: Bool = true,
         extra: [String: String] = [:]
     ) {
         self.syncMode = syncMode
@@ -131,6 +136,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.depthFix = depthFix
         self.disableHidraw = disableHidraw
         self.spiderMan2Fix = spiderMan2Fix
+        self.unchartedFix = unchartedFix
         self.extra = extra
     }
 
@@ -173,7 +179,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, depthFix
-        case disableHidraw, spiderMan2Fix, extra
+        case disableHidraw, spiderMan2Fix, unchartedFix, extra
         case esync, msync   // legacy fields from configs written before the SyncMode enum
     }
 
@@ -201,6 +207,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         depthFix = try c.decodeIfPresent(Bool.self, forKey: .depthFix) ?? false
         disableHidraw = try c.decodeIfPresent(Bool.self, forKey: .disableHidraw) ?? false
         spiderMan2Fix = try c.decodeIfPresent(Bool.self, forKey: .spiderMan2Fix) ?? true
+        unchartedFix = try c.decodeIfPresent(Bool.self, forKey: .unchartedFix) ?? true
         extra = try c.decodeIfPresent([String: String].self, forKey: .extra) ?? [:]
     }
 
@@ -216,6 +223,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         try c.encode(depthFix, forKey: .depthFix)
         try c.encode(disableHidraw, forKey: .disableHidraw)
         try c.encode(spiderMan2Fix, forKey: .spiderMan2Fix)
+        try c.encode(unchartedFix, forKey: .unchartedFix)
         try c.encode(extra, forKey: .extra)
     }
 }
