@@ -18,8 +18,9 @@ the commit message says why.
   both; the next launch from there compiles the shaders again, so it loads slower and stutters for a while. Refused
   while the game runs.
 - **Silo's pipeline cache (being tested, off by default).** A per-game switch in *Shader cache* keeps the pipelines
-  GPTK compiles in a cache of Silo's own, with no size limit of Metal's, and uses them at the next launch — for when
-  Metal's cache is full. Launches from Steam for macOS under GPTK only. It is MacGameFix's pipeline cache (Mathias
+  Metal had to compile — the ones its own cache didn't have, or no longer has room for once full — in a cache of
+  Silo's own, in small groups, and uses them at the next launch. It complements Metal's cache instead of copying it:
+  on TEKKEN 8 it kept 560 pipelines (42 MB) and fights ran as smoothly as without it. Launches from Steam for macOS under GPTK only. It is MacGameFix's pipeline cache (Mathias
   Kowoll, GPL-3.0); its archives are listed in *Shader cache* with their own *Clear…*.
 
 ### Changed

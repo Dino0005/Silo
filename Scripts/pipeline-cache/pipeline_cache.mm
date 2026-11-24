@@ -27,7 +27,8 @@
  * MacGameFix cc9c13a). Modified for Silo, 2026-11-24: called_by_d3dmetal looks past
  * Silo's Steam overlay fix for the real caller, the classic calls' pipelines are kept
  * in groups instead of one archive each, and a pipeline's key also covers its functions'
- * constant values and its state (see "Changed for Silo" below).
+ * constant values and its state, and only the pipelines Metal had to compile are kept
+ * (see "Changed for Silo" below).
  */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -259,6 +260,19 @@ void sweep()
 }
 std::atomic<uint32_t> classic_written;
 std::atomic<uint64_t> classic_hits, classic_misses, classic_failed, classic_unkeyed, classic_opened, classic_most;
+
+/* Changed for Silo (2026-11-24): a complement to Metal's own cache, not a copy of it.
+ *
+ * Keeping every pipeline duplicated what Metal already had, and keeping one means
+ * compiling it again for the archive: on TEKKEN 8 with Metal's cache in place (932 MB,
+ * not full) that work showed as 31.5 frames over 33 ms a minute in fights against 21.5
+ * without the cache. A pipeline Metal serves from its cache comes back in 1-3 ms; one
+ * it has to compile takes 30-90 ms (TEKKEN with no cache: 48 ms render, 86 ms compute).
+ * So only a pipeline that took at least SILO_PIPELINE_CACHE_KEEP_MS (10) to make is
+ * kept: with Metal's cache not full almost nothing is, and once it is full the ones it
+ * no longer keeps are exactly the slow ones. */
+std::atomic<uint64_t> classic_fast;
+double keep_ms = 10;
 char tag_key;                         /* the associated object holding a tag */
 IMP original_library_data, original_library_file, original_function_name, original_function_constants,
     original_function_descriptor;
@@ -883,11 +897,17 @@ template <typename Descriptor> id classic_call(IMP original, id self, SEL cmd, D
             return state;
         }
     }
+    const auto started = std::chrono::steady_clock::now();
     id state = reinterpret_cast<Fn>(original)(self, cmd, descriptor, options, reflection, error);
     if (state)
     {
-        classic_misses.fetch_add(1, std::memory_order_relaxed);
-        if (files.size() < kKeptPerKey) classic_capture_later(descriptor, key, render);
+        const double took = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+        if (took < keep_ms) classic_fast.fetch_add(1, std::memory_order_relaxed);   /* Metal had it */
+        else
+        {
+            classic_misses.fetch_add(1, std::memory_order_relaxed);
+            if (files.size() < kKeptPerKey) classic_capture_later(descriptor, key, render);
+        }
     }
     return state;
 }
@@ -1162,6 +1182,7 @@ extern "C" void pbz_pipeline_cache_start(const char *game)
                 kept_bytes = classic_bytes;
                 const char *cap = std::getenv(cap_variable);
                 if (cap && std::atoll(cap) > 0) cap_bytes = static_cast<uint64_t>(std::atoll(cap)) << 20;
+                if (const char *keep = std::getenv("SILO_PIPELINE_CACHE_KEEP_MS")) keep_ms = std::atof(keep);
                 sweep();
                 cache_device = [device retain];
                 capture_queue = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
@@ -1205,10 +1226,11 @@ extern "C" void pbz_pipeline_cache_finish_within(const char *why, double seconds
             std::fprintf(stderr, "%s: pipeline cache: pipelines still being kept after %.1f s, left to the next start\n",
                          log_prefix, seconds);
         sweep();
-        std::fprintf(stderr, "%s: pipeline cache: classic %llu made with archives, %llu compiled and kept, "
+        std::fprintf(stderr, "%s: pipeline cache: classic %llu made with archives, %llu left to Metal's cache, %llu compiled and kept, "
                      "%llu not keyed; %llu archives opened, at most %llu for one pipeline; %.1f MB kept of a %llu MB "
                      "cap, %llu not kept over it; %llu gpuarchiver folders removed\n", log_prefix,
                      static_cast<unsigned long long>(classic_hits.load()),
+                     static_cast<unsigned long long>(classic_fast.load()),
                      static_cast<unsigned long long>(classic_misses.load()),
                      static_cast<unsigned long long>(classic_unkeyed.load()),
                      static_cast<unsigned long long>(classic_opened.load()),

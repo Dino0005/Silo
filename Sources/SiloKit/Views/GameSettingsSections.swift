@@ -157,7 +157,7 @@ struct ShaderCacheSection: View {
             if let pipelineCache {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Silo's pipeline cache", isOn: pipelineCache)
-                    Text("Keeps the pipelines GPTK compiles in a cache of Silo's own, with no size limit of Metal's, and uses them at the next launch. Launches from Steam for macOS only, GPTK only. Being tested.")
+                    Text("Keeps the pipelines Metal had to compile — the ones its own cache didn't have, or no longer has room for — in a cache of Silo's own, and uses them at the next launch. Launches from Steam for macOS only, GPTK only. Being tested.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
