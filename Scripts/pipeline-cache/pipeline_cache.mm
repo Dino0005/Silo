@@ -27,8 +27,8 @@
  * MacGameFix cc9c13a). Modified for Silo, 2026-11-24: called_by_d3dmetal looks past
  * Silo's Steam overlay fix for the real caller, the classic calls' pipelines are kept
  * in groups instead of one archive each, and a pipeline's key also covers its functions'
- * constant values and its state, and only the pipelines Metal had to compile are kept
- * (see "Changed for Silo" below).
+ * constant values and its state, only the pipelines Metal had to compile are kept, and
+ * only compute pipelines by default (see "Changed for Silo" below).
  */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -273,6 +273,13 @@ std::atomic<uint64_t> classic_hits, classic_misses, classic_failed, classic_unke
  * no longer keeps are exactly the slow ones. */
 std::atomic<uint64_t> classic_fast;
 double keep_ms = 10;
+/* Which classic pipelines the cache takes part in (SILO_PIPELINE_CACHE_KINDS: "render",
+ * "compute", or both) — changed for Silo. Compute only by default: with its render
+ * pipelines made from the archives TEKKEN 8 drew glowing green and red blobs in its
+ * forest stage, with only its compute ones (14,824 of them) it drew right (2026-11-24,
+ * each way twice). Why a render pipeline from an archive comes out wrong is not known
+ * yet; Metal is meant to use an archived one only when it matches. */
+bool cache_render = false, cache_compute = true;
 char tag_key;                         /* the associated object holding a tag */
 IMP original_library_data, original_library_file, original_function_name, original_function_constants,
     original_function_descriptor;
@@ -953,7 +960,7 @@ id hook_render(id self, SEL cmd, MTLRenderPipelineDescriptor *descriptor, NSUInt
                NSError **error)
 {
     CallTimer timer(kRender);
-    const bool cached = called_by_d3dmetal(__builtin_return_address(0));
+    const bool cached = cache_render && called_by_d3dmetal(__builtin_return_address(0));
     return classic_call(original_render, self, cmd, descriptor, options, reflection, error, cached, true);
 }
 
@@ -967,7 +974,7 @@ id hook_compute(id self, SEL cmd, MTLComputePipelineDescriptor *descriptor, NSUI
                 NSError **error)
 {
     CallTimer timer(kCompute);
-    const bool cached = called_by_d3dmetal(__builtin_return_address(0));
+    const bool cached = cache_compute && called_by_d3dmetal(__builtin_return_address(0));
     return classic_call(original_compute, self, cmd, descriptor, options, reflection, error, cached, false);
 }
 
@@ -1183,6 +1190,13 @@ extern "C" void pbz_pipeline_cache_start(const char *game)
                 const char *cap = std::getenv(cap_variable);
                 if (cap && std::atoll(cap) > 0) cap_bytes = static_cast<uint64_t>(std::atoll(cap)) << 20;
                 if (const char *keep = std::getenv("SILO_PIPELINE_CACHE_KEEP_MS")) keep_ms = std::atof(keep);
+                if (const char *kinds = std::getenv("SILO_PIPELINE_CACHE_KINDS"))
+                {
+                    cache_render = std::strstr(kinds, "render") != nullptr;
+                    cache_compute = std::strstr(kinds, "compute") != nullptr;
+                    std::fprintf(stderr, "%s: pipeline cache: classic kinds: render %s, compute %s\n", log_prefix,
+                                 cache_render ? "on" : "off", cache_compute ? "on" : "off");
+                }
                 sweep();
                 cache_device = [device retain];
                 capture_queue = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
