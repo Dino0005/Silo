@@ -99,7 +99,8 @@ public enum LegacyIdentifiers {
                     }
                 }
             }
-            for prefix in newPrefixes {
+            // A manual game (a UUID) is never started from Steam for macOS: it gets no game-app cache.
+            for prefix in newPrefixes where prefix != GameHostBundle.gameAppIDPrefix || ShaderCache.isSteamID(id) {
                 for (key, source) in fullest.sorted(by: { $0.key < $1.key }) {
                     let dest = cacheRoot.appendingPathComponent(prefix + id).appendingPathComponent("com.apple.metal")
                         .appendingPathComponent(key)

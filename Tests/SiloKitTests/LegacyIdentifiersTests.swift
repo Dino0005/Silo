@@ -93,6 +93,8 @@ struct LegacyIdentifiersTests {
         try cache(tmp, "com.mikael.silo.game.2492040", size: 14)
         try cache(tmp, "\(game)2492040", size: 1130)         // already fuller: kept
         _ = try tmp.makeDir("com.mikael.silo.host.480/com.apple.metal/\(Self.gpu)")   // nothing in it
+        // A manual game: its old cache goes to its new host folder only, never to a game-app one.
+        try cache(tmp, "com.mikael.silo.host.538C9332-8799-4259-8C93-7F8E43B4CBA7", size: 45)
         // Not a game's: never touched.
         try cache(tmp, "com.mikael.silo.hosttest", size: 9)
         try cache(tmp, "com.mikael.silo", size: 9)
@@ -103,7 +105,10 @@ struct LegacyIdentifiersTests {
             "\(host)1778820/\(Self.gpu)/functions.data", "\(host)1778820/32024/libraries.data",
             "\(game)1778820/\(Self.gpu)/functions.data", "\(game)1778820/32024/libraries.data",
             "\(host)2492040/\(Self.gpu)/functions.data",
+            "\(host)538C9332-8799-4259-8C93-7F8E43B4CBA7/\(Self.gpu)/functions.data",
         ])
+        #expect(!FileManager.default.fileExists(
+            atPath: tmp.url.appendingPathComponent("\(game)538C9332-8799-4259-8C93-7F8E43B4CBA7").path))
         #expect(size(tmp, "\(game)1778820/com.apple.metal/\(Self.gpu)/functions.data") == 855)
         #expect(size(tmp, "\(host)1778820/com.apple.metal/\(Self.gpu)/functions.data") == 855)
         #expect(size(tmp, "\(game)1778820/com.apple.metal/\(Self.gpu)/functions.list") == "list 855".utf8.count)

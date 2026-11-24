@@ -75,6 +75,20 @@ struct ShaderCacheTests {
         #expect(ShaderCache.status(forID: id, cacheRoot: tmp.url).bytes == 42)
     }
 
+    @Test("A manual game has only Silo's cache: a game-app folder of one (a migration leftover) is not listed or cleared")
+    func manualGameHasNoSteamCache() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let id = "538C9332-8799-4259-8C93-7F8E43B4CBA7"
+        try file(tmp.url, GameHostBundle.bundleIDPrefix, id, "functions.data", size: 42)
+        let leftover = try file(tmp.url, GameHostBundle.gameAppIDPrefix, id, "functions.data", size: 42)
+        #expect(ShaderCache.kinds(forID: id) == [.silo])
+        #expect(ShaderCache.kinds(forID: "1659420") == ShaderCache.Kind.allCases)
+        let s = ShaderCache.status(forID: id, cacheRoot: tmp.url)
+        #expect(s.present == [.silo] && s.bytes == 42)
+        #expect(ShaderCache.clear(forID: id, cacheRoot: tmp.url) == .cleared(freed: 42))
+        #expect(FileManager.default.fileExists(atPath: leftover.path))
+    }
+
     @Test("Clearing one cache leaves the other")
     func clearOne() throws {
         let tmp = try TempDir(); defer { tmp.cleanup() }

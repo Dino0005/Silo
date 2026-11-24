@@ -72,6 +72,15 @@ public enum ShaderCache {
         case failed(String)
     }
 
+    /// Pure: the caches the game `id` can have. Only a Steam game (a numeric app id) is ever started from Steam for
+    /// macOS, so a manual game (a UUID) has only Silo's — a `.game.` folder of one is a leftover of the bundle id
+    /// migration, which cloned every game's old cache under both new names.
+    public static func kinds(forID id: String) -> [Kind] {
+        isSteamID(id) ? Kind.allCases : [.silo]
+    }
+
+    static func isSteamID(_ id: String) -> Bool { !id.isEmpty && id.allSatisfy { $0.isASCII && $0.isNumber } }
+
     /// The folder of one cache of the game `id` (a Steam app id, or a manual game's UUID): Metal's `com.apple.metal`
     /// under the bundle id, or Silo's pipeline archives.
     static func folder(_ kind: Kind, forID id: String, cacheRoot: URL) -> URL {
@@ -100,7 +109,9 @@ public enum ShaderCache {
             }
             return Usage(bytes: bytes, isFull: full)
         }
-        return Status(steam: usage(.steam), silo: usage(.silo), pipelines: usage(.pipelines))
+        let possible = Self.kinds(forID: id)
+        func usageIfAny(_ kind: Kind) -> Usage { possible.contains(kind) ? usage(kind) : .none }
+        return Status(steam: usageIfAny(.steam), silo: usageIfAny(.silo), pipelines: usageIfAny(.pipelines))
     }
 
     /// Removes the given caches. Refuses — removing none — while the game runs from any of them (Metal keeps an
@@ -109,7 +120,7 @@ public enum ShaderCache {
     public static func clear(_ kinds: Set<Kind> = Set(Kind.allCases), forID id: String,
                              cacheRoot: URL = LegacyIdentifiers.userCacheDirectory,
                              fileManager: FileManager = .default) -> ClearOutcome {
-        let chosen = Kind.allCases.filter(kinds.contains)
+        let chosen = Self.kinds(forID: id).filter(kinds.contains)
         let all = chosen.flatMap { files(in: folder($0, forID: id, cacheRoot: cacheRoot), fileManager: fileManager) }
         guard !all.isEmpty else { return .nothingToClear }
         let watched = chosen.contains(.pipelines) && !chosen.contains(.steam)
