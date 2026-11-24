@@ -30,6 +30,7 @@ dist/
 Scripts/altloader-host/host
 Scripts/game-loader/silo-game-loader.dylib
 Scripts/overlay-fix/silo-overlay-fix.dylib
+Scripts/pipeline-cache/silo-pipeline-cache.dylib
 .dxmt-llvm/
 .toolchains/
 Scripts/steam-hook/silo-steam-hook.dylib

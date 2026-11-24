@@ -18,6 +18,8 @@ public struct NativeSteamLauncher: Sendable {
     private let injectorURL: URL?
     /// `silo-overlay-fix.dylib` of the running app (`SteamOverlayFix`); nil leaves Steam's overlay as it is.
     private let overlayFix: URL?
+    /// `silo-pipeline-cache.dylib` of the running app (`PipelineCache`); nil leaves Metal's own cache alone.
+    private let pipelineCache: URL?
     /// Steam's `logs/content_log.txt`, where its Stop shows up (`SteamStopWatch`).
     private let steamContentLog: URL
 
@@ -26,6 +28,7 @@ public struct NativeSteamLauncher: Sendable {
                 environment: [String: String] = ProcessInfo.processInfo.environment,
                 injector: URL? = GameAppLoader.injector(),
                 overlayFix: URL? = SteamOverlayFix.library(),
+                pipelineCache: URL? = PipelineCache.library(),
                 steamContentLog: URL = SteamStopWatch(appID: 0).log) {
         self.paths = paths
         self.runner = runner
@@ -33,6 +36,7 @@ public struct NativeSteamLauncher: Sendable {
         self.environment = environment
         self.injectorURL = injector
         self.overlayFix = overlayFix
+        self.pipelineCache = pipelineCache
         self.steamContentLog = steamContentLog
     }
 
@@ -105,9 +109,16 @@ public struct NativeSteamLauncher: Sendable {
         }
         log(gameApp.map { "game app: \($0[GameAppLoader.loaderEnvKey] ?? "") for \($0[GameAppLoader.executablesEnvKey] ?? "")" }
             ?? "game app: none, the alt-loader host carries the icon")
+        // Silo's pipeline cache (`PipelineCache`): idle in every process but the one D3DMetal renders in.
+        var extraEnvironment = gameApp ?? [:]
+        if PipelineCache.applies(config.envFlags, graphics: chosen), let cache = pipelineCache {
+            overlay.append(cache)
+            extraEnvironment.merge(PipelineCache.environment(appID: app.appID)) { _, cache in cache }
+            log("pipeline cache: on, \(PipelineCache.folder(forID: String(app.appID)).path)")
+        }
         let runner: ProcessRunning = overlay.isEmpty ? self.runner
             : SteamLibrariesRunner(base: self.runner, libraries: overlay.map(\.path).joined(separator: ":"),
-                                   extraEnvironment: gameApp ?? [:])
+                                   extraEnvironment: extraEnvironment)
         // The fix's shader tools are arm64 macOS programs: they get the plain runner, without Steam's libraries.
         let orchestrator = LaunchOrchestrator(runner: runner, linker: GraphicsLinker(), steamClientRoot: steamClientRoot,
                                               spiderMan2Fix: SpiderMan2Fix(paths: paths, runner: self.runner))

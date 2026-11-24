@@ -504,3 +504,5 @@
 "Launched from Silo" = "Launched from Silo";
 "Clear…" = "Clear…";
 "Clear All…" = "Clear All…";
+"Silo's pipeline cache" = "Silo's pipeline cache";
+"Keeps the pipelines GPTK compiles in a cache of Silo's own, with no size limit of Metal's, and uses them at the next launch. Launches from Steam for macOS only, GPTK only. Being tested." = "Keeps the pipelines GPTK compiles in a cache of Silo's own, with no size limit of Metal's, and uses them at the next launch. Launches from Steam for macOS only, GPTK only. Being tested.";

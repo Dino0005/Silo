@@ -135,6 +135,8 @@ struct LaunchOptionsSection: View {
 struct ShaderCacheSection: View {
     /// A Steam app id, or a manual game's UUID.
     let gameID: String
+    /// The game's `EnvFlags.pipelineCache` — Steam games only (the cache runs in macOS Steam launches).
+    var pipelineCache: Binding<Bool>?
     @ViewState private var status = ShaderCache.Status.empty
     /// The caches the user asked to clear, waiting for the confirmation.
     @ViewState private var pending: Set<ShaderCache.Kind> = []
@@ -143,11 +145,22 @@ struct ShaderCacheSection: View {
     private func size(_ bytes: Int64) -> String { ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) }
 
     private func title(_ kind: ShaderCache.Kind) -> LocalizedStringKey {
-        kind == .steam ? "Launched from Steam for macOS" : "Launched from Silo"
+        switch kind {
+        case .steam: "Launched from Steam for macOS"
+        case .silo: "Launched from Silo"
+        case .pipelines: "Silo's pipeline cache"
+        }
     }
 
     var body: some View {
         Section {
+            if let pipelineCache {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Silo's pipeline cache", isOn: pipelineCache)
+                    Text("Keeps the pipelines GPTK compiles in a cache of Silo's own, with no size limit of Metal's, and uses them at the next launch. Launches from Steam for macOS only, GPTK only. Being tested.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
             if status.present.isEmpty {
                 LabeledContent("Space used") { Text(size(0)) }
             }

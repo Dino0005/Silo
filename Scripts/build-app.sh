@@ -148,6 +148,19 @@ if ! clang -Wall -O2 -dynamiclib -arch x86_64 -arch arm64 -fobjc-arc -framework 
 fi
 cp "$OVERLAY_FIX_OUT" "$APP/Contents/Helpers/silo-overlay-fix.dylib"
 
+# Silo's pipeline cache (Scripts/pipeline-cache, see PipelineCache.swift): MacGameFix's GPL-3.0 cache, injected into a
+# game started from macOS Steam under GPTK when its switch is on. Manual retain/release (no -fobjc-arc), as upstream.
+echo "==> Build pipeline cache"
+PIPELINE_CACHE_OUT=Scripts/pipeline-cache/silo-pipeline-cache.dylib
+rm -f "$PIPELINE_CACHE_OUT"
+if ! clang++ -arch x86_64 -arch arm64 -std=c++17 -dynamiclib -mmacosx-version-min=14.0 -Wall -Wextra -Werror \
+    -framework Foundation -framework Metal -install_name @rpath/silo-pipeline-cache.dylib -o "$PIPELINE_CACHE_OUT" \
+    Scripts/pipeline-cache/silo_pipeline_cache.mm Scripts/pipeline-cache/pipeline_cache.mm; then
+    echo "ERROR: the pipeline cache did not build (Scripts/pipeline-cache)." >&2
+    exit 1
+fi
+cp "$PIPELINE_CACHE_OUT" "$APP/Contents/Helpers/silo-pipeline-cache.dylib"
+
 # The "Steam (Silo)" launcher (Scripts/steam-launcher): copied by `Silo --install-steam-launcher` into
 # ~/Applications/Steam (Silo).app. Compiled, so macOS can list it in Privacy & Security (Steam inherits its grants).
 echo "==> Build Steam launcher"

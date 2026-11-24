@@ -107,6 +107,9 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// synced before each launch), which makes the game's extra resource Releases harmless — no more crash when it is
     /// quit from its menu. On by default; does nothing for any other game, or under DXMT.
     public var unchartedFix: Bool
+    /// "Cache delle pipeline": Silo's own cache of the pipelines D3DMetal compiles (`PipelineCache`), for when Metal's
+    /// per-app cache is full. macOS Steam launches under GPTK only; off by default while it is being measured.
+    public var pipelineCache: Bool
     /// Free-form extra environment variables — a config.json-only escape hatch (no UI). Merged last in
     /// `environment()`, so it overrides the flags above — EXCEPT the sync keys (`WINEMSYNC`/`WINEESYNC`),
     /// which `LaunchOrchestrator.makePlan` force-overrides afterward for shared-bottle co-residency.
@@ -124,6 +127,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         disableHidraw: Bool = false,
         spiderMan2Fix: Bool = true,
         unchartedFix: Bool = true,
+        pipelineCache: Bool = false,
         extra: [String: String] = [:]
     ) {
         self.syncMode = syncMode
@@ -137,6 +141,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.disableHidraw = disableHidraw
         self.spiderMan2Fix = spiderMan2Fix
         self.unchartedFix = unchartedFix
+        self.pipelineCache = pipelineCache
         self.extra = extra
     }
 
@@ -179,7 +184,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, depthFix
-        case disableHidraw, spiderMan2Fix, unchartedFix, extra
+        case disableHidraw, spiderMan2Fix, unchartedFix, pipelineCache, extra
         case esync, msync   // legacy fields from configs written before the SyncMode enum
     }
 
@@ -208,6 +213,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         disableHidraw = try c.decodeIfPresent(Bool.self, forKey: .disableHidraw) ?? false
         spiderMan2Fix = try c.decodeIfPresent(Bool.self, forKey: .spiderMan2Fix) ?? true
         unchartedFix = try c.decodeIfPresent(Bool.self, forKey: .unchartedFix) ?? true
+        pipelineCache = try c.decodeIfPresent(Bool.self, forKey: .pipelineCache) ?? false
         extra = try c.decodeIfPresent([String: String].self, forKey: .extra) ?? [:]
     }
 
@@ -224,6 +230,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         try c.encode(disableHidraw, forKey: .disableHidraw)
         try c.encode(spiderMan2Fix, forKey: .spiderMan2Fix)
         try c.encode(unchartedFix, forKey: .unchartedFix)
+        try c.encode(pipelineCache, forKey: .pipelineCache)
         try c.encode(extra, forKey: .extra)
     }
 }

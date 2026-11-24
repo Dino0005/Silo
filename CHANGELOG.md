@@ -17,6 +17,10 @@ the commit message says why.
   some of its shaders again at every launch (UNCHARTED's was). Each row has its own *Clear…*, and *Clear All…* empties
   both; the next launch from there compiles the shaders again, so it loads slower and stutters for a while. Refused
   while the game runs.
+- **Silo's pipeline cache (being tested, off by default).** A per-game switch in *Shader cache* keeps the pipelines
+  GPTK compiles in a cache of Silo's own, with no size limit of Metal's, and uses them at the next launch — for when
+  Metal's cache is full. Launches from Steam for macOS under GPTK only. It is MacGameFix's pipeline cache (Mathias
+  Kowoll, GPL-3.0); its archives are listed in *Shader cache* with their own *Clear…*.
 
 ### Changed
 - **Silo is now licensed under the GPL-3.0-or-later**, instead of the LGPL-2.1-or-later. The code that comes from

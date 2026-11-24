@@ -506,3 +506,5 @@
 "Launched from Silo" = "Avvii da Silo";
 "Clear…" = "Svuota…";
 "Clear All…" = "Svuota tutto…";
+"Silo's pipeline cache" = "Cache delle pipeline di Silo";
+"Keeps the pipelines GPTK compiles in a cache of Silo's own, with no size limit of Metal's, and uses them at the next launch. Launches from Steam for macOS only, GPTK only. Being tested." = "Conserva le pipeline che GPTK compila in una cache di Silo, senza il limite di dimensione di quella di Metal, e le riusa all'avvio successivo. Solo per gli avvii da Steam per macOS, solo GPTK. In prova.";

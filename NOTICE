@@ -15,3 +15,8 @@ Third-party components keep their own licenses: Wine (LGPL-2.1-or-later) is a se
 from CrossOver's published sources and downloaded at runtime, not part of this work; the same goes for
 DXMT, GStreamer and FFmpeg. Apple's Game Porting Toolkit is never distributed — it stays the user's own
 download.
+
+Scripts/pipeline-cache/ contains the pipeline cache of MacGameFix (https://github.com/MathiasKowoll/MacGameFix,
+fixes/pbz-pipeline-cache at cc9c13a), by Mathias Kowoll, licensed under the GNU General Public License, version 3
+or later; it comes from NotProton's experiments/fex-d3dmetal-bridge (4c8b173). pipeline_cache.mm is modified for
+Silo (marked in its header); silo_pipeline_cache.mm is derived from rosetta_pipeline_cache.mm.
