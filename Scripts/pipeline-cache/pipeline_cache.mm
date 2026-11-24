@@ -25,13 +25,18 @@
  *
  * From MacGameFix's fixes/pbz-pipeline-cache (Mathias Kowoll, GPL-3.0-or-later;
  * MacGameFix cc9c13a). Modified for Silo, 2026-11-24: called_by_d3dmetal looks past
- * Silo's Steam overlay fix for the real caller. Otherwise unchanged.
+ * Silo's Steam overlay fix for the real caller, the classic calls' pipelines are kept
+ * in groups instead of one archive each, and a pipeline's key also covers its functions'
+ * constant values and its state (see "Changed for Silo" below).
  */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #include <CommonCrypto/CommonDigest.h>
 #include <dlfcn.h>
 #include <execinfo.h>
+#include <condition_variable>
+#include <list>
+#include <unordered_set>
 #include <limits.h>
 #include <unistd.h>
 #include <objc/runtime.h>
@@ -105,6 +110,40 @@ std::unordered_map<std::string, std::vector<std::string>> &classic_index =
 NSString *classic_directory;          /* retained */
 dispatch_queue_t capture_queue;
 dispatch_group_t capture_group;
+
+/* Changed for Silo (2026-11-24): groups instead of one archive per pipeline.
+ *
+ * One archive per pipeline repeats every shader a pipeline shares with others: UNCHARTED's
+ * 14,654 pipelines took 1.2 GB that way, where Metal's own cache held them in 213 MB.
+ * Measured with a probe (x86_64 under Rosetta, M3 Pro): 50 pipelines sharing a vertex
+ * shader took 12.9 MB as 50 archives and 1.26 MB as one. But opening an archive costs
+ * memory that grows with the square of what it holds, and is not all given back when it
+ * is let go: 50 pipelines 2.8 MB to open, 100 12.5 MB, 200 50 MB, 400 238 MB.
+ *
+ * So the pipelines a session compiles are kept in groups of kGroupPipelines, in the order
+ * they were made (a game makes the pipelines of one material, one area, together, and
+ * makes them in the same order the next time), as grouped/g-<pid>-<n>.bin with the keys it
+ * holds in g-<pid>-<n>.keys. A lookup opens the groups filed under its key, and the last
+ * kOpenGroups groups opened stay open, so a run of pipelines from one group opens it once.
+ * Adding to a group happens on one serial queue, off the calling threads. */
+constexpr size_t kGroupPipelines = 48;
+constexpr size_t kOpenGroups = 16;
+/* A key some pipelines still share (UNCHARTED: one in 29 groups, after the finer key):
+ * a lookup opens at most kNewGroupsPerLookup groups that aren't open yet, and a key filed
+ * kKeptPerKey times is not kept again. Opening all of them evicted every useful group. */
+constexpr size_t kNewGroupsPerLookup = 2;
+constexpr size_t kKeptPerKey = 2;
+dispatch_queue_t group_queue;
+id<MTLBinaryArchive> group_archive;   /* retained; on group_queue only */
+std::vector<std::string> &group_keys = *new std::vector<std::string>;   /* on group_queue only */
+double group_flight;                  /* on group_queue only */
+std::mutex &open_mutex = *new std::mutex;
+std::list<std::pair<std::string, id>> &open_groups = *new std::list<std::pair<std::string, id>>;   /* most recent first */
+std::unordered_set<std::string> &opening = *new std::unordered_set<std::string>;   /* under open_mutex */
+std::condition_variable &opened = *new std::condition_variable;
+/* Keys on their way into a group: a pipeline made again before its group is written is
+ * not kept twice. Under classic_mutex. */
+std::unordered_set<std::string> &pending_keys = *new std::unordered_set<std::string>;
 
 /* Adding a pipeline to an archive makes a gpuarchiver-* folder of about 380 KB in
  * Metal's shader cache, which serializing reads and nothing ever removes: one PBZ run
@@ -368,8 +407,92 @@ NSData *tag_of(id object)
     return object ? objc_getAssociatedObject(object, &tag_key) : nil;
 }
 
-/* A function's tag: its library's, a kind, and the names it was made from. */
-void tag_function(id function, id library, unsigned char kind, NSString *name, NSString *specialized)
+/* Changed for Silo (2026-11-24): what a function's constants were set to.
+ *
+ * A key made of function names alone was shared by many pipelines: in groups, one of
+ * UNCHARTED's keys was filed under 51 of them, and the second session opened 2,592 groups
+ * for 15,445 pipelines (10 ms a pipeline instead of 1.9). D3DMetal specializes its
+ * functions with constants, so the setters of MTLFunctionConstantValues are followed and
+ * what they were given is hashed, in the order given, into the object. */
+char constants_key;                   /* the associated object holding the constants' hash */
+IMP original_constant_index, original_constant_name, original_constant_range;
+
+size_t size_of_type(MTLDataType type)
+{
+    switch (type)
+    {
+    case MTLDataTypeBool: case MTLDataTypeChar: case MTLDataTypeUChar: return 1;
+    case MTLDataTypeBool2: case MTLDataTypeChar2: case MTLDataTypeUChar2: return 2;
+    case MTLDataTypeBool3: case MTLDataTypeChar3: case MTLDataTypeUChar3: return 3;
+    case MTLDataTypeBool4: case MTLDataTypeChar4: case MTLDataTypeUChar4: return 4;
+    case MTLDataTypeHalf: case MTLDataTypeShort: case MTLDataTypeUShort: return 2;
+    case MTLDataTypeHalf2: case MTLDataTypeShort2: case MTLDataTypeUShort2: return 4;
+    case MTLDataTypeHalf3: case MTLDataTypeShort3: case MTLDataTypeUShort3: return 6;
+    case MTLDataTypeHalf4: case MTLDataTypeShort4: case MTLDataTypeUShort4: return 8;
+    case MTLDataTypeFloat: case MTLDataTypeInt: case MTLDataTypeUInt: return 4;
+    case MTLDataTypeFloat2: case MTLDataTypeInt2: case MTLDataTypeUInt2: return 8;
+    case MTLDataTypeFloat3: case MTLDataTypeInt3: case MTLDataTypeUInt3: return 12;
+    case MTLDataTypeFloat4: case MTLDataTypeInt4: case MTLDataTypeUInt4: return 16;
+    case MTLDataTypeLong: case MTLDataTypeULong: return 8;
+    default: return 0;                /* only the type and where it went are hashed */
+    }
+}
+
+void note_constants(id values, const void *bytes, size_t length, MTLDataType type, const void *where, size_t where_length)
+{
+    @synchronized (values)
+    {
+        NSMutableData *hash = objc_getAssociatedObject(values, &constants_key);
+        if (!hash)
+        {
+            hash = [[NSMutableData alloc] init];
+            objc_setAssociatedObject(values, &constants_key, hash, OBJC_ASSOCIATION_RETAIN);
+            [hash release];
+        }
+        const uint32_t kind = static_cast<uint32_t>(type);
+        [hash appendBytes:&kind length:sizeof(kind)];
+        [hash appendBytes:where length:where_length];
+        if (bytes && length) [hash appendBytes:bytes length:length];
+    }
+}
+
+void hook_constant_index(id self, SEL cmd, const void *value, MTLDataType type, NSUInteger index)
+{
+    note_constants(self, value, size_of_type(type), type, &index, sizeof(index));
+    reinterpret_cast<void (*)(id, SEL, const void *, MTLDataType, NSUInteger)>(original_constant_index)(
+        self, cmd, value, type, index);
+}
+
+void hook_constant_name(id self, SEL cmd, const void *value, MTLDataType type, NSString *name)
+{
+    const char *text = name.UTF8String ?: "";
+    note_constants(self, value, size_of_type(type), type, text, std::strlen(text) + 1);
+    reinterpret_cast<void (*)(id, SEL, const void *, MTLDataType, NSString *)>(original_constant_name)(
+        self, cmd, value, type, name);
+}
+
+void hook_constant_range(id self, SEL cmd, const void *values, MTLDataType type, NSRange range)
+{
+    note_constants(self, values, size_of_type(type) * range.length, type, &range, sizeof(range));
+    reinterpret_cast<void (*)(id, SEL, const void *, MTLDataType, NSRange)>(original_constant_range)(
+        self, cmd, values, type, range);
+}
+
+/* The constants' hash a values object carries, copied; nil when none were set. */
+NSData *constants_of(id values)
+{
+    if (!values) return nil;
+    @synchronized (values)
+    {
+        NSData *hash = objc_getAssociatedObject(values, &constants_key);
+        return hash ? [[hash copy] autorelease] : nil;
+    }
+}
+
+/* A function's tag: its library's, a kind, and the names it was made from — and, changed
+ * for Silo, the constants it was specialized with. */
+void tag_function(id function, id library, unsigned char kind, NSString *name, NSString *specialized,
+                  NSData *constants = nil)
 {
     NSData *library_tag = tag_of(library);
     if (!function || !library_tag) return;
@@ -381,6 +504,7 @@ void tag_function(id function, id library, unsigned char kind, NSString *name, N
     CC_SHA256_Update(&context, text, static_cast<CC_LONG>(std::strlen(text) + 1));
     text = specialized.UTF8String ?: "";
     CC_SHA256_Update(&context, text, static_cast<CC_LONG>(std::strlen(text) + 1));
+    if (constants.length) CC_SHA256_Update(&context, constants.bytes, static_cast<CC_LONG>(constants.length));
     unsigned char digest[CC_SHA256_DIGEST_LENGTH];
     CC_SHA256_Final(digest, &context);
     set_tag(function, digest);
@@ -397,7 +521,7 @@ id hook_function_constants(id self, SEL cmd, NSString *name, MTLFunctionConstant
 {
     id function = reinterpret_cast<id (*)(id, SEL, NSString *, MTLFunctionConstantValues *, NSError **)>(
         original_function_constants)(self, cmd, name, values, error);
-    tag_function(function, self, 1, name, nil);
+    @autoreleasepool { tag_function(function, self, 1, name, nil, constants_of(values)); }
     return function;
 }
 
@@ -405,7 +529,11 @@ id hook_function_descriptor(id self, SEL cmd, MTLFunctionDescriptor *descriptor,
 {
     id function = reinterpret_cast<id (*)(id, SEL, MTLFunctionDescriptor *, NSError **)>(
         original_function_descriptor)(self, cmd, descriptor, error);
-    tag_function(function, self, 2, descriptor.name, descriptor.specializedName);
+    @autoreleasepool
+    {
+        tag_function(function, self, 2, descriptor.name, descriptor.specializedName,
+                     constants_of(descriptor.constantValues));
+    }
     return function;
 }
 
@@ -479,6 +607,32 @@ std::string key_of(MTLRenderPipelineDescriptor *descriptor)
     CC_SHA256_Update(&context, kind, sizeof(kind));
     if (vertex) CC_SHA256_Update(&context, vertex.bytes, static_cast<CC_LONG>(vertex.length));
     if (fragment) CC_SHA256_Update(&context, fragment.bytes, static_cast<CC_LONG>(fragment.length));
+    /* Changed for Silo (2026-11-24): the state Metal compiles into the pipeline's code too. */
+    std::vector<uint64_t> state;
+    for (NSUInteger i = 0; i < 8; ++i)
+    {
+        MTLRenderPipelineColorAttachmentDescriptor *color = descriptor.colorAttachments[i];
+        state.insert(state.end(), {color.pixelFormat, uint64_t(color.blendingEnabled), color.writeMask, color.sourceRGBBlendFactor,
+                                   color.destinationRGBBlendFactor, color.rgbBlendOperation, color.sourceAlphaBlendFactor,
+                                   color.destinationAlphaBlendFactor, color.alphaBlendOperation});
+    }
+    state.insert(state.end(), {descriptor.depthAttachmentPixelFormat, descriptor.stencilAttachmentPixelFormat,
+                               descriptor.rasterSampleCount, uint64_t(descriptor.alphaToCoverageEnabled),
+                               uint64_t(descriptor.alphaToOneEnabled), uint64_t(descriptor.rasterizationEnabled),
+                               descriptor.inputPrimitiveTopology});
+    if (MTLVertexDescriptor *vertices = descriptor.vertexDescriptor)
+    {
+        for (NSUInteger i = 0; i < 31; ++i)
+        {
+            MTLVertexAttributeDescriptor *attribute = vertices.attributes[i];
+            if (attribute.format != MTLVertexFormatInvalid)
+                state.insert(state.end(), {i, attribute.format, attribute.offset, attribute.bufferIndex});
+            MTLVertexBufferLayoutDescriptor *layout = vertices.layouts[i];
+            if (layout.stride)
+                state.insert(state.end(), {100 + i, layout.stride, layout.stepFunction, layout.stepRate});
+        }
+    }
+    CC_SHA256_Update(&context, state.data(), static_cast<CC_LONG>(state.size() * sizeof(uint64_t)));
     unsigned char digest[CC_SHA256_DIGEST_LENGTH];
     CC_SHA256_Final(digest, &context);
     return hex_of(digest);
@@ -493,17 +647,56 @@ std::string key_of(MTLComputePipelineDescriptor *descriptor)
     const unsigned char kind = 'c';
     CC_SHA256_Update(&context, &kind, 1);
     CC_SHA256_Update(&context, compute.bytes, static_cast<CC_LONG>(compute.length));
+    const uint64_t state[2] = {uint64_t(descriptor.threadGroupSizeIsMultipleOfThreadExecutionWidth),
+                               descriptor.maxTotalThreadsPerThreadgroup};   /* changed for Silo */
+    CC_SHA256_Update(&context, state, sizeof(state));
     unsigned char digest[CC_SHA256_DIGEST_LENGTH];
     CC_SHA256_Final(digest, &context);
     return hex_of(digest);
 }
 
-NSString *classic_folder(const std::string &key)
+/* Writes the group being filled, on group_queue: the archive, then the keys it holds. */
+void write_group(const char *why)
 {
-    return [classic_directory stringByAppendingPathComponent:[NSString stringWithFormat:@"%.2s", key.c_str()]];
+    if (!group_archive) return;
+    @autoreleasepool
+    {
+        NSString *base = [classic_directory stringByAppendingPathComponent:
+                              [NSString stringWithFormat:@"g-%d-%u", getpid(), classic_written.fetch_add(1)]];
+        NSString *path = [base stringByAppendingPathExtension:@"bin"];
+        NSString *keys = [base stringByAppendingPathExtension:@"keys"];
+        NSError *error = nil;
+        bool written = !group_keys.empty() && [group_archive serializeToURL:part_of(path) error:&error] && put_in_place(path);
+        if (written)
+        {
+            std::string list;
+            for (const std::string &key : group_keys) list += key + "\n";
+            NSData *data = [NSData dataWithBytes:list.data() length:list.size()];
+            written = [data writeToURL:part_of(keys) atomically:NO] && put_in_place(keys);
+            if (!written) [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+        }
+        if (!written && !group_keys.empty() && classic_failed.fetch_add(1) < 5)
+            std::fprintf(stderr, "%s: pipeline cache: writing a group failed (%s): %s\n", log_prefix, why,
+                         error.localizedDescription.UTF8String ?: "unknown");
+        if (written)
+        {
+            kept_bytes.fetch_add([[[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil] fileSize],
+                                 std::memory_order_relaxed);
+            std::lock_guard<std::mutex> lock(classic_mutex);
+            for (const std::string &key : group_keys) classic_index[key].push_back(path.UTF8String);
+        }
+    }
+    {
+        std::lock_guard<std::mutex> lock(classic_mutex);
+        for (const std::string &key : group_keys) pending_keys.erase(key);
+    }
+    [group_archive release];
+    group_archive = nil;
+    group_keys.clear();
+    end_flight(group_flight);
 }
 
-/* Writes what a classic call compiled to an archive of its own, off the calling thread. */
+/* Adds what a classic call compiled to the group being filled, off the calling thread. */
 template <typename Descriptor> void classic_capture_later(Descriptor *descriptor, std::string key, bool render)
 {
     if (kept_bytes.load(std::memory_order_relaxed) >= cap_bytes)
@@ -517,45 +710,101 @@ template <typename Descriptor> void classic_capture_later(Descriptor *descriptor
      * The descriptor is copied here, on the calling thread: D3DMetal goes on using
      * its own and changes it for the next pipeline while this one is being kept, and
      * reading it from the other thread then corrupted the heap (Rosetta, in-process). */
+    {
+        std::lock_guard<std::mutex> lock(classic_mutex);
+        if (!pending_keys.insert(key).second) return;   /* already on its way: changed for Silo */
+    }
     descriptor = [descriptor copy];
-    dispatch_group_async(capture_group, capture_queue, ^{
-        const double flight = begin_flight();
+    dispatch_group_async(capture_group, group_queue, ^{
         @autoreleasepool
         {
-            MTLBinaryArchiveDescriptor *empty = [[MTLBinaryArchiveDescriptor alloc] init];
-            id<MTLBinaryArchive> archive = [cache_device newBinaryArchiveWithDescriptor:empty error:nil];
-            [empty release];
-            NSError *error = nil;
-            BOOL added = archive && (render
-                ? [archive addRenderPipelineFunctionsWithDescriptor:(MTLRenderPipelineDescriptor *)descriptor
-                                                               error:&error]
-                : [archive addComputePipelineFunctionsWithDescriptor:(MTLComputePipelineDescriptor *)descriptor
-                                                                error:&error]);
-            NSString *folder = classic_folder(key);
-            NSString *name = [NSString stringWithFormat:@"%s-%d-%u.bin", key.c_str(), getpid(),
-                                       classic_written.fetch_add(1)];
-            NSString *path = [folder stringByAppendingPathComponent:name];
-            if (added)
+            if (!group_archive)
             {
-                [[NSFileManager defaultManager] createDirectoryAtPath:folder withIntermediateDirectories:YES
-                                                           attributes:nil error:nil];
-                added = [archive serializeToURL:part_of(path) error:&error] && put_in_place(path);
+                group_flight = begin_flight();
+                MTLBinaryArchiveDescriptor *empty = [[MTLBinaryArchiveDescriptor alloc] init];
+                group_archive = [cache_device newBinaryArchiveWithDescriptor:empty error:nil];
+                [empty release];
+            }
+            NSError *error = nil;
+            BOOL added = group_archive && (render
+                ? [group_archive addRenderPipelineFunctionsWithDescriptor:(MTLRenderPipelineDescriptor *)descriptor
+                                                                    error:&error]
+                : [group_archive addComputePipelineFunctionsWithDescriptor:(MTLComputePipelineDescriptor *)descriptor
+                                                                     error:&error]);
+            if (added) group_keys.push_back(key);
+            else
+            {
+                std::lock_guard<std::mutex> lock(classic_mutex);
+                pending_keys.erase(key);
             }
             if (!added && classic_failed.fetch_add(1) < 5)
                 std::fprintf(stderr, "%s: pipeline cache: keeping a pipeline failed: %s\n", log_prefix,
                              error.localizedDescription.UTF8String ?: "unknown");
-            if (added)
-            {
-                kept_bytes.fetch_add([[[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil] fileSize],
-                                     std::memory_order_relaxed);
-                std::lock_guard<std::mutex> lock(classic_mutex);
-                classic_index[key].push_back(path.UTF8String);
-            }
-            [archive release];
+            if (!group_archive) end_flight(group_flight);   /* no archive to fill: the next pipeline tries again */
+            else if (group_keys.size() >= kGroupPipelines) write_group("group full");
         }
-        end_flight(flight);
         [descriptor release];
     });
+}
+
+/* A group among the last ones opened, retained for the caller; nil when it isn't open.
+ * Under open_mutex. */
+id find_open(const std::string &path)
+{
+    for (auto it = open_groups.begin(); it != open_groups.end(); ++it)
+        if (it->first == path)
+        {
+            open_groups.splice(open_groups.begin(), open_groups, it);
+            return [it->second retain];
+        }
+    return nil;
+}
+
+bool is_open(const std::string &path)
+{
+    std::lock_guard<std::mutex> lock(open_mutex);
+    for (const auto &entry : open_groups)
+        if (entry.first == path) return true;
+    return false;
+}
+
+/* A group, opened or found among the last ones opened; retained for the caller. D3DMetal
+ * makes pipelines on many threads at once: a group being opened by one is waited for by
+ * the others that need it (each opened it otherwise: 36 opens for 3 groups, 60 MB, in the
+ * bench), and threads needing other groups go on — opening under one lock queued every
+ * pipeline behind each open, and the game stuttered. */
+id open_group(id<MTLDevice> device, const std::string &path)
+{
+    {
+        std::unique_lock<std::mutex> lock(open_mutex);
+        opened.wait(lock, [&] { return !opening.count(path); });
+        if (id archive = find_open(path)) return archive;
+        opening.insert(path);
+    }
+    id archive = nil;
+    @autoreleasepool
+    {
+        MTLBinaryArchiveDescriptor *source = [[MTLBinaryArchiveDescriptor alloc] init];
+        source.url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path.c_str()]];
+        archive = [device newBinaryArchiveWithDescriptor:source error:nil];
+        [source release];
+    }
+    {
+        std::lock_guard<std::mutex> lock(open_mutex);
+        opening.erase(path);
+        if (archive)
+        {
+            classic_opened.fetch_add(1, std::memory_order_relaxed);
+            open_groups.emplace_front(path, [archive retain]);
+            while (open_groups.size() > kOpenGroups)
+            {
+                [open_groups.back().second release];
+                open_groups.pop_back();
+            }
+        }
+    }
+    opened.notify_all();
+    return archive;
 }
 
 /* A classic call through the cache: looked up first, compiled and kept on a miss. */
@@ -585,22 +834,24 @@ template <typename Descriptor> id classic_call(IMP original, id self, SEL cmd, D
          * under D3DMetal, which released it again. */
         id state = nil;
         bool archives_tried = false;
-        NSMutableArray *archives = [[NSMutableArray alloc] initWithCapacity:files.size()];
-        @autoreleasepool
+        /* The groups already open, and the newest few of the others (changed for Silo). */
+        std::vector<std::string> chosen;
+        size_t fresh = 0;
+        for (auto it = files.rbegin(); it != files.rend(); ++it)
         {
-            for (const std::string &file : files)
-            {
-                MTLBinaryArchiveDescriptor *source = [[MTLBinaryArchiveDescriptor alloc] init];
-                source.url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:file.c_str()]];
-                id<MTLBinaryArchive> archive = [static_cast<id<MTLDevice>>(self) newBinaryArchiveWithDescriptor:source
-                                                                                                         error:nil];
-                [source release];
-                if (!archive) continue;
-                [archives addObject:archive];
-                [archive release];
-            }
+            if (std::find(chosen.begin(), chosen.end(), *it) != chosen.end()) continue;
+            if (is_open(*it)) chosen.push_back(*it);
+            else if (fresh < kNewGroupsPerLookup) { chosen.push_back(*it); ++fresh; }
         }
-        classic_opened.fetch_add(archives.count, std::memory_order_relaxed);
+        files.swap(chosen);
+        NSMutableArray *archives = [[NSMutableArray alloc] initWithCapacity:files.size()];
+        for (const std::string &file : files)
+        {
+            id archive = open_group(static_cast<id<MTLDevice>>(self), file);
+            if (!archive) continue;
+            [archives addObject:archive];
+            [archive release];
+        }
         uint64_t most = classic_most.load(std::memory_order_relaxed);
         while (archives.count > most && !classic_most.compare_exchange_weak(most, archives.count)) {}
         archives_tried = archives.count != 0;
@@ -636,7 +887,7 @@ template <typename Descriptor> id classic_call(IMP original, id self, SEL cmd, D
     if (state)
     {
         classic_misses.fetch_add(1, std::memory_order_relaxed);
-        classic_capture_later(descriptor, key, render);
+        if (files.size() < kKeptPerKey) classic_capture_later(descriptor, key, render);
     }
     return state;
 }
@@ -881,15 +1132,31 @@ extern "C" void pbz_pipeline_cache_start(const char *game)
                     if ([file hasPrefix:@"classic-"] && [file hasSuffix:@".bin"])
                         [[NSFileManager defaultManager]
                             removeItemAtPath:[cache_directory stringByAppendingPathComponent:file] error:nil];
-                classic_directory = [[cache_directory stringByAppendingPathComponent:@"classic"] retain];
-                NSDirectoryEnumerator *walk = [[NSFileManager defaultManager] enumeratorAtPath:classic_directory];
-                for (NSString *relative in walk)
+                /* One archive per pipeline, as first written, is not read any more. */
+                [[NSFileManager defaultManager] removeItemAtPath:[cache_directory stringByAppendingPathComponent:@"classic"]
+                                                           error:nil];
+                classic_directory = [[cache_directory stringByAppendingPathComponent:@"grouped"] retain];
+                [[NSFileManager defaultManager] createDirectoryAtPath:classic_directory withIntermediateDirectories:YES
+                                                           attributes:nil error:nil];
+                for (NSString *file in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:classic_directory error:nil])
                 {
-                    NSString *file = relative.lastPathComponent;
-                    if (![file hasSuffix:@".bin"] || file.length < 33) continue;
-                    classic_index[std::string(file.UTF8String, 32)].push_back(
-                        [classic_directory stringByAppendingPathComponent:relative].UTF8String);
-                    classic_bytes += walk.fileAttributes.fileSize;
+                    NSString *path = [classic_directory stringByAppendingPathComponent:file];
+                    if ([file hasSuffix:@".part"] || [file hasSuffix:@".metallib"])
+                    {
+                        [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+                        continue;
+                    }
+                    if (![file hasSuffix:@".bin"]) continue;
+                    NSString *keys = [[path stringByDeletingPathExtension] stringByAppendingPathExtension:@"keys"];
+                    NSString *list = [NSString stringWithContentsOfFile:keys encoding:NSUTF8StringEncoding error:nil];
+                    if (!list)
+                    {
+                        [[NSFileManager defaultManager] removeItemAtPath:path error:nil];   /* its keys never written */
+                        continue;
+                    }
+                    for (NSString *key in [list componentsSeparatedByString:@"\n"])
+                        if (key.length == 32) classic_index[key.UTF8String].push_back(path.UTF8String);
+                    classic_bytes += [[[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil] fileSize];
                     ++classic_files;
                 }
                 kept_bytes = classic_bytes;
@@ -899,12 +1166,24 @@ extern "C" void pbz_pipeline_cache_start(const char *game)
                 cache_device = [device retain];
                 capture_queue = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
                 capture_group = dispatch_group_create();
+                group_queue = dispatch_queue_create("silo pipeline cache groups",
+                    dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+                /* Changed for Silo: follow the constants D3DMetal specializes its functions with. */
+                MTLFunctionConstantValues *probe_values = [[MTLFunctionConstantValues alloc] init];
+                Class values_class = object_getClass(probe_values);
+                [probe_values release];
+                replace(values_class, "setConstantValue:type:atIndex:", reinterpret_cast<IMP>(hook_constant_index),
+                        &original_constant_index);
+                replace(values_class, "setConstantValue:type:withName:", reinterpret_cast<IMP>(hook_constant_name),
+                        &original_constant_name);
+                replace(values_class, "setConstantValues:type:withRange:", reinterpret_cast<IMP>(hook_constant_range),
+                        &original_constant_range);
                 replace(device_class, "newLibraryWithData:error:",
                                                 reinterpret_cast<IMP>(hook_library_data), &original_library_data);
                 replace(device_class, "newLibraryWithFile:error:",
                                                 reinterpret_cast<IMP>(hook_library_file), &original_library_file);
                 std::fprintf(stderr, "%s: pipeline cache: %lu Metal 4 archives (%.1f MB) and %llu "
-                             "classic pipelines in %zu keys (%.1f MB) in %s\n", log_prefix,
+                             "classic groups for %zu keys (%.1f MB) in %s\n", log_prefix,
                              static_cast<unsigned long>(lookup_archives.count), bytes / 1e6,
                              static_cast<unsigned long long>(classic_files), classic_index.size(), classic_bytes / 1e6,
                              cache_directory.UTF8String);
@@ -921,6 +1200,7 @@ extern "C" void pbz_pipeline_cache_finish_within(const char *why, double seconds
         if (cache_on) flush_serializers(why);
     if (cache_on && capture_group)
     {
+        dispatch_group_async(capture_group, group_queue, ^{ write_group(why); });
         if (dispatch_group_wait(capture_group, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC))))
             std::fprintf(stderr, "%s: pipeline cache: pipelines still being kept after %.1f s, left to the next start\n",
                          log_prefix, seconds);
