@@ -9,7 +9,7 @@
 [![Latest release](https://img.shields.io/github/v/release/Dino0005/Silo)](https://github.com/Dino0005/Silo/releases)
 ![Platform](https://img.shields.io/badge/platform-macOS%2015%2B%20%C2%B7%20Apple%20Silicon-blue)
 ![Swift](https://img.shields.io/badge/Swift%206-strict%20concurrency-orange)
-[![License](https://img.shields.io/badge/license-LGPL--2.1+-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0+-blue)](LICENSE)
 
 [Releases](https://github.com/Dino0005/Silo/releases) ·
 [Changelog](CHANGELOG.md) ·
@@ -173,8 +173,10 @@ User-chosen paths go through the system file picker (powerbox) to avoid TCC deni
 
 ## Legal
 
-Silo is licensed under the [LGPL-2.1-or-later](LICENSE). Wine is redistributed under the same
-license from CrossOver's published sources; GPTK stays your own Apple-licensed download. Silo never
+Silo is licensed under the [GPL-3.0-or-later](LICENSE). It is a fork of
+[mikaelhug/Silo](https://github.com/mikaelhug/Silo), whose LGPL-2.1-or-later code it carries under the
+GPL as that license permits — see [NOTICE](NOTICE). Wine is a separate program, redistributed under its
+own LGPL-2.1-or-later from CrossOver's published sources; GPTK stays your own Apple-licensed download. Silo never
 bundles or auto-downloads a Steam-API emulator — games talk to the real Steam client you sign into,
 in your own account. You are responsible for compliance with Steam's Subscriber Agreement and
 applicable law.

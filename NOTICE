@@ -1,0 +1,17 @@
+Silo
+Copyright (C) 2026 Dino0005
+Copyright (C) 2026 Mikael Hug
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, either version 3 of the License,
+or (at your option) any later version. See LICENSE for the full text.
+
+This is a fork of Silo by Mikael Hug (https://github.com/mikaelhug/Silo), forked at upstream 0.4.1.
+Upstream's code was licensed under the GNU Lesser General Public License, version 2.1 or later; this
+fork distributes it under the GNU General Public License, version 3 or later, as section 3 of the
+LGPL-2.1 permits. The original LGPL-licensed code remains available from the upstream repository.
+
+Third-party components keep their own licenses: Wine (LGPL-2.1-or-later) is a separate program, built
+from CrossOver's published sources and downloaded at runtime, not part of this work; the same goes for
+DXMT, GStreamer and FFmpeg. Apple's Game Porting Toolkit is never distributed — it stays the user's own
+download.

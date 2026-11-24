@@ -8,6 +8,12 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Changed
+- **Silo is now licensed under the GPL-3.0-or-later**, instead of the LGPL-2.1-or-later. The code that comes from
+  upstream is carried under the GPL as the LGPL allows; [NOTICE](NOTICE) has the details. Wine keeps its own license.
+
 ## 0.7.8
 
 ### Added
