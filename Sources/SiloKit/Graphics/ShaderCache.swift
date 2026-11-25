@@ -22,6 +22,10 @@ public enum ShaderCache {
         case silo
         /// Silo's own pipeline archives (`PipelineCache`), written in launches from Steam for macOS.
         case pipelines
+        /// D3DMetal's own cache of the shaders it translated from DirectX, `<user cache>/d3dm/<exe>/`: one folder per
+        /// executable *name*, whichever game it belongs to, and from either place the game starts (UNCHARTED's
+        /// `u4-l.exe` held 6.6 GB on 2026-11-25). Neither Steam nor Silo removes it when a game is uninstalled.
+        case translation
     }
 
     /// One cache: every file's size, and whether a `functions.data` has reached Metal's cap.
@@ -41,11 +45,13 @@ public enum ShaderCache {
         public let steam: Usage
         public let silo: Usage
         public let pipelines: Usage
+        public let translation: Usage
 
-        public init(steam: Usage, silo: Usage, pipelines: Usage = .none) {
+        public init(steam: Usage, silo: Usage, pipelines: Usage = .none, translation: Usage = .none) {
             self.steam = steam
             self.silo = silo
             self.pipelines = pipelines
+            self.translation = translation
         }
 
         public subscript(kind: Kind) -> Usage {
@@ -53,9 +59,10 @@ public enum ShaderCache {
             case .steam: steam
             case .silo: silo
             case .pipelines: pipelines
+            case .translation: translation
             }
         }
-        public var bytes: Int64 { steam.bytes + silo.bytes + pipelines.bytes }
+        public var bytes: Int64 { steam.bytes + silo.bytes + pipelines.bytes + translation.bytes }
         /// Whether one of Metal's caches is full (Silo's own has no such limit).
         public var isFull: Bool { steam.isFull || silo.isFull }
         /// The caches that exist, in display order.
@@ -76,33 +83,40 @@ public enum ShaderCache {
     /// macOS, so a manual game (a UUID) has only Silo's — a `.game.` folder of one is a leftover of the bundle id
     /// migration, which cloned every game's old cache under both new names.
     public static func kinds(forID id: String) -> [Kind] {
-        isSteamID(id) ? Kind.allCases : [.silo]
+        isSteamID(id) ? Kind.allCases : [.silo, .translation]
     }
 
     static func isSteamID(_ id: String) -> Bool { !id.isEmpty && id.allSatisfy { $0.isASCII && $0.isNumber } }
 
-    /// The folder of one cache of the game `id` (a Steam app id, or a manual game's UUID): Metal's `com.apple.metal`
-    /// under the bundle id, or Silo's pipeline archives.
-    static func folder(_ kind: Kind, forID id: String, cacheRoot: URL) -> URL {
+    /// The folders of one cache of the game `id` (a Steam app id, or a manual game's UUID): Metal's `com.apple.metal`
+    /// under the bundle id, Silo's pipeline archives, or D3DMetal's folder of each of the game's `executables` (file
+    /// names; distinct ones only).
+    static func folders(_ kind: Kind, forID id: String, executables: [String], cacheRoot: URL) -> [URL] {
         let prefix: String
         switch kind {
         case .steam: prefix = GameHostBundle.gameAppIDPrefix
         case .silo: prefix = GameHostBundle.bundleIDPrefix
-        case .pipelines: return PipelineCache.folder(forID: id, cacheRoot: cacheRoot)
+        case .pipelines: return [PipelineCache.folder(forID: id, cacheRoot: cacheRoot)]
+        case .translation:
+            var seen = Set<String>()
+            return executables.filter { !$0.isEmpty && !$0.contains("/") && seen.insert($0.lowercased()).inserted }
+                .map { cacheRoot.appendingPathComponent("d3dm", isDirectory: true).appendingPathComponent($0, isDirectory: true) }
         }
-        return cacheRoot.appendingPathComponent(prefix + GameHostBundle.bundleSafe(id), isDirectory: true)
-            .appendingPathComponent("com.apple.metal", isDirectory: true)
+        return [cacheRoot.appendingPathComponent(prefix + GameHostBundle.bundleSafe(id), isDirectory: true)
+            .appendingPathComponent("com.apple.metal", isDirectory: true)]
     }
 
-    public static func status(forID id: String, cacheRoot: URL = LegacyIdentifiers.userCacheDirectory,
+    public static func status(forID id: String, executables: [String] = [],
+                              cacheRoot: URL = LegacyIdentifiers.userCacheDirectory,
                               fileManager: FileManager = .default) -> Status {
         func usage(_ kind: Kind) -> Usage {
             var bytes: Int64 = 0
             var full = false
-            for file in files(in: folder(kind, forID: id, cacheRoot: cacheRoot), fileManager: fileManager) {
+            for file in folders(kind, forID: id, executables: executables, cacheRoot: cacheRoot)
+                .flatMap({ files(in: $0, fileManager: fileManager) }) {
                 let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(Int64.init) ?? 0
                 bytes += size
-                if kind != .pipelines, file.lastPathComponent.hasPrefix("functions"), file.pathExtension == "data",
+                if kind == .steam || kind == .silo, file.lastPathComponent.hasPrefix("functions"), file.pathExtension == "data",
                    size >= metalFileCap {
                     full = true
                 }
@@ -111,27 +125,38 @@ public enum ShaderCache {
         }
         let possible = Self.kinds(forID: id)
         func usageIfAny(_ kind: Kind) -> Usage { possible.contains(kind) ? usage(kind) : .none }
-        return Status(steam: usageIfAny(.steam), silo: usageIfAny(.silo), pipelines: usageIfAny(.pipelines))
+        return Status(steam: usageIfAny(.steam), silo: usageIfAny(.silo), pipelines: usageIfAny(.pipelines),
+                      translation: usageIfAny(.translation))
     }
 
     /// Removes the given caches. Refuses — removing none — while the game runs from any of them (Metal keeps an
-    /// exclusive `flock` on a cache file it uses). Silo's pipeline archives hold no lock, but they are only written
-    /// in launches from Steam for macOS: Metal's cache of those launches says whether the game is running.
-    public static func clear(_ kinds: Set<Kind> = Set(Kind.allCases), forID id: String,
+    /// exclusive `flock` on a cache file it uses). Silo's pipeline archives and D3DMetal's cache hold no lock Silo
+    /// can see: Metal's caches of the game say whether it is running.
+    public static func clear(_ kinds: Set<Kind> = Set(Kind.allCases), forID id: String, executables: [String] = [],
                              cacheRoot: URL = LegacyIdentifiers.userCacheDirectory,
                              fileManager: FileManager = .default) -> ClearOutcome {
         let chosen = Self.kinds(forID: id).filter(kinds.contains)
-        let all = chosen.flatMap { files(in: folder($0, forID: id, cacheRoot: cacheRoot), fileManager: fileManager) }
+        func filesOf(_ kind: Kind) -> [URL] {
+            folders(kind, forID: id, executables: executables, cacheRoot: cacheRoot).flatMap { files(in: $0, fileManager: fileManager) }
+        }
+        let all = chosen.flatMap(filesOf)
         guard !all.isEmpty else { return .nothingToClear }
-        let watched = chosen.contains(.pipelines) && !chosen.contains(.steam)
-            ? all + files(in: folder(.steam, forID: id, cacheRoot: cacheRoot), fileManager: fileManager) : all
+        // The caches with no lock of their own are watched through Metal's: Silo's archives are written only from
+        // macOS Steam (its game app's cache), D3DMetal's from either place.
+        var lockless: [Kind] = []
+        if chosen.contains(.pipelines) { lockless.append(.steam) }
+        if chosen.contains(.translation) { lockless += [.steam, .silo] }
+        let watched = all + Set(lockless).filter { !chosen.contains($0) && Self.kinds(forID: id).contains($0) }
+            .flatMap(filesOf)
         if watched.contains(where: LegacyIdentifiers.isHeld) { return .inUse }
-        let before = status(forID: id, cacheRoot: cacheRoot, fileManager: fileManager)
+        let before = status(forID: id, executables: executables, cacheRoot: cacheRoot, fileManager: fileManager)
         let freed = chosen.reduce(Int64(0)) { $0 + before[$1].bytes }
         do {
             for kind in chosen {
-                let dir = folder(kind, forID: id, cacheRoot: cacheRoot)
-                if fileManager.fileExists(atPath: dir.path) { try fileManager.removeItem(at: dir) }
+                for dir in folders(kind, forID: id, executables: executables, cacheRoot: cacheRoot)
+                where fileManager.fileExists(atPath: dir.path) {
+                    try fileManager.removeItem(at: dir)
+                }
             }
             return .cleared(freed: freed)
         } catch {

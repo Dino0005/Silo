@@ -137,6 +137,8 @@ struct ShaderCacheSection: View {
     let gameID: String
     /// The game's `EnvFlags.pipelineCache` — Steam games only (the cache runs in macOS Steam launches).
     var pipelineCache: Binding<Bool>?
+    /// The game's executable file names, for D3DMetal's cache (`ShaderCache.Kind.translation`).
+    var executables: [String] = []
     @ViewState private var status = ShaderCache.Status.empty
     /// The caches the user asked to clear, waiting for the confirmation.
     @ViewState private var pending: Set<ShaderCache.Kind> = []
@@ -149,6 +151,7 @@ struct ShaderCacheSection: View {
         case .steam: "Launched from Steam for macOS"
         case .silo: "Launched from Silo"
         case .pipelines: "Silo's pipeline cache"
+        case .translation: "D3DMetal (translated shaders)"
         }
     }
 
@@ -191,22 +194,24 @@ struct ShaderCacheSection: View {
         } header: {
             Text("Shader cache")
         } footer: {
-            Text("The game's shaders as Metal compiled them, so it doesn't compile them again. Clearing frees the space; the next launch compiles them again, so it loads slower and stutters for a while. Two caches made from the same one can share part of their space on disk, so the space freed can be less than their sum.")
+            Text("The game's shaders as Metal compiled them, so it doesn't compile them again. Clearing frees the space; the next launch compiles them again, so it loads slower and stutters for a while. Two caches made from the same one can share part of their space on disk, so the space freed can be less than their sum. D3DMetal keeps its translation of the game's shaders by executable name, so a game with the same executable name shares it; none of these caches is removed when a game is uninstalled.")
                 .font(.caption).foregroundStyle(.secondary)
         }
-        .task(id: gameID) { status = ShaderCache.status(forID: gameID) }
+        .task(id: gameID + "|" + executables.joined(separator: "|")) {
+            status = ShaderCache.status(forID: gameID, executables: executables)
+        }
         .confirmationDialog("Clear the shader cache?",
                             isPresented: Binding(get: { !pending.isEmpty }, set: { if !$0 { pending = [] } }),
                             titleVisibility: .visible) {
             Button("Clear", role: .destructive) {
-                switch ShaderCache.clear(pending, forID: gameID) {
+                switch ShaderCache.clear(pending, forID: gameID, executables: executables) {
                 case .cleared(let freed): message = String(localized: "Freed \(size(freed)).")
                 case .nothingToClear: message = nil
                 case .inUse: message = String(localized: "The game is running: quit it first.")
                 case .failed(let reason): message = reason
                 }
                 pending = []
-                status = ShaderCache.status(forID: gameID)
+                status = ShaderCache.status(forID: gameID, executables: executables)
             }
         } message: {
             Text("The next launch compiles the game's shaders again: it loads slower and stutters for a while.")

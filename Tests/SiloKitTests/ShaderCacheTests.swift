@@ -81,7 +81,7 @@ struct ShaderCacheTests {
         let id = "538C9332-8799-4259-8C93-7F8E43B4CBA7"
         try file(tmp.url, GameHostBundle.bundleIDPrefix, id, "functions.data", size: 42)
         let leftover = try file(tmp.url, GameHostBundle.gameAppIDPrefix, id, "functions.data", size: 42)
-        #expect(ShaderCache.kinds(forID: id) == [.silo])
+        #expect(ShaderCache.kinds(forID: id) == [.silo, .translation])
         #expect(ShaderCache.kinds(forID: "1659420") == ShaderCache.Kind.allCases)
         let s = ShaderCache.status(forID: id, cacheRoot: tmp.url)
         #expect(s.present == [.silo] && s.bytes == 42)
@@ -113,5 +113,30 @@ struct ShaderCacheTests {
         #expect(ShaderCache.clear(forID: "1778820", cacheRoot: tmp.url) == .inUse)   // all: refused, nothing removed
         #expect(ShaderCache.status(forID: "1778820", cacheRoot: tmp.url).silo.bytes == 7)
         #expect(ShaderCache.clear([.silo], forID: "1778820", cacheRoot: tmp.url) == .cleared(freed: 7))
+    }
+
+    @Test("D3DMetal's cache is the folder of each of the game's executables, whichever place it started from")
+    func translation() throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        for (exe, size) in [("u4-l.exe", 600), ("tll-l.exe", 270), ("Other.exe", 5)] {
+            let file = tmp.url.appendingPathComponent("d3dm/\(exe)/shaders.cache")
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(count: size).write(to: file)
+        }
+        let exes = ["u4-l.exe", "tll-l.exe", "U4-L.exe", "u4.exe"]   // a repeated name counts once; a missing one is 0
+        let s = ShaderCache.status(forID: "1659420", executables: exes, cacheRoot: tmp.url)
+        #expect(s.translation.bytes == 870 && !s.translation.isFull)
+        #expect(s.present == [.translation])
+        #expect(ShaderCache.status(forID: "1659420", cacheRoot: tmp.url).translation == .none)   // no executables known
+
+        // The game running (Metal holds its cache) blocks it; another game's executable is never touched.
+        let metal = try file(tmp.url, GameHostBundle.gameAppIDPrefix, "1659420", "functions.data", size: 3)
+        let fd = open(metal.path, O_RDONLY)
+        #expect(flock(fd, LOCK_EX) == 0)
+        #expect(ShaderCache.clear([.translation], forID: "1659420", executables: exes, cacheRoot: tmp.url) == .inUse)
+        close(fd)
+        #expect(ShaderCache.clear([.translation], forID: "1659420", executables: exes, cacheRoot: tmp.url) == .cleared(freed: 870))
+        #expect(FileManager.default.fileExists(atPath: tmp.url.appendingPathComponent("d3dm/Other.exe/shaders.cache").path))
+        #expect(FileManager.default.fileExists(atPath: metal.path))   // Metal's own cache stays
     }
 }

@@ -17,6 +17,8 @@ the commit message says why.
   some of its shaders again at every launch (UNCHARTED's was). Each row has its own *Clear…*, and *Clear All…* empties
   both; the next launch from there compiles the shaders again, so it loads slower and stutters for a while. Refused
   while the game runs.
+  It also shows D3DMetal's own cache of the shaders it translated from DirectX (UNCHARTED's took about 10 GB), kept
+  by executable name and, like the others, left behind when a game is uninstalled.
 - **Silo's pipeline cache (being tested, off by default).** A per-game switch in *Shader cache* keeps the pipelines
   Metal had to compile — the ones its own cache didn't have, or no longer has room for once full — in a cache of
   Silo's own, in small groups, and uses them at the next launch. It complements Metal's cache instead of copying it:

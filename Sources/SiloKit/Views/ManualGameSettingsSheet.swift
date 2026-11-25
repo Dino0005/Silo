@@ -177,7 +177,7 @@ struct ManualGameSettingsSheet: View {
                     DepthFixSection(flags: $game.envFlags)
                 }
                 LaunchOptionsSection(text: $game.launchOptionsString)
-                ShaderCacheSection(gameID: game.id.uuidString)
+                ShaderCacheSection(gameID: game.id.uuidString, executables: [game.executablePath.lastPathComponent])
             }
             .formStyle(.grouped)
             .navigationTitle(game.name)

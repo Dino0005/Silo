@@ -176,7 +176,8 @@ struct GameSettingsSheet: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            ShaderCacheSection(gameID: String(game.appID), pipelineCache: $vm.config.envFlags.pipelineCache)
+            ShaderCacheSection(gameID: String(game.appID), pipelineCache: $vm.config.envFlags.pipelineCache,
+                               executables: executables.map { ($0 as NSString).lastPathComponent })
         }
         .formStyle(.grouped)
         .sheet(isPresented: Binding(
