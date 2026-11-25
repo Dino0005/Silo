@@ -227,6 +227,12 @@ NSArray<NSString *> *archiver_folders()
     NSString *bundle = [[NSBundle mainBundle] bundleIdentifier];
     if (bundle.length && confstr(_CS_DARWIN_USER_CACHE_DIR, user_cache, sizeof(user_cache)))
         [folders addObject:[NSString pathWithComponents:@[@(user_cache), bundle, @"com.apple.gpuarchiver"]]];
+    /* Changed for Silo (2026-11-25): and the user cache's own com.apple.gpuarchiver. A game
+     * started from macOS Steam under Silo left its folders there — 3,066 of them, 1.8 GB,
+     * after a day of TEKKEN 8 with the cache — and neither folder above is that one. It is
+     * shared by every process, so the minute-older rule of the bundle's folder applies. */
+    if (confstr(_CS_DARWIN_USER_CACHE_DIR, user_cache, sizeof(user_cache)))
+        [folders addObject:[NSString pathWithComponents:@[@(user_cache), @"com.apple.gpuarchiver"]]];
     return folders;
 }
 
