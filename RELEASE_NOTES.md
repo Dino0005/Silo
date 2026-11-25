@@ -1,64 +1,56 @@
-# Silo 0.7.8
+# Silo 0.7.9
 
-Marvel's Spider-Man 2 without the T-pose, UNCHARTED that quits cleanly, and game sound that follows your Mac's
-output.
+See how much space each game's shaders take, clear them, and find the caches games left behind when you uninstalled
+them. Also: icon tiles like Apple's Games app, and a new license.
 
-## Reinstall once: Wine and DXMT
+No runtime changed in this release: the Wine, DXMT and GPTK you have keep working as they are.
 
-Two runtimes were rebuilt and published under the same names. To get them:
-- **Wine** (`wine-cx-26.3.0`, for the sound fixes below): remove Wine in *Settings → Wine* and install it again.
-- **DXMT** (`dxmt-v0.72-cx26.3.0`, for the frame latency fix below): remove DXMT in *Settings → DXMT* and install it
-  again.
+## Manage Caches
 
-Everything else in this release works with the copies you have.
+Games keep the shaders they compiled on your Mac, and they can take a lot of space: UNCHARTED's took about 10 GB
+here. Neither Steam nor Silo removes them when a game is uninstalled.
 
-## Marvel's Spider-Man 2: no more T-pose
+- **Settings → General → Manage Caches…** lists every game's caches with the space they take, the biggest first,
+  and a *Clear…* for each. A filter shows *All*, *Installed* or *Not installed* games: games you uninstalled are found
+  by the caches they left behind.
+- **In a game's settings**, *Shader cache* (at the end) shows the same for that game, one row per cache:
+  - Metal's, one for launches from Silo and one for launches from Steam for macOS, with a warning when one is full;
+  - D3DMetal's translation of the game's shaders, the biggest one;
+  - Silo's pipeline cache, if you turn it on (below).
 
-On M1–M4 Macs, characters stuck in a T-pose, missing heads and a broken symbiote all came from one D3DMetal limit.
-Silo now applies [macprotips' SpiderMan2Fix](https://github.com/macprotips/SpiderMan2Fix) by itself, from Silo's
-library and from Steam for macOS alike:
-- before each launch, Silo puts the fix in the game's folder and rebuilds its four shaders from your own copy of the
-  game, so no game data ships with Silo;
-- the first time, it downloads Microsoft's shader tools (6 MB) from Silo's releases;
-- after a game update, it rebuilds the shaders by itself.
+Clearing frees the space, and the next launch compiles the shaders again, so it loads slower and stutters for a
+while. Silo refuses to clear a cache while its game runs. D3DMetal's cache is shared with CrossOver and any other app
+that uses GPTK, so clearing it makes them translate the game's shaders again too.
 
-It is on by default, as *Spider-Man 2 fix* in the game's settings and on its *Compatibility* page in Steam. Turned
-off, the game's folder goes back to how the game shipped it. Keep the game's *Metal backend* on **Metal 3**: under
-Metal 4 it flashes white.
+## Silo's pipeline cache (being tested, off by default)
 
-## UNCHARTED: no more crash when you quit
+Metal keeps at most about 1.1 GB of shaders per game, and it never throws any away. Once a game's cache is full,
+every shader that doesn't fit is compiled again at every launch.
 
-UNCHARTED: Legacy of Thieves Collection crashed every time you quit from its menu, and then asked to start in safe
-mode. The game releases some of its textures one time too many. Silo now puts a small `d3d12.dll` of its own in the
-game's folder, which keeps each texture alive a moment longer, so the extra release does no harm.
+A new switch in a game's *Shader cache* keeps the pipelines Metal had to compile in a cache of Silo's own, and uses
+them at the next launch. It only keeps what Metal's cache didn't have, so it costs little while Metal's cache has
+room:
+- on TEKKEN 8, it kept 560 pipelines (42 MB), and fights ran as smoothly as without it;
+- with Metal's cache unable to help, the intro played without stutter, and the game's compute pipelines were ready
+  in 3 ms instead of 83.
 
-It is on by default, as *Uncharted fix* in the game's settings and on its *Compatibility* page in Steam. GPTK only.
-
-## Sound follows your Mac's output (needs the Wine reinstall)
-
-A game's sound used to stay on the device that was active when the game started. Taking your AirPods out left it on
-the speakers, and putting them back in the case left the game silent until you restarted it. Now the sound moves
-with your Mac's output, as in any Mac app. A game set to a specific device in its own options stays on that device.
-
-The same Wine also fixes the crackle in UNCHARTED's default *Automatic (Traditional)* sound mode.
-
-Both fixes come from Cam Steinberg's [mavrik-engine](https://github.com/camsteinberg/mavrik-engine).
+It works in games started from Steam for macOS with GPTK. Try it on a game whose Metal cache shows *Full*. It is
+[MacGameFix](https://github.com/MathiasKowoll/MacGameFix)'s pipeline cache, by Mathias Kowoll, adapted for Silo.
 
 ## Changed
 
-- **The depth fix is now God of War's only.** On other games it could draw things through walls, so it no longer
-  shows up for every game. It appears in God of War's settings, for the Steam and the GOG version alike, and it is on
-  by default there. A game that had it switched on now runs without it.
+- **Silo is now licensed under the GPL-3.0-or-later**, instead of the LGPL-2.1-or-later. The code that comes from
+  upstream is carried under the GPL, as the LGPL allows; [NOTICE](NOTICE) has the details. Wine keeps its own license.
+- **The library's icon tiles look like Apple's Games app.** Every icon has the same size, and the *Play* button is
+  always in the same place, whatever the length of the title. The ⋯ menu moved next to *Play*, so long titles are
+  no longer cut short.
 
 ## Fixed
 
-- **DXMT games that reset their frame latency run much faster** (needs the DXMT reinstall). Some Direct3D 11 games
-  ask for the default frame latency in a way DXMT misread, so each frame waited for the previous one to finish on the
-  GPU. In mavrik-engine's measurement, Civilization VI went from 38 to 97 fps. Games that don't make that request
-  run as before. This fix also comes from mavrik-engine.
-- **After a Silo update, Steam for macOS uses the new version right away.** Before, the part of Silo that runs
-  alongside Steam kept the old version until you logged out, so a new setting could be missing from a game's
-  *Compatibility* page.
+- **A game you only start from Steam for macOS shows its own icon in the library.** Marvel's Spider-Man 2 showed
+  Steam's artwork cropped to a square.
+- **God of War and Batman: Arkham Knight (non-Steam) no longer show a cache for Steam for macOS**, which they never
+  use.
 
 ## Known issues
 

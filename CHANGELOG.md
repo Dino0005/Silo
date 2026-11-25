@@ -8,7 +8,7 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
-## Unreleased
+## 0.7.9
 
 ### Added
 - **Each game's shader cache, and a way to clear it.** At the end of a game's settings, *Shader cache* shows the space
