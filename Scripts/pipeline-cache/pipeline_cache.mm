@@ -28,7 +28,7 @@
  * Silo's Steam overlay fix for the real caller, the classic calls' pipelines are kept
  * in groups instead of one archive each, and a pipeline's key also covers its functions'
  * constant values and its state, only the pipelines Metal had to compile are kept, and
- * only compute pipelines by default (see "Changed for Silo" below).
+ * render pipelines are kept one to an archive (see "Changed for Silo" below).
  */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -121,13 +121,13 @@ dispatch_group_t capture_group;
  * memory that grows with the square of what it holds, and is not all given back when it
  * is let go: 50 pipelines 2.8 MB to open, 100 12.5 MB, 200 50 MB, 400 238 MB.
  *
- * So the pipelines a session compiles are kept in groups of kGroupPipelines, in the order
+ * So the pipelines a session compiles are kept in groups (48 compute pipelines; render ones
+ * one to an archive, see Group), in the order
  * they were made (a game makes the pipelines of one material, one area, together, and
  * makes them in the same order the next time), as grouped/g-<pid>-<n>.bin with the keys it
  * holds in g-<pid>-<n>.keys. A lookup opens the groups filed under its key, and the last
  * kOpenGroups groups opened stay open, so a run of pipelines from one group opens it once.
  * Adding to a group happens on one serial queue, off the calling threads. */
-constexpr size_t kGroupPipelines = 48;
 constexpr size_t kOpenGroups = 16;
 /* A key some pipelines still share (UNCHARTED: one in 29 groups, after the finer key):
  * a lookup opens at most kNewGroupsPerLookup groups that aren't open yet, and a key filed
@@ -135,9 +135,22 @@ constexpr size_t kOpenGroups = 16;
 constexpr size_t kNewGroupsPerLookup = 2;
 constexpr size_t kKeptPerKey = 2;
 dispatch_queue_t group_queue;
-id<MTLBinaryArchive> group_archive;   /* retained; on group_queue only */
-std::vector<std::string> &group_keys = *new std::vector<std::string>;   /* on group_queue only */
-double group_flight;                  /* on group_queue only */
+/* Render and compute pipelines fill groups of their own. Render pipelines go one to an
+ * archive, as upstream keeps every pipeline: with 48 render pipelines to an archive TEKKEN
+ * 8 drew glowing blobs in its forest stage, with one to an archive (everything else the
+ * same) it drew right, and compute pipelines in groups of 48 drew right too (2026-11-25).
+ * Why several render pipelines in one archive go wrong with D3DMetal's shaders is not
+ * known; probes with plain shaders, blending, vertex layouts, function constants and
+ * same-named functions of two libraries all drew right from a shared archive. */
+struct Group
+{
+    id<MTLBinaryArchive> archive;     /* retained; on group_queue only */
+    std::vector<std::string> keys;    /* on group_queue only */
+    double flight;
+    size_t size;
+};
+Group &render_group = *new Group{nil, {}, 0, 1};
+Group &compute_group = *new Group{nil, {}, 0, 48};
 std::mutex &open_mutex = *new std::mutex;
 std::list<std::pair<std::string, id>> &open_groups = *new std::list<std::pair<std::string, id>>;   /* most recent first */
 std::unordered_set<std::string> &opening = *new std::unordered_set<std::string>;   /* under open_mutex */
@@ -274,12 +287,9 @@ std::atomic<uint64_t> classic_hits, classic_misses, classic_failed, classic_unke
 std::atomic<uint64_t> classic_fast;
 double keep_ms = 10;
 /* Which classic pipelines the cache takes part in (SILO_PIPELINE_CACHE_KINDS: "render",
- * "compute", or both) — changed for Silo. Compute only by default: with its render
- * pipelines made from the archives TEKKEN 8 drew glowing green and red blobs in its
- * forest stage, with only its compute ones (14,824 of them) it drew right (2026-11-24,
- * each way twice). Why a render pipeline from an archive comes out wrong is not known
- * yet; Metal is meant to use an archived one only when it matches. */
-bool cache_render = false, cache_compute = true;
+ * "compute", or both, the default) — changed for Silo. Render pipelines from shared
+ * archives drew wrong in TEKKEN 8; see Group for how they are kept now. */
+bool cache_render = true, cache_compute = true;
 char tag_key;                         /* the associated object holding a tag */
 IMP original_library_data, original_library_file, original_function_name, original_function_constants,
     original_function_descriptor;
@@ -677,9 +687,9 @@ std::string key_of(MTLComputePipelineDescriptor *descriptor)
 }
 
 /* Writes the group being filled, on group_queue: the archive, then the keys it holds. */
-void write_group(const char *why)
+void write_group(Group &group, const char *why)
 {
-    if (!group_archive) return;
+    if (!group.archive) return;
     @autoreleasepool
     {
         NSString *base = [classic_directory stringByAppendingPathComponent:
@@ -687,16 +697,16 @@ void write_group(const char *why)
         NSString *path = [base stringByAppendingPathExtension:@"bin"];
         NSString *keys = [base stringByAppendingPathExtension:@"keys"];
         NSError *error = nil;
-        bool written = !group_keys.empty() && [group_archive serializeToURL:part_of(path) error:&error] && put_in_place(path);
+        bool written = !group.keys.empty() && [group.archive serializeToURL:part_of(path) error:&error] && put_in_place(path);
         if (written)
         {
             std::string list;
-            for (const std::string &key : group_keys) list += key + "\n";
+            for (const std::string &key : group.keys) list += key + "\n";
             NSData *data = [NSData dataWithBytes:list.data() length:list.size()];
             written = [data writeToURL:part_of(keys) atomically:NO] && put_in_place(keys);
             if (!written) [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
         }
-        if (!written && !group_keys.empty() && classic_failed.fetch_add(1) < 5)
+        if (!written && !group.keys.empty() && classic_failed.fetch_add(1) < 5)
             std::fprintf(stderr, "%s: pipeline cache: writing a group failed (%s): %s\n", log_prefix, why,
                          error.localizedDescription.UTF8String ?: "unknown");
         if (written)
@@ -704,17 +714,17 @@ void write_group(const char *why)
             kept_bytes.fetch_add([[[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil] fileSize],
                                  std::memory_order_relaxed);
             std::lock_guard<std::mutex> lock(classic_mutex);
-            for (const std::string &key : group_keys) classic_index[key].push_back(path.UTF8String);
+            for (const std::string &key : group.keys) classic_index[key].push_back(path.UTF8String);
         }
     }
     {
         std::lock_guard<std::mutex> lock(classic_mutex);
-        for (const std::string &key : group_keys) pending_keys.erase(key);
+        for (const std::string &key : group.keys) pending_keys.erase(key);
     }
-    [group_archive release];
-    group_archive = nil;
-    group_keys.clear();
-    end_flight(group_flight);
+    [group.archive release];
+    group.archive = nil;
+    group.keys.clear();
+    end_flight(group.flight);
 }
 
 /* Adds what a classic call compiled to the group being filled, off the calling thread. */
@@ -736,23 +746,25 @@ template <typename Descriptor> void classic_capture_later(Descriptor *descriptor
         if (!pending_keys.insert(key).second) return;   /* already on its way: changed for Silo */
     }
     descriptor = [descriptor copy];
+    Group *target = render ? &render_group : &compute_group;
     dispatch_group_async(capture_group, group_queue, ^{
+        Group &group = *target;
         @autoreleasepool
         {
-            if (!group_archive)
+            if (!group.archive)
             {
-                group_flight = begin_flight();
+                group.flight = begin_flight();
                 MTLBinaryArchiveDescriptor *empty = [[MTLBinaryArchiveDescriptor alloc] init];
-                group_archive = [cache_device newBinaryArchiveWithDescriptor:empty error:nil];
+                group.archive = [cache_device newBinaryArchiveWithDescriptor:empty error:nil];
                 [empty release];
             }
             NSError *error = nil;
-            BOOL added = group_archive && (render
-                ? [group_archive addRenderPipelineFunctionsWithDescriptor:(MTLRenderPipelineDescriptor *)descriptor
+            BOOL added = group.archive && (render
+                ? [group.archive addRenderPipelineFunctionsWithDescriptor:(MTLRenderPipelineDescriptor *)descriptor
                                                                     error:&error]
-                : [group_archive addComputePipelineFunctionsWithDescriptor:(MTLComputePipelineDescriptor *)descriptor
+                : [group.archive addComputePipelineFunctionsWithDescriptor:(MTLComputePipelineDescriptor *)descriptor
                                                                      error:&error]);
-            if (added) group_keys.push_back(key);
+            if (added) group.keys.push_back(key);
             else
             {
                 std::lock_guard<std::mutex> lock(classic_mutex);
@@ -761,8 +773,8 @@ template <typename Descriptor> void classic_capture_later(Descriptor *descriptor
             if (!added && classic_failed.fetch_add(1) < 5)
                 std::fprintf(stderr, "%s: pipeline cache: keeping a pipeline failed: %s\n", log_prefix,
                              error.localizedDescription.UTF8String ?: "unknown");
-            if (!group_archive) end_flight(group_flight);   /* no archive to fill: the next pipeline tries again */
-            else if (group_keys.size() >= kGroupPipelines) write_group("group full");
+            if (!group.archive) end_flight(group.flight);   /* no archive to fill: the next pipeline tries again */
+            else if (group.keys.size() >= group.size) write_group(group, "group full");
         }
         [descriptor release];
     });
@@ -1190,6 +1202,10 @@ extern "C" void pbz_pipeline_cache_start(const char *game)
                 const char *cap = std::getenv(cap_variable);
                 if (cap && std::atoll(cap) > 0) cap_bytes = static_cast<uint64_t>(std::atoll(cap)) << 20;
                 if (const char *keep = std::getenv("SILO_PIPELINE_CACHE_KEEP_MS")) keep_ms = std::atof(keep);
+                if (const char *group = std::getenv("SILO_PIPELINE_CACHE_RENDER_GROUP"))
+                    if (std::atoi(group) > 0) render_group.size = static_cast<size_t>(std::atoi(group));
+                std::fprintf(stderr, "%s: pipeline cache: %zu render, %zu compute pipelines a group\n", log_prefix,
+                             render_group.size, compute_group.size);
                 if (const char *kinds = std::getenv("SILO_PIPELINE_CACHE_KINDS"))
                 {
                     cache_render = std::strstr(kinds, "render") != nullptr;
@@ -1235,7 +1251,10 @@ extern "C" void pbz_pipeline_cache_finish_within(const char *why, double seconds
         if (cache_on) flush_serializers(why);
     if (cache_on && capture_group)
     {
-        dispatch_group_async(capture_group, group_queue, ^{ write_group(why); });
+        dispatch_group_async(capture_group, group_queue, ^{
+            write_group(render_group, why);
+            write_group(compute_group, why);
+        });
         if (dispatch_group_wait(capture_group, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC))))
             std::fprintf(stderr, "%s: pipeline cache: pipelines still being kept after %.1f s, left to the next start\n",
                          log_prefix, seconds);

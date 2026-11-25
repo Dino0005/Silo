@@ -20,8 +20,8 @@ the commit message says why.
 - **Silo's pipeline cache (being tested, off by default).** A per-game switch in *Shader cache* keeps the pipelines
   Metal had to compile — the ones its own cache didn't have, or no longer has room for once full — in a cache of
   Silo's own, in small groups, and uses them at the next launch. It complements Metal's cache instead of copying it:
-  on TEKKEN 8 it kept 560 pipelines (42 MB) and fights ran as smoothly as without it. Compute pipelines only for now
-  (render pipelines taken from the archives drew wrong colours in TEKKEN 8). Launches from Steam for macOS under GPTK only. It is MacGameFix's pipeline cache (Mathias
+  on TEKKEN 8 it kept 560 pipelines (42 MB) and fights ran as smoothly as without it. Render pipelines are kept one to
+  an archive and compute ones in groups (several render pipelines in one archive drew wrong colours in TEKKEN 8). Launches from Steam for macOS under GPTK only. It is MacGameFix's pipeline cache (Mathias
   Kowoll, GPL-3.0); its archives are listed in *Shader cache* with their own *Clear…*.
 
 ### Changed
