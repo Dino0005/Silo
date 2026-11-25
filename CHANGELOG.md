@@ -19,6 +19,10 @@ the commit message says why.
   while the game runs.
   It also shows D3DMetal's own cache of the shaders it translated from DirectX (UNCHARTED's took about 10 GB), kept
   by executable name and, like the others, left behind when a game is uninstalled.
+- **Manage Caches…** (Settings → General → Storage): every game's caches in one list — Metal's, Silo's pipeline cache
+  and D3DMetal's — with the space each takes and a Clear, filtered by All / Installed / Not installed. Games no longer
+  installed are found by the caches they left and named from the app Silo made for them, or from Steam's app cache;
+  D3DMetal folders of no game are listed by executable name, and the Windows Steam client is one entry.
 - **Silo's pipeline cache (being tested, off by default).** A per-game switch in *Shader cache* keeps the pipelines
   Metal had to compile — the ones its own cache didn't have, or no longer has room for once full — in a cache of
   Silo's own, in small groups, and uses them at the next launch. It complements Metal's cache instead of copying it:

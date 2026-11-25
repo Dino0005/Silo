@@ -10,6 +10,7 @@ struct GeneralSettingsView: View {
     @ViewState private var isChecking = false
     /// The release notes shown in a sheet (What's New…), nil when none is open.
     @ViewState private var shownNotes: Updater.ReleaseNotes?
+    @ViewState private var showingCaches = false
 
     var body: some View {
         Form {
@@ -17,9 +18,11 @@ struct GeneralSettingsView: View {
             bottleToolsSection
             bottlesSection
             shortcutsSection
+            cachesSection
             updatesSection
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showingCaches) { CacheManagerView() }
     }
 
     /// Cross-bottle / launcher preferences that aren't per-bottle. Retina/HiDPI is the common fix for
@@ -63,6 +66,20 @@ struct GeneralSettingsView: View {
             }
         } header: {
             Text("Shortcuts")
+        }
+    }
+
+    /// Every game's caches in one list, uninstalled games' too (`CacheManagerView`).
+    @ViewBuilder private var cachesSection: some View {
+        Section {
+            LabeledContent {
+                Button("Manage Caches…") { showingCaches = true }
+            } label: {
+                Text("Game caches")
+                SettingsDescription("The shaders each game compiled, and the caches left by games you uninstalled: see how much space they take and clear them.")
+            }
+        } header: {
+            Text("Storage")
         }
     }
 
