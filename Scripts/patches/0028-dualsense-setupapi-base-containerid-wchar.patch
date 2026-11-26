@@ -1,0 +1,31 @@
+Silo patch 0028 — setupapi base containerid wchar (DualSense, from MacGameFix)
+
+Origin: MacGameFix (https://github.com/MathiasKowoll/MacGameFix) engine/patches/wine-11.0/0010-setupapi-base-containerid-wchar.patch (Mathias Kowoll,
+LGPL-2.1-or-later, the Wine modules' license; MacGameFix at da9c470, 2026-11-25). Code unchanged. MacGameFix's series
+0001-0016 is Silo's 0019-0034, in the same order; 0035 moves its settings and logs into Silo's own folders.
+
+What it does (setupapi.dll), as MacGameFix's engine/README.md says:
+  SetupDiGetDeviceRegistryPropertyA returns SPDRP_BASE_CONTAINERID as the W function does, a WCHAR string, as
+  Windows returns it.
+
+Checked here: the whole series applies after 0002-0018 with no fuzz; built with the runtime's flags and played on
+2026-11-26 with a DualSense over Bluetooth, Steam Input off, from Steam for macOS: UNCHARTED (input, trigger effects,
+rumble on the actuators) and The Last of Us Part II.
+
+--- a/dlls/setupapi/devinst.c
++++ b/dlls/setupapi/devinst.c
+@@ -3467,6 +3467,14 @@
+         SetLastError(ERROR_INVALID_DATA);
+         return FALSE;
+     }
++
++    /* Windows returns the base container id as a WCHAR string from the ANSI function as well
++     * (the ntoskrnl tests read it with the W one for that reason). A game that reads a pad's
++     * container with one and an audio endpoint's with the other compares two WCHAR strings;
++     * Nioh 3 does, and never finds the pad's output when this one is ANSI. */
++    if (Property == SPDRP_BASE_CONTAINERID)
++        return SetupDiGetDeviceRegistryPropertyW(devinfo, device_data, Property, PropertyRegDataType,
++                PropertyBuffer, PropertyBufferSize, RequiredSize);
+ 
+     if (Property < ARRAY_SIZE(PropertyMap) && PropertyMap[Property].nameA)
+     {

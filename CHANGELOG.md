@@ -8,6 +8,15 @@ Upstream commits are integrated selectively — each one judged on its own, seve
 (DXVK is irrelevant to a library with no DirectX 9 titles). Where a port diverges from upstream's version,
 the commit message says why.
 
+## Unreleased
+
+### Added
+- **DualSense support in Silo's Wine** (needs the Wine reinstall): MacGameFix's DualSense modules (Mathias Kowoll,
+  LGPL) are now part of Silo's Wine runtime — a DualSense over Bluetooth shown to games as if on a cable, its rumble
+  played on the HD actuators, trigger effects, the pad as an XInput controller, and HD haptics on a cable. With Steam
+  Input off for a game, UNCHARTED now reads the DualSense over Bluetooth (before, it saw it but got no input), with
+  its trigger effects. Nothing changes for a game until its options say so.
+
 ## 0.7.9
 
 ### Added

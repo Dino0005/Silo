@@ -1,0 +1,46 @@
+Silo patch 0019 — winebus (DualSense, from MacGameFix)
+
+Origin: MacGameFix (https://github.com/MathiasKowoll/MacGameFix) engine/patches/wine-11.0/0001-winebus.patch (Mathias Kowoll,
+LGPL-2.1-or-later, the Wine modules' license; MacGameFix at da9c470, 2026-11-25). Code unchanged. MacGameFix's series
+0001-0016 is Silo's 0019-0034, in the same order; 0035 moves its settings and logs into Silo's own folders.
+
+What it does (winebus.sys), as MacGameFix's engine/README.md says:
+  A USB device with a location ID (desc.uid, set by the IOHID and Xbox 360 buses) gets a container built from it
+  instead of a random one.
+
+Checked here: the whole series applies after 0002-0018 with no fuzz; built with the runtime's flags and played on
+2026-11-26 with a DualSense over Bluetooth, Steam Input off, from Steam for macOS: UNCHARTED (input, trigger effects,
+rumble on the actuators) and The Last of Us Part II.
+
+--- a/dlls/winebus.sys/main.c
++++ b/dlls/winebus.sys/main.c
+@@ -370,6 +370,20 @@
+ 
+     swprintf(device->desc.serialnumber, ARRAY_SIZE(device->desc.serialnumber), L"%04x%08x%04x%04x",
+              device->index, device->desc.input, device->desc.pid, device->desc.vid);
++}
++
++/* On macOS a USB device's uid is its location ID, which names the port it is plugged
++ * into and is shared by all of its functions. winecoreaudio derives the same container
++ * from it for the device's audio endpoints, so that games can pair a controller with
++ * its audio output through DEVPKEY_Device_ContainerId, as they do on Windows. */
++static BOOL get_usb_container_id(const struct device_desc *desc, GUID *guid)
++{
++    static const GUID usb_location_base = {0, 0x27f2, 0x4948, {0x96, 0x54, 0x15, 0x28, 0x04, 0xaf, 0x63, 0x78}};
++
++    if (desc->bus_type != BUS_TYPE_USB || !desc->uid) return FALSE;
++    *guid = usb_location_base;
++    guid->Data1 = desc->uid;
++    return TRUE;
+ }
+ 
+ static void make_unique_container_id(struct device_extension *device)
+@@ -377,6 +391,8 @@
+     struct device_extension *ext;
+     LARGE_INTEGER ticks;
+ 
++    if (get_usb_container_id(&device->desc, &device->container_id)) return;
++
+     LIST_FOR_EACH_ENTRY(ext, &device_list, struct device_extension, entry)
+         if (IsEqualGUID(&device->container_id, &ext->container_id)) break;
+     if (&ext->entry == &device_list && !IsEqualGUID(&device->container_id, &GUID_NULL)) return;

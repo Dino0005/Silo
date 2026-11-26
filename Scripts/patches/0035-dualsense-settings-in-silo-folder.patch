@@ -1,0 +1,164 @@
+Silo patch 0035 — DualSense: settings and logs in Silo's folders, not MacGameFix's
+
+Silo's own change on top of 0019-0034 (MacGameFix's DualSense series). Those read their settings from
+~/Library/Application Support/MacGameFix (pad.conf, pad.d/<Steam app id>.conf, pad-exes.conf), which MacGameFix's app
+writes, and keep their log, the haptics socket and the trigger markers in /tmp/macgamefix-<uid>. In Silo, Silo writes
+the settings, from each game's settings: here they are read from ~/Library/Application Support/Silo/DualSense and the
+rest goes to /tmp/silo-dualsense-<uid>, so a Silo runtime and a CrossOver with MacGameFix's modules never read each
+other's settings or share a socket. Only those two paths change, in code and in the comments that name them.
+
+diff -ru a/dlls/winebus.sys/bus_iohid.c b/dlls/winebus.sys/bus_iohid.c
+--- a/dlls/winebus.sys/bus_iohid.c
++++ b/dlls/winebus.sys/bus_iohid.c
+@@ -193,7 +193,7 @@
+  * 21.3 ms, and the game's output takes what is left of the link.
+  *
+  * The approach is NotProton PR #90's controller bridge, moved from interposed
+- * calls into this file. On only while ~/Library/Application Support/MacGameFix/
++ * calls into this file. On only while ~/Library/Application Support/Silo/DualSense/
+  * pad.conf has the line "bluetooth=wired". */
+ 
+ #define SONY_VID       0x054c
+@@ -307,7 +307,7 @@
+ 
+ static void pad_game(char *id, size_t size);
+ 
+-/* What this file has to say goes to /tmp/macgamefix-<uid>/pad.log, beside the
++/* What this file has to say goes to /tmp/silo-dualsense-<uid>/pad.log, beside the
+  * pads' sockets: a game's own stderr often reaches no log at all. Each line
+  * names the game, which MacGameFix reads back for what it learns of each one. */
+ static void pad_log(const char *format, ...) __attribute__((format(printf, 1, 2)));
+@@ -319,7 +319,7 @@
+     va_list args;
+     FILE *f;
+ 
+-    snprintf(path, sizeof(path), "/tmp/macgamefix-%u", (unsigned int)getuid());
++    snprintf(path, sizeof(path), "/tmp/silo-dualsense-%u", (unsigned int)getuid());
+     mkdir(path, 0700);
+     snprintf(path + strlen(path), sizeof(path) - strlen(path), "/pad.log");
+     if (!(f = fopen(path, "a"))) return;
+@@ -359,7 +359,7 @@
+ }
+ 
+ /* MacGameFix's settings for the pad, which its Game Feel tab writes, read
+- * once: ~/Library/Application Support/MacGameFix/pad.d/<app id>.conf for this
++ * once: ~/Library/Application Support/Silo/DualSense/pad.d/<app id>.conf for this
+  * game, then pad.conf for every game; the first line with a key wins. A line
+  * is key=value: "bluetooth=wired"; "motor_power=full", the motor power claimed
+  * at 0x00 for an Edge as Sony's library claims it for a standard pad (see
+@@ -379,8 +379,8 @@
+     game_path[0] = every_path[0] = 0;
+     pad_game(game, 24);
+     if (!home) return;
+-    if (game[0]) snprintf(game_path, 1024, "%s/Library/Application Support/MacGameFix/pad.d/%s.conf", home, game);
+-    snprintf(every_path, 1024, "%s/Library/Application Support/MacGameFix/pad.conf", home);
++    if (game[0]) snprintf(game_path, 1024, "%s/Library/Application Support/Silo/DualSense/pad.d/%s.conf", home, game);
++    snprintf(every_path, 1024, "%s/Library/Application Support/Silo/DualSense/pad.conf", home);
+ }
+ 
+ /* Reads both files into `lines`, the game's own first. */
+@@ -955,7 +955,7 @@
+     return pad;
+ }
+ 
+-/* The socket winecoreaudio.so finds the pad by: /tmp/macgamefix-<uid>/
++/* The socket winecoreaudio.so finds the pad by: /tmp/silo-dualsense-<uid>/
+  * pad-<location>-<product shown>-<product it is>.sock. */
+ static void bt_pad_listen(struct bt_pad *pad)
+ {
+@@ -963,7 +963,7 @@
+     struct timeval timeout = {0, 200000};
+     char dir[64];
+ 
+-    snprintf(dir, sizeof(dir), "/tmp/macgamefix-%u", (unsigned int)getuid());
++    snprintf(dir, sizeof(dir), "/tmp/silo-dualsense-%u", (unsigned int)getuid());
+     mkdir(dir, 0700);
+     snprintf(pad->path, sizeof(pad->path), "%s/pad-%08x-%04x-%04x.sock", dir, (unsigned int)pad->location,
+              pad->edge ? DS_EDGE_PID : DUALSENSE_PID, pad->physical_edge ? DS_EDGE_PID : DUALSENSE_PID);
+@@ -1295,7 +1295,7 @@
+  * library does when it starts) gets the chosen effect in its place, and a game
+  * that writes an effect of its own owns that trigger from then on. Stopping
+  * releases them; and since a Wine that is torn down stops nothing, a marker in
+- * /tmp/macgamefix-<uid> lets the next start release what was left set. */
++ * /tmp/silo-dualsense-<uid> lets the next start release what was left set. */
+ enum { TRIGGER_OFF, TRIGGER_RESIST, TRIGGER_WEAPON, TRIGGER_SLOPE, TRIGGER_VIBRATE, TRIGGER_RUMBLE, TRIGGER_RECOIL };
+ 
+ static void trigger_zones(const BYTE strengths[10], BYTE out[11])
+@@ -1398,7 +1398,7 @@
+ 
+ static void trigger_marker(const struct iohid_device *impl, char *path, size_t size)
+ {
+-    snprintf(path, size, "/tmp/macgamefix-%u/triggers-%08x", (unsigned int)getuid(), impl->location);
++    snprintf(path, size, "/tmp/silo-dualsense-%u/triggers-%08x", (unsigned int)getuid(), impl->location);
+ }
+ 
+ /* A report of the pad's own, 0x02 with only `flags` valid: to a Bluetooth pad
+diff -ru a/dlls/winecoreaudio.drv/dualsense_bt.h b/dlls/winecoreaudio.drv/dualsense_bt.h
+--- a/dlls/winecoreaudio.drv/dualsense_bt.h
++++ b/dlls/winecoreaudio.drv/dualsense_bt.h
+@@ -5,7 +5,7 @@
+  * games play the pad's haptics on its channels 3 and 4. On Bluetooth there is
+  * no such output. winebus.so (patch 0004), which shows the Bluetooth pad to
+  * games as the wired one, opens a socket for each such pad in
+- * /tmp/macgamefix-<uid>/, named pad-<location>-<product shown>-<product it
++ * /tmp/silo-dualsense-<uid>/, named pad-<location>-<product shown>-<product it
+  * is>.sock. For each live
+  * socket, this file adds an output to the devices CoreAudio lists, with the UID
+  * the wired pad's output would have, "AppleUSBAudioEngine:Sony Interactive
+@@ -96,7 +96,7 @@
+             name = (p = strrchr(exe, '/')) ? p + 1 : exe;
+             for (p = name; *p; p++) if (*p >= 'A' && *p <= 'Z') *p += 'a' - 'A';
+             n = strlen(name);
+-            snprintf(path, sizeof(path), "%s/Library/Application Support/MacGameFix/pad-exes.conf", home);
++            snprintf(path, sizeof(path), "%s/Library/Application Support/Silo/DualSense/pad-exes.conf", home);
+             if (n && (f = fopen(path, "r")))
+             {
+                 while (fgets(line, sizeof(line), f))
+@@ -150,7 +150,7 @@
+     if (!id[0]) pad_game_by_exe(id, size);
+ }
+ 
+-/* What this file has to say goes to /tmp/macgamefix-<uid>/pad.log, beside the
++/* What this file has to say goes to /tmp/silo-dualsense-<uid>/pad.log, beside the
+  * pads' sockets: a game's own stderr often reaches no log at all. Each line
+  * names the game, which MacGameFix reads back for what it learns of each one. */
+ static void pad_log(const char *format, ...) __attribute__((format(printf, 1, 2)));
+@@ -162,7 +162,7 @@
+     va_list args;
+     FILE *f;
+ 
+-    snprintf(path, sizeof(path), "/tmp/macgamefix-%u", (unsigned int)getuid());
++    snprintf(path, sizeof(path), "/tmp/silo-dualsense-%u", (unsigned int)getuid());
+     mkdir(path, 0700);
+     snprintf(path + strlen(path), sizeof(path) - strlen(path), "/pad.log");
+     if (!(f = fopen(path, "a"))) return;
+@@ -178,7 +178,7 @@
+ 
+ /* MacGameFix's settings for the pad, read each time a stream starts, so a change
+  * applies from the next one: pad.d/<app id>.conf for this game, then pad.conf
+- * for every game, in ~/Library/Application Support/MacGameFix; the first line
++ * for every game, in ~/Library/Application Support/Silo/DualSense; the first line
+  * with the key wins. Copies the value into value; empty when no line has it. */
+ static void mgf_value_for(const char *game, const char *key, char *value, size_t size)
+ {
+@@ -194,9 +194,9 @@
+     {
+         if (pass == 0 && !game[0]) continue;
+         if (pass == 0)
+-            snprintf(path, sizeof(path), "%s/Library/Application Support/MacGameFix/pad.d/%s.conf", home, game);
++            snprintf(path, sizeof(path), "%s/Library/Application Support/Silo/DualSense/pad.d/%s.conf", home, game);
+         else
+-            snprintf(path, sizeof(path), "%s/Library/Application Support/MacGameFix/pad.conf", home);
++            snprintf(path, sizeof(path), "%s/Library/Application Support/Silo/DualSense/pad.conf", home);
+         if (!(f = fopen(path, "r"))) continue;
+         while (fgets(line, sizeof(line), f))
+         {
+@@ -220,7 +220,7 @@
+ 
+ static void mgf_dir(char *dir, size_t size)
+ {
+-    snprintf(dir, size, "/tmp/macgamefix-%u", (unsigned int)getuid());
++    snprintf(dir, size, "/tmp/silo-dualsense-%u", (unsigned int)getuid());
+ }
+ 
+ /* A socket is live when winebus.so is bound to it: connecting to one left by a
