@@ -110,6 +110,7 @@ struct SteamInputControllersTests {
         let call = try #require(fake.lastInvocation)
         #expect(call.arguments == ["regedit", "/S", #"C:\silo-controllers.reg"#])
         #expect(call.environment["WINEPREFIX"] == prefix.path)
+        #expect(call.environment["WINEDLLOVERRIDES"] == "winebus.sys=d")   // the import never opens a controller
         let owned = try String(contentsOf: prefix.appendingPathComponent(".silo-hidden-controllers"), encoding: .utf8)
         #expect(owned.contains("054c/0ce6\n"))
         #expect(!FileManager.default.fileExists(atPath: prefix.appendingPathComponent("drive_c/silo-controllers.reg").path))

@@ -290,7 +290,7 @@ public struct AltLoaderSession: Sendable {
         guard (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil else { return false }
         let result = try? await runner.run(
             executable: wine, arguments: ["regedit", "/S", "C:\\\(name)"],
-            environment: Silo.syncWineEnvironment(prefix: prefix, wine: wine, syncMode: syncMode),
+            environment: Silo.registryImportEnvironment(prefix: prefix, wine: wine, syncMode: syncMode),
             currentDirectory: prefix)
         try? fileManager.removeItem(at: file)
         return result?.succeeded == true
