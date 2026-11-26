@@ -120,7 +120,7 @@ public enum SteamInputControllers {
             }
             let result = try? await runner.run(
                 executable: wine, arguments: ["regedit", "/S", "C:\\\(name)"],
-                environment: Silo.registryImportEnvironment(prefix: prefix, wine: wine, syncMode: flags.syncMode),
+                environment: Silo.syncWineEnvironment(prefix: prefix, wine: wine, syncMode: flags.syncMode),
                 currentDirectory: prefix)
             try? fileManager.removeItem(at: file)
             guard result?.succeeded == true else { return "controllers: registry import failed, left as they were" }

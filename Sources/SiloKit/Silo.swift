@@ -226,17 +226,6 @@ public enum Silo {
         }
         return env
     }
-
-    /// `syncWineEnvironment` for a registry import Silo runs right before a launch. When the bottle isn't running,
-    /// that `regedit` starts its services, and `winebus.sys` then opens every controller for the few seconds it lives:
-    /// a Bluetooth DualSense Steam Input holds got switched to its full report and sent output reports by the DualSense
-    /// patches (0019–0035), and lost its rumble for Steam afterwards (UNCHARTED, 2026-11-26). The import needs no
-    /// controller, so the driver isn't loaded at all; the game's own server loads it as usual.
-    public static func registryImportEnvironment(prefix: URL, wine: URL, syncMode: SyncMode) -> [String: String] {
-        var env = syncWineEnvironment(prefix: prefix, wine: wine, syncMode: syncMode)
-        env["WINEDLLOVERRIDES"] = "winebus.sys=d"
-        return env
-    }
 }
 
 extension URL {
