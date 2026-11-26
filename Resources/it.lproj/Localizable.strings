@@ -528,3 +528,11 @@
 "No cache here." = "Nessuna cache qui.";
 "cache.filter.installed" = "Installati";
 "cache.filter.notInstalled" = "Non installati";
+"Bluetooth DualSense as wired" = "DualSense Bluetooth come via cavo";
+"The game reads a DualSense on Bluetooth as if it were on a cable: Sony's code in games such as UNCHARTED then reads it, with its trigger effects." = "Il gioco legge un DualSense via Bluetooth come se fosse collegato via cavo: così il codice Sony di giochi come UNCHARTED lo riconosce, con gli effetti dei grilletti.";
+"Rumble on the HD actuators" = "Vibrazione sugli attuatori HD";
+"Over Bluetooth, the game's rumble played on the DualSense's HD actuators instead of its motors' emulation: stronger. A game's own haptics come first." = "Via Bluetooth, la vibrazione del gioco suonata sugli attuatori HD del DualSense invece che con l'emulazione dei motori: più forte. Le haptics proprie del gioco hanno la precedenza.";
+"DualSense as an XInput controller" = "DualSense come controller XInput";
+"For games that read only Xbox controllers, such as TEKKEN 8: the DualSense is offered to them as one. They may show Xbox button prompts." = "Per i giochi che leggono solo i controller Xbox, come TEKKEN 8: il DualSense viene offerto loro come tale. Possono mostrare le icone dei tasti Xbox.";
+"DualSense" = "DualSense";
+"With Steam Input off for the game, from Steam for macOS or Silo's Steam: then Wine reads the DualSense itself. With Steam Input on, the game gets Steam's controller and these don't apply. From MacGameFix, by Mathias Kowoll." = "Con Steam Input spento per il gioco, da Steam per macOS o dallo Steam di Silo: allora è Wine a leggere il DualSense. Con Steam Input acceso il gioco riceve il controller di Steam e queste opzioni non si applicano. Da MacGameFix, di Mathias Kowoll.";

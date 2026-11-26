@@ -121,7 +121,8 @@ public struct NativeSteamLauncher: Sendable {
                                    extraEnvironment: extraEnvironment)
         // The fix's shader tools are arm64 macOS programs: they get the plain runner, without Steam's libraries.
         let orchestrator = LaunchOrchestrator(runner: runner, linker: GraphicsLinker(), steamClientRoot: steamClientRoot,
-                                              spiderMan2Fix: SpiderMan2Fix(paths: paths, runner: self.runner))
+                                              spiderMan2Fix: SpiderMan2Fix(paths: paths, runner: self.runner),
+                                              dualSenseFolder: DualSenseOptions.folder(supportDir: paths.supportDir))
         // Native Media Foundation as in the library's Play: only with a ready MF bottle built under this Wine.
         let mediaFoundation = config.envFlags.mediaFoundationNative
             && Self.mediaFoundationReady(paths: paths, currentRuntime: backend.wineRuntimeName)

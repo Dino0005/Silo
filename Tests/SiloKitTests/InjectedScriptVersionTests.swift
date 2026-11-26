@@ -30,7 +30,7 @@ struct InjectedScriptVersionTests {
         check("SteamCompatibilityPage", version: SteamCompatibilityPage.version,
               script: SteamCompatibilityPage.script(tools: [("silo", "Silo")], windowsOnly: [1], windowsBuild: [2],
                                                     known: [1, 2, 3]),
-              pinned: [9: "dc38a2d01331c0f2"])
+              pinned: [10: "5580ec81ca72a52e"])
     }
 
     @Test("Library filters")

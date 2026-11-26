@@ -18,7 +18,7 @@ import Foundation
 /// gets the page with the menu disabled. A Windows-only game set to Default is mapped back to Silo by the guard.
 public enum SteamCompatibilityPage {
     /// Bumped whenever the script changes, so a running Steam gets the new one.
-    public static let version = 9
+    public static let version = 10
 
     /// JavaScript that answers whether this version of the page is live in Steam.
     public static let probe = "String(window.__siloCompat && window.__siloCompat.version === \(version) && window.__siloCompat.installed === true)"
@@ -109,6 +109,9 @@ public enum SteamCompatibilityPage {
         sm2Note: "Corregge i personaggi bloccati in T-pose, le teste mancanti e il simbionte sui Mac M1–M4 (la correzione di macprotips). Silo la mette nella cartella del gioco prima di ogni avvio e ne ricostruisce gli shader dalla tua copia del gioco; la prima volta scarica gli strumenti shader di Microsoft (6 MB). Se la disattivi, la cartella torna com'era. Solo GPTK.",
         unchartedFix: 'Correzione Uncharted',
         unchartedNote: "Corregge il crash quando esci dal menu del gioco, e la richiesta della modalità provvisoria che lasciava all'avvio successivo: il gioco rilascia alcune texture una volta di troppo, e Silo le tiene in vita un istante in più perché quel rilascio non faccia danni. Silo mette un piccolo d3d12.dll suo nella cartella del gioco prima di ogni avvio; disattivata, lo toglie. Solo GPTK.",
+        dualSense: 'DualSense', dsWired: 'DualSense Bluetooth come via cavo', dsActuators: 'Vibrazione sugli attuatori HD',
+        dsXInput: 'DualSense come controller XInput',
+        dsNote: 'Con Steam Input spento per il gioco: allora è Wine a leggere il DualSense. Da MacGameFix, di Mathias Kowoll.',
         controllers: 'Controller (Steam per macOS)', hidraw: 'Disattiva hidraw',
         hidrawNote: 'Quando Steam Input gestisce un controller, Silo lo nasconde al gioco, così i due non lo usano insieme, e il gioco riceve invece il controller virtuale di Steam, come controller Xbox (i giochi che chiedono a Steam il tipo di controller mostrano comunque i simboli PlayStation). «Disattiva hidraw» fa leggere ogni controller tramite SDL (simboli Xbox), per un pad che non funziona bene: usalo con Steam Input disattivato.',
         mf: 'Media Foundation', mfToggle: 'Esegui nella bottiglia Media Foundation',
@@ -132,6 +135,9 @@ public enum SteamCompatibilityPage {
         sm2Note: "Fixes characters stuck in a T-pose, missing heads and the symbiote on M1–M4 Macs (macprotips' fix). Silo puts it in the game's folder before each launch and rebuilds its shaders from your copy of the game; the first time, it downloads Microsoft's shader tools (6 MB). Turned off, the folder goes back to how the game shipped it. GPTK only.",
         unchartedFix: 'Uncharted fix',
         unchartedNote: "Fixes the crash when you quit from the game's menu, and the safe-mode prompt it left for the next start: the game releases some textures one time too many, and Silo keeps them alive a moment longer so the extra release does no harm. Silo puts a small d3d12.dll of its own in the game's folder before each launch; turned off, it takes it away. GPTK only.",
+        dualSense: 'DualSense', dsWired: 'Bluetooth DualSense as wired', dsActuators: 'Rumble on the HD actuators',
+        dsXInput: 'DualSense as an XInput controller',
+        dsNote: 'With Steam Input off for the game: then Wine reads the DualSense itself. From MacGameFix, by Mathias Kowoll.',
         controllers: 'Controllers (macOS Steam)', hidraw: 'Disable hidraw',
         hidrawNote: "While Steam Input handles a controller, Silo hides it from the game so the two don't drive it together, and the game gets Steam's virtual controller instead, as an Xbox controller (games that ask Steam for the controller type still show PlayStation glyphs). \"Disable hidraw\" reads every controller through SDL (Xbox glyphs), for a pad that misbehaves — use it with Steam Input off.",
         mf: 'Media Foundation', mfToggle: 'Run in the Media Foundation bottle',
@@ -404,6 +410,11 @@ public enum SteamCompatibilityPage {
         header(T.controllers);
         toggle('disableHidraw', T.hidraw);
         noteEl().textContent = T.hidrawNote;
+        header(T.dualSense);
+        toggle('dualSenseBluetoothAsWired', T.dsWired);
+        toggle('dualSenseRumbleOnActuators', T.dsActuators);
+        toggle('dualSenseAsXInput', T.dsXInput);
+        noteEl().textContent = T.dsNote;
 
         // Only once the Media Foundation bottle exists, like Silo's sheet.
         const mfBox = el('div'); box.append(mfBox);

@@ -16,6 +16,8 @@ public struct LaunchOrchestrator: Sendable {
     private let spiderMan2Fix: SpiderMan2Fix
     /// UNCHARTED's quit-crash fix in the game's folder (`UnchartedFix`), synced before each Steam launch.
     private let unchartedFix: UnchartedFix
+    /// Where the game's DualSense options are written before each Steam launch (`DualSenseOptions`); nil writes none.
+    private let dualSenseFolder: URL?
 
     public init(
         runner: ProcessRunning,
@@ -24,7 +26,8 @@ public struct LaunchOrchestrator: Sendable {
         altLoader: AltLoaderSession? = nil,
         steamClientRoot: URL? = nil,
         spiderMan2Fix: SpiderMan2Fix? = nil,
-        unchartedFix: UnchartedFix = UnchartedFix()
+        unchartedFix: UnchartedFix = UnchartedFix(),
+        dualSenseFolder: URL? = nil
     ) {
         self.runner = runner
         self.linker = linker
@@ -33,6 +36,7 @@ public struct LaunchOrchestrator: Sendable {
         self.steamClientRoot = steamClientRoot
         self.spiderMan2Fix = spiderMan2Fix ?? SpiderMan2Fix(paths: nil, runner: runner)
         self.unchartedFix = unchartedFix
+        self.dualSenseFolder = dualSenseFolder
     }
 
     /// Steam's own launch entry for `app`. The Steam install is asked first: with `app.libraryPath` alone, a
@@ -343,6 +347,8 @@ public struct LaunchOrchestrator: Sendable {
         let fix = await spiderMan2Fix.sync(gameExe: gameExe, enabled: config.envFlags.spiderMan2Fix && graphics == .gptk)
         // Also D3DMetal only: the proxy stands in for D3DMetal's d3d12, which a DXMT launch doesn't load.
         let uncharted = unchartedFix.sync(gameExe: gameExe, enabled: config.envFlags.unchartedFix && graphics == .gptk)
+        // The game's DualSense options for Silo's Wine, read by its winebus/winecoreaudio when the game starts.
+        let dualSense = dualSenseFolder.map { DualSenseOptions.write(config.envFlags, appID: app.appID, folder: $0) }
         var socket = altLoaderSocket
         if socket == nil {
             socket = await prepareAltLoader(
@@ -361,7 +367,7 @@ public struct LaunchOrchestrator: Sendable {
             altLoaderSocket: socket,
             dxmtDLSS: graphics == .dxmt && config.envFlags.metalFX && Self.dxmtDLSS(backend: backend, gameExe: gameExe),
             steamBridge: steamBridge, unchartedFix: uncharted.isActive)
-        return try await spawn(plan, notes: [fix.logLine, uncharted.logLine].compactMap { $0 })
+        return try await spawn(plan, notes: [fix.logLine, uncharted.logLine, dualSense].compactMap { $0 })
     }
 
     /// Prepare the alt-loader hand-over for `target`, returning the socket to publish — or `nil`, which

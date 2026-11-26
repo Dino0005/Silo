@@ -110,6 +110,14 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     /// "Cache delle pipeline": Silo's own cache of the pipelines D3DMetal compiles (`PipelineCache`), for when Metal's
     /// per-app cache is full. macOS Steam launches under GPTK only; off by default while it is being measured.
     public var pipelineCache: Bool
+    /// DualSense options of Silo's Wine (`DualSenseOptions`, MacGameFix's modules), for a pad Wine reads itself —
+    /// Steam Input off for the game. A Bluetooth DualSense shown to the game as the wired pad (on by default: the
+    /// game's Sony code then reads it, as UNCHARTED's does);
+    public var dualSenseBluetoothAsWired: Bool
+    /// over Bluetooth, the game's rumble played on the HD actuators while it plays no haptics of its own (stronger);
+    public var dualSenseRumbleOnActuators: Bool
+    /// the pad also offered to XInput, for a game that reads only XInput (TEKKEN 8 with Steam Input off).
+    public var dualSenseAsXInput: Bool
     /// Free-form extra environment variables — a config.json-only escape hatch (no UI). Merged last in
     /// `environment()`, so it overrides the flags above — EXCEPT the sync keys (`WINEMSYNC`/`WINEESYNC`),
     /// which `LaunchOrchestrator.makePlan` force-overrides afterward for shared-bottle co-residency.
@@ -128,6 +136,9 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         spiderMan2Fix: Bool = true,
         unchartedFix: Bool = true,
         pipelineCache: Bool = false,
+        dualSenseBluetoothAsWired: Bool = true,
+        dualSenseRumbleOnActuators: Bool = false,
+        dualSenseAsXInput: Bool = false,
         extra: [String: String] = [:]
     ) {
         self.syncMode = syncMode
@@ -142,6 +153,9 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.spiderMan2Fix = spiderMan2Fix
         self.unchartedFix = unchartedFix
         self.pipelineCache = pipelineCache
+        self.dualSenseBluetoothAsWired = dualSenseBluetoothAsWired
+        self.dualSenseRumbleOnActuators = dualSenseRumbleOnActuators
+        self.dualSenseAsXInput = dualSenseAsXInput
         self.extra = extra
     }
 
@@ -185,6 +199,7 @@ public struct EnvFlags: Codable, Sendable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, mediaFoundationNative, depthFix
         case disableHidraw, spiderMan2Fix, unchartedFix, pipelineCache, extra
+        case dualSenseBluetoothAsWired, dualSenseRumbleOnActuators, dualSenseAsXInput
         case esync, msync   // legacy fields from configs written before the SyncMode enum
     }
 
@@ -214,6 +229,9 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         spiderMan2Fix = try c.decodeIfPresent(Bool.self, forKey: .spiderMan2Fix) ?? true
         unchartedFix = try c.decodeIfPresent(Bool.self, forKey: .unchartedFix) ?? true
         pipelineCache = try c.decodeIfPresent(Bool.self, forKey: .pipelineCache) ?? false
+        dualSenseBluetoothAsWired = try c.decodeIfPresent(Bool.self, forKey: .dualSenseBluetoothAsWired) ?? true
+        dualSenseRumbleOnActuators = try c.decodeIfPresent(Bool.self, forKey: .dualSenseRumbleOnActuators) ?? false
+        dualSenseAsXInput = try c.decodeIfPresent(Bool.self, forKey: .dualSenseAsXInput) ?? false
         extra = try c.decodeIfPresent([String: String].self, forKey: .extra) ?? [:]
     }
 
@@ -231,6 +249,9 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         try c.encode(spiderMan2Fix, forKey: .spiderMan2Fix)
         try c.encode(unchartedFix, forKey: .unchartedFix)
         try c.encode(pipelineCache, forKey: .pipelineCache)
+        try c.encode(dualSenseBluetoothAsWired, forKey: .dualSenseBluetoothAsWired)
+        try c.encode(dualSenseRumbleOnActuators, forKey: .dualSenseRumbleOnActuators)
+        try c.encode(dualSenseAsXInput, forKey: .dualSenseAsXInput)
         try c.encode(extra, forKey: .extra)
     }
 }

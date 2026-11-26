@@ -106,6 +106,25 @@ struct ControllersSection: View {
             Text("For games started from macOS Steam. While Steam Input handles a controller, Silo hides it from the game so the two don't drive it together, and the game gets Steam's virtual controller instead, as an Xbox controller (games that ask Steam for the controller type still show PlayStation glyphs). \"Disable hidraw\" reads every controller through SDL (Xbox glyphs), for a pad that misbehaves — use it with Steam Input off.")
                 .font(.caption).foregroundStyle(.secondary)
         }
+        Section {
+            Toggle(isOn: $flags.dualSenseBluetoothAsWired) {
+                Text("Bluetooth DualSense as wired")
+                Text("The game reads a DualSense on Bluetooth as if it were on a cable: Sony's code in games such as UNCHARTED then reads it, with its trigger effects.")
+            }
+            Toggle(isOn: $flags.dualSenseRumbleOnActuators) {
+                Text("Rumble on the HD actuators")
+                Text("Over Bluetooth, the game's rumble played on the DualSense's HD actuators instead of its motors' emulation: stronger. A game's own haptics come first.")
+            }
+            Toggle(isOn: $flags.dualSenseAsXInput) {
+                Text("DualSense as an XInput controller")
+                Text("For games that read only Xbox controllers, such as TEKKEN 8: the DualSense is offered to them as one. They may show Xbox button prompts.")
+            }
+        } header: {
+            Text("DualSense")
+        } footer: {
+            Text("With Steam Input off for the game, from Steam for macOS or Silo's Steam: then Wine reads the DualSense itself. With Steam Input on, the game gets Steam's controller and these don't apply. From MacGameFix, by Mathias Kowoll.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
     }
 }
 

@@ -14,6 +14,7 @@ public enum SteamGameSettings {
     public enum Field: String, CaseIterable, Sendable {
         case graphics, syncMode, advertiseAVX, metalHUD, metalFX, dxr, metalBackend, depthFix, disableHidraw
         case mediaFoundationNative, spiderMan2Fix, unchartedFix
+        case dualSenseBluetoothAsWired, dualSenseRumbleOnActuators, dualSenseAsXInput
     }
 
     /// The page's value of `field` for `config`.
@@ -33,6 +34,9 @@ public enum SteamGameSettings {
         case .mediaFoundationNative: return bit(flags.mediaFoundationNative)
         case .spiderMan2Fix: return bit(flags.spiderMan2Fix)
         case .unchartedFix: return bit(flags.unchartedFix)
+        case .dualSenseBluetoothAsWired: return bit(flags.dualSenseBluetoothAsWired)
+        case .dualSenseRumbleOnActuators: return bit(flags.dualSenseRumbleOnActuators)
+        case .dualSenseAsXInput: return bit(flags.dualSenseAsXInput)
         }
     }
 
@@ -50,7 +54,7 @@ public enum SteamGameSettings {
             guard let choice = MetalBackendChoice(rawValue: value) else { return false }
             config.envFlags.metalBackend = choice
         case .advertiseAVX, .metalHUD, .metalFX, .dxr, .depthFix, .disableHidraw, .mediaFoundationNative, .spiderMan2Fix,
-             .unchartedFix:
+             .unchartedFix, .dualSenseBluetoothAsWired, .dualSenseRumbleOnActuators, .dualSenseAsXInput:
             guard let on = bit() else { return false }
             switch field {
             case .advertiseAVX: config.envFlags.advertiseAVX = on
@@ -61,6 +65,9 @@ public enum SteamGameSettings {
             case .disableHidraw: config.envFlags.disableHidraw = on
             case .spiderMan2Fix: config.envFlags.spiderMan2Fix = on
             case .unchartedFix: config.envFlags.unchartedFix = on
+            case .dualSenseBluetoothAsWired: config.envFlags.dualSenseBluetoothAsWired = on
+            case .dualSenseRumbleOnActuators: config.envFlags.dualSenseRumbleOnActuators = on
+            case .dualSenseAsXInput: config.envFlags.dualSenseAsXInput = on
             default: config.envFlags.mediaFoundationNative = on
             }
         }

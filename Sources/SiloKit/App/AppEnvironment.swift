@@ -90,7 +90,8 @@ public final class AppEnvironment {
         let linker = GraphicsLinker()
         let discovery = DiscoveryEngine()
         let orchestrator = LaunchOrchestrator(runner: runner, linker: linker,
-                                              steamClientRoot: paths.steamBottleClientDir)
+                                              steamClientRoot: paths.steamBottleClientDir,
+                                              dualSenseFolder: DualSenseOptions.folder(supportDir: paths.supportDir))
         let runtimeManager = RuntimeManager(paths: paths, runner: runner, session: runtimeSession)
 
         self.configStore = configStore
