@@ -88,6 +88,14 @@ struct SteamInputControllersTests {
         #expect(p(false, set: true, marker: false) == nil)   // the user's own value
     }
 
+    @Test("Steam Input holds a DualSense when Steam lists one (or the Edge) among the pads it handles")
+    func holdsDualSense() {
+        #expect(SteamInputControllers.steamInputHoldsDualSense(steamInputOn))
+        #expect(!SteamInputControllers.steamInputHoldsDualSense([:]))
+        #expect(SteamInputControllers.steamInputHoldsDualSense(["SDL_GAMECONTROLLER_IGNORE_DEVICES": "0x054c/0x0df2"]))
+        #expect(!SteamInputControllers.steamInputHoldsDualSense(["SDL_GAMECONTROLLER_IGNORE_DEVICES": "0x28de/0x11ff"]))
+    }
+
     @Test("A manual game gets only DisableHidraw: no pad hidden, Switch pads included, even with Steam's lists")
     func manualGameOnlyTogglesHidraw() {
         let plan = SteamInputControllers.plan(environment: steamInputOn, flags: EnvFlags(disableHidraw: true), owned: [],

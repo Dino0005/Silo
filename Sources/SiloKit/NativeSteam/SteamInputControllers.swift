@@ -22,6 +22,17 @@ public enum SteamInputControllers {
     static let hidrawMarkerName = ".silo-disable-hidraw"
     static let busKey = #"HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\WineBus"#
 
+    /// DualSense and DualSense Edge.
+    static let dualSenseIDs: Set<String> = ["054c/0ce6", "054c/0df2"]
+
+    /// Pure: whether Steam Input handles a DualSense for this game — Steam lists the pads it handles in
+    /// `SDL_GAMECONTROLLER_IGNORE_DEVICES`, and none with Steam Input off.
+    public static func steamInputHoldsDualSense(_ environment: [String: String]) -> Bool {
+        !ids(environment["SDL_GAMECONTROLLER_IGNORE_DEVICES"])
+            .subtracting(ids(environment["SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT"]))
+            .isDisjoint(with: dualSenseIDs)
+    }
+
     /// `0xVVVV/0xPPPP` entries of an SDL device list, as lowercase `vvvv/pppp`.
     static func ids(_ list: String?) -> Set<String> {
         Set((list ?? "").split(separator: ",").compactMap { entry in

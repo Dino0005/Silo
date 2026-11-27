@@ -50,7 +50,13 @@ public struct NativeSteamLauncher: Sendable {
     public func run(_ request: NativeSteamLaunchRequest, log: (String) -> Void = { _ in }) async throws -> Int32 {
         let state = await ConfigStore(paths: paths).load()
         let backend = state.backend
-        let config = state.config(for: request.appID)
+        var config = state.config(for: request.appID)
+        // With Steam Input on for the DualSense, Steam's pad is the game's: "DualSense as an XInput controller" (and
+        // with it Silo's lsteamclient reporting the pad to Steam Input) is for a pad Wine reads, so it stays off.
+        if config.envFlags.dualSenseAsXInput, SteamInputControllers.steamInputHoldsDualSense(self.environment) {
+            config.envFlags.dualSenseAsXInput = false
+            log("dualsense: Steam Input has the pad, so it is not offered as an XInput controller")
+        }
         let app = try Self.steamApp(for: request)
 
         // Steam Input's virtual pad always reaches the game as an Xbox 360 pad: Steam's description of it is dropped.
