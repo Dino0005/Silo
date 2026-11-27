@@ -10,13 +10,15 @@ What it does (xinput1_1 to xinput1_4, xinput9_1_0, xinputuap (one source)), as M
   (Square, Cross, Circle, Triangle, ... PS as Guide), the hat counted from its own minimum (0..7, 8 centred), and Y
   turned over for both sticks, as winexinput turns it over for its own report.
 
-Checked here: the whole series applies after 0002-0018 with no fuzz; built with the runtime's flags and played on
+Rebased by Silo (2026-11-27) onto Silo patch 0011 (Proton's xinput rework, which dropped the "Count buttons"
+block the Sony check sat after): the check now opens controller_check_caps; no other change.
+
+Checked here: the whole series applies after 0002-0018; built with the runtime's flags and played on
 2026-11-26 with a DualSense over Bluetooth, Steam Input off, from Steam for macOS: UNCHARTED (input, trigger effects,
 rumble on the actuators) and The Last of Us Part II.
-
 --- a/dlls/xinput1_3/main.c
 +++ b/dlls/xinput1_3/main.c
-@@ -72,6 +72,10 @@
+@@ -70,6 +70,10 @@
          HIDP_VALUE_CAPS rx_caps;
          HIDP_VALUE_CAPS ry_caps;
          HIDP_VALUE_CAPS rt_caps;
@@ -25,9 +27,9 @@ rumble on the actuators) and The Last of Us Part II.
 +        BOOL sony_layout;
 +        HIDP_VALUE_CAPS hat_caps;
  
-         HANDLE read_event;
          OVERLAPPED read_ovl;
-@@ -138,10 +142,23 @@
+ 
+@@ -123,10 +127,23 @@
  
  static void check_value_caps(struct xinput_controller *controller, USHORT usage, HIDP_VALUE_CAPS *caps)
  {
@@ -52,10 +54,10 @@ rumble on the actuators) and The Last of Us Part II.
      case HID_USAGE_GENERIC_Z: controller->hid.lt_caps = *caps; break;
      case HID_USAGE_GENERIC_RX: controller->hid.rx_caps = *caps; break;
      case HID_USAGE_GENERIC_RY: controller->hid.ry_caps = *caps; break;
-@@ -221,6 +238,27 @@
- 
-     /* Count buttons */
-     memset(caps, 0, sizeof(XINPUT_CAPABILITIES));
+@@ -202,6 +219,27 @@
+     HIDP_VALUE_CAPS *value_caps;
+     int i, u, button_count = 0;
+     NTSTATUS status;
 +
 +    /* MacGameFix: a Sony pad reaches xinput with its own descriptor when winebus
 +     * offers it as an XInput controller (MacGameFix's patches 0006 and 0007).
@@ -80,7 +82,7 @@ rumble on the actuators) and The Last of Us Part II.
  
      if (!(button_caps = malloc(sizeof(*button_caps) * controller->hid.caps.NumberInputButtonCaps))) return FALSE;
      status = HidP_GetButtonCaps(HidP_Input, button_caps, &controller->hid.caps.NumberInputButtonCaps, preparsed);
-@@ -566,7 +604,7 @@
+@@ -562,7 +600,7 @@
      char *report_buf = controller->hid.input_report_buf;
      XINPUT_STATE state;
      NTSTATUS status;
@@ -89,8 +91,8 @@ rumble on the actuators) and The Last of Us Part II.
      ULONG i, button_length, value;
      BOOL ret;
  
-@@ -587,7 +625,27 @@
-     if (status != HIDP_STATUS_SUCCESS) WARN("HidP_GetUsages HID_USAGE_PAGE_BUTTON returned %#lx\n", status);
+@@ -585,7 +623,27 @@
+     get_current_state(controller - controllers, &state);
  
      state.Gamepad.wButtons = 0;
 -    for (i = 0; i < button_length; i++)
@@ -118,7 +120,7 @@ rumble on the actuators) and The Last of Us Part II.
      {
          switch (buttons[i])
          {
-@@ -607,11 +665,18 @@
+@@ -605,11 +663,18 @@
      button_length = ARRAY_SIZE(buttons);
      status = HidP_GetUsages(HidP_Input, HID_USAGE_PAGE_VENDOR_DEFINED_BEGIN, 0, buttons, &button_length, controller->hid.preparsed, report_buf, report_len);
      if (status != HIDP_STATUS_SUCCESS) WARN("HidP_GetUsages HID_USAGE_PAGE_VENDOR_DEFINED_BEGIN returned %#lx\n", status);
@@ -139,7 +141,7 @@ rumble on the actuators) and The Last of Us Part II.
      {
      /* 8 1 2
       * 7 0 3
-@@ -631,10 +696,34 @@
+@@ -629,10 +694,34 @@
      if (status != HIDP_STATUS_SUCCESS) WARN("HidP_GetUsageValue HID_USAGE_PAGE_GENERIC / HID_USAGE_GENERIC_X returned %#lx\n", status);
      else state.Gamepad.sThumbLX = scale_value(value, &controller->hid.lx_caps, -32768, 32767);
  
@@ -174,11 +176,11 @@ rumble on the actuators) and The Last of Us Part II.
      status = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_GENERIC, 0, HID_USAGE_GENERIC_RX, &value, controller->hid.preparsed, report_buf, report_len);
      if (status != HIDP_STATUS_SUCCESS) WARN("HidP_GetUsageValue HID_USAGE_PAGE_GENERIC / HID_USAGE_GENERIC_RX returned %#lx\n", status);
      else state.Gamepad.sThumbRX = scale_value(value, &controller->hid.rx_caps, -32768, 32767);
-@@ -650,6 +739,7 @@
+@@ -648,6 +737,7 @@
      status = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_GENERIC, 0, HID_USAGE_GENERIC_Z, &value, controller->hid.preparsed, report_buf, report_len);
      if (status != HIDP_STATUS_SUCCESS) WARN("HidP_GetUsageValue HID_USAGE_PAGE_GENERIC / HID_USAGE_GENERIC_Z returned %#lx\n", status);
      else state.Gamepad.bLeftTrigger = scale_value(value, &controller->hid.lt_caps, 0, 255);
 +    }
  
-     EnterCriticalSection(&controller->crit);
      if (controller->enabled)
+     {
