@@ -128,6 +128,23 @@ struct ControllersSection: View {
     }
 }
 
+/// Controller handling for a manual game: only "Disable hidraw" (`EnvFlags.disableHidraw`), applied to the game's
+/// own bottle before each launch (`SteamInputControllers.apply`, `hideSteamInputPads: false`).
+struct ManualControllersSection: View {
+    @Binding var flags: EnvFlags
+
+    var body: some View {
+        Section {
+            Toggle("Disable hidraw", isOn: $flags.disableHidraw)
+        } header: {
+            Text("Controllers")
+        } footer: {
+            Text("Wine reads every controller through SDL instead of reading PlayStation and Switch pads directly: Xbox button prompts, but a steadier pad for games such as God of War and Batman: Arkham Knight. Takes effect next launch.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// The launch-options form section shared by both settings sheets.
 struct LaunchOptionsSection: View {
     @Binding var text: String

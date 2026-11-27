@@ -497,6 +497,11 @@ public struct LaunchOrchestrator: Sendable {
         try check32BitSupported(game.executablePath, graphics: graphics)
         try linkGraphics(backendConfig: backend, graphics: graphics, wine: launchWine, prefix: prefix,
                          depthFix: DepthFix.applies(game.envFlags, gameExe: game.executablePath))
+        // "Disable hidraw" in the game's own bottle — before the alt loader's import, and waited out, so the game's
+        // wineserver reads it when winebus starts.
+        let controllers = await SteamInputControllers.apply(
+            environment: [:], flags: game.envFlags, prefix: prefix, wine: launchWine, runner: runner,
+            hideSteamInputPads: false)
         var socket = altLoaderSocket
         if socket == nil {
             // The game's own sync mode: its isolated bottle honors it (`makePlan`, `sharedBottle: false`),
@@ -511,7 +516,7 @@ public struct LaunchOrchestrator: Sendable {
             sharedBottle: false, desktopGeometry: desktopGeometry, altLoaderSocket: socket,
             dxmtDLSS: graphics == .dxmt && game.envFlags.metalFX
                 && Self.dxmtDLSS(backend: backend, gameExe: game.executablePath))
-        return try await spawn(plan)
+        return try await spawn(plan, notes: [controllers].compactMap { $0 })
     }
 
     /// Run an installer (`.exe` or `.msi`) in the bottle prefix and **WAIT for it to finish**. Unlike a game

@@ -12,6 +12,9 @@ import Foundation
 /// (PlayStation glyphs). The keys Silo wrote are listed in the bottle, so only Silo's own are removed later and a key
 /// the user set by hand is never touched. `EnvFlags.disableHidraw` adds `WineBus` `DisableHidraw=1`, removed again
 /// only if Silo set it.
+///
+/// A manual (non-Steam) game gets only the `DisableHidraw` part (`hideSteamInputPads: false`): no Steam Input runs
+/// for it, so no pad is hidden, Switch pads included.
 public enum SteamInputControllers {
     /// Switch Pro Controller and Joy-Cons: hidden even with Steam Input off (NotProton: most games break otherwise).
     static let alwaysHidden: Set<String> = ["057e/2006", "057e/2007", "057e/2009"]
@@ -65,12 +68,15 @@ public enum SteamInputControllers {
 
     /// Pure: NotProton's rules over Steam's environment, the game's flags and the bottle's current state.
     static func plan(environment: [String: String], flags: EnvFlags, owned: Set<String>,
-                     inRegistry: Set<String>, hidrawSet: Bool, hidrawMarker: Bool) -> Plan {
+                     inRegistry: Set<String>, hidrawSet: Bool, hidrawMarker: Bool,
+                     hideSteamInputPads: Bool = true) -> Plan {
         // Always (NotProton's raw-controllers escape hatch was dropped, 2026-11-13). Keys the user set by hand stay theirs.
-        let wanted = ids(environment["SDL_GAMECONTROLLER_IGNORE_DEVICES"])
-            .subtracting(ids(environment["SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT"]))
-            .union(alwaysHidden)
-            .subtracting(inRegistry.subtracting(owned))
+        let wanted = hideSteamInputPads
+            ? ids(environment["SDL_GAMECONTROLLER_IGNORE_DEVICES"])
+                .subtracting(ids(environment["SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT"]))
+                .union(alwaysHidden)
+                .subtracting(inRegistry.subtracting(owned))
+            : []
         var hidraw: Bool?
         if flags.disableHidraw, !hidrawSet { hidraw = true }
         if !flags.disableHidraw, hidrawMarker, hidrawSet { hidraw = false }
@@ -99,7 +105,8 @@ public enum SteamInputControllers {
     /// Skipped when the bottle was already running something: then waiting can't help and could last the whole game.
     @discardableResult
     public static func apply(environment: [String: String], flags: EnvFlags, prefix: URL, wine: URL,
-                             runner: ProcessRunning, fileManager: FileManager = .default,
+                             runner: ProcessRunning, hideSteamInputPads: Bool = true,
+                             fileManager: FileManager = .default,
                              isLive: @Sendable (URL) -> Bool = { WineServerProbe.isLive(prefix: $0) },
                              waitLimit: Duration = .seconds(20),
                              pollInterval: Duration = .milliseconds(250)) async -> String? {
@@ -111,7 +118,8 @@ public enum SteamInputControllers {
         let state = registryState(systemReg: (try? String(contentsOf: prefix.appendingPathComponent("system.reg"),
                                                           encoding: .utf8)) ?? "")
         let plan = plan(environment: environment, flags: flags, owned: owned, inRegistry: state.devices,
-                        hidrawSet: state.disableHidraw, hidrawMarker: fileManager.fileExists(atPath: markerURL.path))
+                        hidrawSet: state.disableHidraw, hidrawMarker: fileManager.fileExists(atPath: markerURL.path),
+                        hideSteamInputPads: hideSteamInputPads)
         if !plan.isEmpty {
             let name = "silo-controllers.reg"
             let file = prefix.appendingPathComponent("drive_c/\(name)")
@@ -136,7 +144,7 @@ public enum SteamInputControllers {
             try? fileManager.removeItem(at: markerURL)
         }
         guard !plan.isEmpty else { return nil }
-        var parts = ["\(plan.owned.count) kept off hidraw"]
+        var parts = hideSteamInputPads || !plan.owned.isEmpty ? ["\(plan.owned.count) kept off hidraw"] : []
         if !plan.unhide.isEmpty { parts.append("\(plan.unhide.count) given back") }
         if let hidraw = plan.disableHidraw { parts.append(hidraw ? "hidraw disabled" : "hidraw re-enabled") }
         return "controllers: " + parts.joined(separator: ", ")

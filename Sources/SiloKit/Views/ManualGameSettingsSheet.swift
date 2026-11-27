@@ -176,6 +176,7 @@ struct ManualGameSettingsSheet: View {
                 if DepthFix.offered(steamAppID: game.steamAppID, exe: game.executablePath) {
                     DepthFixSection(flags: $game.envFlags)
                 }
+                ManualControllersSection(flags: $game.envFlags)
                 LaunchOptionsSection(text: $game.launchOptionsString)
                 ShaderCacheSection(gameID: game.id.uuidString, executables: [game.executablePath.lastPathComponent])
             }

@@ -88,6 +88,38 @@ struct SteamInputControllersTests {
         #expect(p(false, set: true, marker: false) == nil)   // the user's own value
     }
 
+    @Test("A manual game gets only DisableHidraw: no pad hidden, Switch pads included, even with Steam's lists")
+    func manualGameOnlyTogglesHidraw() {
+        let plan = SteamInputControllers.plan(environment: steamInputOn, flags: EnvFlags(disableHidraw: true), owned: [],
+                                              inRegistry: [], hidrawSet: false, hidrawMarker: false,
+                                              hideSteamInputPads: false)
+        #expect(plan.hide.isEmpty && plan.owned.isEmpty && plan.unhide.isEmpty)
+        #expect(plan.disableHidraw == true)
+        #expect(SteamInputControllers.plan(environment: [:], flags: EnvFlags(), owned: [], inRegistry: [],
+                                           hidrawSet: false, hidrawMarker: false, hideSteamInputPads: false).isEmpty)
+    }
+
+    @Test("For a manual game, apply writes DisableHidraw once, then removes only what it set")
+    func manualGameApply() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let prefix = try tmp.makeDir("bottle")
+        try tmp.makeDir("bottle/drive_c")
+        let fake = FakeProcessRunner()
+        let wine = URL(fileURLWithPath: "/w/bin/wine64")
+        let on = await SteamInputControllers.apply(environment: [:], flags: EnvFlags(disableHidraw: true), prefix: prefix,
+                                                   wine: wine, runner: fake, hideSteamInputPads: false,
+                                                   isLive: { _ in false })
+        #expect(on == "controllers: hidraw disabled")
+        #expect(fake.invocations.count == 1)
+        #expect(FileManager.default.fileExists(atPath: prefix.appendingPathComponent(".silo-disable-hidraw").path))
+        // Wine wrote it; turned off, Silo takes back its own value.
+        try tmp.write("bottle/system.reg", "[System\\\\ControlSet001\\\\Services\\\\winebus] 1\n\"DisableHidraw\"=dword:00000001\n")
+        let off = await SteamInputControllers.apply(environment: [:], flags: EnvFlags(), prefix: prefix, wine: wine,
+                                                    runner: fake, hideSteamInputPads: false, isLive: { _ in false })
+        #expect(off == "controllers: hidraw re-enabled")
+        #expect(!FileManager.default.fileExists(atPath: prefix.appendingPathComponent(".silo-disable-hidraw").path))
+    }
+
     @Test("The registry text hides, gives back and toggles DisableHidraw in REGEDIT4 form")
     func registryText() {
         let text = SteamInputControllers.registryText(.init(hide: ["054c/0ce6"], unhide: ["28de/11ff"], owned: [], disableHidraw: false))
