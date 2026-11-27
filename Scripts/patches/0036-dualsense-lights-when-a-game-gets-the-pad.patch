@@ -1,0 +1,126 @@
+Silo patch 0036 — the DualSense's own lights when a game gets the pad
+
+Why: Steam for macOS lights a DualSense in its own colour (the user's Steam pad colour) when it opens it, and with
+Steam Input off for a game — Wine reading the pad itself, through patches 0019-0035 — that colour stayed, or
+changed to the game's only when a race with the Bluetooth writer happened to go the game's way (TEKKEN 8,
+2026-11-27). Steam's colour means "Steam Input drives this pad" to the user, which it doesn't then. So when Wine
+starts a DualSense for a game, the light bar is taken over from the firmware (light out, as Linux's
+hid-playstation does) and set blue (0, 0, 128, hid-playstation's PS5-like default), with the player indicator on
+player 1; a colour or player indicator the game writes replaces those. Steam writes its colour again each time it
+activates the pad for an app (2 s after the game started, and on every return to Steam), so the lights are
+written again every 2 s, from the input path the way the trigger settings are followed, through the game's own
+output path (the Bluetooth writer, or report 0x02 on a cable). Written once only, Steam won within 2 s. With Steam Input on the pad is hidden from
+Wine (Silo's Hidraw=0) and never started, so Steam's colour stays.
+
+--- a/dlls/winebus.sys/bus_iohid.c
++++ b/dlls/winebus.sys/bus_iohid.c
+@@ -141,6 +141,8 @@
+     BOOL trigger_following[2]; /* the game has set its own effect on a side that replaces it */
+     BOOL trigger_game_on[2];   /* and that effect of the game's is on now */
+     UInt64 settings_checked;   /* when pad.conf and the game's file were last looked at */
++    UInt64 lights_at;          /* Silo: when the lights were last written, 0 before the pad starts */
++    BYTE lights[4];            /* Silo: player indicator, then red, green, blue: the game's, or the default */
+     long long settings_stamp;  /* their modification times then */
+     UInt64 trigger_at[2];
+     const char *model;
+@@ -1049,6 +1051,7 @@
+ }
+ 
+ static void pad_triggers_follow(struct iohid_device *impl, const BYTE *input, UINT length);
++static void pad_lights_follow(struct iohid_device *impl);
+ static void pad_settings_follow(struct iohid_device *impl);
+ static BOOL trigger_chosen(const struct iohid_device *impl, unsigned int side);
+ 
+@@ -1155,6 +1158,7 @@
+             usb[0] = 0x01;
+             memcpy(usb + 1, report + 2, 63);
+             pad_triggers_follow(impl, usb, sizeof(usb));
++            pad_lights_follow(impl);
+             if (impl->ds4)
+             {
+                 BYTE ds4[DS4_INPUT_SIZE];
+@@ -1171,6 +1175,7 @@
+     {
+         pad_input_rate(impl);
+         pad_triggers_follow(impl, report, report_length);
++        pad_lights_follow(impl);
+     }
+     /* Shown as a DualShock 4, the pad's full report becomes that pad's, after
+      * the triggers have read it in the pad's own layout; the DualShock 4's
+@@ -1190,6 +1195,7 @@
+ static void pad_triggers(struct iohid_device *impl);
+ static UINT pad_firmware(IOHIDDeviceRef device);
+ static void pad_write_output(struct iohid_device *impl, BYTE *report);
++static void pad_lights(struct iohid_device *impl);
+ static void trigger_marker(const struct iohid_device *impl, char *path, size_t size);
+ 
+ static void iohid_device_destroy(struct unix_device *iface)
+@@ -1241,6 +1247,7 @@
+     IOHIDDeviceRegisterInputReportCallback(impl->device, impl->buffer, length, handle_IOHIDDeviceIOHIDReportCallback, iface);
+     if (impl->bt) bt_pad_start(impl->bt);
+     if (impl->sony) pad_triggers(impl);
++    if (impl->sony) pad_lights(impl);
+     return STATUS_SUCCESS;
+ }
+ 
+@@ -1407,6 +1414,46 @@
+ {
+     if (impl->bt) bt_queue_output(impl->bt, report);
+     else IOHIDDeviceSetReport(impl->device, kIOHIDReportTypeOutput, 0x02, report, impl->edge ? 64 : 48);
++}
++
++/* Silo: the pad's own lights while a game has it. Steam for macOS lights a
++ * DualSense in its own colour when it opens it, and again each time it
++ * activates the pad for an app (2 s after a game started, measured on TEKKEN 8,
++ * 2026-11-27, and on every return to Steam): with Steam Input off for the game
++ * that colour said Steam Input drove the pad, which it didn't. So while Wine
++ * has the pad for a game, its lights are the game's, or blue with player 1 as on
++ * a PS5 (Linux's hid-playstation picks the same blue) until the game sets its
++ * own, and they are written again every 2 s, the way the triggers' settings
++ * are followed: Steam's colour shows for at most that long. With Steam Input on
++ * Wine never starts the pad (Silo's Hidraw=0), so Steam's colour stays. */
++static void pad_lights_write(struct iohid_device *impl)
++{
++    BYTE report[64] = {0x02};
++
++    report[2] = 0x04 | 0x10;  /* valid flag 1: light bar, player indicator */
++    report[44] = impl->lights[0];
++    memcpy(report + 45, impl->lights + 1, 3);
++    pad_write_output(impl, report);
++    impl->lights_at = mach_absolute_time();
++}
++
++static void pad_lights(struct iohid_device *impl)
++{
++    BYTE report[64] = {0x02};
++
++    report[39] = 0x02;  /* valid flag 2: light bar setup */
++    report[42] = 0x02;  /* light out: the firmware lets go of the light bar */
++    pad_write_output(impl, report);
++    impl->lights[0] = 0x04;  /* player 1: the middle LED */
++    impl->lights[1] = impl->lights[2] = 0x00;
++    impl->lights[3] = 0x80;
++    pad_lights_write(impl);
++    pad_log("the %s's lights: blue, player 1, kept while the game has the pad\n", impl->model);
++}
++
++static void pad_lights_follow(struct iohid_device *impl)
++{
++    if (impl->lights_at && mach_absolute_time() - impl->lights_at >= bt_ticks(2.0)) pad_lights_write(impl);
+ }
+ 
+ /* The chosen effects, written when the pad starts; or, with none chosen, the
+@@ -1940,6 +1987,13 @@
+         BOOL rumble = (report[1] & 0x01) || (length > 39 && (report[39] & 0x04));
+         if (rumble) pad_motors_told(impl, report[4], report[3]);
+         else if (!(report[1] & 0x02)) pad_motors_told(impl, 0, 0);
++    }
++
++    /* Silo: the lights the game sets are the ones kept (see pad_lights). */
++    if (output && from_game)
++    {
++        if (report[2] & 0x04) memcpy(impl->lights + 1, report + 45, 3);
++        if (report[2] & 0x10) impl->lights[0] = report[44];
+     }
+ 
+     /* How the game drives the pad, said once each, for MacGameFix's list of what
