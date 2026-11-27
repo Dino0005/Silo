@@ -37,6 +37,14 @@ struct DualSenseOptionsTests {
                     .contains("rumble=motors"))
     }
 
+    @Test("DualSense as XInput also tells Silo's lsteamclient to report it to Steam Input, in the game and its host")
+    func steamInputKey() {
+        #expect(EnvFlags().environment()[EnvFlags.steamInputDualSenseKey] == nil)
+        #expect(EnvFlags(dualSenseAsXInput: true).environment()[EnvFlags.steamInputDualSenseKey] == "1")
+        #expect(LaunchOrchestrator.hostEnvironment(for: EnvFlags(dualSenseAsXInput: true))[EnvFlags.steamInputDualSenseKey] == "1")
+        #expect(LaunchOrchestrator.hostEnvironment(for: EnvFlags(advertiseAVX: false)).isEmpty)
+    }
+
     @Test("Old configs read the DualSense options as their defaults, and the Compatibility page carries them")
     func decodingAndPage() throws {
         let old = try JSONDecoder().decode(EnvFlags.self, from: Data(#"{"syncMode":"msync"}"#.utf8))

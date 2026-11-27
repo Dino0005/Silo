@@ -1,0 +1,128 @@
+Silo lsteamclient patch 0004 — Steam Input reports the DualSense Silo's Wine offers as an XInput pad
+
+Why: TEKKEN 8 reads buttons through XInput and asks Steam Input only for the controller TYPE, to pick its
+button prompts. With Steam Input off for the game (the way Silo's DualSense patches give it the pad over
+Bluetooth), Steam reports no controller and the game shows Xbox prompts. With SILO_STEAM_INPUT_DUALSENSE=1 —
+Silo sets it when the game's "DualSense as an XInput controller" is on — and Steam reporting no controller,
+SteamInput006 reports one: a PS5 controller in gamepad slot 0, where Wine offers the pad (Silo Wine patch 0024's
+xinput=pad). Every other call with that handle reaches Steam unchanged; Steam knows no such handle and answers
+with its defaults. With Steam Input on, Steam's own answers pass through untouched.
+
+--- a/lsteamclient/cppISteamInput_SteamInput006.cpp
++++ b/lsteamclient/cppISteamInput_SteamInput006.cpp
+@@ -5,6 +5,25 @@
+ #pragma makedep unix
+ #endif
+ 
++/* Silo: with SILO_STEAM_INPUT_DUALSENSE=1 (Silo sets it when the game's "DualSense as an XInput controller" is on)
++ * and Steam reporting no controller (Steam Input off for the game), one DualSense is reported in XInput slot 0,
++ * where Silo's Wine offers the pad: games that read buttons through XInput and take the controller TYPE from
++ * Steam Input (TEKKEN 8) then show PlayStation prompts. Calls with that handle reach Steam unchanged, which
++ * knows no such handle and answers with its defaults. With Steam Input on, Steam's own answers pass through. */
++#include <stdlib.h>
++#define SILO_DUALSENSE_HANDLE 0x5110d5e000000001ull
++
++static bool silo_dualsense_enabled(void)
++{
++    static int enabled = -1;
++    if (enabled < 0)
++    {
++        const char *value = getenv( "SILO_STEAM_INPUT_DUALSENSE" );
++        enabled = value && value[0] == '1';
++    }
++    return enabled;
++}
++
+ NTSTATUS ISteamInput_SteamInput006_Init( void *args )
+ {
+     struct ISteamInput_SteamInput006_Init_params *params = (struct ISteamInput_SteamInput006_Init_params *)args;
+@@ -122,6 +141,11 @@
+     struct ISteamInput_SteamInput006_GetConnectedControllers_params *params = (struct ISteamInput_SteamInput006_GetConnectedControllers_params *)args;
+     struct u_ISteamInput_SteamInput006 *iface = (struct u_ISteamInput_SteamInput006 *)params->u_iface;
+     params->_ret = iface->GetConnectedControllers( params->handlesOut );
++    if (!params->_ret && silo_dualsense_enabled())
++    {
++        params->handlesOut[0] = SILO_DUALSENSE_HANDLE;
++        params->_ret = 1;
++    }
+     return 0;
+ }
+ 
+@@ -131,6 +155,11 @@
+     struct wow64_ISteamInput_SteamInput006_GetConnectedControllers_params *params = (struct wow64_ISteamInput_SteamInput006_GetConnectedControllers_params *)args;
+     struct u_ISteamInput_SteamInput006 *iface = (struct u_ISteamInput_SteamInput006 *)params->u_iface;
+     params->_ret = iface->GetConnectedControllers( params->handlesOut );
++    if (!params->_ret && silo_dualsense_enabled())
++    {
++        params->handlesOut[0] = SILO_DUALSENSE_HANDLE;
++        params->_ret = 1;
++    }
+     return 0;
+ }
+ #endif
+@@ -607,7 +636,10 @@
+ {
+     struct ISteamInput_SteamInput006_GetInputTypeForHandle_params *params = (struct ISteamInput_SteamInput006_GetInputTypeForHandle_params *)args;
+     struct u_ISteamInput_SteamInput006 *iface = (struct u_ISteamInput_SteamInput006 *)params->u_iface;
+-    params->_ret = iface->GetInputTypeForHandle( params->inputHandle );
++    if (params->inputHandle == SILO_DUALSENSE_HANDLE && silo_dualsense_enabled())
++        params->_ret = 13; /* k_ESteamInputType_PS5Controller (SDK 151 and later) */
++    else
++        params->_ret = iface->GetInputTypeForHandle( params->inputHandle );
+     return 0;
+ }
+ 
+@@ -616,7 +648,10 @@
+ {
+     struct wow64_ISteamInput_SteamInput006_GetInputTypeForHandle_params *params = (struct wow64_ISteamInput_SteamInput006_GetInputTypeForHandle_params *)args;
+     struct u_ISteamInput_SteamInput006 *iface = (struct u_ISteamInput_SteamInput006 *)params->u_iface;
+-    params->_ret = iface->GetInputTypeForHandle( params->inputHandle );
++    if (params->inputHandle == SILO_DUALSENSE_HANDLE && silo_dualsense_enabled())
++        params->_ret = 13; /* k_ESteamInputType_PS5Controller (SDK 151 and later) */
++    else
++        params->_ret = iface->GetInputTypeForHandle( params->inputHandle );
+     return 0;
+ }
+ #endif
+@@ -626,6 +661,8 @@
+     struct ISteamInput_SteamInput006_GetControllerForGamepadIndex_params *params = (struct ISteamInput_SteamInput006_GetControllerForGamepadIndex_params *)args;
+     struct u_ISteamInput_SteamInput006 *iface = (struct u_ISteamInput_SteamInput006 *)params->u_iface;
+     params->_ret = iface->GetControllerForGamepadIndex( params->nIndex );
++    if (!params->_ret && params->nIndex == 0 && silo_dualsense_enabled())
++        params->_ret = SILO_DUALSENSE_HANDLE;
+     return 0;
+ }
+ 
+@@ -635,6 +672,8 @@
+     struct wow64_ISteamInput_SteamInput006_GetControllerForGamepadIndex_params *params = (struct wow64_ISteamInput_SteamInput006_GetControllerForGamepadIndex_params *)args;
+     struct u_ISteamInput_SteamInput006 *iface = (struct u_ISteamInput_SteamInput006 *)params->u_iface;
+     params->_ret = iface->GetControllerForGamepadIndex( params->nIndex );
++    if (!params->_ret && params->nIndex == 0 && silo_dualsense_enabled())
++        params->_ret = SILO_DUALSENSE_HANDLE;
+     return 0;
+ }
+ #endif
+@@ -643,7 +682,10 @@
+ {
+     struct ISteamInput_SteamInput006_GetGamepadIndexForController_params *params = (struct ISteamInput_SteamInput006_GetGamepadIndexForController_params *)args;
+     struct u_ISteamInput_SteamInput006 *iface = (struct u_ISteamInput_SteamInput006 *)params->u_iface;
+-    params->_ret = iface->GetGamepadIndexForController( params->ulinputHandle );
++    if (params->ulinputHandle == SILO_DUALSENSE_HANDLE && silo_dualsense_enabled())
++        params->_ret = 0;
++    else
++        params->_ret = iface->GetGamepadIndexForController( params->ulinputHandle );
+     return 0;
+ }
+ 
+@@ -652,7 +694,10 @@
+ {
+     struct wow64_ISteamInput_SteamInput006_GetGamepadIndexForController_params *params = (struct wow64_ISteamInput_SteamInput006_GetGamepadIndexForController_params *)args;
+     struct u_ISteamInput_SteamInput006 *iface = (struct u_ISteamInput_SteamInput006 *)params->u_iface;
+-    params->_ret = iface->GetGamepadIndexForController( params->ulinputHandle );
++    if (params->ulinputHandle == SILO_DUALSENSE_HANDLE && silo_dualsense_enabled())
++        params->_ret = 0;
++    else
++        params->_ret = iface->GetGamepadIndexForController( params->ulinputHandle );
+     return 0;
+ }
+ #endif

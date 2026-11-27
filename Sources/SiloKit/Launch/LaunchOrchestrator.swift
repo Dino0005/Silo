@@ -379,9 +379,13 @@ public struct LaunchOrchestrator: Sendable {
     /// its own exe, so a leftover naming the previous game is harmless (that exe simply isn't adopted).
     /// `AltLoaderSession.cleanup` stays available for a deliberate teardown.
     /// What the game's host process must have from its own start, not later from the socket: Rosetta reads
-    /// `ROSETTA_ADVERTISE_AVX` at exec (see `AltLoaderSession.prepare`).
+    /// `ROSETTA_ADVERTISE_AVX` at exec (see `AltLoaderSession.prepare`); lsteamclient's unix half reads
+    /// `EnvFlags.steamInputDualSenseKey` from that process's own environment.
     static func hostEnvironment(for flags: EnvFlags) -> [String: String] {
-        flags.advertiseAVX ? ["ROSETTA_ADVERTISE_AVX": "1"] : [:]
+        var env: [String: String] = [:]
+        if flags.advertiseAVX { env["ROSETTA_ADVERTISE_AVX"] = "1" }
+        if flags.dualSenseAsXInput { env[EnvFlags.steamInputDualSenseKey] = "1" }
+        return env
     }
 
     private func prepareAltLoader(

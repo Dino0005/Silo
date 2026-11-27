@@ -159,6 +159,9 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         self.extra = extra
     }
 
+    /// Read by the unix half of Silo's lsteamclient (`Scripts/lsteamclient-patches/0004`).
+    public static let steamInputDualSenseKey = "SILO_STEAM_INPUT_DUALSENSE"
+
     /// Environment variables contributed by these flags, for the game's graphics backend (the MetalFX /
     /// DXR vars differ between GPTK's D3DMetal and DXMT). `extra` is merged last so it can override anything.
     public func environment(graphics: GraphicsBackend = .gptk) -> [String: String] {
@@ -170,6 +173,9 @@ public struct EnvFlags: Codable, Sendable, Hashable {
         }
         if advertiseAVX { env["ROSETTA_ADVERTISE_AVX"] = "1" }   // x86 Wine runs under Rosetta
         if metalHUD { env["MTL_HUD_ENABLED"] = "1" }             // Apple's Metal HUD — any Metal backend
+        // Silo's lsteamclient (patch 0004): with Steam Input off, Steam Input reports this DualSense (XInput slot 0)
+        // as a PS5 controller, so a game that takes the controller type from Steam shows PlayStation prompts.
+        if dualSenseAsXInput { env[Self.steamInputDualSenseKey] = "1" }
         // DXMT's half of `metalFX` depends on the game and the installed DXMT, so `makePlan` emits it.
         if metalFX, graphics == .gptk { env["D3DM_ENABLE_METALFX"] = "1" }
         if dxr, graphics == .gptk { env["D3DM_SUPPORT_DXR"] = "1" }   // DX12 raytracing — GPTK only
