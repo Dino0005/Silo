@@ -117,7 +117,7 @@ struct ControllersSection: View {
             }
             Toggle(isOn: $flags.dualSenseAsXInput) {
                 Text("DualSense as an XInput controller")
-                Text("For games that read only Xbox controllers, such as TEKKEN 8: the DualSense is offered to them as one. They may show Xbox button prompts.")
+                Text("For games that read only Xbox controllers, such as TEKKEN 8: the DualSense is offered to them as one, and reported to Steam Input as a DualSense, so games that ask Steam show PlayStation prompts.")
             }
         } header: {
             Text("DualSense")

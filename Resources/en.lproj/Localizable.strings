@@ -531,7 +531,7 @@
 "Rumble on the HD actuators" = "Rumble on the HD actuators";
 "Over Bluetooth, the game's rumble played on the DualSense's HD actuators instead of its motors' emulation: stronger. A game's own haptics come first." = "Over Bluetooth, the game's rumble played on the DualSense's HD actuators instead of its motors' emulation: stronger. A game's own haptics come first.";
 "DualSense as an XInput controller" = "DualSense as an XInput controller";
-"For games that read only Xbox controllers, such as TEKKEN 8: the DualSense is offered to them as one. They may show Xbox button prompts." = "For games that read only Xbox controllers, such as TEKKEN 8: the DualSense is offered to them as one. They may show Xbox button prompts.";
+"For games that read only Xbox controllers, such as TEKKEN 8: the DualSense is offered to them as one, and reported to Steam Input as a DualSense, so games that ask Steam show PlayStation prompts." = "For games that read only Xbox controllers, such as TEKKEN 8: the DualSense is offered to them as one, and reported to Steam Input as a DualSense, so games that ask Steam show PlayStation prompts.";
 "DualSense" = "DualSense";
 "With Steam Input off for the game, from Steam for macOS or Silo's Steam: then Wine reads the DualSense itself. With Steam Input on, the game gets Steam's controller and these don't apply. From MacGameFix, by Mathias Kowoll." = "With Steam Input off for the game, from Steam for macOS or Silo's Steam: then Wine reads the DualSense itself. With Steam Input on, the game gets Steam's controller and these don't apply. From MacGameFix, by Mathias Kowoll.";
 "Controllers" = "Controllers";
