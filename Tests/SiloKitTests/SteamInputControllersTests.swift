@@ -142,6 +142,7 @@ struct SteamInputControllersTests {
         let call = try #require(fake.lastInvocation)
         #expect(call.arguments == ["regedit", "/S", #"C:\silo-controllers.reg"#])
         #expect(call.environment["WINEPREFIX"] == prefix.path)
+        #expect(call.environment["WINEDLLOVERRIDES"] == "winebus.sys=d")   // an idle bottle: the import opens no pad
         let owned = try String(contentsOf: prefix.appendingPathComponent(".silo-hidden-controllers"), encoding: .utf8)
         #expect(owned.contains("054c/0ce6\n"))
         #expect(!FileManager.default.fileExists(atPath: prefix.appendingPathComponent("drive_c/silo-controllers.reg").path))
@@ -175,6 +176,36 @@ struct SteamInputControllersTests {
                                               isLive: { _ in _ = busy.next(); return true },
                                               pollInterval: .milliseconds(1))
         #expect(busy.value == 1)
+    }
+
+    @Test("An import server still up at the limit is stopped, so the game never joins a server without winebus")
+    func stopsALingeringImportServer() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let prefix = try tmp.makeDir("bottle")
+        try tmp.makeDir("bottle/drive_c")
+        let fake = FakeProcessRunner()
+        let checks = Counter()
+        let line = await SteamInputControllers.apply(
+            environment: steamInputOn, flags: EnvFlags(), prefix: prefix, wine: URL(fileURLWithPath: "/w/bin/wine64"),
+            runner: fake, isLive: { _ in checks.next() >= 1 }, waitLimit: .milliseconds(20),
+            pollInterval: .milliseconds(1))
+        #expect(line == "controllers: 6 kept off hidraw, the import's wineserver stopped")
+        let kill = try #require(fake.lastInvocation)
+        #expect(kill.executable.path == "/w/bin/wineserver" && kill.arguments == ["-k"])
+        #expect(kill.environment["WINEPREFIX"] == prefix.path)
+    }
+
+    @Test("A bottle already running: the import keeps winebus (its server is the running one) and nothing is stopped")
+    func busyBottleKeepsWinebus() async throws {
+        let tmp = try TempDir(); defer { tmp.cleanup() }
+        let prefix = try tmp.makeDir("bottle")
+        try tmp.makeDir("bottle/drive_c")
+        let fake = FakeProcessRunner()
+        _ = await SteamInputControllers.apply(environment: steamInputOn, flags: EnvFlags(), prefix: prefix,
+                                              wine: URL(fileURLWithPath: "/w/bin/wine64"), runner: fake,
+                                              isLive: { _ in true }, pollInterval: .milliseconds(1))
+        #expect(fake.invocations.count == 1)
+        #expect(fake.lastInvocation?.environment["WINEDLLOVERRIDES"] == nil)
     }
 
     @Test("A failed import changes nothing on Silo's side")

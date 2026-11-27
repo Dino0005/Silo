@@ -103,6 +103,13 @@ public enum SteamInputControllers {
     /// import landed; that server would live on into the game, which then saw the pads as the previous game wanted
     /// (likely cause of TEKKEN 8's Xbox glyphs on the first launch after a game with Steam Input on, 2026-11-13).
     /// Skipped when the bottle was already running something: then waiting can't help and could last the whole game.
+    ///
+    /// That import's own server runs without `winebus.sys` (`WINEDLLOVERRIDES`, only when the bottle was idle): with
+    /// the DualSense patches, its winebus opened a Bluetooth DualSense Steam Input held for the ~3 s it lived, with the
+    /// registry still as the previous game left it (measured 2026-11-27, TEKKEN 8 after a launch with Steam Input
+    /// off). So the game must never join that server: if it hasn't exited by `waitLimit`, it is stopped
+    /// (`wineserver -k` — nothing else was running in the bottle), and the game starts its own, with every driver.
+    /// (2b00ef2 dropped the driver without that guarantee, and God of War joined the driverless server.)
     @discardableResult
     public static func apply(environment: [String: String], flags: EnvFlags, prefix: URL, wine: URL,
                              runner: ProcessRunning, hideSteamInputPads: Bool = true,
@@ -117,6 +124,7 @@ public enum SteamInputControllers {
             .split(whereSeparator: \.isNewline).map(String.init).filter { ids("0x" + $0.replacingOccurrences(of: "/", with: "/0x")) == [$0] })
         let state = registryState(systemReg: (try? String(contentsOf: prefix.appendingPathComponent("system.reg"),
                                                           encoding: .utf8)) ?? "")
+        var stopped = false
         let plan = plan(environment: environment, flags: flags, owned: owned, inRegistry: state.devices,
                         hidrawSet: state.disableHidraw, hidrawMarker: fileManager.fileExists(atPath: markerURL.path),
                         hideSteamInputPads: hideSteamInputPads)
@@ -126,15 +134,26 @@ public enum SteamInputControllers {
             guard (try? registryText(plan).write(to: file, atomically: true, encoding: .utf8)) != nil else {
                 return "controllers: could not write the registry file"
             }
+            var environment = Silo.syncWineEnvironment(prefix: prefix, wine: wine, syncMode: flags.syncMode)
+            if !wasLive { environment["WINEDLLOVERRIDES"] = "winebus.sys=d" }
             let result = try? await runner.run(
                 executable: wine, arguments: ["regedit", "/S", "C:\\\(name)"],
-                environment: Silo.syncWineEnvironment(prefix: prefix, wine: wine, syncMode: flags.syncMode),
-                currentDirectory: prefix)
+                environment: environment, currentDirectory: prefix)
             try? fileManager.removeItem(at: file)
             guard result?.succeeded == true else { return "controllers: registry import failed, left as they were" }
             if !wasLive {
                 let clock = ContinuousClock(), deadline = clock.now.advanced(by: waitLimit)
-                while isLive(prefix), clock.now < deadline { try? await Task.sleep(for: pollInterval) }
+                var live = isLive(prefix)
+                while live, clock.now < deadline {
+                    try? await Task.sleep(for: pollInterval)
+                    live = isLive(prefix)
+                }
+                if live {
+                    _ = try? await runner.run(executable: WineRuntimeLayout(wineBinary: wine).wineserver,
+                                              arguments: ["-k"], environment: ["WINEPREFIX": prefix.path],
+                                              currentDirectory: nil)
+                    stopped = true
+                }
             }
         }
         try? (plan.owned.joined(separator: "\n") + (plan.owned.isEmpty ? "" : "\n"))
@@ -147,6 +166,7 @@ public enum SteamInputControllers {
         var parts = hideSteamInputPads || !plan.owned.isEmpty ? ["\(plan.owned.count) kept off hidraw"] : []
         if !plan.unhide.isEmpty { parts.append("\(plan.unhide.count) given back") }
         if let hidraw = plan.disableHidraw { parts.append(hidraw ? "hidraw disabled" : "hidraw re-enabled") }
+        if stopped { parts.append("the import's wineserver stopped") }
         return "controllers: " + parts.joined(separator: ", ")
     }
 }
