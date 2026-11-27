@@ -117,7 +117,7 @@ struct ControllersSection: View {
             }
             Toggle(isOn: $flags.dualSenseAsXInput) {
                 Text("DualSense as an XInput controller")
-                Text("For games that read only Xbox controllers, such as TEKKEN 8: the DualSense is offered to them as one, and reported to Steam Input as a DualSense, so games that ask Steam show PlayStation prompts.")
+                Text("For games that read only Xbox controllers, such as TEKKEN 8: the DualSense is offered to them as one, and reported to Steam Input as a DualSense, so games that ask Steam show PlayStation prompts. The game isn't told when Steam's overlay opens (TEKKEN 8 dropped those prompts on it), so it may not pause then.")
             }
         } header: {
             Text("DualSense")

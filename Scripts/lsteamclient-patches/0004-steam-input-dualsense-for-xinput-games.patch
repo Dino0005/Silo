@@ -10,7 +10,9 @@ open Steam takes the pad and reports it. And the game is told neither that the o
 (GameOverlayActivated_t) nor that Steam loaded an input configuration (SteamInputConfigurationLoaded_t, which comes
 with the overlay): on those TEKKEN 8 dropped the PlayStation prompts for the rest of the run (measured 2026-11-27 —
 hiding the configuration callback alone, or rewriting its handle, was not enough). The overlay still opens; a game
-that pauses on it doesn't. Every other call with that handle reaches Steam
+that pauses on it doesn't. The same two callbacks stay hidden with SILO_STEAM_QUIET_OVERLAY=1 alone — Silo's
+choice when Steam Input holds that game's DualSense — where TEKKEN 8 dropped Steam's own PlayStation prompts on
+the overlay too; SteamInput006 then answers as Steam does. Every other call with that handle reaches Steam
 unchanged; Steam knows no such handle and answers with its defaults. Without the variable (Steam Input on),
 Steam's own answers pass through untouched.
 
@@ -148,33 +150,37 @@ Steam's own answers pass through untouched.
  #endif
 --- a/lsteamclient/unixlib.cpp
 +++ b/lsteamclient/unixlib.cpp
-@@ -326,6 +326,36 @@
+@@ -326,6 +326,40 @@
  static void (*p_Steam_ReleaseThreadLocalMemory)( int );
  static bool (*p_Steam_IsKnownInterface)( const char * );
  static void (*p_Steam_NotifyMissingInterface)( int32_t, const char * );
 +
-+static int silo_dualsense_enabled(void)
++/* SILO_STEAM_INPUT_DUALSENSE=1 (Steam Input off, the DualSense reported by SteamInput006), or
++ * SILO_STEAM_QUIET_OVERLAY=1 alone (Steam Input on for that game's DualSense: Steam's own answers pass, the
++ * overlay's callbacks still don't). */
++static int silo_quiet_overlay(void)
 +{
 +    static int enabled = -1;
 +
 +    if (enabled < 0)
 +    {
-+        const char *value = getenv( "SILO_STEAM_INPUT_DUALSENSE" );
-+        enabled = value && value[0] == '1';
++        const char *dualsense = getenv( "SILO_STEAM_INPUT_DUALSENSE" ), *quiet = getenv( "SILO_STEAM_QUIET_OVERLAY" );
++        enabled = (dualsense && dualsense[0] == '1') || (quiet && quiet[0] == '1');
 +    }
 +    return enabled;
 +}
 +
-+/* Silo (lsteamclient patch 0004): with SILO_STEAM_INPUT_DUALSENSE=1 the game is told neither that Steam's overlay
++/* Silo (lsteamclient patch 0004): with either variable above the game is told neither that Steam's overlay
 + * opened or closed (GameOverlayActivated_t, 331) nor that Steam loaded an input configuration
 + * (SteamInputConfigurationLoaded_t, 2803, which comes with the overlay for the pad Steam then holds). On either,
 + * TEKKEN 8 dropped the PlayStation prompts SteamInput006 gave it and showed Xbox ones for the rest of the run
 + * (measured 2026-11-27: hiding 2803 alone, or rewriting its handle to the reported DualSense, was not enough;
-+ * hiding both kept the PlayStation prompts). The overlay itself still opens; a game that pauses on it doesn't. The
++ * hiding both kept the PlayStation prompts) — and the same with Steam Input on, Steam's own prompts dropped after
++ * the overlay. The overlay itself still opens; a game that pauses on it doesn't. The
 + * id becomes one no game registers for. */
 +static int silo_steam_input_callback_id( const u_CallbackMsg_t *msg )
 +{
-+    if (silo_dualsense_enabled() && (msg->m_iCallback == 2803 /* SteamInputConfigurationLoaded_t */ ||
++    if (silo_quiet_overlay() && (msg->m_iCallback == 2803 /* SteamInputConfigurationLoaded_t */ ||
 +                                     msg->m_iCallback == 331 /* GameOverlayActivated_t */))
 +    {
 +        TRACE( "callback %d not passed on (Silo's DualSense)\n", msg->m_iCallback );
@@ -185,7 +191,7 @@ Steam's own answers pass through untouched.
  
  template< typename Params >
  static NTSTATUS steamclient_Steam_BGetCallback( Params *params, bool wow64 )
-@@ -340,7 +370,7 @@
+@@ -340,7 +374,7 @@
          u_msg = new u_CallbackMsg_t(u_msg_tmp);
          TRACE( "id %d, u_size %d.\n", u_msg->m_iCallback, u_msg->m_cubParam );
          w_msg->m_hSteamUser = u_msg->m_hSteamUser;

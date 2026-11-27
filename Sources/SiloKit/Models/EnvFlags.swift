@@ -161,6 +161,9 @@ public struct EnvFlags: Codable, Sendable, Hashable {
 
     /// Read by the unix half of Silo's lsteamclient (`Scripts/lsteamclient-patches/0004`).
     public static let steamInputDualSenseKey = "SILO_STEAM_INPUT_DUALSENSE"
+    /// Read by the same patch: hide Steam's overlay callbacks from the game (implied by `steamInputDualSenseKey`).
+    /// Set alone when Steam Input holds the DualSense of a game with "DualSense as an XInput controller" on.
+    public static let steamQuietOverlayKey = "SILO_STEAM_QUIET_OVERLAY"
 
     /// Environment variables contributed by these flags, for the game's graphics backend (the MetalFX /
     /// DXR vars differ between GPTK's D3DMetal and DXMT). `extra` is merged last so it can override anything.

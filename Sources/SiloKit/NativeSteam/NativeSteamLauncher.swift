@@ -55,7 +55,9 @@ public struct NativeSteamLauncher: Sendable {
         // with it Silo's lsteamclient reporting the pad to Steam Input) is for a pad Wine reads, so it stays off.
         if config.envFlags.dualSenseAsXInput, SteamInputControllers.steamInputHoldsDualSense(self.environment) {
             config.envFlags.dualSenseAsXInput = false
-            log("dualsense: Steam Input has the pad, so it is not offered as an XInput controller")
+            // TEKKEN 8 still drops Steam's PlayStation prompts on the overlay's callbacks: those stay hidden.
+            config.envFlags.extra[EnvFlags.steamQuietOverlayKey] = "1"
+            log("dualsense: Steam Input has the pad, so it is not offered as an XInput controller; overlay callbacks hidden")
         }
         let app = try Self.steamApp(for: request)
 
