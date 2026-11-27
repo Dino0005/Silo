@@ -16,6 +16,16 @@ the commit message says why.
   played on the HD actuators, trigger effects, the pad as an XInput controller, and HD haptics on a cable. With Steam
   Input off for a game, UNCHARTED now reads the DualSense over Bluetooth (before, it saw it but got no input), with
   its trigger effects. Nothing changes for a game until its options say so.
+- **DualSense options per game**, in its settings (Controllers) and on the Compatibility page in Steam for macOS:
+  *Bluetooth DualSense as wired* (on by default), *Rumble on the HD actuators*, *DualSense as an XInput controller*.
+  Verified with Steam Input off: UNCHARTED and The Last of Us Part II read the DualSense over Bluetooth with trigger
+  effects and rumble; TEKKEN 8 works as an XInput pad (Xbox prompts; with Steam Input on it keeps PlayStation ones).
+- **"Disable hidraw" for non-Steam games** too (settings → Controllers), applied to the game's own bottle at launch.
+  God of War now gets PlayStation prompts and rumble over Bluetooth with it off.
+
+### Fixed
+- Before a launch, the registry update for Steam Input's controllers no longer opens the controllers for a few
+  seconds (it briefly took a Bluetooth DualSense away from Steam), and the game always starts its own Wine server.
 
 ## 0.7.9
 
